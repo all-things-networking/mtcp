@@ -1,0 +1,506 @@
+event SEND : INCOMING::APP_EVENT {
+    uint32 data_size;
+}
+
+event ACK : INCOMING::NET_EVENT {
+    uint32 ack_seq;
+    uint32 rwnd_size;
+}
+
+event DATA : INCOMING::NET_EVENT {
+    uint32 data_len;
+    uint32 seq_num;
+    addr_t hold_addr;
+}
+
+event MISS_ACK : TIMER_EVENT {
+    uint32 seq_num;
+}
+
+event FB_EVENT : OUTGOING::APP_EVENT {
+    uint32 seq_num;
+    uint32 data_len;
+}
+
+pkt_bp IPBP {
+    bool ecn;
+    bit<16> identification;
+    bit<3> flags;
+    bit<8> ttl;
+    bit<8> protocol;
+    bit<16> hdrChecksum;
+    uint16 tot_len;
+    addr_t src_addr;
+    addr_t dst_addr;
+}
+
+pkt_bp TCPBP {
+    uint16 src_port;
+    uint16 dest_port;
+    uint32 seq;
+    uint32 ack_seq;
+    uint16 rwnd_size;
+    uint8  is_ack;
+    checksum16_t checksum;
+    data_t data;
+}
+
+event PKT_EVENT : OUTGOING::NET_EVENT {
+    TCPBP bp;
+}
+
+interm_output interm_out {
+    bool change_cwnd;
+    bool skip_ack_eps;
+}
+
+//struct sent_pkt_info {
+//    uint32 seq_num;
+//    uint32 data_len;
+//}
+
+context tcp_context {
+    uint16 src_port;
+    uint16 dest_port;
+    addr_t buf_addr;
+    uint32 init_seq;
+
+    uint32 last_ack = 429496729;
+    uint8 duplicate_acks = 0;
+    uint32 flightsize_dupl = 0;
+    uint32 ssthresh = 99999999;
+    uint32 cwnd_size = 3 * SMSS;
+
+    uint32 RTO = ONE_SEC;
+    int64 SRTT = 0;
+    uint32 RTTVAR = 0;
+    bool first_rto = 1;
+
+    uint32 send_una = 0;
+    uint32 send_next = 0;
+    uint32 data_end = 0;
+    uint32 last_rwnd_size = 16959;
+
+    uint32 rwnd_size = 16959;
+    uint32 recv_next = 0;
+    //list<sent_pkt_info> data_recv_info_array(500);
+    //uint32 data_recv_array_head = 0;
+    //uint32 data_recv_array_tail = 0;
+
+    timer_t ack_timeout;
+
+    addr_t read_from_addr;
+    addr_t write_to_addr;
+
+    sliding_wnd meta_rwnd;
+    buffer_id_t bid;
+}
+
+app_to_transp att_module {
+    app_header APPheader {
+        uint32 data_size;
+    }
+    list<event_t> parse_app_request(app_req_t req) { 
+        list<event_t> out;
+        APPheader r;
+        req.extract(r);
+        flow_id id(r.src_addr, r.dst_addr, r.src_port, r.dest_port);
+        if(req.type == SEND) {
+            SEND event;
+            event.data_size = r.data_size;
+            set_fid(event, id);
+            out.add(ev);
+        }
+        return out;
+    }
+}
+
+// Q: so, IP will also be a blueprint, not a header type?
+// A: add net_header
+
+net_to_transp ntt_module {
+    net_header IPheader {
+        ...
+    }
+    list<event_t> parse_net_packet(pkt_t p, IPheader i) { 
+        list<event_t> out;
+        TCPBP pkt_bp;
+        p.extract(pkt_bp); 
+        flow_id id(i.src_addr, i.dst_addr, p.src_port, p.dest_port);
+        if(len(pkt_bp.data) > 0) {
+            DATA event;
+            event.seq_num = pkt_bp.seq;
+            event.hold_addr = pkt_bp.data.addr;
+            event.data_len = len(pkt_bp.data);
+            set_flow_id(event, id);
+            out.add(event);
+        }
+        if(pkt_bp.is_ack == 1) {
+            ACK event;
+            event.ack_seq = pkt_bp.ack_seq;
+            event.rwnd_size = pkt_bp.rwnd_size;
+            set_flow_id(event, id);
+            events.add(ack_ev);
+        }
+        return out;
+    }
+}
+
+list<event_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
+    list<event_t> events;
+
+    uint32 SMSS = 1440;
+
+    ctx.data_end = ctx.data_end + ev.data_size;
+
+    uint32 data_rest = ctx.data_end - ctx.send_next;
+    uint32 effective_window = ctx.cwnd_size;
+    if(effective_window > ctx.last_rwnd_size)
+        effective_window = ctx.last_rwnd_size;
+
+    uint32 bytes_to_send = 0;
+
+    if(ctx.send_una + effective_window < ctx.send_next)
+        return;
+    else {
+        uint32 window_avail = ctx.send_una + effective_window - ctx.send_next;
+        if(data_rest < window_avail)
+            bytes_to_send = data_rest;
+        else
+            bytes_to_send = window_avail;
+    }
+
+    TCPBP bp;
+    bp.src_port = ctx.src_port;
+    bp.dest_port = ctx.dest_port;
+    bp.seq_num = ctx.send_next;
+    bp.is_ack = 0;
+    // bp.checksum = CRC16_t();
+    addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
+    bp.data = unseg_data(addr, bytes_to_send, SMSS, TCPBP::seq_num, len(TCPBP::data));
+
+    PKT_EVENT pkt_ev;
+    pkt_ev.bp = bp;
+    events.add(pkt_ev);
+
+    ctx.send_next = ctx.send_next + bytes_to_send;
+
+    MISS_ACK time_ev;
+    time_ev.seq_num = ctx.send_una;
+    ctx.ack_timeout.set_duration(nanosecond(ctx.RTO));
+    ctx.ack_timeout.start(time_ev);
+
+    return events;
+}
+
+void rto_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+
+    int_out.skip_ack_eps = 0;
+
+    if(ev.ack_seq < ctx.send_una || ctx.send_next < ev.ack_seq) {
+        int_out.skip_ack_eps = 1;
+        return;
+    }
+
+    uint32 granularity_g = 1;
+    uint32 RTT = 100000000;
+
+    if(ctx.first_rto) {
+        ctx.SRTT = RTT;
+        ctx.RTTVAR = RTT / 2;
+        if(granularity_g >= 4 * ctx.RTTVAR)
+            ctx.RTO = ctx.SRTT + granularity_g;
+        else
+            ctx.RTO = ctx.SRTT + 4 * ctx.RTTVAR;
+        
+        ctx.first_rto = false;
+    } else {
+        ctx.RTTVAR = (1 - 1/4) * ctx.RTTVAR + 1/4 * abs(ctx.SRTT - RTT);
+        ctx.SRTT = (1 - 1/8) * ctx.SRTT + 1/8 * RTT;
+        if(granularity_g >= 4 * ctx.RTTVAR)
+            ctx.RTO = ctx.SRTT + granularity_g;
+        else
+            ctx.RTO = ctx.SRTT + 4 * ctx.RTTVAR;
+    }
+}
+
+void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+
+    if(int_out.skip_ack_eps)
+        return;
+    
+    uint32 SMSS = 1440;
+
+    int_out.change_cwnd = 1;
+
+    if(ev.ack_seq == ctx.last_ack) {
+        ctx.duplicate_acks = ctx.duplicate_acks + 1;
+
+        int_out.change_cwnd = 0;
+
+        if(ctx.duplicate_acks == 1) {
+            ctx.flightsize_dupl = ctx.send_next - ctx.send_una;
+        }
+
+        if(ctx.duplicate_acks == 3) {
+
+            uint32 opt1 = ctx.flightsize_dupl / 2;
+            uint32 opt2 = 2 * SMSS;
+            if(opt1 >= opt2)
+                ctx.ssthresh = opt1;
+            else
+                ctx.ssthresh = opt2;
+
+            ctx.cwnd_size = ctx.ssthresh + 1 * SMSS;
+        }
+        
+        if(ctx.duplicate_acks != 3) {
+            ctx.cwnd_size = ctx.cwnd_size + SMSS;
+        }
+
+    } else {
+        if(ctx.duplicate_acks > 0) {
+            ctx.cwnd_size = ctx.ssthresh;
+        }
+
+        ctx.duplicate_acks = 0;
+        ctx.last_ack = ev.ack_seq;
+    }
+}
+
+void slows_congc_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+
+    if(int_out.skip_ack_eps)
+        return;
+
+    uint32 SMSS = 1440;
+
+    if(int_out.change_cwnd) {
+        if(ctx.cwnd_size < ctx.ssthresh) {
+            ctx.cwnd_size = ctx.cwnd_size + SMSS;
+        }
+        else {
+            uint32 add_cwnd = SMSS * SMSS / ctx.cwnd_size;
+            if(add_cwnd == 0)
+                add_cwnd = 1;
+            ctx.cwnd_size = ctx.cwnd_size + add_cwnd;
+        }
+    }
+}
+
+list<event_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+    list<event_t> events;
+
+    uint32 SMSS = 1440;
+
+    if(int_out.skip_ack_eps)
+        return events;
+
+    ctx.last_rwnd_size = ev.rwnd_size;
+    ctx.send_una = ev.ack_seq;
+
+    uint32 data_rest = ctx.data_end - ctx.send_next;
+    if(data_rest == 0 && ev.ack_seq == ctx.send_next) {
+        ctx.ack_timeout.cancel();
+        return events;
+    }
+
+    uint32 effective_window = ctx.cwnd_size;
+    if(effective_window > ctx.last_rwnd_size)
+        effective_window = ctx.last_rwnd_size;
+
+    uint32 bytes_to_send = 0;
+
+    if(ctx.duplicate_acks == 3) {
+        bytes_to_send = SMSS;
+        if(bytes_to_send > effective_window)
+            bytes_to_send = effective_window;
+
+        TCPBP bp;
+        bp.src_port = ctx.src_port;
+        bp.dest_port = ctx.dest_port;
+        bp.seq_num = ctx.send_next;
+        bp.is_ack = 0;
+        // bp.checksum = CRC16_t();
+        addr_t addr = ctx.buf_addr + ctx.send_una - ctx.init_seq;
+        bp.data = seg_data(addr, bytes_to_send);
+
+        PKT_EVENT pkt_ev;
+        pkt_ev.bp = bp;
+        events.add(pkt_ev);
+
+        return events;
+    }
+
+    uint32 window_avail = ctx.send_una + effective_window - ctx.send_next;
+
+    if(window_avail < 0)
+        bytes_to_send = 0;
+    else {
+        if(data_rest < window_avail)
+            bytes_to_send = data_rest;
+        else
+            bytes_to_send = window_avail;
+    }
+
+    TCPBP bp;
+    bp.src_port = ctx.src_port;
+    bp.dest_port = ctx.dest_port;
+    bp.seq_num = ctx.send_next;
+    bp.is_ack = 0;
+    // bp.checksum = CRC16_t();
+    addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
+    // Q: in case there are more than one header value that needs to change (e.g. PSN and opcode), can we keep adding parameters?
+    // A: Rocev2PBP::opcode, [6, 7..., 8] or (6. 7*. 8) | 9
+    // p1 = patten([6, 7..., 8]);
+    // p2 = patten(9);
+    // p1 | p2
+    seg_args plan1 {
+        TCPBP::seq_num -> len(TCPBP::data);
+        TCPBP::opcode -> [6, 7..., 8];
+    }
+    bp.data = unseg_data(addr, bytes_to_send, SMSS, plan1);
+
+    PKT_EVENT pkt_ev;
+    pkt_ev.bp = bp;
+    events.add(pkt_ev);
+
+    ctx.send_next = ctx.send_next + bytes_to_send;
+
+    ctx.ack_timeout.cancel();
+    MISS_ACK time_ev;
+    time_ev.seq_num = ctx.send_una;
+    ctx.ack_timeout.set_duration(nanosecond(ctx.RTO));
+    ctx.ack_timeout.start(time_ev);
+
+    return events;
+}
+
+void data_net_ep (DATA ev, tcp_context ctx, interm_out int_out) {
+
+    if((ctx.rwnd_size == 0 && ev.data_len > 0) ||
+    (ev.seq_num > ctx.recv_next + ctx.rwnd_size) ||
+    (ev.seq_num + ev.data_len - 1 < ctx.recv_next))
+        return;
+
+    uint32 data_end = ev.seq_num + ev.data_len;
+    ctx.meta_rwnd.set(ev.seq_num, data_end);
+    ctx.recv_next = ctx.meta_rwnd.first_unset();
+}
+
+list<event_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out) {
+    list<event_t> events;
+
+    uint32 SMSS = 1440;
+
+    uint32 data_rest = ctx.data_end - ctx.send_next;
+    uint32 effective_window = ctx.cwnd_size;
+    if(effective_window > ctx.last_rwnd_size)
+        effective_window = ctx.last_rwnd_size;
+
+    uint32 window_avail = ctx.send_una + effective_window - ctx.send_next;
+    uint32 bytes_to_send = 0;
+
+    if(window_avail < 0)
+        bytes_to_send = 0;
+    else {
+        if(data_rest < window_avail)
+            bytes_to_send = data_rest;
+        else
+            bytes_to_send = window_avail;
+        
+        if(bytes_to_send > SMSS)
+            bytes_to_send = SMSS;
+    }
+
+    TCPBP bp;
+    bp.src_port = ctx.src_port;
+    bp.dest_port = ctx.dest_port;
+    bp.seq_num = ctx.send_next;
+    bp.is_ack = 1;
+    bp.ack_seq = ctx.recv_next;
+    bp.wnd_size = ctx.rwnd_size;
+    // bp.checksum = CRC16_t();
+    addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
+    // Q: in case no payload is sent, what should the address be?
+    // A: have something special for NULL data
+    bp.data = seg_data(addr, bytes_to_send);
+
+    PKT_EVENT pkt_ev;
+    pkt_ev.bp = bp;
+    events.add(pkt_ev);
+
+    return events;
+}
+
+list<event_t> app_feedback_ep (DATA ev, tcp_context ctx, interm_out int_out) {
+    list<event_t> events;
+
+    DATA_EVENT ev;
+    ev.read_addr = ev.hold_addr;
+    ev.size = ev.data_len;
+    ev.buffer_id = ctx.bid;
+    ev.offset = ev.seq_num - ctx.init_seq;
+    events.add(ev);
+
+    return events;
+}
+
+list<event_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out int_out) {
+    list<event_t> events;
+
+    uint32 SMSS = 1440;
+
+    ctx.cwnd_size = SMSS * 3;
+    uint32 opt1 = (ctx.send_next - ctx.send_una) / 2;
+    uint32 opt2 = 2 * SMSS;
+    if(opt1 > opt2)
+        ctx.ssthresh = opt1;
+    else
+        ctx.ssthresh = opt2;
+    
+    uint32 data_rest = ctx.data_end - ctx.send_una;
+    uint32 effective_window = ctx.cwnd_size;
+    if(effective_window > ctx.last_rwnd_size)
+        effective_window = ctx.last_rwnd_size;
+    
+    uint32 bytes_to_send = 0;
+
+    if(ctx.send_una + effective_window < ctx.send_next) {
+        if(data_rest < effective_window)
+            bytes_to_send = data_rest;
+        else
+            bytes_to_send = effective_window;
+    } else {
+        uint32 window_avail = ctx.send_una + effective_window - ctx.send_next;
+        if(data_rest < window_avail)
+            bytes_to_send = data_rest;
+        else
+            bytes_to_send = window_avail;
+    }
+    if(bytes_to_send > SMSS)
+        bytes_to_send = SMSS;
+
+    TCPBP bp;
+    bp.src_port = ctx.src_port;
+    bp.dest_port = ctx.dest_port;
+    bp.seq_num = ctx.send_next;
+    bp.is_ack = 0;
+    bp.wnd_size = ctx.rwnd_size;
+    // bp.checksum = CRC16_t();
+    addr_t addr = ctx.buf_addr + ctx.send_una - ctx.init_seq;
+    bp.data = seg_data(addr, bytes_to_send);
+
+    PKT_EVENT pkt_ev;
+    pkt_ev.bp = bp;
+    events.add(pkt_ev);
+
+    ctx.ack_timeout.restart(nanosecond(ctx.RTO));
+}
+
+dispatch disp_table {
+    SEND      -> {send_ep};
+    ACK       -> {rto_ep, fast_retr_rec_ep, slows_congc_ep, ack_net_ep};
+    DATA      -> {data_net_ep, send_ack, app_feedback_ep};
+    MISS_ACK   -> {ack_timeout_ep};
+}
