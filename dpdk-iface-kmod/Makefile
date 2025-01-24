@@ -25,7 +25,7 @@ else
 endif
 #-------------------------------------------------------------------------#
 all: dpdk_iface.c $(appname) $(appname).c
-	make -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) modules
+	make -C /lib/modules/$(shell uname -r)/build/ M=$(shell pwd) modules
 
 $(appname): $(appname).c
 	$(MSG) "  CC $<"
@@ -34,7 +34,7 @@ $(appname): $(appname).c
 	$(DPDK_LIB) ${DPDK_MACHINE_LDFLAGS} -lpthread
 
 clean:
-	make -C /lib/modules/$(shell uname -r)/build/ M=$(PWD) clean
+	make -C /lib/modules/$(shell uname -r)/build/ M=$(shell pwd) clean
 	$(MSG) "  CLEAN  $(appname)"
 	$(HIDE) rm -rf *~ *.o *.ko dpdk_iface_main
 
