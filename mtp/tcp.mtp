@@ -220,8 +220,19 @@ list<event_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
 }
 
 
-list<instr> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
-    new_ctx_instr(tcp_context, remote_ip = ev.remote_ip, );
+list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
+    list<instr_t> out;
+    instr_t instr = new_ctx_instr(tcp_context, 
+                                  remote_ip = ev.remote_ip, 
+                                  local_ip = ctx.local_ip,
+                                  remote_port = ev.remote_port,
+                                  local_port = ctx.local_port,
+                                  init_seq = ev.init_seq);
+
+     
+    out.add(instr);
+    instr = pkt_gen_instr();
+    out.add(instr);
 }
 
 void rto_ep (ACK ev, tcp_context ctx, interm_out int_out) {

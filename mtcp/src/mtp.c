@@ -125,15 +125,21 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	uint8_t *payload    = (uint8_t *)tcph + (tcph->doff << 2);
 	int payloadlen = ip_len - (payload - (u_char *)iph);
 
+    int event_type = MTP_NO_EVENT;
 
 	tcp_stream s_stream;
 	tcp_stream *cur_stream = NULL;
-	//uint32_t seq = ntohl(tcph->seq);
+
+    bool is_syn = tcph->syn;
+    bool is_ack = tcph->ack;
+	uint32_t seq = ntohl(tcph->seq);
 	//uint32_t ack_seq = ntohl(tcph->ack_seq);
 	//uint16_t window = ntohs(tcph->window);
 	//uint16_t check;
 	//int ret;
 	//int rc = -1;
+
+
 
 	/* TBA to MTP: Check ip packet invalidation */	
 	if (ip_len < ((iph->ihl + tcph->doff) << 2))
@@ -163,6 +169,35 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	mtcp->nstat.rx_gdptbytes += payloadlen;
 #endif /* NETSTAT */
 
+
+    if (is_syn && !is_ack){
+        event_type = MTP_SYN;
+
+        // MTP: look up listen flow id
+        uint16_t local_ip = iph->daddr;
+        uint16_t local_port = tcph->dest;
+        struct tcp_listener *listener;
+        /* if not the address we want, drop */
+        listener = (struct tcp_listener *)ListenerHTSearch(mtcp->listeners, &local_port);
+        if (listener == NULL) {
+            TRACE_DBG("Refusing SYN packet.\n");
+            #ifdef DBGMSG
+                DumpIPPacket(mtcp, iph, ip_len);
+            #endif
+            // MTP TODO: generate an "error" event to be processed this way
+            /*    SendTCPPacketStandalone(mtcp, 
+                        iph->daddr, tcph->dest, iph->saddr, tcph->source, 
+                        0, seq + payloadlen + 1, 0, TCP_FLAG_RST | TCP_FLAG_ACK, 
+                        NULL, 0, cur_ts, 0);
+
+                return NULL;
+            */
+            return 0;
+         }           
+
+        syn_chain(iph->saddr, tcph->source, seq, listener, local_ip, local_port);
+    }
+    
 	// MTP: maps to flow id generation in parser
 	s_stream.saddr = iph->daddr;
 	s_stream.sport = tcph->dest;
