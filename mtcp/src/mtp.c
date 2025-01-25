@@ -4,115 +4,28 @@
 
 #include "tcp_stream.h"
 #include "fhash.h"
+#include "debug.h"
 
-/*----------------------------------------------------------------------------*/
-static inline int 
-FilterSYNPacket(mtcp_manager_t mtcp, uint32_t ip, uint16_t port)
-{
-	struct sockaddr_in *addr;
-	struct tcp_listener *listener;
 
-	/* TODO: This listening logic should be revised */
+static inline void syn_chain(mtcp_manager_t mtcp, uint32_t remote_ip,
+                             uint16_t remote_port, uint32_t init_seq,
+                             uint32_t local_ip, uint16_t local_port){
+    
+    // MTP new_ctx instruction
+    tcp_stream *cur_stream = NULL;
 
-	/* if not the address we want, drop */
-	listener = (struct tcp_listener *)ListenerHTSearch(mtcp->listeners, &port);
-	if (listener == NULL)	return FALSE;
-
-	addr = &listener->socket->saddr;
-
-	if (addr->sin_port == port) {
-		if (addr->sin_addr.s_addr != INADDR_ANY) {
-			if (ip == addr->sin_addr.s_addr) {
-				return TRUE;
-			}
-			return FALSE;
-		} else {
-			int i;
-
-			for (i = 0; i < CONFIG.eths_num; i++) {
-				if (ip == CONFIG.eths[i].ip_addr) {
-					return TRUE;
-				}
-			}
-			return FALSE;
-		}
+	/* create new stream and add to flow hash table */
+	cur_stream = CreateTCPStream(mtcp, NULL, MTCP_SOCK_STREAM, 
+			local_ip, local_port, remote_ip, remote_port);
+	if (!cur_stream) {
+		TRACE_ERROR("INFO: Could not allocate tcp_stream!\n");
 	}
-
-	return FALSE;
-}
-
-/*----------------------------------------------------------------------------*/
-static inline tcp_stream *
-CreateNewFlowHTEntry(mtcp_manager_t mtcp, uint32_t cur_ts, const struct iphdr *iph, 
-		int ip_len, const struct tcphdr* tcph, uint32_t seq, uint32_t ack_seq,
-		int payloadlen, uint16_t window)
-{
-	tcp_stream *cur_stream;
-	int ret; 
-	
-	if (tcph->syn && !tcph->ack) {
-		/* handle the SYN */
-		ret = FilterSYNPacket(mtcp, iph->daddr, tcph->dest);
-		if (!ret) {
-			TRACE_DBG("Refusing SYN packet.\n");
-#ifdef DBGMSG
-			DumpIPPacket(mtcp, iph, ip_len);
-#endif
-			SendTCPPacketStandalone(mtcp, 
-					iph->daddr, tcph->dest, iph->saddr, tcph->source, 
-					0, seq + payloadlen + 1, 0, TCP_FLAG_RST | TCP_FLAG_ACK, 
-					NULL, 0, cur_ts, 0);
-
-			return NULL;
-		}
-
-		/* now accept the connection */
-		cur_stream = HandlePassiveOpen(mtcp, 
-				cur_ts, iph, tcph, seq, window);
-		if (!cur_stream) {
-			TRACE_DBG("Not available space in flow pool.\n");
-#ifdef DBGMSG
-			DumpIPPacket(mtcp, iph, ip_len);
-#endif
-			SendTCPPacketStandalone(mtcp, 
-					iph->daddr, tcph->dest, iph->saddr, tcph->source, 
-					0, seq + payloadlen + 1, 0, TCP_FLAG_RST | TCP_FLAG_ACK, 
-					NULL, 0, cur_ts, 0);
-
-			return NULL;
-		}
-
-		return cur_stream;
-	} else if (tcph->rst) {
-		TRACE_DBG("Reset packet comes\n");
-#ifdef DBGMSG
-		DumpIPPacket(mtcp, iph, ip_len);
-#endif
-		/* for the reset packet, just discard */
-		return NULL;
-	} else {
-		TRACE_DBG("Weird packet comes.\n");
-#ifdef DBGMSG
-		DumpIPPacket(mtcp, iph, ip_len);
-#endif
-		/* TODO: for else, discard and send a RST */
-		/* if the ACK bit is off, respond with seq 0: 
-		   <SEQ=0><ACK=SEG.SEQ+SEG.LEN><CTL=RST,ACK>
-		   else (ACK bit is on):
-		   <SEQ=SEG.ACK><CTL=RST>
-		   */
-		if (tcph->ack) {
-			SendTCPPacketStandalone(mtcp, 
-					iph->daddr, tcph->dest, iph->saddr, tcph->source, 
-					ack_seq, 0, 0, TCP_FLAG_RST, NULL, 0, cur_ts, 0);
-		} else {
-			SendTCPPacketStandalone(mtcp, 
-					iph->daddr, tcph->dest, iph->saddr, tcph->source, 
-					0, seq + payloadlen, 0, TCP_FLAG_RST | TCP_FLAG_ACK, 
-					NULL, 0, cur_ts, 0);
-		}
-		return NULL;
-	}
+	cur_stream->rcvvar->irs = init_seq;
+	//cur_stream->sndvar->peer_wnd = window;
+	cur_stream->rcv_nxt = cur_stream->rcvvar->irs;
+	cur_stream->sndvar->cwnd = 1;
+   
+    // MTP pkt gen instruction 
 }
 
 /*----------------------------------------------------------------------------*/
@@ -122,13 +35,13 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 {
 	// MTP: maps to extract in the parser
 	struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
-	uint8_t *payload    = (uint8_t *)tcph + (tcph->doff << 2);
-	int payloadlen = ip_len - (payload - (u_char *)iph);
+	//uint8_t *payload    = (uint8_t *)tcph + (tcph->doff << 2);
+	//int payloadlen = ip_len - (payload - (u_char *)iph);
 
-    int event_type = MTP_NO_EVENT;
+    //int event_type = MTP_NO_EVENT;
 
-	tcp_stream s_stream;
-	tcp_stream *cur_stream = NULL;
+	//tcp_stream s_stream;
+	//tcp_stream *cur_stream = NULL;
 
     bool is_syn = tcph->syn;
     bool is_ack = tcph->ack;
@@ -169,9 +82,9 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	mtcp->nstat.rx_gdptbytes += payloadlen;
 #endif /* NETSTAT */
 
-
+    // MTP_SYN
     if (is_syn && !is_ack){
-        event_type = MTP_SYN;
+        //event_type = MTP_SYN;
 
         // MTP: look up listen flow id
         uint16_t local_ip = iph->daddr;
@@ -195,22 +108,17 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
             return 0;
          }           
 
-        syn_chain(iph->saddr, tcph->source, seq, listener, local_ip, local_port);
+        syn_chain(mtcp, iph->saddr, tcph->source, seq, local_ip, local_port);
+        return 0;
     }
     
 	// MTP: maps to flow id generation in parser
-	s_stream.saddr = iph->daddr;
-	s_stream.sport = tcph->dest;
-	s_stream.daddr = iph->saddr;
-	s_stream.dport = tcph->source;
+	//s_stream.saddr = iph->daddr;
+	//s_stream.sport = tcph->dest;
+	//s_stream.daddr = iph->saddr;
+	//s_stream.dport = tcph->source;
 
-	if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-		/* not found in flow table */
-		cur_stream = CreateNewFlowHTEntry(mtcp, cur_ts, iph, ip_len, tcph, 
-				seq, ack_seq, payloadlen, window);
-		if (!cur_stream)
-			return TRUE;
-	}
+	//if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
 
 	/*
 	// Validate sequence. if not valid, ignore the packet

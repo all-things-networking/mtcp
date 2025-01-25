@@ -227,7 +227,8 @@ list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
                                   local_ip = ctx.local_ip,
                                   remote_port = ev.remote_port,
                                   local_port = ctx.local_port,
-                                  init_seq = ev.init_seq);
+                                  init_seq = ev.init_seq,
+                                  recv_next = ev.init_seq);
 
      
     out.add(instr);
