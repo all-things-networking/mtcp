@@ -2,11 +2,91 @@
 
 #include <linux/tcp.h>
 
+
 #include "tcp_stream.h"
 #include "fhash.h"
 #include "debug.h"
+#include "ip_out.h"
+/*----------------------------------------------------------------------------*/
+int
+SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
+		uint8_t flags, uint32_t seq, 
+        uint32_t ack, uint8_t *payload, uint16_t payloadlen)
+{
+	struct tcphdr *tcph;
+	//uint8_t wscale = 0;
+	//uint32_t window32 = 0;
+	//int rc = -1;
 
+	if (payloadlen > cur_stream->sndvar->mss) {
+		TRACE_ERROR("Payload size exceeds MSS\n");
+		return ERROR;
+	}
 
+	tcph = (struct tcphdr *)IPOutput(mtcp, cur_stream, 
+			TCP_HEADER_LEN + payloadlen);
+	if (tcph == NULL) {
+		return -2;
+	}
+	memset(tcph, 0, TCP_HEADER_LEN);
+
+	tcph->source = cur_stream->sport;
+	tcph->dest = cur_stream->dport;
+    tcph->seq = htonl(seq);
+    tcph->ack_seq = htonl(ack);
+
+	if (flags & TCP_FLAG_SYN) {
+		tcph->syn = TRUE;
+	}
+
+	if (flags & TCP_FLAG_ACK) {
+		tcph->ack = TRUE;
+		//cur_stream->sndvar->ts_lastack_sent = cur_ts;
+		//cur_stream->last_active_ts = cur_ts;
+		//UpdateTimeoutList(mtcp, cur_stream);
+	}
+
+    // MTP TODO: window
+    /*
+	if (flags & TCP_FLAG_SYN) {
+		wscale = 0;
+	} else {
+		wscale = cur_stream->sndvar->wscale_mine;
+	}
+
+	window32 = cur_stream->rcvvar->rcv_wnd >> wscale;
+	tcph->window = htons((uint16_t)MIN(window32, TCP_MAX_WINDOW));
+	// if the advertised window is 0, we need to advertise again later 
+	if (window32 == 0) {
+		cur_stream->need_wnd_adv = TRUE;
+	}
+    */
+
+	tcph->doff = (TCP_HEADER_LEN) >> 2;
+	// copy payload if exist
+	if (payloadlen > 0) {
+		memcpy((uint8_t *)tcph + TCP_HEADER_LEN, payload, payloadlen);
+#if defined(NETSTAT) && defined(ENABLELRO)
+		mtcp->nstat.tx_gdptbytes += payloadlen;
+#endif /* NETSTAT */
+	}
+
+#if TCP_CALCULATE_CHECKSUM
+#ifndef DISABLE_HWCSUM
+	if (mtcp->iom->dev_ioctl != NULL)
+		rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
+					  PKT_TX_TCPIP_CSUM, NULL);
+#endif
+	if (rc == -1)
+		tcph->check = TCPCalcChecksum((uint16_t *)tcph, 
+					      TCP_HEADER_LEN + optlen + payloadlen, 
+					      cur_stream->saddr, cur_stream->daddr);
+#endif
+		
+	return 0;
+}
+
+/*----------------------------------------------------------------------------*/
 static inline void syn_chain(mtcp_manager_t mtcp, uint32_t remote_ip,
                              uint16_t remote_port, uint32_t init_seq,
                              uint32_t local_ip, uint16_t local_port){
@@ -20,12 +100,23 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t remote_ip,
 	if (!cur_stream) {
 		TRACE_ERROR("INFO: Could not allocate tcp_stream!\n");
 	}
-	cur_stream->rcvvar->irs = init_seq;
-	//cur_stream->sndvar->peer_wnd = window;
-	cur_stream->rcv_nxt = cur_stream->rcvvar->irs;
 	cur_stream->sndvar->cwnd = 1;
+	//cur_stream->sndvar->peer_wnd = window;
+	cur_stream->rcvvar->irs = init_seq;
+	cur_stream->rcv_nxt = (cur_stream->rcvvar->irs + 1);
+    cur_stream->state = TCP_ST_SYN_RCVD;
    
-    // MTP pkt gen instruction 
+    // MTP pkt gen instruction
+    SendMTPPacket(mtcp, cur_stream,
+                            TCP_FLAG_SYN | TCP_FLAG_ACK, 
+                            cur_stream->sndvar->iss,
+                            init_seq + 1,
+                            NULL, 0);
+
+    // MTP TODO: what if there are not buffers available?
+    //if (ret == -2){
+        // not enough space in mbuffs
+    //} 
 }
 
 /*----------------------------------------------------------------------------*/

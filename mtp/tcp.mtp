@@ -1,3 +1,5 @@
+/**************  event declarations ***************/
+
 event LISTEN: INCOMING::APP_EVENT{
     uinr32 ip_addr;
     uint16 port;
@@ -11,6 +13,7 @@ event SYN : INCOMING::NET_EVENT {
     uint32 remote_ip;
     uint16 remote_port;
     uint32 init_seq;
+    uint16 rwnd_size;
 }
 
 event ACK : INCOMING::NET_EVENT {
@@ -28,6 +31,8 @@ event MISS_ACK : TIMER_EVENT {
     uint32 seq_num;
 }
 
+
+/**************  TCP packet blueprint  ***************/
 
 pkt_bp TCPBP {
     uint16 src_port;
@@ -50,16 +55,7 @@ pkt_bp TCPBP {
     data_t data;
 }
 
-interm_output interm_out {
-    bool change_cwnd;
-    bool skip_ack_eps;
-}
-
-//struct sent_pkt_info {
-//    uint32 seq_num;
-//    uint32 data_len;
-//}
-
+/****************** contexts and other structs **************/
 context tcp_listen_context{
     uint32 local_ip;
     uint32 local_port;
@@ -71,8 +67,9 @@ context tcp_context {
     uint16 remote_port;
     uint16 local_port;
     addr_t buf_addr;
-    uint32 init_seq;
 
+    // sender vars
+    uint32 init_seq;
     uint32 last_ack = 429496729;
     uint8 duplicate_acks = 0;
     uint32 flightsize_dupl = 0;
@@ -89,6 +86,8 @@ context tcp_context {
     uint32 data_end = 0;
     uint32 last_rwnd_size = 16959;
 
+    // receiver vars
+    uint32 recv_init_seq;
     uint32 rwnd_size = 16959;
     uint32 recv_next = 0;
     //list<sent_pkt_info> data_recv_info_array(500);
@@ -104,28 +103,12 @@ context tcp_context {
     buffer_id_t bid;
 }
 
-app_to_transp att_module {
-    app_header APPheader {
-        uint32 data_size;
-    }
-    list<event_t> parse_app_request(app_req_t req) { 
-        list<event_t> out;
-        APPheader r;
-        req.extract(r);
-        flow_id id(r.src_addr, r.dst_addr, r.src_port, r.dest_port);
-        if(req.type == SEND) {
-            SEND event;
-            event.data_size = r.data_size;
-            set_fid(event, id);
-            out.add(ev);
-        }
-        return out;
-    }
+interm_output interm_out {
+    bool change_cwnd;
+    bool skip_ack_eps;
 }
 
-// Q: so, IP will also be a blueprint, not a header type?
-// A: add net_header
-
+/****************** extracting events out of packets ********************/
 net_to_transp ntt_module {
     net_header IPheader {
     	bool ecn;
@@ -149,6 +132,7 @@ net_to_transp ntt_module {
            event.remote_ip = i.src_ip;
            event.remote_port = pkt_bp.src_port;
            event.init_seq = pkt_bp.seq;
+           event.rwnd_size = pkt_bp.rwnd_size;
            out.add(event);
            return out;
         }
@@ -171,6 +155,22 @@ net_to_transp ntt_module {
         return out;
     }
 }
+
+/************************ event processor declarations **************************/
+list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out);
+
+
+
+/*************************** dispatcher ************************/
+dispatch disp_table {
+    SEND      -> {send_ep};
+    SYN       -> {syn_ep};
+    ACK       -> {rto_ep, fast_retr_rec_ep, slows_congc_ep, ack_net_ep};
+    DATA      -> {data_net_ep, send_ack, app_feedback_ep};
+    MISS_ACK   -> {ack_timeout_ep};
+}
+
+/************************* event processor definitions ****************************/
 
 list<event_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
     list<event_t> events;
@@ -222,18 +222,32 @@ list<event_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
 
 list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
     list<instr_t> out;
+    uint32 init_seq = rand();
     instr_t instr = new_ctx_instr(tcp_context, 
                                   remote_ip = ev.remote_ip, 
                                   local_ip = ctx.local_ip,
                                   remote_port = ev.remote_port,
                                   local_port = ctx.local_port,
-                                  init_seq = ev.init_seq,
-                                  recv_next = ev.init_seq);
+                                  init_seq = init_seq,
+                                  send_next = init_seq + 1,
+                                  recv_init_seq = ev.init_seq,
+                                  recv_next = ev.init_seq + 1,
+                                  last_rwnd_size = ev.rwnd_size);
 
      
     out.add(instr);
-    instr = pkt_gen_instr();
+
+    TCBBP bp;
+    bp.src_port = ctx.local_port;
+    bp.dst_port = ctx.remote_port;
+    bp.is_syn = true;
+    bp.is_ack = true;
+    bp.ack_seq = ev.init_seq + 1;
+    bp.seq = init_seq;
+    instr = pkt_gen_instr(local_ip, remote_ip, bp);
     out.add(instr);
+
+    return out;
 }
 
 void rto_ep (ACK ev, tcp_context ctx, interm_out int_out) {
@@ -541,10 +555,4 @@ list<event_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out int_out) 
     ctx.ack_timeout.restart(nanosecond(ctx.RTO));
 }
 
-dispatch disp_table {
-    SEND      -> {send_ep};
-    SYN       -> {syn_ep};
-    ACK       -> {rto_ep, fast_retr_rec_ep, slows_congc_ep, ack_net_ep};
-    DATA      -> {data_net_ep, send_ack, app_feedback_ep};
-    MISS_ACK   -> {ack_timeout_ep};
-}
+
