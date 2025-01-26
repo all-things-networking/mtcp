@@ -403,6 +403,7 @@ mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
 
 	socket = AllocateSocket(mctx, type, FALSE);
 	if (!socket) {
+		printf("Error\n");
 		errno = ENFILE;
 		return -1;
 	}

@@ -231,6 +231,7 @@ main(int argc, char **argv)
 		return -1;
 	}
 
+
 	ret = mtcp_setsock_nonblock(mctx, sockfd);
 	if (ret < 0) {
 		ERROR("Failed to set socket in nonblocking mode.");
@@ -252,16 +253,22 @@ main(int argc, char **argv)
 			ERROR("Failed to listen: %s", strerror(errno));
 		}
 
+		printf("Here 1");
+
 		while (1) { // loop until connected to a server, break when we can send
+			printf("Here 2");
 			nevents = mtcp_epoll_wait(mctx, ep_id, events, MAX_EVENTS, -1);
+			printf("Here 3");
 			if (nevents < 0) {
 				if (errno != EINTR) {
 					perror("mtcp_epoll_wait");
 				}
 				return -1;
 			}
+			printf("Here 4");
 
 			for (i = 0; i < nevents; i++) {
+				printf("nevents %d", i);
 				if (events[i].data.sockid == sockfd) {
 					c = mtcp_accept(mctx, sockfd, NULL, NULL);
 					if (c >= 0) {
