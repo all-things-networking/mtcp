@@ -761,6 +761,8 @@ InterruptApplication(mtcp_manager_t mtcp)
 static void 
 RunMainLoop(struct mtcp_thread_context *ctx)
 {
+    printf("main loop\n");
+    printf("CONFIG.eth_nums = %d\n", CONFIG.eths_num);
 	mtcp_manager_t mtcp = ctx->mtcp_manager;
 	int i;
 	int recv_cnt;
@@ -774,7 +776,6 @@ RunMainLoop(struct mtcp_thread_context *ctx)
 
 	ts = ts_prev = 0;
 	while ((!ctx->done || mtcp->flow_cnt) && !ctx->exit) {
-		
 		STAT_COUNT(mtcp->runstat.rounds);
 		recv_cnt = 0;
 			
@@ -783,7 +784,6 @@ RunMainLoop(struct mtcp_thread_context *ctx)
 		mtcp->cur_ts = ts;
 
 		for (rx_inf = 0; rx_inf < CONFIG.eths_num; rx_inf++) {
-
 			uint16_t len;
 			uint8_t *pktbuf;
 			recv_cnt = mtcp->iom->recv_pkts(ctx, rx_inf);

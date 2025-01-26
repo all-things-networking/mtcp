@@ -36,7 +36,6 @@ AllocateSocket(mctx_t mctx, int socktype, int need_lock)
 
 	if (need_lock)
 		pthread_mutex_unlock(&mtcp->ctx->smap_lock);
-	
 	socket->socktype = socktype;
 	socket->opts = 0;
 	socket->stream = NULL;

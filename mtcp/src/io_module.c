@@ -255,6 +255,7 @@ SetNetEnv(char *dev_name_list, char *port_stat_list)
 #endif /* !PSIO_MODULE */
 	} else if (current_iomodule_func == &dpdk_module_func) {
 #ifndef DISABLE_DPDK
+        printf("start of dpdk config\n");
 		int cpu = CONFIG.num_cores;
 		mpz_t _cpumask;
 		char cpumaskbuf[32] = "";
@@ -263,8 +264,11 @@ SetNetEnv(char *dev_name_list, char *port_stat_list)
 		// int i;
 		int ret, socket_mem;
 #if RTE_VERSION < RTE_VERSION_NUM(19, 8, 0, 0)
+        printf("old dpdk\n");
 		static struct ether_addr ports_eth_addr[RTE_MAX_ETHPORTS];
 #else
+        printf("new dpdk\n");
+        printf("RTE_MAX_ETHPORTS = %d\n", RTE_MAX_ETHPORTS);
 		static struct rte_ether_addr ports_eth_addr[RTE_MAX_ETHPORTS]; 
 #endif
 
@@ -355,8 +359,10 @@ SetNetEnv(char *dev_name_list, char *port_stat_list)
 		/* give me the count of 'detected' ethernet ports */
 #if RTE_VERSION < RTE_VERSION_NUM(18, 5, 0, 0)
 		num_devices = rte_eth_dev_count();
+        printf("old dpdk num devices %d\n", num_devices);
 #else
 		num_devices = rte_eth_dev_count_avail();
+        printf("new dpdk num devices %d\n", num_devices);
 #endif
 		if (num_devices == 0) {
 			TRACE_ERROR("No Ethernet port!\n");
@@ -364,8 +370,11 @@ SetNetEnv(char *dev_name_list, char *port_stat_list)
 		}
 
 		/* get mac addr entries of 'detected' dpdk ports */
-		for (ret = 0; ret < num_devices; ret++)
+		for (ret = 0; ret < num_devices; ret++){
 			rte_eth_macaddr_get(ret, &ports_eth_addr[ret]);
+            printf("byte1:%d\n", ports_eth_addr[ret].addr_bytes[0]);
+            
+        }
 
 		num_queues = MIN(CONFIG.num_cores, MAX_CPUS);
 
@@ -374,17 +383,39 @@ SetNetEnv(char *dev_name_list, char *port_stat_list)
 		char *seek;
 
 		if (getifaddrs(&ifap) != 0) {
+            printf("error in getifaddrs\n");
 			perror("getifaddrs: ");
 			exit(EXIT_FAILURE);
 		}
 
 		iter_if = ifap;
 		do {
-			if (iter_if->ifa_addr && iter_if->ifa_addr->sa_family == AF_INET &&
-			    !set_all_inf &&
-			    (seek=strstr(dev_name_list, iter_if->ifa_name)) != NULL &&
-			    /* check if the interface was not aliased */
-			    *(seek + strlen(iter_if->ifa_name)) != ':') {
+            /*printf("---------------------------\n");
+            printf("dev_name_list: %s\n", dev_name_list); 
+            if (iter_if->ifa_addr){
+                printf("sa_family %d =? %d, %d\n", iter_if->ifa_addr->sa_family, AF_INET, AF_PACKET);
+                printf("set_all_inf %d\n", set_all_inf);
+                printf("name %s\n", iter_if->ifa_name);
+                seek = strstr(dev_name_list, iter_if->ifa_name);
+                if (seek != NULL){
+                    printf("seek result: %s\n", seek);
+                    printf("alias check: %d =? %d\n", *(seek + strlen(iter_if->ifa_name)), ':');
+                }
+                else {
+                    printf("seek result: NULL\n");
+                }
+                //printf("find name %d", (seek=strstr(dev_name_list, iter_if->ifa_name)) != NULL);
+                //printf("check alias %d", *(seek + strlen(iter_if->ifa_name)) != ':');
+            }
+            else {
+                printf("NULL\n");
+            }*/
+			if ((iter_if->ifa_addr)){
+                if((iter_if->ifa_addr->sa_family == AF_INET)){
+                    if((!set_all_inf)){
+                        if(((seek=strstr(dev_name_list, iter_if->ifa_name)) != NULL)){
+                            if((*(seek + strlen(iter_if->ifa_name)) != ':')) { /* check if the interface was not aliased */
+                printf("passed the check: %s\n", iter_if->ifa_name);
 				struct ifreq ifr;
 
 				/* Setting informations */
@@ -436,7 +467,7 @@ SetNetEnv(char *dev_name_list, char *port_stat_list)
 					num_devices_attached);
 				fprintf(stderr, "Interface name: %s\n",
 					iter_if->ifa_name);
-			}
+			}}}}}
 			iter_if = iter_if->ifa_next;
 		} while (iter_if != NULL);
 
