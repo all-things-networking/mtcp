@@ -23,6 +23,8 @@
 #include "stat.h"
 #include "io_module.h"
 
+//#include "mtp_bp.h"
+
 #ifdef ENABLE_ONVM
 #include "onvm_nflib.h"
 #endif
@@ -210,6 +212,9 @@ struct mtcp_sender
 	int control_list_cnt;
 	int send_list_cnt;
 	int ack_list_cnt;
+
+    // MTP blueprints
+    //TAILQ_HEAD (pktbp_head, pktbp_t) pktbp_list;
 };
 /*----------------------------------------------------------------------------*/
 struct mtcp_manager
