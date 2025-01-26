@@ -411,7 +411,7 @@ SetNetEnv(char *dev_name_list, char *port_stat_list)
                 printf("NULL\n");
             }*/
 			if ((iter_if->ifa_addr)){
-                if((iter_if->ifa_addr->sa_family == AF_PACKET)){
+                if((iter_if->ifa_addr->sa_family == AF_INET)){
                     if((!set_all_inf)){
                         if(((seek=strstr(dev_name_list, iter_if->ifa_name)) != NULL)){
                             if((*(seek + strlen(iter_if->ifa_name)) != ':')) { /* check if the interface was not aliased */

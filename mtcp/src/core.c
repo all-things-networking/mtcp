@@ -784,7 +784,6 @@ RunMainLoop(struct mtcp_thread_context *ctx)
 		mtcp->cur_ts = ts;
 
 		for (rx_inf = 0; rx_inf < CONFIG.eths_num; rx_inf++) {
-            printf("received some packets\n");
 			uint16_t len;
 			uint8_t *pktbuf;
 			recv_cnt = mtcp->iom->recv_pkts(ctx, rx_inf);
