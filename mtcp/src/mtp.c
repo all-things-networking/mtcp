@@ -7,33 +7,158 @@
 #include "fhash.h"
 #include "debug.h"
 #include "ip_out.h"
+
+#define MAX(a, b) ((a)>(b)?(a):(b))
+#define MIN(a, b) ((a)<(b)?(a):(b))
+#define TCP_CALCULATE_CHECKSUM      TRUE
+#define TCP_MAX_WINDOW 65535
+
+/*----------------------------------------------------------------------------*/
+static inline uint16_t
+CalculateOptionLength(uint8_t flags)
+{
+	uint16_t optlen = 0;
+
+	if (flags & TCP_FLAG_SYN) {
+		optlen += TCP_OPT_MSS_LEN;
+#if TCP_OPT_SACK_ENABLED
+		optlen += TCP_OPT_SACK_PERMIT_LEN;
+#if !TCP_OPT_TIMESTAMP_ENABLED
+		optlen += 2;	// insert NOP padding
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+#endif /* TCP_OPT_SACK_ENABLED */
+
+#if TCP_OPT_TIMESTAMP_ENABLED
+		optlen += TCP_OPT_TIMESTAMP_LEN;
+#if !TCP_OPT_SACK_ENABLED
+		optlen += 2;	// insert NOP padding
+#endif /* TCP_OPT_SACK_ENABLED */
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+
+		optlen += TCP_OPT_WSCALE_LEN + 1;
+
+	} else {
+
+#if TCP_OPT_TIMESTAMP_ENABLED
+		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
+#endif
+
+#if TCP_OPT_SACK_ENABLED
+		if (flags & TCP_FLAG_SACK) {
+			optlen += TCP_OPT_SACK_LEN + 2;
+		}
+#endif
+	}
+
+	assert(optlen % 4 == 0);
+
+	return optlen;
+}
+/*----------------------------------------------------------------------------*/
+static inline void
+GenerateTCPTimestamp(tcp_stream *cur_stream, uint8_t *tcpopt, uint32_t cur_ts)
+{
+	uint32_t *ts = (uint32_t *)(tcpopt + 2);
+
+	tcpopt[0] = TCP_OPT_TIMESTAMP;
+	tcpopt[1] = TCP_OPT_TIMESTAMP_LEN;
+	ts[0] = htonl(cur_ts);
+	ts[1] = htonl(cur_stream->rcvvar->ts_recent);
+}
+/*----------------------------------------------------------------------------*/
+static inline void
+GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts, 
+		uint8_t flags, uint8_t *tcpopt, uint16_t optlen)
+{
+	int i = 0;
+
+	if (flags & TCP_FLAG_SYN) {
+		uint16_t mss;
+
+		/* MSS option */
+		mss = cur_stream->sndvar->mss;
+		tcpopt[i++] = TCP_OPT_MSS;
+		tcpopt[i++] = TCP_OPT_MSS_LEN;
+		tcpopt[i++] = mss >> 8;
+		tcpopt[i++] = mss % 256;
+
+		/* SACK permit */
+#if TCP_OPT_SACK_ENABLED
+#if !TCP_OPT_TIMESTAMP_ENABLED
+		tcpopt[i++] = TCP_OPT_NOP;
+		tcpopt[i++] = TCP_OPT_NOP;
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+		tcpopt[i++] = TCP_OPT_SACK_PERMIT;
+		tcpopt[i++] = TCP_OPT_SACK_PERMIT_LEN;
+		TRACE_SACK("Local SACK permited.\n");
+#endif /* TCP_OPT_SACK_ENABLED */
+
+		/* Timestamp */
+#if TCP_OPT_TIMESTAMP_ENABLED
+#if !TCP_OPT_SACK_ENABLED
+		tcpopt[i++] = TCP_OPT_NOP;
+		tcpopt[i++] = TCP_OPT_NOP;
+#endif /* TCP_OPT_SACK_ENABLED */
+		GenerateTCPTimestamp(cur_stream, tcpopt + i, cur_ts);
+		i += TCP_OPT_TIMESTAMP_LEN;
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+
+		/* Window scale */
+		tcpopt[i++] = TCP_OPT_NOP;
+		tcpopt[i++] = TCP_OPT_WSCALE;
+		tcpopt[i++] = TCP_OPT_WSCALE_LEN;
+		tcpopt[i++] = cur_stream->sndvar->wscale_mine;
+
+	} else {
+
+#if TCP_OPT_TIMESTAMP_ENABLED
+		tcpopt[i++] = TCP_OPT_NOP;
+		tcpopt[i++] = TCP_OPT_NOP;
+		GenerateTCPTimestamp(cur_stream, tcpopt + i, cur_ts);
+		i += TCP_OPT_TIMESTAMP_LEN;
+#endif
+
+#if TCP_OPT_SACK_ENABLED
+		if (flags & TCP_OPT_SACK) {
+			// i += GenerateSACKOption(cur_stream, tcpopt + i);
+		}
+#endif
+	}
+
+	assert (i == optlen);
+}
+
 /*----------------------------------------------------------------------------*/
 int
 SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
-		uint8_t flags, uint32_t seq, 
-        uint32_t ack, uint8_t *payload, uint16_t payloadlen)
+		      uint32_t cur_ts, uint8_t flags, 
+              uint32_t seq, uint32_t ack, 
+              uint16_t window,
+              uint8_t *payload, uint16_t payloadlen)
 {
 	struct tcphdr *tcph;
-	//uint8_t wscale = 0;
-	//uint32_t window32 = 0;
-	//int rc = -1;
+    uint16_t optlen = 0;
+	int rc = -1;
 
-	if (payloadlen > cur_stream->sndvar->mss) {
-		TRACE_ERROR("Payload size exceeds MSS\n");
-		return ERROR;
-	}
+    //optlen = CalculateOptionLength(flags);
+    if (payloadlen + optlen > cur_stream->sndvar->mss) {
+        TRACE_ERROR("Payload size exceeds MSS\n");
+        return ERROR;
+    }
 
-	tcph = (struct tcphdr *)IPOutput(mtcp, cur_stream, 
-			TCP_HEADER_LEN + payloadlen);
-	if (tcph == NULL) {
-		return -2;
-	}
-	memset(tcph, 0, TCP_HEADER_LEN);
+    tcph = (struct tcphdr *)IPOutput(mtcp, cur_stream,
+            TCP_HEADER_LEN + optlen + payloadlen);
+    if (tcph == NULL) {
+        return -2;
+    }
+    memset(tcph, 0, TCP_HEADER_LEN + optlen);
 
+	
 	tcph->source = cur_stream->sport;
 	tcph->dest = cur_stream->dport;
     tcph->seq = htonl(seq);
     tcph->ack_seq = htonl(ack);
+	tcph->window = htons(window);
 
 	if (flags & TCP_FLAG_SYN) {
 		tcph->syn = TRUE;
@@ -41,54 +166,55 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 
 	if (flags & TCP_FLAG_ACK) {
 		tcph->ack = TRUE;
-		//cur_stream->sndvar->ts_lastack_sent = cur_ts;
-		//cur_stream->last_active_ts = cur_ts;
+        // MTP TODO: check these
+		cur_stream->sndvar->ts_lastack_sent = cur_ts;
+		cur_stream->last_active_ts = cur_ts;
 		//UpdateTimeoutList(mtcp, cur_stream);
 	}
 
-    // MTP TODO: window
+    // MTP TODO: zero window
     /*
-	if (flags & TCP_FLAG_SYN) {
-		wscale = 0;
-	} else {
-		wscale = cur_stream->sndvar->wscale_mine;
-	}
 
-	window32 = cur_stream->rcvvar->rcv_wnd >> wscale;
-	tcph->window = htons((uint16_t)MIN(window32, TCP_MAX_WINDOW));
 	// if the advertised window is 0, we need to advertise again later 
 	if (window32 == 0) {
 		cur_stream->need_wnd_adv = TRUE;
 	}
     */
 
-	tcph->doff = (TCP_HEADER_LEN) >> 2;
+    // MTP TODO: move out of here
+    //GenerateTCPOptions(cur_stream, cur_ts, flags,
+    //        (uint8_t *)tcph + TCP_HEADER_LEN, optlen);
+
+    tcph->doff = (TCP_HEADER_LEN + optlen) >> 2;
+
 	// copy payload if exist
-	if (payloadlen > 0) {
-		memcpy((uint8_t *)tcph + TCP_HEADER_LEN, payload, payloadlen);
+    if (payloadlen > 0) {
+        memcpy((uint8_t *)tcph + TCP_HEADER_LEN + optlen, payload, payloadlen);
 #if defined(NETSTAT) && defined(ENABLELRO)
-		mtcp->nstat.tx_gdptbytes += payloadlen;
+        mtcp->nstat.tx_gdptbytes += payloadlen;
 #endif /* NETSTAT */
-	}
+    }
 
 #if TCP_CALCULATE_CHECKSUM
 #ifndef DISABLE_HWCSUM
-	if (mtcp->iom->dev_ioctl != NULL)
-		rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
-					  PKT_TX_TCPIP_CSUM, NULL);
+    if (mtcp->iom->dev_ioctl != NULL)
+        rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
+                      PKT_TX_TCPIP_CSUM, NULL);
 #endif
-	if (rc == -1)
-		tcph->check = TCPCalcChecksum((uint16_t *)tcph, 
-					      TCP_HEADER_LEN + optlen + payloadlen, 
-					      cur_stream->saddr, cur_stream->daddr);
+    if (rc == -1)
+        tcph->check = TCPCalcChecksum((uint16_t *)tcph,
+                          TCP_HEADER_LEN + optlen + payloadlen,
+                          cur_stream->saddr, cur_stream->daddr);
 #endif
+
 		
 	return 0;
 }
 
 /*----------------------------------------------------------------------------*/
-static inline void syn_chain(mtcp_manager_t mtcp, uint32_t remote_ip,
-                             uint16_t remote_port, uint32_t init_seq,
+static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
+                             uint32_t remote_ip, uint16_t remote_port, 
+                             uint32_t init_seq,
                              uint32_t local_ip, uint16_t local_port){
     
     // MTP new_ctx instruction
@@ -107,10 +233,14 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t remote_ip,
     cur_stream->state = TCP_ST_SYN_RCVD;
    
     // MTP pkt gen instruction
-    SendMTPPacket(mtcp, cur_stream,
+    uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
+	uint16_t window = MIN(window32, TCP_MAX_WINDOW);
+
+    SendMTPPacket(mtcp, cur_stream, cur_ts,
                             TCP_FLAG_SYN | TCP_FLAG_ACK, 
-                            cur_stream->sndvar->iss,
-                            init_seq + 1,
+                            cur_stream->sndvar->iss, //seq
+                            init_seq + 1, //ack
+                            window, //window
                             NULL, 0);
 
     // MTP TODO: what if there are not buffers available?
@@ -178,7 +308,7 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         //event_type = MTP_SYN;
 
         // MTP: look up listen flow id
-        uint16_t local_ip = iph->daddr;
+        uint32_t local_ip = iph->daddr;
         uint16_t local_port = tcph->dest;
         struct tcp_listener *listener;
         /* if not the address we want, drop */
@@ -199,7 +329,8 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
             return 0;
          }           
 
-        syn_chain(mtcp, iph->saddr, tcph->source, seq, local_ip, local_port);
+        // MTP TODO: cur_ts in events by default or explicity?
+        syn_chain(mtcp, cur_ts, iph->saddr, tcph->source, seq, local_ip, local_port);
         return 0;
     }
     

@@ -56,7 +56,8 @@ ProcessIPv4Packet(mtcp_manager_t mtcp, uint32_t cur_ts,
 		case MTP_IPPROTO_MTP:
 			return MTP_ProcessTransportPacket(mtcp, cur_ts, ifidx, iph, ip_len);
 		case IPPROTO_TCP:
-			return ProcessTCPPacket(mtcp, cur_ts, ifidx, iph, ip_len);
+		//	return ProcessTCPPacket(mtcp, cur_ts, ifidx, iph, ip_len);
+			return MTP_ProcessTransportPacket(mtcp, cur_ts, ifidx, iph, ip_len);
 		case IPPROTO_ICMP:
 			return ProcessICMPPacket(mtcp, iph, ip_len);
 		default:
