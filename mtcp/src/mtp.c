@@ -4,6 +4,7 @@
 
 
 #include "tcp_stream.h"
+#include "tcp_ring_buffer.h"
 #include "fhash.h"
 #include "debug.h"
 #include "ip_out.h"
@@ -334,6 +335,96 @@ static inline void ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 
 }
 
+
+/*----------------------------------------------------------------------------*/
+// MTP TODO: what should we do if there are errors? Maybe the target should 
+//           hold off on more events for that flow so that it can roll back the context.
+//           also should modify this to have the available buffer (for "infinite inorder data units") as input
+inline void data_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream, uint32_t cur_ts, 
+                       uint32_t seq, uint8_t *payload, int payloadlen){
+    struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	uint32_t prev_rcv_nxt;
+    uint32_t last_rcvd_seq = seq + payloadlen;
+	int ret;
+
+	/* if seq and segment length is lower than rcv_nxt, ignore and send ack */
+	if (TCP_SEQ_LT(last_rcvd_seq, cur_stream->rcv_nxt)) {
+		return;
+	}
+	/* if payload exceeds receiving buffer, drop and send ack */
+	if (TCP_SEQ_GT(last_rcvd_seq, cur_stream->rcv_nxt + rcvvar->rcv_wnd)) {
+		return;
+	}
+
+    // MTP: this is new_inorder_data, rcvbuf is the "id"
+	/* allocate receive buffer if not exist */
+	if (!rcvvar->rcvbuf) {
+		rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
+        // MTP TODO: this should raise an error event that comes back
+        //           to be processed according to the MTP program
+		if (!rcvvar->rcvbuf) {
+			TRACE_ERROR("Stream %d: Failed to allocate receive buffer.\n", 
+					cur_stream->id);
+			cur_stream->state = TCP_ST_CLOSED;
+			cur_stream->close_reason = TCP_NO_MEM;
+			RaiseErrorEvent(mtcp, cur_stream);
+
+			return;
+		}
+	}
+
+	if (SBUF_LOCK(&rcvvar->read_lock)) {
+		if (errno == EDEADLK)
+			perror("ProcessTCPPayload: read_lock blocked\n");
+		assert(0);
+	}
+
+	prev_rcv_nxt = cur_stream->rcv_nxt;
+    // MTP: also does rwnd.set() 
+	ret = RBPut(mtcp->rbm_rcv, 
+			rcvvar->rcvbuf, payload, (uint32_t)payloadlen, seq);
+	if (ret < 0) {
+		TRACE_ERROR("Cannot merge payload. reason: %d\n", ret);
+	}
+
+    /*
+	// discard the buffer if the state is FIN_WAIT_1 or FIN_WAIT_2, 
+	//   meaning that the connection is already closed by the application 
+	if (cur_stream->state == TCP_ST_FIN_WAIT_1 || 
+			cur_stream->state == TCP_ST_FIN_WAIT_2) {
+		RBRemove(mtcp->rbm_rcv, 
+				rcvvar->rcvbuf, rcvvar->rcvbuf->merged_len, AT_MTCP);
+	}
+    */
+
+    // MTP: rwnd.first_unset()
+	cur_stream->rcv_nxt = rcvvar->rcvbuf->head_seq + rcvvar->rcvbuf->merged_len;
+    // MTP TODO: refactor this one
+	rcvvar->rcv_wnd = rcvvar->rcvbuf->size - rcvvar->rcvbuf->merged_len;
+
+	SBUF_UNLOCK(&rcvvar->read_lock);
+
+	if (TCP_SEQ_LEQ(cur_stream->rcv_nxt, prev_rcv_nxt)) {
+		/* There are some lost packets */
+		return;
+	}
+
+    //***************** start of mTCP app interface
+
+	TRACE_EPOLL("Stream %d data arrived. "
+			"len: %d, ET: %u, IN: %u, OUT: %u\n", 
+			cur_stream->id, payloadlen, 
+			cur_stream->socket? cur_stream->socket->epoll & MTCP_EPOLLET : 0, 
+			cur_stream->socket? cur_stream->socket->epoll & MTCP_EPOLLIN : 0, 
+			cur_stream->socket? cur_stream->socket->epoll & MTCP_EPOLLOUT : 0);
+
+	if (cur_stream->state == TCP_ST_ESTABLISHED) {
+		RaiseReadEvent(mtcp, cur_stream);
+	}
+    //***************** end of mTCP app interface
+}
+
+
 /*----------------------------------------------------------------------------*/
 inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 {
@@ -483,8 +574,8 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 {
 	// MTP: maps to extract in the parser
 	struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
-	//uint8_t *payload    = (uint8_t *)tcph + (tcph->doff << 2);
-	//int payloadlen = ip_len - (payload - (u_char *)iph);
+	uint8_t *payload    = (uint8_t *)tcph + (tcph->doff << 2);
+	int payloadlen = ip_len - (payload - (u_char *)iph);
 
     //int event_type = MTP_NO_EVENT;
 
@@ -582,6 +673,10 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     if (is_ack){
         // event_type = MTP_ACK;
         ack_chain(mtcp, cur_stream, cur_ts, ack_seq);
+    }
+
+    if (payloadlen > 0){
+        data_net_ep(mtcp, cur_stream, cur_ts, seq, payload, payloadlen);
     }
 	/*
 	// Validate sequence. if not valid, ignore the packet
