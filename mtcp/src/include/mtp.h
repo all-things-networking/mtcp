@@ -8,6 +8,10 @@
 #define MTP_NO_EVENT -1
 #define MTP_SYN 0
 
+void 
+MTP_send_chain(mtcp_manager_t mtcp, 
+		struct mtcp_sender *sender, uint32_t cur_ts);
+
 int
 MTP_ProcessTransportPacket(struct mtcp_manager *mtcp, uint32_t cur_ts, const int ifidx,
 					const struct iphdr* iph, int ip_len);

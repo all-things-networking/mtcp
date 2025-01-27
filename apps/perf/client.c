@@ -253,19 +253,14 @@ main(int argc, char **argv)
 			ERROR("Failed to listen: %s", strerror(errno));
 		}
 
-		printf("Here 1");
-
 		while (1) { // loop until connected to a server, break when we can send
-			printf("Here 2");
 			nevents = mtcp_epoll_wait(mctx, ep_id, events, MAX_EVENTS, -1);
-			printf("Here 3");
 			if (nevents < 0) {
 				if (errno != EINTR) {
 					perror("mtcp_epoll_wait");
 				}
 				return -1;
 			}
-			printf("Here 4");
 
 			for (i = 0; i < nevents; i++) {
 				printf("nevents %d", i);

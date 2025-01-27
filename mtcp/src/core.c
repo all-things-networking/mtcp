@@ -33,6 +33,10 @@
 #include "libccp/ccp.h"
 #endif
 
+#ifdef USE_MTP
+#include "mtp.h"
+#endif
+
 #ifndef DISABLE_DPDK
 /* for launching rte thread */
 #include <rte_launch.h>
@@ -696,7 +700,11 @@ WritePacketsToChunks(mtcp_manager_t mtcp, uint32_t cur_ts)
 		if (mtcp->n_sender[i]->ack_list_cnt)
 			WriteTCPACKList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
 		if (mtcp->n_sender[i]->send_list_cnt)
+        #ifdef USE_MTP
+            MTP_send_chain(mtcp, mtcp->n_sender[i], cur_ts);
+        #else
 			WriteTCPDataList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
+        #endif
 	}
 }
 /*----------------------------------------------------------------------------*/

@@ -25,6 +25,8 @@
 
 //#include "mtp_bp.h"
 
+#define USE_MTP     1
+
 #ifdef ENABLE_ONVM
 #include "onvm_nflib.h"
 #endif

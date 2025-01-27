@@ -331,6 +331,102 @@ static inline void ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
     */   
 
 }
+
+
+/*----------------------------------------------------------------------------*/
+inline void 
+MTP_send_chain(mtcp_manager_t mtcp, 
+		struct mtcp_sender *sender, uint32_t cur_ts)
+{
+    printf("in MTP_send_chain\n");
+
+    /*
+	tcp_stream *cur_stream;
+	tcp_stream *next, *last;
+	int cnt = 0;
+	int ret;
+
+	// Send data 
+	cnt = 0;
+	cur_stream = TAILQ_FIRST(&sender->send_list);
+	last = TAILQ_LAST(&sender->send_list, send_head);
+	while (cur_stream) {
+		if (++cnt > thresh)
+			break;
+
+		TRACE_LOOP("Inside send loop. cnt: %u, stream: %d\n", 
+				cnt, cur_stream->id);
+		next = TAILQ_NEXT(cur_stream, sndvar->send_link);
+
+		TAILQ_REMOVE(&sender->send_list, cur_stream, sndvar->send_link);
+		if (cur_stream->sndvar->on_send_list) {
+			ret = 0;
+
+			// Send data here 
+			// Only can send data when ESTABLISHED or CLOSE_WAIT
+			if (cur_stream->state == TCP_ST_ESTABLISHED) {
+				if (cur_stream->sndvar->on_control_list) {
+					// delay sending data after until on_control_list becomes off 
+					//TRACE_DBG("Stream %u: delay sending data.\n", cur_stream->id);
+					ret = -1;
+				} else {
+					ret = FlushTCPSendingBuffer(mtcp, cur_stream, cur_ts);
+				}
+			} else if (cur_stream->state == TCP_ST_CLOSE_WAIT || 
+					cur_stream->state == TCP_ST_FIN_WAIT_1 || 
+					cur_stream->state == TCP_ST_LAST_ACK) {
+				ret = FlushTCPSendingBuffer(mtcp, cur_stream, cur_ts);
+			} else {
+				TRACE_DBG("Stream %d: on_send_list at state %s\n", 
+						cur_stream->id, TCPStateToString(cur_stream));
+#if DUMP_STREAM
+				DumpStream(mtcp, cur_stream);
+#endif
+			}
+
+			if (ret < 0) {
+				TAILQ_INSERT_TAIL(&sender->send_list, cur_stream, sndvar->send_link);
+				// since there is no available write buffer, break 
+				break;
+
+			} else {
+				cur_stream->sndvar->on_send_list = FALSE;
+				sender->send_list_cnt--;
+				// the ret value is the number of packets sent.
+				// decrease ack_cnt for the piggybacked acks
+#if ACK_PIGGYBACK
+				if (cur_stream->sndvar->ack_cnt > 0) {
+					if (cur_stream->sndvar->ack_cnt > ret) {
+						cur_stream->sndvar->ack_cnt -= ret;
+					} else {
+						cur_stream->sndvar->ack_cnt = 0;
+					}
+				}
+#endif
+#if 1
+				if (cur_stream->control_list_waiting) {
+					if (!cur_stream->sndvar->on_ack_list) {
+						cur_stream->control_list_waiting = FALSE;
+						AddtoControlList(mtcp, cur_stream, cur_ts);
+					}
+				}
+#endif
+			}
+		} else {
+			TRACE_ERROR("Stream %d: not on send list.\n", cur_stream->id);
+#ifdef DUMP_STREAM
+			DumpStream(mtcp, cur_stream);
+#endif
+		}
+
+		if (cur_stream == last) 
+			break;
+		cur_stream = next;
+	}
+
+	return cnt;
+    */
+}
 /*----------------------------------------------------------------------------*/
 int
 MTP_ProcessTransportPacket(mtcp_manager_t mtcp, 
