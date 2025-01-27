@@ -424,6 +424,16 @@ inline void data_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream, uint32_t cu
     //***************** end of mTCP app interface
 }
 
+inline void send_ack_ep(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts){
+    uint32_t seq = cur_stream->snd_nxt;
+    uint32_t ack = cur_stream->rcv_nxt;
+    uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
+    uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+    SendMTPPacket(mtcp, cur_stream,
+                  cur_ts, TCP_FLAG_ACK, 
+                  seq, ack, advertised_window,
+                  NULL, 0);
+}
 
 /*----------------------------------------------------------------------------*/
 inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
@@ -677,6 +687,7 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
     if (payloadlen > 0){
         data_net_ep(mtcp, cur_stream, cur_ts, seq, payload, payloadlen);
+        send_ack_ep(mtcp, cur_stream, cur_ts);
     }
 	/*
 	// Validate sequence. if not valid, ignore the packet
