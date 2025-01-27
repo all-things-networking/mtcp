@@ -9,8 +9,8 @@
 #define MTP_SYN 0
 
 void 
-MTP_send_chain(mtcp_manager_t mtcp, 
-		struct mtcp_sender *sender, uint32_t cur_ts);
+MTP_ProcessSendEvents(mtcp_manager_t mtcp, 
+		struct mtcp_sender *sender, uint32_t cur_ts, int thresh);
 
 int
 MTP_ProcessTransportPacket(struct mtcp_manager *mtcp, uint32_t cur_ts, const int ifidx,

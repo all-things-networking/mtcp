@@ -332,15 +332,95 @@ static inline void ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 
 }
 
+/*----------------------------------------------------------------------------*/
+inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
+{
+    if (cur_stream->state != TCP_ST_ESTABLISHED) return 0;
+
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	uint8_t *data;
+	uint32_t pkt_len;
+	int len;
+	uint32_t seq = 0;
+	int remaining_window;
+	int packets = 0;
+	
+	if (!sndvar->sndbuf) {
+		TRACE_ERROR("Stream %d: No send buffer available.\n", cur_stream->id);
+		assert(0);
+		return 0;
+	}
+	
+	SBUF_LOCK(&sndvar->write_lock);
+
+	if (sndvar->sndbuf->len == 0) {
+		packets = 0;
+        SBUF_UNLOCK(&sndvar->write_lock);
+        return 0;
+	}
+
+    // MTP TODO: sanity checks in FlushTCPSendingBuffer
+    remaining_window = MIN(sndvar->cwnd, sndvar->peer_wnd)
+			               - (seq - sndvar->snd_una);
+
+
+    seq = cur_stream->snd_nxt;
+    data = sndvar->sndbuf->head + (seq - sndvar->sndbuf->head_seq);
+	len = sndvar->sndbuf->len - (seq - sndvar->sndbuf->head_seq);
+    if (len == 0) {
+        SBUF_UNLOCK(&sndvar->write_lock);
+        return 0;
+    }
+    if (remaining_window <= 0) {
+        SBUF_UNLOCK(&sndvar->write_lock);
+        return -1;
+    }
+    
+    /* payload size limited by remaining window space */
+    len = MIN(len, remaining_window);
+
+    uint32_t ack_seq = cur_stream->rcv_nxt;
+    uint8_t wscale = cur_stream->sndvar->wscale_mine;
+    uint32_t window32 = cur_stream->rcvvar->rcv_wnd >> wscale;  
+    uint16_t window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
+    // MTP: seq, data, and len are part of the packet bp with segmentation
+    // MTP: this would be the segmentation logic
+    /* payload size limited by TCP MSS */
+    int ret = 0;
+	while (len > 0) {
+		pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
+        ret = SendMTPPacket(mtcp, cur_stream, 
+		              cur_ts, TCP_FLAG_ACK,
+                      seq, ack_seq,
+                      window, 
+                      data, pkt_len); 
+
+        printf("packet info: %d, %d, %d\n", pkt_len, seq, ret);
+        if (ret < 0){
+            break;
+        }
+        else{
+            len -= pkt_len;
+            seq += pkt_len;
+            data += pkt_len;
+            packets++;
+            if (len <= 0) break;
+        }
+	}
+
+    SBUF_UNLOCK(&sndvar->write_lock);
+	return ret;	
+}
 
 /*----------------------------------------------------------------------------*/
+// MTP TODO: the event is not fully inline with MTP's tcp code because
+//           data_addr and len is not in it and the data is already copied
+//           and recorded in the flow context (tcp_stream) before getting here.
 inline void 
-MTP_send_chain(mtcp_manager_t mtcp, 
-		struct mtcp_sender *sender, uint32_t cur_ts)
+MTP_ProcessSendEvents(mtcp_manager_t mtcp, 
+		struct mtcp_sender *sender, uint32_t cur_ts, int thresh)
 {
-    printf("in MTP_send_chain\n");
-
-    /*
+    
 	tcp_stream *cur_stream;
 	tcp_stream *next, *last;
 	int cnt = 0;
@@ -362,28 +442,11 @@ MTP_send_chain(mtcp_manager_t mtcp,
 		if (cur_stream->sndvar->on_send_list) {
 			ret = 0;
 
-			// Send data here 
-			// Only can send data when ESTABLISHED or CLOSE_WAIT
-			if (cur_stream->state == TCP_ST_ESTABLISHED) {
-				if (cur_stream->sndvar->on_control_list) {
-					// delay sending data after until on_control_list becomes off 
-					//TRACE_DBG("Stream %u: delay sending data.\n", cur_stream->id);
-					ret = -1;
-				} else {
-					ret = FlushTCPSendingBuffer(mtcp, cur_stream, cur_ts);
-				}
-			} else if (cur_stream->state == TCP_ST_CLOSE_WAIT || 
-					cur_stream->state == TCP_ST_FIN_WAIT_1 || 
-					cur_stream->state == TCP_ST_LAST_ACK) {
-				ret = FlushTCPSendingBuffer(mtcp, cur_stream, cur_ts);
-			} else {
-				TRACE_DBG("Stream %d: on_send_list at state %s\n", 
-						cur_stream->id, TCPStateToString(cur_stream));
-#if DUMP_STREAM
-				DumpStream(mtcp, cur_stream);
-#endif
-			}
+			// Send data here
+            ret = send_chain(mtcp, cur_stream, cur_ts); 
 
+            // MTP TODO: This is where we should properly implement our pkt generation
+            //           interface
 			if (ret < 0) {
 				TAILQ_INSERT_TAIL(&sender->send_list, cur_stream, sndvar->send_link);
 				// since there is no available write buffer, break 
@@ -392,25 +455,8 @@ MTP_send_chain(mtcp_manager_t mtcp,
 			} else {
 				cur_stream->sndvar->on_send_list = FALSE;
 				sender->send_list_cnt--;
-				// the ret value is the number of packets sent.
+				// MTP TODO: the ret value is the number of packets sent.
 				// decrease ack_cnt for the piggybacked acks
-#if ACK_PIGGYBACK
-				if (cur_stream->sndvar->ack_cnt > 0) {
-					if (cur_stream->sndvar->ack_cnt > ret) {
-						cur_stream->sndvar->ack_cnt -= ret;
-					} else {
-						cur_stream->sndvar->ack_cnt = 0;
-					}
-				}
-#endif
-#if 1
-				if (cur_stream->control_list_waiting) {
-					if (!cur_stream->sndvar->on_ack_list) {
-						cur_stream->control_list_waiting = FALSE;
-						AddtoControlList(mtcp, cur_stream, cur_ts);
-					}
-				}
-#endif
 			}
 		} else {
 			TRACE_ERROR("Stream %d: not on send list.\n", cur_stream->id);
@@ -423,9 +469,7 @@ MTP_send_chain(mtcp_manager_t mtcp,
 			break;
 		cur_stream = next;
 	}
-
-	return cnt;
-    */
+    return;
 }
 /*----------------------------------------------------------------------------*/
 int

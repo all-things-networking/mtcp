@@ -701,7 +701,7 @@ WritePacketsToChunks(mtcp_manager_t mtcp, uint32_t cur_ts)
 			WriteTCPACKList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
 		if (mtcp->n_sender[i]->send_list_cnt)
         #ifdef USE_MTP
-            MTP_send_chain(mtcp, mtcp->n_sender[i], cur_ts);
+            MTP_ProcessSendEvents(mtcp, mtcp->n_sender[i], cur_ts, thresh);
         #else
 			WriteTCPDataList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
         #endif
