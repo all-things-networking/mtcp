@@ -129,6 +129,7 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 }
 
 /*----------------------------------------------------------------------------*/
+// adapted from SendTCPPacket in tcp_out
 int
 SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
 		      uint32_t cur_ts, uint8_t flags, 
@@ -140,6 +141,7 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
     uint16_t optlen;
 	int rc = -1;
 
+    // MTP TODO: add them to MTP program
     optlen = CalculateOptionLength(flags);
     if (payloadlen + optlen > cur_stream->sndvar->mss) {
         TRACE_ERROR("Payload size exceeds MSS\n");
@@ -396,6 +398,9 @@ inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
                       data, pkt_len); 
 
         printf("packet info: %d, %d, %d\n", pkt_len, seq, ret);
+        if (packets == 1){
+            break;
+        }
         if (ret < 0){
             break;
         }
@@ -414,7 +419,7 @@ inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
 
 /*----------------------------------------------------------------------------*/
 // MTP TODO: the event is not fully inline with MTP's tcp code because
-//           data_addr and len is not in it and the data is already copied
+//           data len is not in it and the data is already copied
 //           and recorded in the flow context (tcp_stream) before getting here.
 inline void 
 MTP_ProcessSendEvents(mtcp_manager_t mtcp, 
