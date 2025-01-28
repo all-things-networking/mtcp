@@ -138,25 +138,33 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
               uint16_t window,
               uint8_t *payload, uint16_t payloadlen)
 {
+	printf("Test -3");
 	struct tcphdr *tcph;
     uint16_t optlen;
 	int rc = -1;
 
+	printf("Test -2");
+
     // MTP TODO: add them to MTP program
     optlen = CalculateOptionLength(flags);
+
+	printf("Test -1");
+
     if (payloadlen + optlen > cur_stream->sndvar->mss) {
         TRACE_ERROR("Payload size exceeds MSS\n");
         return ERROR;
     }
+	printf("Test 0");
 
     tcph = (struct tcphdr *)IPOutput(mtcp, cur_stream,
             TCP_HEADER_LEN + optlen + payloadlen);
     if (tcph == NULL) {
         return -2;
     }
+	printf("Test 1");
     memset(tcph, 0, TCP_HEADER_LEN + optlen);
 
-	
+	printf("Test 2");
 	tcph->source = cur_stream->sport;
 	tcph->dest = cur_stream->dport;
     tcph->seq = htonl(seq);
@@ -182,10 +190,13 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 		cur_stream->need_wnd_adv = TRUE;
 	}
     */
+	printf("Test 3");
 
     // MTP TODO: move out of here
     GenerateTCPOptions(cur_stream, cur_ts, flags,
             (uint8_t *)tcph + TCP_HEADER_LEN, optlen);
+
+	printf("Test 4");
 
     tcph->doff = (TCP_HEADER_LEN + optlen) >> 2;
 
@@ -197,18 +208,23 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 #endif /* NETSTAT */
     }
 
+	printf("Test 5");
+
 #if TCP_CALCULATE_CHECKSUM
 #ifndef DISABLE_HWCSUM
     if (mtcp->iom->dev_ioctl != NULL)
         rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
                       PKT_TX_TCPIP_CSUM, NULL);
 #endif
+	printf("Test 6");
+
     if (rc == -1)
         tcph->check = TCPCalcChecksum((uint16_t *)tcph,
                           TCP_HEADER_LEN + optlen + payloadlen,
                           cur_stream->saddr, cur_stream->daddr);
 #endif
 
+	printf("Test 7");
 		
 	return 0;
 }
@@ -359,12 +375,16 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 		return;
 
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	sndvar->peer_wnd = rwnd;
 	//sndvar->snd_una = ack_seq;
+
+	// TODO: check how they do scaling
+	sndvar->peer_wnd = rwnd;
 
 	uint8_t wscale = cur_stream->sndvar->wscale_mine;
         uint32_t window32 = cur_stream->rcvvar->rcv_wnd >> wscale;
         uint16_t window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
+
+	SBUF_LOCK(&sndvar->write_lock);
 
 	uint32_t data_rest = sndvar->sndbuf->len - (cur_stream->snd_nxt - sndvar->snd_una);
 
@@ -373,42 +393,50 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 
 	uint8_t *data;
 
+	// TODO: print snd_una and head_seq to see if they are the same
 	if(cur_stream->rcvvar->dup_acks == 3) {
 		bytes_to_send = MIN(MSS, effective_window);
 		data = sndvar->sndbuf->head + sndvar->sndbuf->head_seq;
 		SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, sndvar->sndbuf->head_seq,
                         cur_stream->rcv_nxt, window, data, bytes_to_send);
+
+		SBUF_UNLOCK(&sndvar->write_lock);
 		return;
 	}
 
 	// Note: Translating this part that removes from buffer isn't trivial
 	uint32_t remove_len = ack_seq - sndvar->sndbuf->head_seq;
 	if(remove_len > 0) {
-		if (SBUF_LOCK(&sndvar->write_lock)) {
+		/*if (SBUF_LOCK(&sndvar->write_lock)) {
 			if (errno == EDEADLK)
 				perror("ProcessACK: write_lock blocked\n");
 			assert(0);
-		}
+		}*/
 		SBRemove(mtcp->rbm_snd, sndvar->sndbuf, remove_len);
 		sndvar->snd_una = ack_seq;
 		//snd_wnd_prev = sndvar->snd_wnd;
 		sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
+
+		//SBUF_UNLOCK(&sndvar->write_lock);
 	}
 
 	int32_t window_avail = sndvar->snd_una + effective_window - cur_stream->snd_nxt;
-        if(window_avail < 0) {
+        if(window_avail <= 0) {
                 bytes_to_send = 0;
         } else {
                 bytes_to_send = MIN(data_rest, window_avail);
         }
         printf("bytes_to_send %d\n", bytes_to_send);
 
-	uint32_t num_loops_send = bytes_to_send / MSS;
+	// TODO: use sndvar->mss
+	/*uint32_t num_loops_send = bytes_to_send / MSS;
 	if(bytes_to_send % MSS != 0)
 		num_loops_send++;
 
+	// TODO: copy the same loop
 	data = sndvar->sndbuf->head + (cur_stream->snd_nxt - sndvar->sndbuf->head_seq);
 	for(int i = 0; i < num_loops_send; i++) {
+		printf("Loop send packets\n");
 		uint32_t pkt_data_len;
 		if(bytes_to_send <= MSS) {
 			pkt_data_len = bytes_to_send;
@@ -421,7 +449,39 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 			cur_stream->rcv_nxt, window, data, pkt_data_len);
 
 		cur_stream->snd_nxt += pkt_data_len;
-	}
+	}*/
+
+	int32_t len = bytes_to_send;
+	int32_t seq = cur_stream->snd_nxt;
+	int32_t ack_num = cur_stream->rcv_nxt;
+	printf("head_seq %d snd_una %d\n", sndvar->sndbuf->head_seq, sndvar->snd_una);
+	data = sndvar->sndbuf->head + (seq - sndvar->sndbuf->head_seq);
+	int ret = 0;
+	int packets = 0;
+	while (len > 0) {
+                int32_t pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
+        	ret = SendMTPPacket(mtcp, cur_stream, 
+                        cur_ts, TCP_FLAG_ACK,
+                      	seq, ack_num,
+                      	window, data, pkt_len);
+
+        	printf("ack send packet info: %d, %d, %d, %d\n", pkt_len, seq, ret, ack_num);
+		printf("len %d", len);
+        	if (ret < 0){
+           		break;
+        	} else {
+            		len -= pkt_len;
+            		seq += pkt_len;
+            		data += pkt_len;
+            		packets++;
+            		// Adding this statement to increase snd_nxt
+            		cur_stream->snd_nxt += pkt_len;
+            		//printf("Snd_nxt %d\n", cur_stream->snd_nxt);
+           	 	if (len <= 0) break;
+        	}
+        }
+
+	SBUF_UNLOCK(&sndvar->write_lock);
 }
 
 
@@ -562,6 +622,8 @@ inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
     // MTP: this would be the segmentation logic
     /* payload size limited by TCP MSS */
     int ret = 0;
+	// Adding this statement to increase snd_nxt
+            //cur_stream->snd_nxt += pkt_len;
 	while (len > 0) {
 		pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
         ret = SendMTPPacket(mtcp, cur_stream, 
@@ -570,8 +632,8 @@ inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
                       window, 
                       data, pkt_len); 
 
-        printf("packet info: %d, %d, %d\n", pkt_len, seq, ret);
-        if (packets == 15){
+        printf("packet info: %d, %d, %d, %d\n", pkt_len, seq, ret, cur_stream->snd_nxt);
+        if (packets == 1){
             break;
         }
         if (ret < 0){
@@ -582,8 +644,9 @@ inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
             seq += pkt_len;
             data += pkt_len;
             packets++;
-	    // Adding this statement to increase snd_nxt
-	    cur_stream->snd_nxt += pkt_len;
+		// Adding this statement to increase snd_nxt
+            	// TODO: change this later with segmentation
+		cur_stream->snd_nxt += pkt_len;
 	    //printf("Snd_nxt %d\n", cur_stream->snd_nxt);
             if (len <= 0) break;
         }
