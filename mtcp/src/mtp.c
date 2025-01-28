@@ -138,7 +138,7 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
               uint16_t window,
               uint8_t *payload, uint16_t payloadlen)
 {
-	printf("Test -3");
+	printf("\nTest -3");
 	struct tcphdr *tcph;
     uint16_t optlen;
 	int rc = -1;
@@ -224,7 +224,7 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
                           cur_stream->saddr, cur_stream->daddr);
 #endif
 
-	printf("Test 7");
+	printf("Test 7\n");
 		
 	return 0;
 }
@@ -421,7 +421,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	}
 
 	int32_t window_avail = sndvar->snd_una + effective_window - cur_stream->snd_nxt;
-        if(window_avail <= 0) {
+        if(window_avail < 0) {
                 bytes_to_send = 0;
         } else {
                 bytes_to_send = MIN(data_rest, window_avail);
@@ -454,19 +454,23 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	int32_t len = bytes_to_send;
 	int32_t seq = cur_stream->snd_nxt;
 	int32_t ack_num = cur_stream->rcv_nxt;
-	printf("head_seq %d snd_una %d\n", sndvar->sndbuf->head_seq, sndvar->snd_una);
+	//printf("head_seq %d snd_una %d\n", sndvar->sndbuf->head_seq, sndvar->snd_una);
 	data = sndvar->sndbuf->head + (seq - sndvar->sndbuf->head_seq);
 	int ret = 0;
 	int packets = 0;
 	while (len > 0) {
-                int32_t pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
+		int32_t pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
+		printf("ACK send packet info\n");
+		printf("head_seq %d\nsnd_una %d\nsnd_nxt %d\npkt_len %d\nrcvd_ack %d\rcv_nxt %d\nmss %d\n",
+		sndvar->sndbuf->head_seq, sndvar->snd_una, cur_stream->snd_nxt, pkt_len, ack_seq, cur_stream->rcv_nxt, sndvar->mss);
+
         	ret = SendMTPPacket(mtcp, cur_stream, 
                         cur_ts, TCP_FLAG_ACK,
                       	seq, ack_num,
                       	window, data, pkt_len);
 
-        	printf("ack send packet info: %d, %d, %d, %d\n", pkt_len, seq, ret, ack_num);
-		printf("len %d", len);
+        	//printf("ack send packet info: %d, %d, %d, %d\n", pkt_len, seq, ret, ack_num);
+		//printf("len %d", len);
         	if (ret < 0){
            		break;
         	} else {
@@ -626,30 +630,34 @@ inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
             //cur_stream->snd_nxt += pkt_len;
 	while (len > 0) {
 		pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
-        ret = SendMTPPacket(mtcp, cur_stream, 
-		              cur_ts, TCP_FLAG_ACK,
-                      seq, ack_seq,
-                      window, 
-                      data, pkt_len); 
 
-        printf("packet info: %d, %d, %d, %d\n", pkt_len, seq, ret, cur_stream->snd_nxt);
-        if (packets == 1){
-            break;
-        }
-        if (ret < 0){
-            break;
-        }
-        else{
-            len -= pkt_len;
-            seq += pkt_len;
-            data += pkt_len;
-            packets++;
-		// Adding this statement to increase snd_nxt
-            	// TODO: change this later with segmentation
-		cur_stream->snd_nxt += pkt_len;
-	    //printf("Snd_nxt %d\n", cur_stream->snd_nxt);
-            if (len <= 0) break;
-        }
+		printf("SEND packet info\n");
+                printf("head_seq %d\nsnd_una %d\nsnd_nxt %d\npkt_len %d\nrcvd_ack %d\rcv_nxt %d\nmss %d\n",
+                sndvar->sndbuf->head_seq, sndvar->snd_una, cur_stream->snd_nxt, pkt_len, ack_seq, cur_stream->rcv_nxt, sndvar->mss);
+
+        	ret = SendMTPPacket(mtcp, cur_stream, 
+		        cur_ts, TCP_FLAG_ACK,
+                	seq, ack_seq,
+                     	window, 
+                      	data, pkt_len); 
+
+        	//printf("packet info: %d, %d, %d, %d\n", pkt_len, seq, ret, cur_stream->snd_nxt);
+        	if (ret < 0){
+            		break;
+        	} else{
+            		len -= pkt_len;
+            		seq += pkt_len;
+            		data += pkt_len;
+			// Adding this statement to increase snd_nxt
+            		// TODO: change this later with segmentation
+			cur_stream->snd_nxt += pkt_len;
+	    		//printf("Snd_nxt %d\n", cur_stream->snd_nxt);
+			if (packets == 0){
+                        	break;
+                	}
+			packets++;
+            		if (len <= 0) break;
+        	}
 	}
 
     SBUF_UNLOCK(&sndvar->write_lock);
@@ -674,6 +682,7 @@ MTP_ProcessSendEvents(mtcp_manager_t mtcp,
 	cnt = 0;
 	cur_stream = TAILQ_FIRST(&sender->send_list);
 	last = TAILQ_LAST(&sender->send_list, send_head);
+
 	while (cur_stream) {
 		if (++cnt > thresh)
 			break;
@@ -687,8 +696,7 @@ MTP_ProcessSendEvents(mtcp_manager_t mtcp,
 			ret = 0;
 
 			// Send data here
-            ret = send_chain(mtcp, cur_stream, cur_ts); 
-
+            ret = send_chain(mtcp, cur_stream, cur_ts);
             // MTP TODO: This is where we should properly implement our pkt generation
             //           interface
 			if (ret < 0) {
