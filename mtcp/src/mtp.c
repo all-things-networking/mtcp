@@ -239,9 +239,39 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	cur_stream->sndvar->peer_wnd = rwnd;
 	cur_stream->rcvvar->irs = init_seq;
 	cur_stream->rcv_nxt = (cur_stream->rcvvar->irs + 1);
+    cur_stream->rcvvar->last_flushed_seq = cur_stream->rcvvar->irs;
     // MTP TODO: I think we need to add a state variable in context to MTP code
     cur_stream->state = TCP_ST_SYN_RCVD;
-   
+  
+    struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+    if (!rcvvar->rcvbuf) {
+		rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
+        // MTP TODO: this should raise an error event that comes back
+        //           to be processed according to the MTP program
+		if (!rcvvar->rcvbuf) {
+			TRACE_ERROR("Stream %d: Failed to allocate receive buffer.\n", 
+					cur_stream->id);
+			cur_stream->state = TCP_ST_CLOSED;
+			cur_stream->close_reason = TCP_NO_MEM;
+			RaiseErrorEvent(mtcp, cur_stream);
+			return;
+		}
+    }
+
+    if (!rcvvar->meta_rwnd) {
+		rcvvar->meta_rwnd = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
+        // MTP TODO: this should raise an error event that comes back
+        //           to be processed according to the MTP program
+		if (!rcvvar->meta_rwnd) {
+			TRACE_ERROR("Stream %d: Failed to allocate meta_rwnd.\n", 
+					cur_stream->id);
+			cur_stream->state = TCP_ST_CLOSED;
+			cur_stream->close_reason = TCP_NO_MEM;
+			RaiseErrorEvent(mtcp, cur_stream);
+			return;
+		}
+    }
+
     // MTP pkt gen instruction
     uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
@@ -343,7 +373,7 @@ static inline void ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 inline void data_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream, uint32_t cur_ts, 
                        uint32_t seq, uint8_t *payload, int payloadlen){
     struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
-	uint32_t prev_rcv_nxt;
+	//uint32_t prev_rcv_nxt;
     uint32_t last_rcvd_seq = seq + payloadlen;
 	int ret;
 
@@ -356,9 +386,9 @@ inline void data_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream, uint32_t cu
 		return;
 	}
 
-    // MTP: this is new_inorder_data, rcvbuf is the "id"
-	/* allocate receive buffer if not exist */
-	if (!rcvvar->rcvbuf) {
+    // MTP: this is new_inorder_data, rcvbuf is the "id", moved to syn_chain
+	// allocate receive buffer if not exist 
+	/*if (!rcvvar->rcvbuf) {
 		rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
         // MTP TODO: this should raise an error event that comes back
         //           to be processed according to the MTP program
@@ -371,7 +401,7 @@ inline void data_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream, uint32_t cu
 
 			return;
 		}
-	}
+	}*/
 
 	if (SBUF_LOCK(&rcvvar->read_lock)) {
 		if (errno == EDEADLK)
@@ -379,13 +409,22 @@ inline void data_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream, uint32_t cu
 		assert(0);
 	}
 
-	prev_rcv_nxt = cur_stream->rcv_nxt;
-    // MTP: also does rwnd.set() 
-	ret = RBPut(mtcp->rbm_rcv, 
-			rcvvar->rcvbuf, payload, (uint32_t)payloadlen, seq);
-	if (ret < 0) {
-		TRACE_ERROR("Cannot merge payload. reason: %d\n", ret);
-	}
+	//prev_rcv_nxt = cur_stream->rcv_nxt;
+    // MTP window set()
+    // MTP TODO: refactor meta_rwnd to have its own class
+    //           that's not keeping the data
+    RBPut(mtcp->rbm_rcv, 
+		  rcvvar->meta_rwnd, payload, (uint32_t)payloadlen, seq);
+
+    // MTP: rwnd.first_unset()
+	cur_stream->rcv_nxt = rcvvar->meta_rwnd->head_seq + rcvvar->meta_rwnd->merged_len;
+
+    // MTP: move window forward, not sure this is ok in this context because they change different
+    //      fragment queues based on AT_APP and AT_MTCP
+    RBRemove(mtcp->rbm_rcv, rcvvar->meta_rwnd, rcvvar->meta_rwnd->merged_len, AT_APP);
+
+	// MTP: assuming rcvbuf->size is coming in as input to the chain
+	rcvvar->rcv_wnd = rcvvar->rcvbuf->size - (cur_stream->rcv_nxt - 1 - cur_stream->rcvvar->last_flushed_seq);
 
     /*
 	// discard the buffer if the state is FIN_WAIT_1 or FIN_WAIT_2, 
@@ -397,17 +436,21 @@ inline void data_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream, uint32_t cu
 	}
     */
 
-    // MTP: rwnd.first_unset()
-	cur_stream->rcv_nxt = rcvvar->rcvbuf->head_seq + rcvvar->rcvbuf->merged_len;
-    // MTP TODO: refactor this one
-	rcvvar->rcv_wnd = rcvvar->rcvbuf->size - rcvvar->rcvbuf->merged_len;
+    // MTP add_data_seg instruction
+    ret = RBPut(mtcp->rbm_rcv, 
+			rcvvar->rcvbuf, payload, (uint32_t)payloadlen, seq);
 
+	if (ret < 0) {
+		TRACE_ERROR("Cannot merge payload. reason: %d\n", ret);
+	}
 	SBUF_UNLOCK(&rcvvar->read_lock);
 
-	if (TCP_SEQ_LEQ(cur_stream->rcv_nxt, prev_rcv_nxt)) {
-		/* There are some lost packets */
+	// MTP TODO: should look into this later
+    /*if (TCP_SEQ_LEQ(cur_stream->rcv_nxt, prev_rcv_nxt)) {
+		// There are some lost packets 
 		return;
 	}
+    */
 
     //***************** start of mTCP app interface
 

@@ -69,6 +69,8 @@ struct tcp_recv_vars
 #endif /* TCP_OPT_SACK_ENABLED */
 
 	struct tcp_ring_buffer *rcvbuf;
+    struct tcp_ring_buffer *meta_rwnd;
+    uint32_t last_flushed_seq;
 #if USE_SPIN_LOCK
 	pthread_spinlock_t read_lock;
 #else
