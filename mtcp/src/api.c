@@ -18,6 +18,10 @@
 #include "config.h"
 #include "debug.h"
 
+#ifdef USE_MTP
+#include "mtp.h"
+#endif
+
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
 
@@ -1237,7 +1241,12 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 
 	switch (flags) {
 	case 0:
+        // MTP: tcp_recv event processing will be added here
+    #ifdef USE_MTP
+        ret = MTP_recv_chain(mtcp, cur_stream, buf, len);
+    #else
 		ret = CopyToUser(mtcp, cur_stream, buf, len);
+    #endif
 		break;
 	case MSG_PEEK:
 		ret = PeekForUser(mtcp, cur_stream, buf, len);

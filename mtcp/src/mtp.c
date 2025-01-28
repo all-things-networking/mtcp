@@ -479,6 +479,46 @@ inline void send_ack_ep(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cu
 }
 
 /*----------------------------------------------------------------------------*/
+// adapted from CopyToUser in api.c
+inline int
+MTP_recv_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
+{
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	int copylen;
+
+    copylen = MIN((cur_stream->rcv_nxt - rcvvar->last_flushed_seq), len);
+	if (copylen <= 0) {
+		errno = EAGAIN;
+		return -1;
+	}
+    rcvvar->rcv_wnd -= copylen;
+    rcvvar->last_flushed_seq += copylen;
+
+    // MTP flush_and_notify instruction (notify is implemented in the api function call
+	/* Copy data to user buffer and remove it from receiving buffer */
+	memcpy(buf, rcvvar->rcvbuf->head, copylen);
+	RBRemove(mtcp->rbm_rcv, rcvvar->rcvbuf, copylen, AT_APP);
+
+    // MTP TODO: I think this is only for cases that the window was full
+    //           but we should check this. 
+	// Advertise newly freed receive buffer
+    /*
+	if (cur_stream->need_wnd_adv) {
+		if (rcvvar->rcv_wnd > cur_stream->sndvar->eff_mss) {
+			if (!cur_stream->sndvar->on_ackq) {
+				SQ_LOCK(&mtcp->ctx->ackq_lock);
+				cur_stream->sndvar->on_ackq = TRUE;
+				StreamEnqueue(mtcp->ackq, cur_stream); // this always success
+				SQ_UNLOCK(&mtcp->ctx->ackq_lock);
+				cur_stream->need_wnd_adv = FALSE;
+				mtcp->wakeup_flag = TRUE;
+			}
+		}
+	}*/
+
+	return copylen;
+}
+/*----------------------------------------------------------------------------*/
 inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 {
     if (cur_stream->state != TCP_ST_ESTABLISHED) return 0;
