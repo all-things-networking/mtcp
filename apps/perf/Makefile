@@ -1,6 +1,6 @@
 # TODO: Make this Makefile.in pretty
 
-TARGETS = client
+TARGETS = epserver epwget
 CC=gcc -g -O3 -Wall -Werror -fgnu89-inline
 DPDK=1
 PS=0
@@ -46,8 +46,7 @@ ifeq ($(DPDK),1)
 #DPDK_MACHINE_LINKER_FLAGS=$${RTE_SDK}/$${RTE_TARGET}/lib/ldflags.txt
 #DPDK_MACHINE_LDFLAGS=$(shell cat ${DPDK_MACHINE_LINKER_FLAGS})
 DPDK_MACHINE_LDFLAGS=$(shell pkg-config --libs libdpdk)
-#LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lmtcp -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
-LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
+LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lmtcp -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
 endif
 
 # onvm-specific variables

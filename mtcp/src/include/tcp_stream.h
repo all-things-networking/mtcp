@@ -47,6 +47,9 @@ struct tcp_recv_vars
 	/* variables for fast retransmission */
 	uint8_t dup_acks;		/* number of duplicated acks */
 	uint32_t last_ack_seq;	/* highest ackd seq */
+
+	// Adding flightsize, used during duplicate acks
+        uint32_t flightsize_dupl;
 	
 	/* timestamps */
 	uint32_t ts_recent;			/* recent peer timestamp */
@@ -103,6 +106,7 @@ struct tcp_send_vars
 	//uint32_t snd_up;		/* send urgent pointer (not used) */
 	uint32_t iss;			/* initial sending sequence */
 	uint32_t fss;			/* final sending sequence */
+
 
 	/* retransmission timeout variables */
 	uint8_t nrtx;			/* number of retransmission */

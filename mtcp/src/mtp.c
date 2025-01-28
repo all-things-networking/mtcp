@@ -7,6 +7,7 @@
 #include "fhash.h"
 #include "debug.h"
 #include "ip_out.h"
+#include "tcp_util.h"
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
@@ -259,9 +260,174 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
 }
 
 /*----------------------------------------------------------------------------*/
+
+static inline void rto_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
+                             uint32_t cur_ts,
+                            uint32_t ack_seq, scratchpad scratch){
+	//printf("Entered RTO");
+	scratch.skip_ack_eps = 0;
+
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	if(ack_seq < sndvar->snd_una || cur_stream->snd_nxt < ack_seq) {
+		//printf("ack %d send_una %d send_next %d\n", ack_seq, sndvar->snd_una, cur_stream->snd_nxt);
+		scratch.skip_ack_eps = 1;
+		return;
+	}
+
+	uint32_t granularity_g = 1;
+	uint32_t round_tt = 100000000;
+
+	// Here we would have a condition to decide the initial RTO, but
+	// it seems to me that mTCP already decides that?
+	//if(first_rto_bool) {
+	//	...
+	//} else {}
+	cur_stream->rcvvar->rttvar = (1 - 1/4) * cur_stream->rcvvar->rttvar + 1/4 * abs(cur_stream->rcvvar->srtt - round_tt);
+	cur_stream->rcvvar->srtt = (1 - 1/8) * cur_stream->rcvvar->srtt + 1/8 * round_tt;
+	if(granularity_g >= 4 * cur_stream->rcvvar->rttvar)
+		sndvar->rto = cur_stream->rcvvar->srtt + granularity_g;
+	else
+		sndvar->rto = cur_stream->rcvvar->srtt + 4 * cur_stream->rcvvar->rttvar;
+
+	//printf("Finished RTO");
+}
+
+
+static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
+                             uint32_t cur_ts,
+                            uint32_t ack_seq, scratchpad scratch){
+
+	if(scratch.skip_ack_eps)
+		return;
+
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+
+	//uint32_t MSS = 1448;
+	scratch.change_cwnd = 1;
+
+	if(ack_seq == cur_stream->rcvvar->last_ack_seq) {
+		cur_stream->rcvvar->dup_acks++;
+
+		scratch.change_cwnd = 0;
+
+		if(cur_stream->rcvvar->dup_acks == 1) {
+			cur_stream->rcvvar->flightsize_dupl = cur_stream->snd_nxt = sndvar->snd_una;
+		}
+
+		if(cur_stream->rcvvar->dup_acks == 3) {
+			sndvar->ssthresh = MAX(cur_stream->rcvvar->flightsize_dupl / 2, 2 * MSS);
+
+			sndvar->cwnd = sndvar->ssthresh + 1 * MSS;
+		}
+
+		if(cur_stream->rcvvar->dup_acks != 3) {
+			sndvar->cwnd += MSS;
+		}
+	} else {
+		if(cur_stream->rcvvar->dup_acks > 0) {
+			sndvar->cwnd = sndvar->ssthresh;
+		}
+		cur_stream->rcvvar->dup_acks = 0;
+		cur_stream->rcvvar->last_ack_seq = ack_seq;
+	}
+}
+
+static inline void slows_congc_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
+                             uint32_t cur_ts,
+                            uint32_t ack_seq, scratchpad scratch){
+	if(scratch.skip_ack_eps)
+		return;
+
+	// Note: should we consider the case that an ACK might ack N packets, so
+	// cwnd is increased by N * MAX(MSS * ...) ?
+	if(scratch.change_cwnd) {
+		struct tcp_send_vars *sndvar = cur_stream->sndvar;
+		if(sndvar->cwnd < sndvar->ssthresh) {
+			sndvar->cwnd = sndvar->cwnd + MSS;
+		} else {
+			sndvar->cwnd += MAX(MSS * MSS / sndvar->cwnd, 1);
+		}
+	}
+}
+
+
+static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
+                             uint32_t cur_ts,
+                            uint32_t ack_seq, scratchpad scratch, uint32_t rwnd){
+
+	if(scratch.skip_ack_eps)
+		return;
+
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	sndvar->peer_wnd = rwnd;
+	//sndvar->snd_una = ack_seq;
+
+	uint8_t wscale = cur_stream->sndvar->wscale_mine;
+        uint32_t window32 = cur_stream->rcvvar->rcv_wnd >> wscale;
+        uint16_t window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
+
+	uint32_t data_rest = sndvar->sndbuf->len - (cur_stream->snd_nxt - sndvar->snd_una);
+
+	uint32_t effective_window = MIN(sndvar->cwnd, sndvar->peer_wnd);
+	uint32_t bytes_to_send = 0;
+
+	uint8_t *data;
+
+	if(cur_stream->rcvvar->dup_acks == 3) {
+		bytes_to_send = MIN(MSS, effective_window);
+		data = sndvar->sndbuf->head + sndvar->sndbuf->head_seq;
+		SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, sndvar->sndbuf->head_seq,
+                        cur_stream->rcv_nxt, window, data, bytes_to_send);
+		return;
+	}
+
+	// Note: Translating this part that removes from buffer isn't trivial
+	uint32_t remove_len = ack_seq - sndvar->sndbuf->head_seq;
+	if(remove_len > 0) {
+		if (SBUF_LOCK(&sndvar->write_lock)) {
+			if (errno == EDEADLK)
+				perror("ProcessACK: write_lock blocked\n");
+			assert(0);
+		}
+		SBRemove(mtcp->rbm_snd, sndvar->sndbuf, remove_len);
+		sndvar->snd_una = ack_seq;
+		//snd_wnd_prev = sndvar->snd_wnd;
+		sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
+	}
+
+	int32_t window_avail = sndvar->snd_una + effective_window - cur_stream->snd_nxt;
+        if(window_avail < 0) {
+                bytes_to_send = 0;
+        } else {
+                bytes_to_send = MIN(data_rest, window_avail);
+        }
+        printf("bytes_to_send %d\n", bytes_to_send);
+
+	uint32_t num_loops_send = bytes_to_send / MSS;
+	if(bytes_to_send % MSS != 0)
+		num_loops_send++;
+
+	data = sndvar->sndbuf->head + (cur_stream->snd_nxt - sndvar->sndbuf->head_seq);
+	for(int i = 0; i < num_loops_send; i++) {
+		uint32_t pkt_data_len;
+		if(bytes_to_send <= MSS) {
+			pkt_data_len = bytes_to_send;
+			bytes_to_send = 0;
+		} else {
+			pkt_data_len = MSS;
+			bytes_to_send -= MSS;
+		}
+		SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, cur_stream->snd_nxt,
+			cur_stream->rcv_nxt, window, data, pkt_data_len);
+
+		cur_stream->snd_nxt += pkt_data_len;
+	}
+}
+
+
 static inline void ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
-                            uint32_t ack_seq){ 
+                            uint32_t ack_seq, uint32_t rwnd){ 
 
     // "establish" the connection if not established
     struct tcp_send_vars *sndvar = cur_stream->sndvar;
@@ -320,6 +486,13 @@ static inline void ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 					MTCP_EVENT_QUEUE, listener->socket, MTCP_EPOLLIN);
 		}
         // ************** End of mTCP app interface
+    } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
+	scratchpad scratch;
+
+	rto_ep(mtcp, cur_stream, cur_ts, ack_seq, scratch);
+	fast_retr_rec_ep(mtcp, cur_stream, cur_ts, ack_seq, scratch);
+	slows_congc_ep(mtcp, cur_stream, cur_ts, ack_seq, scratch);
+	ack_net_ep(mtcp, cur_stream, cur_ts, ack_seq, scratch, rwnd);
     }
     /*
     // MTP TODO: syn ack retransmit
@@ -398,7 +571,7 @@ inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
                       data, pkt_len); 
 
         printf("packet info: %d, %d, %d\n", pkt_len, seq, ret);
-        if (packets == 1){
+        if (packets == 15){
             break;
         }
         if (ret < 0){
@@ -409,6 +582,9 @@ inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
             seq += pkt_len;
             data += pkt_len;
             packets++;
+	    // Adding this statement to increase snd_nxt
+	    cur_stream->snd_nxt += pkt_len;
+	    //printf("Snd_nxt %d\n", cur_stream->snd_nxt);
             if (len <= 0) break;
         }
 	}
@@ -581,7 +757,7 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
     if (is_ack){
         // event_type = MTP_ACK;
-        ack_chain(mtcp, cur_stream, cur_ts, ack_seq);
+        ack_chain(mtcp, cur_stream, cur_ts, ack_seq, window);
     }
 	/*
 	// Validate sequence. if not valid, ignore the packet

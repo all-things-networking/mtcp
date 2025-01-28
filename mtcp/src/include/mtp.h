@@ -8,6 +8,11 @@
 #define MTP_NO_EVENT -1
 #define MTP_SYN 0
 
+typedef struct scratchpad_decl {
+	uint8_t change_cwnd;
+	uint8_t skip_ack_eps;
+} scratchpad;
+
 void 
 MTP_ProcessSendEvents(mtcp_manager_t mtcp, 
 		struct mtcp_sender *sender, uint32_t cur_ts, int thresh);
