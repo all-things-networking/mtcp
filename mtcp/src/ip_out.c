@@ -131,12 +131,15 @@ IPOutput(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen)
 		/* tcp will retry sending the packet later */
 		RequestARP(mtcp, (stream->is_external) ? (CONFIG.gateway)->daddr : stream->daddr,
 			   stream->sndvar->nif_out, mtcp->cur_ts);
+
+		printf("ERROR 1 IP\n");
 		return NULL;
 	}
 	
 	iph = (struct iphdr *)EthernetOutput(mtcp, ETH_P_IP, 
 			stream->sndvar->nif_out, haddr, tcplen + IP_HEADER_LEN);
 	if (!iph) {
+		printf("ERROR 2 IP\n");
 		return NULL;
 	}
 
