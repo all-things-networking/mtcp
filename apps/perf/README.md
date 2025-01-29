@@ -5,13 +5,13 @@ As the name suggests, this application is an iperf-like application which
 attempts to measure throughput with mTCP by measuring the time it takes to
 complete a bulk transfer. 
 
-The client uses mTCP sockets, while the receiver is written in Python using
-traditional sockets so that it can be run on a machine that does not have
-DPDK/mTCP installed. 
+The server and client use mTCP sockets, while the receiver and sender are written
+in Python using traditional sockets so that it can be run on a machine that 
+does not have DPDK/mTCP installed. 
 
-The traffic always flows from client to receiver, but there are two different
-modes that allow you to specify whether the client or receiver should initiate
-the connection:
+The traffic always flows from client to receiver, or from sender to server, 
+but there are two different modes that allow you to specify whether the client/server
+or receiver/sender should initiate the connection:
 
 1. Client initiates connection (receiver listens on `port` and client sends to
 `ip:port` for `length` seconds)
@@ -23,6 +23,11 @@ start message to `ip:port`, and then client sends back to receiver for `length`
 seconds)
 - `./client wait [ip] [port] [length (seconds)]`
 - `python recv.py send [ip] [port]`
+
+3. Sender initiates connection (server listens on `port` and sender sends to
+`ip:port` for `length` seconds)
+- `./server wait [ip] [port]`
+- `python send.py send [ip] [port] [length (seconds)]`
 
 *NOTE*: If using CCP with mTCP, you will need to ensure that `LD_LIBRARY_PATH`
 includes the path to libccp:

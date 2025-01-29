@@ -1,4 +1,5 @@
 logs/
 client
+server
 run
 log_*
