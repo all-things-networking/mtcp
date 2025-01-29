@@ -1,6 +1,8 @@
 #ifndef MTP_H
 #define MTP_H
 
+#ifdef USE_MTP
+
 #include <netinet/ip.h>
 
 #include "mtcp.h"
@@ -11,7 +13,7 @@
 
 int 
 MTP_recv_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream,
-                char* buf, int len);
+                char* buf, int len, socket_map_t socket);
  
 void 
 MTP_ProcessSendEvents(mtcp_manager_t mtcp, 
@@ -21,5 +23,6 @@ int
 MTP_ProcessTransportPacket(struct mtcp_manager *mtcp, uint32_t cur_ts, const int ifidx,
 					const struct iphdr* iph, int ip_len);
 
+#endif
 
 #endif

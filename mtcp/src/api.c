@@ -1243,7 +1243,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	case 0:
         // MTP: tcp_recv event processing will be added here
     #ifdef USE_MTP
-        ret = MTP_recv_chain(mtcp, cur_stream, buf, len);
+        ret = MTP_recv_chain(mtcp, cur_stream, buf, len, socket);
     #else
 		ret = CopyToUser(mtcp, cur_stream, buf, len);
     #endif
@@ -1258,6 +1258,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 		return ret;
 	}
 	
+#ifndef USE_MTP
 	event_remaining = FALSE;
         /* if there are remaining payload, generate EPOLLIN */
 	/* (may due to insufficient user buffer) */
@@ -1289,7 +1290,10 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 #endif
 		}
 	}
-	
+#else
+	(void)event_remaining;
+#endif
+
 	TRACE_API("Stream %d: mtcp_recv() returning %d\n", cur_stream->id, ret);
         return ret;
 }

@@ -479,42 +479,80 @@ inline void send_ack_ep(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cu
 }
 
 /*----------------------------------------------------------------------------*/
-// adapted from CopyToUser in api.c
+// This is the chain of event processors when an incoming app event is processed
+// It should include one event processor called flush_and_notify
+// flush_and_notify flushes in-order packet data to the application, and notify the
+// application about it.
 inline int
-MTP_recv_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
+MTP_recv_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len, socket_map_t socket)
 {
+	// MTP flush_and_notify - flush part
+	/* Modified from mTCP CopyToUser */
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	uint32_t prev_rcv_wnd;
 	int copylen;
 
-    copylen = MIN((cur_stream->rcv_nxt - rcvvar->last_flushed_seq), len);
+	copylen = MIN((cur_stream->rcv_nxt - rcvvar->last_flushed_seq - 1), len);
 	if (copylen <= 0) {
 		errno = EAGAIN;
 		return -1;
 	}
-    rcvvar->rcv_wnd -= copylen;
-    rcvvar->last_flushed_seq += copylen;
 
-    // MTP flush_and_notify instruction (notify is implemented in the api function call
+	prev_rcv_wnd = rcvvar->rcv_wnd;
 	/* Copy data to user buffer and remove it from receiving buffer */
 	memcpy(buf, rcvvar->rcvbuf->head, copylen);
 	RBRemove(mtcp->rbm_rcv, rcvvar->rcvbuf, copylen, AT_APP);
+	rcvvar->last_flushed_seq += copylen;
+	rcvvar->rcv_wnd = rcvvar->rcvbuf->size - rcvvar->rcvbuf->merged_len;
 
-    // MTP TODO: I think this is only for cases that the window was full
-    //           but we should check this. 
-	// Advertise newly freed receive buffer
-    /*
+	/* Advertise newly freed receive buffer */
 	if (cur_stream->need_wnd_adv) {
 		if (rcvvar->rcv_wnd > cur_stream->sndvar->eff_mss) {
 			if (!cur_stream->sndvar->on_ackq) {
 				SQ_LOCK(&mtcp->ctx->ackq_lock);
 				cur_stream->sndvar->on_ackq = TRUE;
-				StreamEnqueue(mtcp->ackq, cur_stream); // this always success
+				StreamEnqueue(mtcp->ackq, cur_stream); /* this always success */
 				SQ_UNLOCK(&mtcp->ctx->ackq_lock);
 				cur_stream->need_wnd_adv = FALSE;
 				mtcp->wakeup_flag = TRUE;
 			}
 		}
-	}*/
+	}
+	UNUSED(prev_rcv_wnd);
+
+	// MTP flush_and_notify - notify part
+	/* Modified from mtcp_recv */
+	bool event_remaining = FALSE;
+        /* if there are remaining payload, generate EPOLLIN */
+	/* (may due to insufficient user buffer) */
+	if (socket->epoll & MTCP_EPOLLIN) {
+		if (!(socket->epoll & MTCP_EPOLLET) && rcvvar->rcvbuf->merged_len > 0) {
+			event_remaining = TRUE;
+		}
+	}
+        /* if waiting for close, notify it if no remaining data */
+	if (cur_stream->state == TCP_ST_CLOSE_WAIT && 
+	    rcvvar->rcvbuf->merged_len == 0 && copylen > 0) {
+		event_remaining = TRUE;
+	}
+	
+	SBUF_UNLOCK(&rcvvar->read_lock);
+	
+	if (event_remaining) {
+		if (socket->epoll) {
+			AddEpollEvent(mtcp->ep, 
+				      USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+#if BLOCKING_SUPPORT
+		} else if (!(socket->opts & MTCP_NONBLOCK)) {
+			if (!cur_stream->on_rcv_br_list) {
+				cur_stream->on_rcv_br_list = TRUE;
+				TAILQ_INSERT_TAIL(&mtcp->rcv_br_list, 
+						  cur_stream, rcvvar->rcv_br_link);
+				mtcp->rcv_br_list_cnt++;
+			}
+#endif
+		}
+	}
 
 	return copylen;
 }
