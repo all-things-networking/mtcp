@@ -53,8 +53,10 @@ ProcessIPv4Packet(mtcp_manager_t mtcp, uint32_t cur_ts,
 	}
 	
 	switch (iph->protocol) {
+		#ifdef USE_MTP
 		case MTP_IPPROTO_MTP:
 			return MTP_ProcessTransportPacket(mtcp, cur_ts, ifidx, iph, ip_len);
+		#endif
 		case IPPROTO_TCP:
         #ifndef USE_MTP
 			return ProcessTCPPacket(mtcp, cur_ts, ifidx, iph, ip_len);

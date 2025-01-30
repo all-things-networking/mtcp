@@ -8,6 +8,7 @@
 #include "fhash.h"
 #include "debug.h"
 #include "ip_out.h"
+#include "tcp_out.h"
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
@@ -277,11 +278,11 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 
     SendMTPPacket(mtcp, cur_stream, cur_ts,
-                            TCP_FLAG_SYN | TCP_FLAG_ACK, 
-                            cur_stream->sndvar->iss, //seq
-                            init_seq + 1, //ack
-                            advertised_window, //window
-                            NULL, 0);
+		TCP_FLAG_SYN | TCP_FLAG_ACK, 
+		cur_stream->sndvar->iss, //seq
+		init_seq + 1, //ack
+		advertised_window, //window
+		NULL, 0);
 
     // MTP TODO: what if there are not buffers available?
     //if (ret == -2){
@@ -301,15 +302,15 @@ static inline void ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
     if (cur_stream->state == TCP_ST_SYN_RCVD){
 
 	    /* check if ACK of SYN */
-		if (ack_seq != sndvar->iss + 1) {
-			CTRACE_ERROR("Stream %d (TCP_ST_SYN_RCVD): "
-					"weird ack_seq: %u, iss: %u\n", 
-					cur_stream->id, ack_seq, sndvar->iss);
-			TRACE_DBG("Stream %d (TCP_ST_SYN_RCVD): "
-					"weird ack_seq: %u, iss: %u\n", 
-					cur_stream->id, ack_seq, sndvar->iss);
-			return;
-		}
+		//if (ack_seq != sndvar->iss + 1) {
+		//	CTRACE_ERROR("Stream %d (TCP_ST_SYN_RCVD): "
+		//			"weird ack_seq: %u, iss: %u\n", 
+		//			cur_stream->id, ack_seq, sndvar->iss);
+		//	TRACE_DBG("Stream %d (TCP_ST_SYN_RCVD): "
+		//			"weird ack_seq: %u, iss: %u\n", 
+		//			cur_stream->id, ack_seq, sndvar->iss);
+		//	return;
+		//}
 
 		struct tcp_listener *listener;
 		uint32_t prior_cwnd;
@@ -768,16 +769,14 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
                 DumpIPPacket(mtcp, iph, ip_len);
             #endif
             // MTP TODO: generate an "error" event to be processed this way
-            /*    SendTCPPacketStandalone(mtcp, 
-                        iph->daddr, tcph->dest, iph->saddr, tcph->source, 
-                        0, seq + payloadlen + 1, 0, TCP_FLAG_RST | TCP_FLAG_ACK, 
-                        NULL, 0, cur_ts, 0);
+            SendTCPPacketStandalone(mtcp, 
+				iph->daddr, tcph->dest, iph->saddr, tcph->source, 
+				0, seq + payloadlen + 1, 0, TCP_FLAG_RST | TCP_FLAG_ACK, 
+				NULL, 0, cur_ts, 0);
+            return TRUE;
+        }           
 
-                return NULL;
-            */
-            return 0;
-         }           
-
+		// Setup connection
         // MTP TODO: cur_ts in events by default or explicity?
         // parser "returns" event and dispatcher calls the event processing chain
         syn_chain(mtcp, cur_ts, iph->saddr, tcph->source, seq, window, local_ip, local_port);
@@ -798,6 +797,10 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     
 	if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
         printf("MTP: flow context not found\n");
+		SendTCPPacketStandalone(mtcp, 
+			iph->daddr, tcph->dest, iph->saddr, tcph->source, 
+			0, seq + payloadlen + 1, 0, TCP_FLAG_RST | TCP_FLAG_ACK, 
+			NULL, 0, cur_ts, 0);
         return 0;
     }
 
