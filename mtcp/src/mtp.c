@@ -130,6 +130,87 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 
 	assert (i == optlen);
 }
+/*----------------------------------------------------------------------------*/
+// Copied from tcp_in.c
+static inline int
+ValidateSequence(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts, 
+		struct tcphdr *tcph, uint32_t seq, uint32_t ack_seq, int payloadlen)
+{
+	/* Protect Against Wrapped Sequence number (PAWS) */
+	if (!tcph->rst && cur_stream->saw_timestamp) {
+		struct tcp_timestamp ts;
+		
+		if (!ParseTCPTimestamp(cur_stream, &ts, 
+				(uint8_t *)tcph + TCP_HEADER_LEN, 
+				(tcph->doff << 2) - TCP_HEADER_LEN)) {
+			/* if there is no timestamp */
+			/* TODO: implement here */
+			TRACE_DBG("No timestamp found.\n");
+			return FALSE;
+		}
+
+		/* RFC1323: if SEG.TSval < TS.Recent, drop and send ack */
+		if (TCP_SEQ_LT(ts.ts_val, cur_stream->rcvvar->ts_recent)) {
+			/* TODO: ts_recent should be invalidated 
+					 before timestamp wraparound for long idle flow */
+			TRACE_DBG("PAWS Detect wrong timestamp. "
+					"seq: %u, ts_val: %u, prev: %u\n", 
+					seq, ts.ts_val, cur_stream->rcvvar->ts_recent);
+			EnqueueACK(mtcp, cur_stream, cur_ts, ACK_OPT_NOW);
+			return FALSE;
+		} else {
+			/* valid timestamp */
+			if (TCP_SEQ_GT(ts.ts_val, cur_stream->rcvvar->ts_recent)) {
+				TRACE_TSTAMP("Timestamp update. cur: %u, prior: %u "
+					"(time diff: %uus)\n", 
+					ts.ts_val, cur_stream->rcvvar->ts_recent, 
+					TS_TO_USEC(cur_ts - cur_stream->rcvvar->ts_last_ts_upd));
+				cur_stream->rcvvar->ts_last_ts_upd = cur_ts;
+			}
+
+			cur_stream->rcvvar->ts_recent = ts.ts_val;
+			cur_stream->rcvvar->ts_lastack_rcvd = ts.ts_ref;
+		}
+	}
+
+	/* TCP sequence validation */
+	if (!TCP_SEQ_BETWEEN(seq + payloadlen, cur_stream->rcv_nxt, 
+				cur_stream->rcv_nxt + cur_stream->rcvvar->rcv_wnd)) {
+
+		/* if RST bit is set, ignore the segment */
+		if (tcph->rst)
+			return FALSE;
+
+		if (cur_stream->state == TCP_ST_ESTABLISHED) {
+			/* check if it is to get window advertisement */
+			if (seq + 1 == cur_stream->rcv_nxt) {
+#if 0
+				TRACE_DBG("Window update request. (seq: %u, rcv_wnd: %u)\n", 
+						seq, cur_stream->rcvvar->rcv_wnd);
+#endif
+				EnqueueACK(mtcp, cur_stream, cur_ts, ACK_OPT_AGGREGATE);
+				return FALSE;
+
+			}
+
+			if (TCP_SEQ_LEQ(seq, cur_stream->rcv_nxt)) {
+				EnqueueACK(mtcp, cur_stream, cur_ts, ACK_OPT_AGGREGATE);
+			} else {
+				EnqueueACK(mtcp, cur_stream, cur_ts, ACK_OPT_NOW);
+			}
+		} else {
+			if (cur_stream->state == TCP_ST_TIME_WAIT) {
+				TRACE_DBG("Stream %d: tw expire update to %u\n", 
+						cur_stream->id, cur_stream->rcvvar->ts_tw_expire);
+				AddtoTimewaitList(mtcp, cur_stream, cur_ts);
+			}
+			AddtoControlList(mtcp, cur_stream, cur_ts);
+		}
+		return FALSE;
+	}
+
+	return TRUE;
+}
 
 /*----------------------------------------------------------------------------*/
 // adapted from SendTCPPacket in tcp_out
@@ -242,7 +323,8 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
                              uint32_t remote_ip, uint16_t remote_port, 
                              uint32_t init_seq, uint16_t rwnd,
-                             uint32_t local_ip, uint16_t local_port){
+                             uint32_t local_ip, uint16_t local_port,
+							 struct tcphdr* tcph){
    
     // MTP TODO:
     // Have to check if we already sent it and get here again
@@ -265,6 +347,8 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	cur_stream->rcvvar->irs = init_seq;
 	cur_stream->rcv_nxt = (cur_stream->rcvvar->irs + 1);
     cur_stream->rcvvar->last_flushed_seq = cur_stream->rcvvar->irs;
+	ParseTCPOptions(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, 
+			(tcph->doff << 2) - TCP_HEADER_LEN);
     // MTP TODO: I think we need to add a state variable in context to MTP code
     cur_stream->state = TCP_ST_SYN_RCVD;
   
@@ -844,7 +928,7 @@ static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* c
 		
 		sndvar->nrtx = 0;
 		//cur_stream->rcv_nxt = cur_stream->rcvvar->irs + 1;
-		//RemoveFromRTOList(mtcp, cur_stream);
+		RemoveFromRTOList(mtcp, cur_stream);
 
 		cur_stream->state = TCP_ST_ESTABLISHED;
 		TRACE_STATE("Stream %d: TCP_ST_ESTABLISHED\n", cur_stream->id);
@@ -884,7 +968,7 @@ static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* c
 		cur_stream->sndvar->eff_mss -= (TCP_OPT_TIMESTAMP_LEN + 2);
 	#endif
 		received_ack_chain(mtcp, cur_stream, cur_ts, tcph, seq, ack_seq, window, payloadlen);
-		printf("sndwnd: %u\n", cur_stream->sndvar->snd_wnd);
+		printf("cwnd: %u\n", cur_stream->sndvar->cwnd);
     }
     /*
     // MTP TODO: syn ack retransmit
@@ -1248,6 +1332,7 @@ MTP_ProcessSendEvents(mtcp_manager_t mtcp,
 	}
     return;
 }
+
 /*----------------------------------------------------------------------------*/
 int
 MTP_ProcessTransportPacket(mtcp_manager_t mtcp, 
@@ -1266,7 +1351,7 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	uint32_t ack_seq = ntohl(tcph->ack_seq);
 	uint16_t window = ntohs(tcph->window);
 	//uint16_t check;
-	//int ret;
+	int ret;
 	//int rc = -1;
 
 	/* TBA to MTP: Check ip packet invalidation */	
@@ -1328,7 +1413,7 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 		// Setup connection
         // MTP TODO: cur_ts in events by default or explicity?
         // parser "returns" event and dispatcher calls the event processing chain
-        syn_chain(mtcp, cur_ts, iph->saddr, tcph->source, seq, window, local_ip, local_port);
+        syn_chain(mtcp, cur_ts, iph->saddr, tcph->source, seq, window, local_ip, local_port, tcph);
         return 0;
     }
    
@@ -1353,14 +1438,6 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         return 0;
     }
 
-	if (payloadlen > 0){
-        data_net_ep(mtcp, cur_stream, cur_ts, seq, payload, payloadlen);
-        send_ack_ep(mtcp, cur_stream, cur_ts);
-    } else if (is_ack){
-        // event_type = MTP_ACK;
-        ack_chain(mtcp, cur_ts, cur_stream, tcph, seq, ack_seq, payloadlen, window);
-    }
-	/*
 	// Validate sequence. if not valid, ignore the packet
 	if (cur_stream->state > TCP_ST_SYN_RCVD) {
 		ret = ValidateSequence(mtcp, cur_stream, 
@@ -1377,6 +1454,19 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 			return TRUE;
 		}
 	}
+
+	// Update peer window
+	cur_stream->sndvar->peer_wnd = 
+		(uint32_t)window << cur_stream->sndvar->wscale_peer;
+
+	if (payloadlen > 0){
+        data_net_ep(mtcp, cur_stream, cur_ts, seq, payload, payloadlen);
+        send_ack_ep(mtcp, cur_stream, cur_ts);
+    } else if (is_ack){
+        // event_type = MTP_ACK;
+        ack_chain(mtcp, cur_ts, cur_stream, tcph, seq, ack_seq, payloadlen, window);
+    }
+	/*
 
 	// Update receive window size
 	if (tcph->syn) {
