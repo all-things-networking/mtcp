@@ -307,8 +307,8 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	stream->sndvar->nif_out = GetOutputInterface(stream->daddr, &is_external);
 	stream->is_external = is_external;
 
-	stream->sndvar->iss = rand_r(&next_seed) % TCP_MAX_SEQ;
-	//stream->sndvar->iss = 0;
+	//stream->sndvar->iss = rand_r(&next_seed) % TCP_MAX_SEQ;
+	stream->sndvar->iss = 0;
 	stream->rcvvar->irs = 0;
 
 	stream->snd_nxt = stream->sndvar->iss;

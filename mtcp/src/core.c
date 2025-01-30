@@ -691,7 +691,11 @@ WritePacketsToChunks(mtcp_manager_t mtcp, uint32_t cur_ts)
 	if (mtcp->g_sender->ack_list_cnt)
 		WriteTCPACKList(mtcp, mtcp->g_sender, cur_ts, thresh);
 	if (mtcp->g_sender->send_list_cnt)
+	#ifdef USE_MTP
+		MTP_ProcessSendEvents(mtcp, mtcp->g_sender, cur_ts, thresh);
+	#else
 		WriteTCPDataList(mtcp, mtcp->g_sender, cur_ts, thresh);
+	#endif
 
 	for (i = 0; i < CONFIG.eths_num; i++) {
 		assert(mtcp->n_sender[i] != NULL);
@@ -701,7 +705,7 @@ WritePacketsToChunks(mtcp_manager_t mtcp, uint32_t cur_ts)
 			WriteTCPACKList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
 		if (mtcp->n_sender[i]->send_list_cnt)
         #ifdef USE_MTP
-            MTP_ProcessSendEvents(mtcp, mtcp->n_sender[i], cur_ts, thresh);
+           MTP_ProcessSendEvents(mtcp, mtcp->n_sender[i], cur_ts, thresh);
         #else
 			WriteTCPDataList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
         #endif
