@@ -440,15 +440,6 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     bp.is_ack = 0;
     // bp.checksum = CRC16_t();
     addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
-    // Q: in case there are more than one header value that needs to change (e.g. PSN and opcode), can we keep adding parameters?
-    // A: Rocev2PBP::opcode, [6, 7..., 8] or (6. 7*. 8) | 9
-    // p1 = patten([6, 7..., 8]);
-    // p2 = patten(9);
-    // p1 | p2
-    seg_args plan1 {
-        TCPBP::seq_num -> len(TCPBP::data);
-        TCPBP::opcode -> [6, 7..., 8];
-    }
     bp.data = unseg_data(addr, bytes_to_send, SMSS, plan1);
 
     instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
