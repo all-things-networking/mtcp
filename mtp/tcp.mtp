@@ -73,7 +73,7 @@ context tcp_context {
     uint32 last_ack = 429496729;
     uint8 duplicate_acks = 0;
     uint32 flightsize_dupl = 0;
-    uint32 ssthresh = 99999999;
+    uint32 ssthresh = 0;
     uint32 cwnd_size = 3 * SMSS;
 
     uint32 RTO = ONE_SEC;
@@ -89,6 +89,8 @@ context tcp_context {
     // receiver vars
     uint32 recv_init_seq;
     uint32 rwnd_size = 16959;
+    //uint32 snd_wl1;		// segment seq number for last window update
+	//uint32 snd_wl2;		// segment ack number for last window update
     uint32 recv_next = 0;
     //list<sent_pkt_info> data_recv_info_array(500);
     //uint32 data_recv_array_head = 0;
@@ -157,9 +159,20 @@ net_to_transp ntt_module {
 }
 
 /************************ event processor declarations **************************/
+list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out);
+
 list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out);
 
+void rto_ep (ACK ev, tcp_context ctx, interm_out int_out);
+void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out int_out);
+void slows_congc_ep (ACK ev, tcp_context ctx, interm_out int_out);
+list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out);
 
+void data_net_ep (DATA ev, tcp_context ctx, interm_out int_out);
+list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out);
+list<intr_t> app_feedback_ep (DATA ev, tcp_context ctx, interm_out int_out);
+
+list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out int_out);
 
 /*************************** dispatcher ************************/
 dispatch disp_table {
@@ -172,10 +185,10 @@ dispatch disp_table {
 
 /************************* event processor definitions ****************************/
 
-list<event_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
-    list<event_t> events;
+list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
+    list<instr_t> out;
 
-    uint32 SMSS = 1440;
+    uint32 SMSS = 1460;
 
     ctx.data_end = ctx.data_end + ev.data_size;
 
@@ -189,7 +202,10 @@ list<event_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
     if(ctx.send_una + effective_window < ctx.send_next)
         return;
     else {
-        uint32 window_avail = ctx.send_una + effective_window - ctx.send_next;
+        uint32 window_avail = 0;
+        if (ctx.send_una + effective_window > ctx.send_next)
+            window_avail = ctx.send_una + effective_window - ctx.send_next;
+        
         if(data_rest < window_avail)
             bytes_to_send = data_rest;
         else
@@ -205,9 +221,8 @@ list<event_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
     addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
     bp.data = unseg_data(addr, bytes_to_send, SMSS, TCPBP::seq_num, len(TCPBP::data));
 
-    PKT_EVENT pkt_ev;
-    pkt_ev.bp = bp;
-    events.add(pkt_ev);
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+    out.add(instr);
 
     ctx.send_next = ctx.send_next + bytes_to_send;
 
@@ -216,7 +231,7 @@ list<event_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
     ctx.ack_timeout.set_duration(nanosecond(ctx.RTO));
     ctx.ack_timeout.start(time_ev);
 
-    return events;
+    return out;
 }
 
 
@@ -244,7 +259,7 @@ list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
     bp.is_ack = true;
     bp.ack_seq = ev.init_seq + 1;
     bp.seq = init_seq;
-    instr = pkt_gen_instr(local_ip, remote_ip, bp);
+    instr_t instr = pkt_gen_instr(local_ip, remote_ip, bp);
     out.add(instr);
 
     return out;
@@ -286,7 +301,7 @@ void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     if(int_out.skip_ack_eps)
         return;
     
-    uint32 SMSS = 1440;
+    uint32 SMSS = 1460;
 
     int_out.change_cwnd = 1;
 
@@ -330,36 +345,49 @@ void slows_congc_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     if(int_out.skip_ack_eps)
         return;
 
-    uint32 SMSS = 1440;
+    uint32 SMSS = 1460;
+    uint32 EFF_SMSS = 1448;     // SMSS - TCP options (timestamp + alignment)
 
     if(int_out.change_cwnd) {
+        // calculate how many packets have been acked
+        uint32 rmlen = ev.ack_seq - ctx.send_una;
+        uint16 packets = rmlen / EFF_SMSS;
+        if (packets * EFF_SMSS > rmlen) {
+            packets = packets + 1;
+        }
+
         if(ctx.cwnd_size < ctx.ssthresh) {
-            ctx.cwnd_size = ctx.cwnd_size + SMSS;
+            ctx.cwnd_size = ctx.cwnd_size + SMSS * packets;
         }
         else {
-            uint32 add_cwnd = SMSS * SMSS / ctx.cwnd_size;
-            if(add_cwnd == 0)
-                add_cwnd = 1;
+            uint32 add_cwnd = packets * SMSS * SMSS / ctx.cwnd_size;
             ctx.cwnd_size = ctx.cwnd_size + add_cwnd;
         }
     }
 }
 
-list<event_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
-    list<event_t> events;
+list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+    list<instr_t> out;
 
-    uint32 SMSS = 1440;
+    uint32 SMSS = 1460;
 
     if(int_out.skip_ack_eps)
-        return events;
+        return out;
 
-    ctx.last_rwnd_size = ev.rwnd_size;
-    ctx.send_una = ev.ack_seq;
+    // Update window, and allow user to start writing 
+    // if peer just has space to receive packets
+    ctx.last_rwnd_size = ctx.rwnd_size;
+    ctx.rwnd_size = ev.rwnd_size;
+    if (ctx.last_rwnd_size < ctx.send_next - ctx.send_una &&
+        ctx.rwnd_size >= ctx.send_next - ctx.send_una) {
+        intr_t instr = notify_app();
+        out.add(instr);
+    }
 
     uint32 data_rest = ctx.data_end - ctx.send_next;
     if(data_rest == 0 && ev.ack_seq == ctx.send_next) {
         ctx.ack_timeout.cancel();
-        return events;
+        return out;
     }
 
     uint32 effective_window = ctx.cwnd_size;
@@ -376,28 +404,33 @@ list<event_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
         TCPBP bp;
         bp.src_port = ctx.src_port;
         bp.dest_port = ctx.dest_port;
-        bp.seq_num = ctx.send_next;
+        bp.seq_num = ctx.send_una;
         bp.is_ack = 0;
         // bp.checksum = CRC16_t();
         addr_t addr = ctx.buf_addr + ctx.send_una - ctx.init_seq;
         bp.data = seg_data(addr, bytes_to_send);
 
-        PKT_EVENT pkt_ev;
-        pkt_ev.bp = bp;
-        events.add(pkt_ev);
+        instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+        out.add(instr);
 
-        return events;
+        return out;
     }
 
-    uint32 window_avail = ctx.send_una + effective_window - ctx.send_next;
+    uint32 window_avail = 0;
+    if (ctx.send_una + effective_window > ctx.send_next)
+        window_avail = ctx.send_una + effective_window - ctx.send_next;
 
-    if(window_avail < 0)
+    if(window_avail == 0)
         bytes_to_send = 0;
     else {
-        if(data_rest < window_avail)
+        if(data_rest < window_avail) {
             bytes_to_send = data_rest;
-        else
-            bytes_to_send = window_avail;
+        } else {
+            if (window_avail < data_rest)
+                bytes_to_send = window_avail;
+            else
+                bytes_to_send = data_rest;
+        }
     }
 
     TCPBP bp;
@@ -418,11 +451,18 @@ list<event_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     }
     bp.data = unseg_data(addr, bytes_to_send, SMSS, plan1);
 
-    PKT_EVENT pkt_ev;
-    pkt_ev.bp = bp;
-    events.add(pkt_ev);
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+    out.add(instr);
 
     ctx.send_next = ctx.send_next + bytes_to_send;
+
+    // Remove acked data from sending buffer
+    // The implementation of sending buffer is more target dependent
+    uint32 rmlen = ev.ack_seq - ctx.send_una;
+    if (rmlen > 0) {
+        ctx.buf_addr = ctx.buf_addr + rmlen;
+        ctx.send_una = ev.ack_seq;
+    }
 
     ctx.ack_timeout.cancel();
     MISS_ACK time_ev;
@@ -430,7 +470,7 @@ list<event_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     ctx.ack_timeout.set_duration(nanosecond(ctx.RTO));
     ctx.ack_timeout.start(time_ev);
 
-    return events;
+    return out;
 }
 
 void data_net_ep (DATA ev, tcp_context ctx, interm_out int_out) {
@@ -445,10 +485,10 @@ void data_net_ep (DATA ev, tcp_context ctx, interm_out int_out) {
     ctx.recv_next = ctx.meta_rwnd.first_unset();
 }
 
-list<event_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out) {
-    list<event_t> events;
+list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out) {
+    list<instr_t> out;
 
-    uint32 SMSS = 1440;
+    uint32 SMSS = 1460;
 
     uint32 data_rest = ctx.data_end - ctx.send_next;
     uint32 effective_window = ctx.cwnd_size;
@@ -483,30 +523,31 @@ list<event_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out) {
     // A: have something special for NULL data
     bp.data = seg_data(addr, bytes_to_send);
 
-    PKT_EVENT pkt_ev;
-    pkt_ev.bp = bp;
-    events.add(pkt_ev);
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+    out.add(instr);
 
-    return events;
+    return out;
 }
 
-list<event_t> app_feedback_ep (DATA ev, tcp_context ctx, interm_out int_out) {
-    list<event_t> events;
+list<intr_t> app_feedback_ep (DATA ev, tcp_context ctx, interm_out int_out) {
+    list<intr_t> out;
 
     DATA_EVENT ev;
     ev.read_addr = ev.hold_addr;
     ev.size = ev.data_len;
     ev.buffer_id = ctx.bid;
     ev.offset = ev.seq_num - ctx.init_seq;
-    events.add(ev);
 
-    return events;
+    instr_t instr = flush_and_notify_app();
+    out.add(instr);
+
+    return out;
 }
 
-list<event_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out int_out) {
-    list<event_t> events;
+list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out int_out) {
+    list<instr_t> out;
 
-    uint32 SMSS = 1440;
+    uint32 SMSS = 1460;
 
     ctx.cwnd_size = SMSS * 3;
     uint32 opt1 = (ctx.send_next - ctx.send_una) / 2;
@@ -548,9 +589,8 @@ list<event_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out int_out) 
     addr_t addr = ctx.buf_addr + ctx.send_una - ctx.init_seq;
     bp.data = seg_data(addr, bytes_to_send);
 
-    PKT_EVENT pkt_ev;
-    pkt_ev.bp = bp;
-    events.add(pkt_ev);
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+    out.add(instr);
 
     ctx.ack_timeout.restart(nanosecond(ctx.RTO));
 }

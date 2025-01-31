@@ -563,23 +563,23 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	}
 
 	/* Update window */
-	uint32_t cwindow = window << sndvar->wscale_peer;
+	uint32_t rwindow = window << sndvar->wscale_peer;
 	uint32_t seq = rcvvar->last_ack_seq;
 	if (TCP_SEQ_LT(rcvvar->snd_wl1, seq) ||
 			(rcvvar->snd_wl1 == seq && 
 			TCP_SEQ_LT(rcvvar->snd_wl2, ack_seq)) ||
 			(rcvvar->snd_wl2 == ack_seq && 
-			cwindow > sndvar->peer_wnd)) {
-		uint32_t cwindow_prev = sndvar->peer_wnd;
-		sndvar->peer_wnd = cwindow;
+			rwindow > sndvar->peer_wnd)) {
+		uint32_t rwindow_prev = sndvar->peer_wnd;
+		sndvar->peer_wnd = rwindow;
 		rcvvar->snd_wl1 = seq;
 		rcvvar->snd_wl2 = ack_seq;
-		if (cwindow_prev < cur_stream->snd_nxt - sndvar->snd_una && 
+		if (rwindow_prev < cur_stream->snd_nxt - sndvar->snd_una && 
 				sndvar->peer_wnd >= cur_stream->snd_nxt - sndvar->snd_una) {
 			TRACE_CLWND("%u Broadcasting client window update! "
 					"ack_seq: %u, peer_wnd: %u (before: %u), "
 					"(snd_nxt - snd_una: %u)\n", 
-					cur_stream->id, ack_seq, sndvar->peer_wnd, cwindow_prev, 
+					cur_stream->id, ack_seq, sndvar->peer_wnd, rwindow_prev, 
 					cur_stream->snd_nxt - sndvar->snd_una);
 			// This is the "notify" instruction in MTP
 			RaiseWriteEvent(mtcp, cur_stream);
@@ -607,6 +607,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 					  effective_window, data, bytes_to_send);
 		
 		SBUF_UNLOCK(&sndvar->write_lock);
+		return;
 	}
 
 	// Continue sending if window is available and there's remaining data in sending buffer
@@ -1218,7 +1219,9 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	if (payloadlen > 0){
         data_net_ep(mtcp, cur_stream, cur_ts, seq, payload, payloadlen);
         send_ack_ep(mtcp, cur_stream, cur_ts);
-    } else if (is_ack){
+    } 
+	
+	if (is_ack){
         // event_type = MTP_ACK;
         ack_chain(mtcp, cur_ts, cur_stream, tcph, seq, ack_seq, payloadlen, window);
     }
