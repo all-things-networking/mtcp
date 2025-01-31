@@ -654,76 +654,6 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 }
 
 
-static inline void received_ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
-                             uint32_t cur_ts, struct tcphdr* tcph, uint32_t seq,
-                            uint32_t ack_seq, uint16_t window, int payloadlen){
-	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	uint32_t cwindow, cwindow_prev;
-	//uint32_t rmlen;
-	//uint32_t snd_wnd_prev;
-	uint32_t right_wnd_edge;
-	//uint8_t dup;
-	//int ret;
-
-	// TODO: check what it does
-	cwindow = window;
-	if (!tcph->syn) {
-		cwindow = cwindow << sndvar->wscale_peer;
-	}
-	right_wnd_edge = sndvar->peer_wnd + cur_stream->rcvvar->snd_wl2;
-	(void)right_wnd_edge;
-
-	/* Update window */
-	if (TCP_SEQ_LT(cur_stream->rcvvar->snd_wl1, seq) ||
-			(cur_stream->rcvvar->snd_wl1 == seq && 
-			TCP_SEQ_LT(cur_stream->rcvvar->snd_wl2, ack_seq)) ||
-			(cur_stream->rcvvar->snd_wl2 == ack_seq && 
-			cwindow > sndvar->peer_wnd)) {
-		cwindow_prev = sndvar->peer_wnd;
-		sndvar->peer_wnd = cwindow;
-		cur_stream->rcvvar->snd_wl1 = seq;
-		cur_stream->rcvvar->snd_wl2 = ack_seq;
-		if (cwindow_prev < cur_stream->snd_nxt - sndvar->snd_una && 
-				sndvar->peer_wnd >= cur_stream->snd_nxt - sndvar->snd_una) {
-			TRACE_CLWND("%u Broadcasting client window update! "
-					"ack_seq: %u, peer_wnd: %u (before: %u), "
-					"(snd_nxt - snd_una: %u)\n", 
-					cur_stream->id, ack_seq, sndvar->peer_wnd, cwindow_prev, 
-					cur_stream->snd_nxt - sndvar->snd_una);
-			RaiseWriteEvent(mtcp, cur_stream);
-		}
-	}
-
-        //printf("Point 3 ");
-
-	/* Fast retransmission */
-	if (cur_stream->rcvvar->dup_acks == 3) {
-		//AddtoSendList(mtcp, cur_stream);
-	} 
-
-#if TCP_OPT_SACK_ENABLED
-	//ParseSACKOption(cur_stream, ack_seq, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
-#endif
-
-	/*if (TCP_SEQ_GT(ack_seq, cur_stream->snd_nxt)) {
-		cur_stream->sndvar->cwnd = cur_stream->sndvar->ssthresh;
-
-		TRACE_LOSS("Updating snd_nxt from %u to %u\n", cur_stream->snd_nxt, ack_seq);
-		cur_stream->snd_nxt = ack_seq;
-		TRACE_DBG("Sending again..., ack_seq=%u sndlen=%u cwnd=%u\n",
-                        ack_seq-sndvar->iss,
-                        sndvar->sndbuf->len,
-                        sndvar->cwnd / sndvar->mss);
-		if (sndvar->sndbuf->len == 0) {
-			RemoveFromSendList(mtcp, cur_stream);
-		} else {
-			AddtoSendList(mtcp, cur_stream);
-		}
-	}*/
-	//printf("Point 6 ");
-}
-
-
 static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream,
 			struct tcphdr* tcph, uint32_t seq, uint32_t ack_seq, int payloadlen,
 			uint32_t window){
@@ -734,7 +664,7 @@ static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* c
 
     // "establish" the connection if not established
     struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	//struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	int ret;
 
     if (cur_stream->state == TCP_ST_SYN_RCVD){
@@ -790,14 +720,33 @@ static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* c
 		}
         // ************** End of mTCP app interface
     } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
+		/* Update window */
+		uint32_t cwindow = window << sndvar->wscale_peer;
+		if (TCP_SEQ_LT(rcvvar->snd_wl1, seq) ||
+				(rcvvar->snd_wl1 == seq && 
+				TCP_SEQ_LT(rcvvar->snd_wl2, ack_seq)) ||
+				(rcvvar->snd_wl2 == ack_seq && 
+				cwindow > sndvar->peer_wnd)) {
+			uint32_t cwindow_prev = sndvar->peer_wnd;
+			sndvar->peer_wnd = cwindow;
+			rcvvar->snd_wl1 = seq;
+			rcvvar->snd_wl2 = ack_seq;
+			if (cwindow_prev < cur_stream->snd_nxt - sndvar->snd_una && 
+					sndvar->peer_wnd >= cur_stream->snd_nxt - sndvar->snd_una) {
+				TRACE_CLWND("%u Broadcasting client window update! "
+						"ack_seq: %u, peer_wnd: %u (before: %u), "
+						"(snd_nxt - snd_una: %u)\n", 
+						cur_stream->id, ack_seq, sndvar->peer_wnd, cwindow_prev, 
+						cur_stream->snd_nxt - sndvar->snd_una);
+				RaiseWriteEvent(mtcp, cur_stream);
+			}
+		}
+
 		scratchpad scratch;
 		rto_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
 		fast_retr_rec_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
 		slows_congc_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
-		ack_net_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch, cur_stream->rcvvar->rcv_wnd);
-
-		if (!scratch.skip_ack_eps)
-			received_ack_chain(mtcp, cur_stream, cur_ts, tcph, seq, ack_seq, window, payloadlen);
+		ack_net_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch, rcvvar->rcv_wnd);
     }
     /*
     // MTP TODO: syn ack retransmit
