@@ -69,6 +69,60 @@ GenerateTCPTimestamp(tcp_stream *cur_stream, uint8_t *tcpopt, uint32_t cur_ts)
 	ts[1] = htonl(cur_stream->rcvvar->ts_recent);
 }
 /*----------------------------------------------------------------------------*/
+static inline void 
+EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt)
+{
+	/* This function should be called for not retransmitted packets */
+	/* TODO: determine tcp_rto_min */
+#define TCP_RTO_MIN 0
+	long m = mrtt;
+	uint32_t tcp_rto_min = TCP_RTO_MIN;
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+
+	if (m == 0) {
+		m = 1;
+	}
+	if (rcvvar->srtt != 0) {
+		/* rtt = 7/8 rtt + 1/8 new */
+		m -= (rcvvar->srtt >> 3);
+		rcvvar->srtt += m;
+		if (m < 0) {
+			m = -m;
+			m -= (rcvvar->mdev >> 2);
+			if (m > 0) {
+				m >>= 3;
+			}
+		} else {
+			m -= (rcvvar->mdev >> 2);
+		}
+		rcvvar->mdev += m;
+		if (rcvvar->mdev > rcvvar->mdev_max) {
+			rcvvar->mdev_max = rcvvar->mdev;
+			if (rcvvar->mdev_max > rcvvar->rttvar) {
+				rcvvar->rttvar = rcvvar->mdev_max;
+			}
+		}
+		if (TCP_SEQ_GT(cur_stream->sndvar->snd_una, rcvvar->rtt_seq)) {
+			if (rcvvar->mdev_max < rcvvar->rttvar) {
+				rcvvar->rttvar -= (rcvvar->rttvar - rcvvar->mdev_max) >> 2;
+			}
+			rcvvar->rtt_seq = cur_stream->snd_nxt;
+			rcvvar->mdev_max = tcp_rto_min;
+		}
+	} else {
+		/* fresh measurement */
+		rcvvar->srtt = m << 3;
+		rcvvar->mdev = m << 1;
+		rcvvar->mdev_max = rcvvar->rttvar = MAX(rcvvar->mdev, tcp_rto_min);
+		rcvvar->rtt_seq = cur_stream->snd_nxt;
+	}
+
+	TRACE_RTT("mrtt: %u (%uus), srtt: %u (%ums), mdev: %u, mdev_max: %u, "
+			"rttvar: %u, rtt_seq: %u\n", mrtt, mrtt * TIME_TICK, 
+			rcvvar->srtt, TS_TO_MSEC((rcvvar->srtt) >> 3), rcvvar->mdev, 
+			rcvvar->mdev_max, rcvvar->rttvar, rcvvar->rtt_seq);
+}
+/*----------------------------------------------------------------------------*/
 static inline void
 GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts, 
 		uint8_t flags, uint8_t *tcpopt, uint16_t optlen)
@@ -403,84 +457,100 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
 static inline void rto_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
                             uint32_t ack_seq, scratchpad* scratch){
-	//printf("Entered RTO");
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+
 	scratch->skip_ack_eps = 0;
 
-	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 	if(ack_seq < sndvar->snd_una || cur_stream->snd_nxt < ack_seq) {
-		//printf("RTO ack %d send_una %d send_next %d\n", ack_seq, sndvar->snd_una, cur_stream->snd_nxt);
 		scratch->skip_ack_eps = 1;
+		TRACE_DBG("Stream %d (%s): invalid acknolegement. "
+			"ack_seq: %u, possible min_ack_seq: %u, possible max_ack_seq: %u\n",
+			cur_stream->id, TCPStateToString(cur_stream), ack_seq, 
+			sndvar->snd_una, cur_stream->snd_nxt);
 		return;
 	}
 
-	uint32_t granularity_g = 1;
-	uint32_t round_tt = 100000000;
-
-	// Here we would have a condition to decide the initial RTO, but
-	// it seems to me that mTCP already decides that?
-	//if(first_rto_bool) {
-	//	...
-	//} else {}
-	cur_stream->rcvvar->rttvar = (1 - 1/4) * cur_stream->rcvvar->rttvar + 1/4 * abs(cur_stream->rcvvar->srtt - round_tt);
-	cur_stream->rcvvar->srtt = (1 - 1/8) * cur_stream->rcvvar->srtt + 1/8 * round_tt;
-	if(granularity_g >= 4 * cur_stream->rcvvar->rttvar)
-		sndvar->rto = cur_stream->rcvvar->srtt + granularity_g;
-	else
-		sndvar->rto = cur_stream->rcvvar->srtt + 4 * cur_stream->rcvvar->rttvar;
-
-	//printf("Finished RTO");
+	// Set RTO, using RTT calculation logic from mTCP
+	uint32_t round_tt = cur_ts - rcvvar->ts_lastack_rcvd;
+	EstimateRTT(mtcp, cur_stream, round_tt);
+	sndvar->rto = (rcvvar->srtt >> 3) + rcvvar->rttvar;
 }
 
 
 static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
                             uint32_t ack_seq, scratchpad* scratch){
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 
 	if(scratch->skip_ack_eps)
 		return;
 
-	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-
-	//uint32_t MSS = 1448;
 	scratch->change_cwnd = 1;
 
-	if(ack_seq == cur_stream->rcvvar->last_ack_seq) {
-		cur_stream->rcvvar->dup_acks++;
+	if(ack_seq == rcvvar->last_ack_seq) {
+		rcvvar->dup_acks++;
 
 		scratch->change_cwnd = 0;
 
-		if(cur_stream->rcvvar->dup_acks == 1) {
-			cur_stream->rcvvar->flightsize_dupl = cur_stream->snd_nxt - sndvar->snd_una;
+		if(rcvvar->dup_acks == 1) {
+			rcvvar->flightsize_dupl = cur_stream->snd_nxt - sndvar->snd_una;
 		}
 
-		if(cur_stream->rcvvar->dup_acks == 3) {
-			sndvar->ssthresh = MAX(cur_stream->rcvvar->flightsize_dupl / 2, 2 * MSS);
+		if(rcvvar->dup_acks == 3) {
+			// Necessary updates for mTCP
+			TRACE_LOSS("Triple duplicated ACKs!! ack_seq: %u\n", ack_seq);
+			TRACE_CCP("tridup ack %u (%u)!\n", ack_seq - sndvar->iss, ack_seq);
+			if (TCP_SEQ_LT(ack_seq, cur_stream->snd_nxt)) {
+				TRACE_LOSS("Reducing snd_nxt from %u to %u\n",
+							cur_stream->snd_nxt-sndvar->iss,
+							ack_seq - sndvar->iss);
+#if RTM_STAT
+				sndvar->rstat.tdp_ack_cnt++;
+				sndvar->rstat.tdp_ack_bytes += (cur_stream->snd_nxt - ack_seq);
+#endif
 
+				if (ack_seq != sndvar->snd_una) {
+					TRACE_DBG("ack_seq and snd_una mismatch on tdp ack. "
+							"ack_seq: %u, snd_una: %u\n", 
+							ack_seq, sndvar->snd_una);
+				}
+				cur_stream->snd_nxt = ack_seq;
+			}
+			/* count number of retransmissions */
+			if (sndvar->nrtx < TCP_MAX_RTX) {
+				sndvar->nrtx++;
+			} else {
+				TRACE_DBG("Exceed MAX_RTX.\n");
+			}
+
+			// MTP congestion window resize
+			sndvar->ssthresh = MAX(rcvvar->flightsize_dupl / 2, 2 * MSS);
 			sndvar->cwnd = sndvar->ssthresh + 1 * MSS;
 		}
 
-		if(cur_stream->rcvvar->dup_acks != 3) {
+		if(rcvvar->dup_acks != 3) {
 			sndvar->cwnd += MSS;
 		}
 	} else {
-		if(cur_stream->rcvvar->dup_acks > 0) {
+		if(rcvvar->dup_acks > 0) {
 			sndvar->cwnd = sndvar->ssthresh;
 		}
-		cur_stream->rcvvar->dup_acks = 0;
-		cur_stream->rcvvar->last_ack_seq = ack_seq;
+		rcvvar->dup_acks = 0;
+		rcvvar->last_ack_seq = ack_seq;
 	}
 }
 
 static inline void slows_congc_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
                             uint32_t ack_seq, scratchpad* scratch){
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+
 	if(scratch->skip_ack_eps)
 		return;
 
-	// Note: should we consider the case that an ACK might ack N packets, so
-	// cwnd is increased by N * MAX(MSS * ...) ?
 	if(scratch->change_cwnd) {
-		struct tcp_send_vars *sndvar = cur_stream->sndvar;
 		if(sndvar->cwnd < sndvar->ssthresh) {
 			sndvar->cwnd = sndvar->cwnd + MSS;
 		} else {
@@ -495,8 +565,9 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                             uint32_t ack_seq, scratchpad* scratch, uint32_t rwnd){
 
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+
 	if(scratch->skip_ack_eps) {
-		//printf("ACK_NET_EP ack %d send_una %d send_next %d\n", ack_seq, sndvar->snd_una, cur_stream->snd_nxt);
 		return;
 	}
 
@@ -506,7 +577,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	sndvar->peer_wnd = rwnd;
 
 	uint8_t wscale = cur_stream->sndvar->wscale_mine;
-        uint32_t window32 = cur_stream->rcvvar->rcv_wnd >> wscale;
+        uint32_t window32 = rcvvar->rcv_wnd >> wscale;
         uint16_t window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
 
 	SBUF_LOCK(&sndvar->write_lock);
@@ -601,62 +672,6 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 }
 
 
-
-inline void 
-EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt)
-{
-	/* This function should be called for not retransmitted packets */
-	/* TODO: determine tcp_rto_min */
-#define TCP_RTO_MIN 0
-	long m = mrtt;
-	uint32_t tcp_rto_min = TCP_RTO_MIN;
-	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
-
-	if (m == 0) {
-		m = 1;
-	}
-	if (rcvvar->srtt != 0) {
-		/* rtt = 7/8 rtt + 1/8 new */
-		m -= (rcvvar->srtt >> 3);
-		rcvvar->srtt += m;
-		if (m < 0) {
-			m = -m;
-			m -= (rcvvar->mdev >> 2);
-			if (m > 0) {
-				m >>= 3;
-			}
-		} else {
-			m -= (rcvvar->mdev >> 2);
-		}
-		rcvvar->mdev += m;
-		if (rcvvar->mdev > rcvvar->mdev_max) {
-			rcvvar->mdev_max = rcvvar->mdev;
-			if (rcvvar->mdev_max > rcvvar->rttvar) {
-				rcvvar->rttvar = rcvvar->mdev_max;
-			}
-		}
-		if (TCP_SEQ_GT(cur_stream->sndvar->snd_una, rcvvar->rtt_seq)) {
-			if (rcvvar->mdev_max < rcvvar->rttvar) {
-				rcvvar->rttvar -= (rcvvar->rttvar - rcvvar->mdev_max) >> 2;
-			}
-			rcvvar->rtt_seq = cur_stream->snd_nxt;
-			rcvvar->mdev_max = tcp_rto_min;
-		}
-	} else {
-		/* fresh measurement */
-		rcvvar->srtt = m << 3;
-		rcvvar->mdev = m << 1;
-		rcvvar->mdev_max = rcvvar->rttvar = MAX(rcvvar->mdev, tcp_rto_min);
-		rcvvar->rtt_seq = cur_stream->snd_nxt;
-	}
-
-	TRACE_RTT("mrtt: %u (%uus), srtt: %u (%ums), mdev: %u, mdev_max: %u, "
-			"rttvar: %u, rtt_seq: %u\n", mrtt, mrtt * TIME_TICK, 
-			rcvvar->srtt, TS_TO_MSEC((rcvvar->srtt) >> 3), rcvvar->mdev, 
-			rcvvar->mdev_max, rcvvar->rttvar, rcvvar->rtt_seq);
-}
-
-
 static inline void received_ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts, struct tcphdr* tcph, uint32_t seq,
                             uint32_t ack_seq, uint16_t window, int payloadlen){
@@ -665,12 +680,8 @@ static inline void received_ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_strea
 	uint32_t rmlen;
 	//uint32_t snd_wnd_prev;
 	uint32_t right_wnd_edge;
-	uint8_t dup;
+	//uint8_t dup;
 	int ret;
-
-	//printf("ACK send packet info\n");
-                //printf(" head_seq %d\n snd_una %d\n snd_nxt %d\n pkt_len %d\n rcvd_ack %d\n rcv_nxt %d\n mss %d\n", sndvar->sndbuf->head_seq, sndvar->snd_una, cur_stream->snd_nxt, payloadlen, ack_seq, cur_stream->rcv_nxt, sndvar->mss);
-                //printf(" snd_window %d\n rcv_window %d\n", sndvar->cwnd, sndvar->peer_wnd);
 
 	// TODO: check what it does
 	cwindow = window;
@@ -678,19 +689,7 @@ static inline void received_ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_strea
 		cwindow = cwindow << sndvar->wscale_peer;
 	}
 	right_wnd_edge = sndvar->peer_wnd + cur_stream->rcvvar->snd_wl2;
-
-	//printf("Point 1 ");
-
-
-	if (TCP_SEQ_GT(ack_seq, sndvar->sndbuf->head_seq + sndvar->sndbuf->len)) {
-		TRACE_DBG("Stream %d (%s): invalid acknologement. "
-				"ack_seq: %u, possible max_ack_seq: %u\n", cur_stream->id, 
-				TCPStateToString(cur_stream), ack_seq, 
-				sndvar->sndbuf->head_seq + sndvar->sndbuf->len);
-		return;
-	}
-
-	//printf("Point 2 ");
+	(void)right_wnd_edge;
 
 	/* Update window */
 	if (TCP_SEQ_LT(cur_stream->rcvvar->snd_wl1, seq) ||
@@ -715,84 +714,10 @@ static inline void received_ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_strea
 
         //printf("Point 3 ");
 
-	/* Check duplicated ack count */
-	/* Duplicated ack if 
-	   1) ack_seq is old
-	   2) payload length is 0.
-	   3) advertised window not changed.
-	   4) there is outstanding unacknowledged data
-	   5) ack_seq == snd_una
-	 */
-
-	dup = FALSE;
-	if (TCP_SEQ_LT(ack_seq, cur_stream->snd_nxt)) {
-		if (ack_seq == cur_stream->rcvvar->last_ack_seq && payloadlen == 0) {
-			if (cur_stream->rcvvar->snd_wl2 + sndvar->peer_wnd == right_wnd_edge) {
-				if (cur_stream->rcvvar->dup_acks + 1 > cur_stream->rcvvar->dup_acks) {
-					cur_stream->rcvvar->dup_acks++;
-				}
-				dup = TRUE;
-			}
-		}
-	}
-
-	//printf("Point 4 ");
-
-	if (!dup) {
-		cur_stream->rcvvar->dup_acks = 0;
-		cur_stream->rcvvar->last_ack_seq = ack_seq;
-	}
-
 	/* Fast retransmission */
-	if (dup && cur_stream->rcvvar->dup_acks == 3) {
-		TRACE_LOSS("Triple duplicated ACKs!! ack_seq: %u\n", ack_seq);
-		TRACE_CCP("tridup ack %u (%u)!\n", ack_seq - cur_stream->sndvar->iss, ack_seq);
-		if (TCP_SEQ_LT(ack_seq, cur_stream->snd_nxt)) {
-			TRACE_LOSS("Reducing snd_nxt from %u to %u\n",
-                                        cur_stream->snd_nxt-sndvar->iss,
-                                        ack_seq - cur_stream->sndvar->iss);
-#if RTM_STAT
-			sndvar->rstat.tdp_ack_cnt++;
-			sndvar->rstat.tdp_ack_bytes += (cur_stream->snd_nxt - ack_seq);
-#endif
-
-			if (ack_seq != sndvar->snd_una) {
-				TRACE_DBG("ack_seq and snd_una mismatch on tdp ack. "
-						"ack_seq: %u, snd_una: %u\n", 
-						ack_seq, sndvar->snd_una);
-			}
-			cur_stream->snd_nxt = ack_seq;
-		}
-		/* update congestion control variables */
-		/* ssthresh to half of min of cwnd and peer wnd */
-		sndvar->ssthresh = MIN(sndvar->cwnd, sndvar->peer_wnd) / 2;
-		if (sndvar->ssthresh < 2 * sndvar->mss) {
-			sndvar->ssthresh = 2 * sndvar->mss;
-		}
-		sndvar->cwnd = sndvar->ssthresh + 3 * sndvar->mss;
-
-		TRACE_CONG("fast retrans: cwnd = ssthresh(%u)+3*mss = %u\n",
-                                sndvar->ssthresh / sndvar->mss,
-                                sndvar->cwnd / sndvar->mss);
-
-		/* count number of retransmissions */
-		if (sndvar->nrtx < TCP_MAX_RTX) {
-			sndvar->nrtx++;
-		} else {
-			TRACE_DBG("Exceed MAX_RTX.\n");
-		}
-
+	if (cur_stream->rcvvar->dup_acks == 3) {
 		AddtoSendList(mtcp, cur_stream);
-	} else if (cur_stream->rcvvar->dup_acks > 3) {
-		/* Inflate congestion window until before overflow */
-		if ((uint32_t)(sndvar->cwnd + sndvar->mss) > sndvar->cwnd) {
-			sndvar->cwnd += sndvar->mss;
-			TRACE_CONG("Dupack cwnd inflate. cwnd: %u, ssthresh: %u\n", 
-					sndvar->cwnd, sndvar->ssthresh);
-		}
-	}
-
-        //printf("Point 5 ");
+	} 
 
 #if TCP_OPT_SACK_ENABLED
 	ParseSACKOption(cur_stream, ack_seq, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
@@ -824,25 +749,12 @@ static inline void received_ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_strea
 	//printf("Point 7 ");
 
 		/* If ack_seq is previously acked, return */
-	if (TCP_SEQ_GEQ(sndvar->sndbuf->head_seq, ack_seq)) {
+	/*if (TCP_SEQ_GEQ(sndvar->sndbuf->head_seq, ack_seq)) {
 		return;
-	}
+	}*/
 
 	/* Remove acked sequence from send buffer */
 	if (rmlen > 0) {
-		/* Routine goes here only if there is new payload (not retransmitted) */
-		
-		/* Estimate RTT and calculate rto */
-		if (cur_stream->saw_timestamp) {
-			EstimateRTT(mtcp, cur_stream, 
-					cur_ts - cur_stream->rcvvar->ts_lastack_rcvd);
-			sndvar->rto = (cur_stream->rcvvar->srtt >> 3) + cur_stream->rcvvar->rttvar;
-			assert(sndvar->rto > 0);
-		} else {
-			//TODO: Need to implement timestamp estimation without timestamp
-			TRACE_RTT("NOT IMPLEMENTED.\n");
-		}
-
 		// TODO CCP should comment this out? 
 		/* Update congestion control variables */
 		if (cur_stream->state >= TCP_ST_ESTABLISHED) {
@@ -957,18 +869,18 @@ static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* c
 		}
         // ************** End of mTCP app interface
     } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
-		/*scratchpad scratch;
+		scratchpad scratch;
 		rto_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
 		fast_retr_rec_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
 		slows_congc_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
-		ack_net_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch, cur_stream->rcvvar->rcv_wnd);*/
+		//ack_net_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch, cur_stream->rcvvar->rcv_wnd);*/
 
 		cur_stream->sndvar->eff_mss = cur_stream->sndvar->mss;
 	#if TCP_OPT_TIMESTAMP_ENABLED
 		cur_stream->sndvar->eff_mss -= (TCP_OPT_TIMESTAMP_LEN + 2);
 	#endif
-		received_ack_chain(mtcp, cur_stream, cur_ts, tcph, seq, ack_seq, window, payloadlen);
-		printf("cwnd: %u\n", cur_stream->sndvar->cwnd);
+		if (!scratch.skip_ack_eps)
+			received_ack_chain(mtcp, cur_stream, cur_ts, tcph, seq, ack_seq, window, payloadlen);
     }
     /*
     // MTP TODO: syn ack retransmit
