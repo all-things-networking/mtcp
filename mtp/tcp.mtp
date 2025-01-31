@@ -129,7 +129,6 @@ net_to_transp ntt_module {
         TCPBP pkt_bp;
         p.extract(pkt_bp); 
         if (pkt_bp.is_syn && !pkt_bp.is_ack){
-           flow_id id(i.dst_addr, pkt_bp.dest_port);
            SYN event;
            event.remote_ip = i.src_ip;
            event.remote_port = pkt_bp.src_port;
@@ -152,7 +151,7 @@ net_to_transp ntt_module {
             event.ack_seq = pkt_bp.ack_seq;
             event.rwnd_size = pkt_bp.rwnd_size;
             set_flow_id(event, id);
-            out.add(ack_ev);
+            out.add(event);
         }
         return out;
     }
