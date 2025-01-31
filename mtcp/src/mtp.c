@@ -567,57 +567,73 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	}
 }
 
-
 static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
                             uint32_t ack_seq, scratchpad* scratch, uint32_t rwnd){
 
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	//struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 
 	if(scratch->skip_ack_eps) {
 		return;
 	}
-
-	//sndvar->snd_una = ack_seq;
-
-	// TODO: check how they do scaling
-	/*sndvar->peer_wnd = rwnd;
-
-	uint8_t wscale = cur_stream->sndvar->wscale_mine;
-        uint32_t window32 = rcvvar->rcv_wnd >> wscale;
-        uint16_t window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
-
-	SBUF_LOCK(&sndvar->write_lock);
-
-	uint32_t data_rest = sndvar->sndbuf->len - (cur_stream->snd_nxt - sndvar->snd_una);
+	
+	uint32_t data_rest = sndvar->sndbuf->head_seq + sndvar->sndbuf->len - cur_stream->snd_nxt;
 
 	uint32_t effective_window = MIN(sndvar->cwnd, sndvar->peer_wnd);
+
 	uint32_t bytes_to_send = 0;
 
-	uint8_t *data;
+	if(rcvvar->dup_acks == 3) {
+		SBUF_LOCK(&sndvar->write_lock);
 
-	// TODO: print snd_una and head_seq to see if they are the same
-	if(cur_stream->rcvvar->dup_acks == 3) {
-		bytes_to_send = MIN(MSS, effective_window);
-		//data = sndvar->sndbuf->head + sndvar->sndbuf->head_seq;
-		data = sndvar->sndbuf->head;
+		uint32_t seq = sndvar->snd_una;
+		bytes_to_send = MIN(sndvar->sndbuf->len - (seq - sndvar->sndbuf->head_seq),
+							effective_window);
+		uint8_t *data = sndvar->sndbuf->head + (seq - sndvar->sndbuf->head_seq);
 
-		//printf("Duplicate ACK send packet info\n");
-                //printf(" head_seq %d\n snd_una %d\n snd_nxt %d\n pkt_len %d\n rcvd_ack %d\n rcv_nxt %d\n mss %d\n", sndvar->sndbuf->head_seq, sndvar->snd_una, cur_stream->snd_nxt, bytes_to_send, ack_seq, cur_stream->rcv_nxt, sndvar->mss);
-
-		int ret = SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, sndvar->sndbuf->head_seq,
-                        cur_stream->rcv_nxt, window, data, bytes_to_send);
-
-		if(ret < 0)
-			printf("Error when sending duplicate ack packet\n");
-
+		SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, seq, cur_stream->rcv_nxt, 
+					  effective_window, data, bytes_to_send);
+		
 		SBUF_UNLOCK(&sndvar->write_lock);
-		return;
-	}*/
+	}
+
+	// Continue sending if window is available and there's remaining data in sending buffer
+	uint32_t window_avail = 0;
+	if (sndvar->snd_una + effective_window > cur_stream->snd_nxt) 
+		window_avail = sndvar->snd_una + effective_window - cur_stream->snd_nxt;
+
+	if (window_avail == 0)
+		bytes_to_send = 0;
+	else
+		bytes_to_send = MIN(data_rest, window_avail);
+
+	int32_t len = bytes_to_send;
+	int32_t seq = cur_stream->snd_nxt;
+	int32_t ack_num = cur_stream->rcv_nxt;
+	uint8_t *data = sndvar->sndbuf->head + (seq - sndvar->sndbuf->head_seq);
+	int ret = 0;
+	SBUF_LOCK(&sndvar->write_lock);
+	while (len > 0) {
+		int32_t pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
+
+		ret = SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK,
+                      		seq, ack_num, effective_window, data, pkt_len);
+
+		if (ret < 0){
+			break;
+		} else {
+			len -= pkt_len;
+			seq += pkt_len;
+			data += pkt_len;
+			cur_stream->snd_nxt += pkt_len;
+			if (len <= 0) break;
+		}
+	}
+	SBUF_UNLOCK(&sndvar->write_lock);
 
 	// Remove acked sequence from sending buffer
-	// This step is target dependent
+	// This step is kinda target dependent (depending on the implementation of sending buffer)
 	uint32_t rmlen = ack_seq - sndvar->sndbuf->head_seq;
 	if(rmlen > 0) {
 		if (SBUF_LOCK(&sndvar->write_lock)) {
@@ -633,48 +649,6 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 
 		SBUF_UNLOCK(&sndvar->write_lock);
 	}
-
-	/*int32_t window_avail = sndvar->snd_una + effective_window - cur_stream->snd_nxt;
-        if(window_avail <= 0) {
-                //bytes_to_send = 0;
-		SBUF_UNLOCK(&sndvar->write_lock);
-        	return;
-        } else {
-                bytes_to_send = MIN(data_rest, window_avail);
-        }
-        //printf("bytes_to_send %d\n", bytes_to_send);
-
-	int32_t len = bytes_to_send;
-	int32_t seq = cur_stream->snd_nxt;
-	int32_t ack_num = cur_stream->rcv_nxt;
-	//printf("head_seq %d snd_una %d\n", sndvar->sndbuf->head_seq, sndvar->snd_una);
-	data = sndvar->sndbuf->head + (seq - sndvar->sndbuf->head_seq);
-	int ret = 0;
-	while (len > 0) {
-		int32_t pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
-		//printf("ACK send packet info\n");
-		//printf(" head_seq %d\n snd_una %d\n snd_nxt %d\n pkt_len %d\n rcvd_ack %d\n rcv_nxt %d\n mss %d\n", sndvar->sndbuf->head_seq, sndvar->snd_una, cur_stream->snd_nxt, pkt_len, ack_seq, cur_stream->rcv_nxt, sndvar->mss);
-		//printf(" snd_window %d\n rcv_window %d\n", sndvar->cwnd, sndvar->peer_wnd);
-
-        	ret = SendMTPPacket(mtcp, cur_stream, 
-                        cur_ts, TCP_FLAG_ACK,
-                      	seq, ack_num,
-                      	window, data, pkt_len);
-
-        	//printf("ack send packet info: %d, %d, %d, %d\n", pkt_len, seq, ret, ack_num);
-		//printf("len %d", len);
-        	if (ret < 0){
-           		break;
-        	} else {
-            		len -= pkt_len;
-            		seq += pkt_len;
-            		data += pkt_len;
-            		// Adding this statement to increase snd_nxt
-            		cur_stream->snd_nxt += pkt_len;
-            		//printf("Snd_nxt %d\n", cur_stream->snd_nxt);
-           	 	if (len <= 0) break;
-        	}
-        }*/
 
 	UpdateRetransmissionTimer(mtcp, cur_stream, cur_ts);
 }
@@ -760,6 +734,7 @@ static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* c
 
     // "establish" the connection if not established
     struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	//struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	int ret;
 
     if (cur_stream->state == TCP_ST_SYN_RCVD){
