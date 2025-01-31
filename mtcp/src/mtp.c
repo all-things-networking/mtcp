@@ -502,7 +502,9 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 			// Necessary updates for mTCP
 			TRACE_LOSS("Triple duplicated ACKs!! ack_seq: %u\n", ack_seq);
 			TRACE_CCP("tridup ack %u (%u)!\n", ack_seq - sndvar->iss, ack_seq);
-			if (TCP_SEQ_LT(ack_seq, cur_stream->snd_nxt)) {
+			// mTCP sends pkt starting from seq=snd_nxt and won't =snd_una even for
+			// lost pkts. If larger ack_seq received later, snd_nxt will be restored
+			/*if (TCP_SEQ_LT(ack_seq, cur_stream->snd_nxt)) {
 				TRACE_LOSS("Reducing snd_nxt from %u to %u\n",
 							cur_stream->snd_nxt-sndvar->iss,
 							ack_seq - sndvar->iss);
@@ -517,7 +519,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 							ack_seq, sndvar->snd_una);
 				}
 				cur_stream->snd_nxt = ack_seq;
-			}
+			}*/
 			/* count number of retransmissions */
 			if (sndvar->nrtx < TCP_MAX_RTX) {
 				sndvar->nrtx++;
@@ -551,10 +553,16 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 		return;
 
 	if(scratch->change_cwnd) {
-		if(sndvar->cwnd < sndvar->ssthresh) {
-			sndvar->cwnd = sndvar->cwnd + MSS;
+		uint32_t rmlen = ack_seq - sndvar->sndbuf->head_seq;
+		uint16_t packets = rmlen / sndvar->eff_mss;
+			if (packets * sndvar->eff_mss > rmlen) {
+			packets++;
+		}
+
+		if (sndvar->cwnd < sndvar->ssthresh) {
+			sndvar->cwnd += (sndvar->mss * packets);
 		} else {
-			sndvar->cwnd += MAX(MSS * MSS / sndvar->cwnd, 1);
+			sndvar->cwnd += MAX(packets * sndvar->mss * sndvar->mss / sndvar->cwnd, 1);
 		}
 	}
 }
@@ -565,7 +573,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                             uint32_t ack_seq, scratchpad* scratch, uint32_t rwnd){
 
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	//struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 
 	if(scratch->skip_ack_eps) {
 		return;
@@ -574,7 +582,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	//sndvar->snd_una = ack_seq;
 
 	// TODO: check how they do scaling
-	sndvar->peer_wnd = rwnd;
+	/*sndvar->peer_wnd = rwnd;
 
 	uint8_t wscale = cur_stream->sndvar->wscale_mine;
         uint32_t window32 = rcvvar->rcv_wnd >> wscale;
@@ -606,25 +614,27 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 
 		SBUF_UNLOCK(&sndvar->write_lock);
 		return;
-	}
+	}*/
 
-	// Note: Translating this part that removes from buffer isn't trivial
-	uint32_t remove_len = ack_seq - sndvar->sndbuf->head_seq;
-	if(remove_len > 0) {
-		/*if (SBUF_LOCK(&sndvar->write_lock)) {
+	// Remove acked sequence from sending buffer
+	// This step is target dependent
+	uint32_t rmlen = ack_seq - sndvar->sndbuf->head_seq;
+	if(rmlen > 0) {
+		if (SBUF_LOCK(&sndvar->write_lock)) {
 			if (errno == EDEADLK)
 				perror("ProcessACK: write_lock blocked\n");
 			assert(0);
-		}*/
-		SBRemove(mtcp->rbm_snd, sndvar->sndbuf, remove_len);
+		}
+		SBRemove(mtcp->rbm_snd, sndvar->sndbuf, rmlen);
 		sndvar->snd_una = ack_seq;
-		//snd_wnd_prev = sndvar->snd_wnd;
 		sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
 
-		//SBUF_UNLOCK(&sndvar->write_lock);
+		RaiseWriteEvent(mtcp, cur_stream);
+
+		SBUF_UNLOCK(&sndvar->write_lock);
 	}
 
-	int32_t window_avail = sndvar->snd_una + effective_window - cur_stream->snd_nxt;
+	/*int32_t window_avail = sndvar->snd_una + effective_window - cur_stream->snd_nxt;
         if(window_avail <= 0) {
                 //bytes_to_send = 0;
 		SBUF_UNLOCK(&sndvar->write_lock);
@@ -664,9 +674,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
             		//printf("Snd_nxt %d\n", cur_stream->snd_nxt);
            	 	if (len <= 0) break;
         	}
-        }
-
-	SBUF_UNLOCK(&sndvar->write_lock);
+        }*/
 
 	UpdateRetransmissionTimer(mtcp, cur_stream, cur_ts);
 }
@@ -677,11 +685,11 @@ static inline void received_ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_strea
                             uint32_t ack_seq, uint16_t window, int payloadlen){
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 	uint32_t cwindow, cwindow_prev;
-	uint32_t rmlen;
+	//uint32_t rmlen;
 	//uint32_t snd_wnd_prev;
 	uint32_t right_wnd_edge;
 	//uint8_t dup;
-	int ret;
+	//int ret;
 
 	// TODO: check what it does
 	cwindow = window;
@@ -716,14 +724,14 @@ static inline void received_ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_strea
 
 	/* Fast retransmission */
 	if (cur_stream->rcvvar->dup_acks == 3) {
-		AddtoSendList(mtcp, cur_stream);
+		//AddtoSendList(mtcp, cur_stream);
 	} 
 
 #if TCP_OPT_SACK_ENABLED
-	ParseSACKOption(cur_stream, ack_seq, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+	//ParseSACKOption(cur_stream, ack_seq, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
 #endif
 
-	if (TCP_SEQ_GT(ack_seq, cur_stream->snd_nxt)) {
+	/*if (TCP_SEQ_GT(ack_seq, cur_stream->snd_nxt)) {
 		cur_stream->sndvar->cwnd = cur_stream->sndvar->ssthresh;
 
 		TRACE_LOSS("Updating snd_nxt from %u to %u\n", cur_stream->snd_nxt, ack_seq);
@@ -737,70 +745,8 @@ static inline void received_ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_strea
 		} else {
 			AddtoSendList(mtcp, cur_stream);
 		}
-	}
-	//printf("Point 6 ");
-
-	rmlen = ack_seq - sndvar->sndbuf->head_seq;
-	uint16_t packets = rmlen / sndvar->eff_mss;
-	if (packets * sndvar->eff_mss > rmlen) {
-		packets++;
-	}
-
-	//printf("Point 7 ");
-
-		/* If ack_seq is previously acked, return */
-	/*if (TCP_SEQ_GEQ(sndvar->sndbuf->head_seq, ack_seq)) {
-		return;
 	}*/
-
-	/* Remove acked sequence from send buffer */
-	if (rmlen > 0) {
-		// TODO CCP should comment this out? 
-		/* Update congestion control variables */
-		if (cur_stream->state >= TCP_ST_ESTABLISHED) {
-			if (sndvar->cwnd < sndvar->ssthresh) {
-				if ((sndvar->cwnd + sndvar->mss) > sndvar->cwnd) {
-					sndvar->cwnd += (sndvar->mss * packets);
-				}
-				TRACE_CONG("slow start cwnd: %u, ssthresh: %u\n", 
-						sndvar->cwnd, sndvar->ssthresh);
-			} else {
-				uint32_t new_cwnd = sndvar->cwnd + 
-						packets * sndvar->mss * sndvar->mss / 
-						sndvar->cwnd;
-				if (new_cwnd > sndvar->cwnd) {
-					sndvar->cwnd = new_cwnd;
-				}
-				//TRACE_CONG("congestion avoidance cwnd: %u, ssthresh: %u\n", 
-				//		sndvar->cwnd, sndvar->ssthresh);
-			}
-		}
-
-		if (SBUF_LOCK(&sndvar->write_lock)) {
-			if (errno == EDEADLK)
-				perror("ProcessACK: write_lock blocked\n");
-			assert(0);
-		}
-		ret = SBRemove(mtcp->rbm_snd, sndvar->sndbuf, rmlen);
-		sndvar->snd_una = ack_seq;
-		//snd_wnd_prev = sndvar->snd_wnd;
-		sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
-
-		/* If there was no available sending window */
-		/* notify the newly available window to application */
-#if SELECTIVE_WRITE_EVENT_NOTIFY
-		//if (snd_wnd_prev <= 0) {
-#endif /* SELECTIVE_WRITE_EVENT_NOTIFY */
-			RaiseWriteEvent(mtcp, cur_stream);
-#if SELECTIVE_WRITE_EVENT_NOTIFY
-		//}
-#endif /* SELECTIVE_WRITE_EVENT_NOTIFY */
-
-		SBUF_UNLOCK(&sndvar->write_lock);
-		UpdateRetransmissionTimer(mtcp, cur_stream, cur_ts);
-	}
-
-	UNUSED(ret);
+	//printf("Point 6 ");
 }
 
 
@@ -873,12 +819,8 @@ static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* c
 		rto_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
 		fast_retr_rec_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
 		slows_congc_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
-		//ack_net_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch, cur_stream->rcvvar->rcv_wnd);*/
+		ack_net_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch, cur_stream->rcvvar->rcv_wnd);
 
-		cur_stream->sndvar->eff_mss = cur_stream->sndvar->mss;
-	#if TCP_OPT_TIMESTAMP_ENABLED
-		cur_stream->sndvar->eff_mss -= (TCP_OPT_TIMESTAMP_LEN + 2);
-	#endif
 		if (!scratch.skip_ack_eps)
 			received_ack_chain(mtcp, cur_stream, cur_ts, tcph, seq, ack_seq, window, payloadlen);
     }
