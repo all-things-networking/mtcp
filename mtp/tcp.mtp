@@ -380,7 +380,8 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     ctx.rwnd_size = ev.rwnd_size;
     if (ctx.last_rwnd_size < ctx.send_next - ctx.send_una &&
         ctx.rwnd_size >= ctx.send_next - ctx.send_una) {
-        intr_t instr = notify_app();
+        // TODO fill in parameters for notify()
+        intr_t instr = notify();
         out.add(instr);
     }
 
@@ -532,13 +533,14 @@ list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out) {
 list<intr_t> app_feedback_ep (DATA ev, tcp_context ctx, interm_out int_out) {
     list<intr_t> out;
 
-    DATA_EVENT ev;
-    ev.read_addr = ev.hold_addr;
-    ev.size = ev.data_len;
-    ev.buffer_id = ctx.bid;
-    ev.offset = ev.seq_num - ctx.init_seq;
+    //DATA_EVENT ev;
+    //ev.read_addr = ev.hold_addr;
+    //ev.size = ev.data_len;
+    //ev.buffer_id = ctx.bid;
+    //ev.offset = ev.seq_num - ctx.init_seq;
 
-    instr_t instr = flush_and_notify_app();
+    // TODO fill in parameters for flush_and_notify(uid, len, addr)
+    instr_t instr = flush_and_notify();
     out.add(instr);
 
     return out;
@@ -582,7 +584,7 @@ list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out int_out) 
     TCPBP bp;
     bp.src_port = ctx.src_port;
     bp.dest_port = ctx.dest_port;
-    bp.seq_num = ctx.send_next;
+    bp.seq_num = ctx.send_una;
     bp.is_ack = 0;
     bp.wnd_size = ctx.rwnd_size;
     // bp.checksum = CRC16_t();
