@@ -27,4 +27,8 @@ MTP_ProcessTransportPacket(struct mtcp_manager *mtcp, uint32_t cur_ts, const int
 					const struct iphdr* iph, int ip_len);
 
 
+int 
+MTP_PacketGenList(mtcp_manager_t mtcp, 
+		struct mtcp_sender *sender, uint32_t cur_ts, int thresh);
+
 #endif

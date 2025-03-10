@@ -660,7 +660,7 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 
 			if (stream->state != TCP_ST_CLOSED) {
 				stream->close_reason = TCP_ACTIVE_CLOSE;
-				stream->state = TCP_ST_CLOSED;
+                stream->state = TCP_ST_CLOSED;
 				TRACE_STATE("Stream %d: TCP_ST_CLOSED\n", stream->id);
 				AddtoControlList(mtcp, stream, cur_ts);
 			} else {
@@ -711,6 +711,29 @@ WritePacketsToChunks(mtcp_manager_t mtcp, uint32_t cur_ts)
         #endif
 	}
 }
+
+/*----------------------------------------------------------------------------*/
+static inline void 
+MTP_PacketGen(mtcp_manager_t mtcp, uint32_t cur_ts)
+{
+	int thresh = CONFIG.max_concurrency;
+	int i;
+
+	/* Set the threshold to CONFIG.max_concurrency to send ACK immediately */
+	/* Otherwise, set to appropriate value (e.g. thresh) */
+	assert(mtcp->g_sender != NULL);
+	if (mtcp->g_sender->gen_list_cnt){
+	    MTP_PacketGenList(mtcp, mtcp->g_sender, cur_ts, thresh);
+    }
+
+	for (i = 0; i < CONFIG.eths_num; i++) {
+		assert(mtcp->n_sender[i] != NULL);
+		if (mtcp->n_sender[i]->gen_list_cnt){
+			MTP_PacketGenList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
+        }
+	}
+}
+
 /*----------------------------------------------------------------------------*/
 #if TESTING
 static int
@@ -851,7 +874,11 @@ RunMainLoop(struct mtcp_thread_context *ctx)
 			HandleApplicationCalls(mtcp, ts);
 		}
 
+        #ifdef USE_MTP
+        MTP_PacketGen(mtcp,ts);
+        #else
 		WritePacketsToChunks(mtcp, ts);
+        #endif
 
 		/* send packets from write buffer */
 		/* send until tx is available */
@@ -903,10 +930,14 @@ CreateMTCPSender(int ifidx)
 	TAILQ_INIT(&sender->control_list);
 	TAILQ_INIT(&sender->send_list);
 	TAILQ_INIT(&sender->ack_list);
+	
+    TAILQ_INIT(&sender->gen_list);
 
 	sender->control_list_cnt = 0;
 	sender->send_list_cnt = 0;
 	sender->ack_list_cnt = 0;
+	
+    sender->gen_list_cnt = 0;
 
 	return sender;
 }

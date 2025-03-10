@@ -1,5 +1,6 @@
 # TODO: Make this Makefile.in pretty
 
+RTE_SDK=/opt/dpdk-23.11
 TARGETS = client
 CC=gcc -g -O3 -Wall -Werror -fgnu89-inline
 DPDK=1
@@ -45,9 +46,10 @@ endif
 ifeq ($(DPDK),1)
 #DPDK_MACHINE_LINKER_FLAGS=$${RTE_SDK}/$${RTE_TARGET}/lib/ldflags.txt
 #DPDK_MACHINE_LDFLAGS=$(shell cat ${DPDK_MACHINE_LINKER_FLAGS})
-DPDK_MACHINE_LDFLAGS=$(shell pkg-config --libs libdpdk)
 #LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lmtcp -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
-LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
+DPDK_MACHINE_LINKER_FLAGS=$(shell pkg-config --libs libdpdk)
+DPDK_MACHINE_LDFLAGS=$(DPDK_MACHINE_LINKER_FLAGS)
+LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lmtcp -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
 endif
 
 # onvm-specific variables

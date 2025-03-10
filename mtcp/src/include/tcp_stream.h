@@ -6,6 +6,8 @@
 #include <sys/queue.h>
 
 #include "mtcp.h"
+#include "mtp_bp.h"
+#include "mtp_params.h"
 #if RATE_LIMIT_ENABLED || PACING_ENABLED
 #include "pacing.h"
 #endif
@@ -141,9 +143,13 @@ struct tcp_send_vars
 			is_fin_sent:1, 
 			is_fin_ackd:1;
 
+    mtp_bp mtp_bps[MTP_PER_FLOW_BP_CNT];
+
 	TAILQ_ENTRY(tcp_stream) control_link;
 	TAILQ_ENTRY(tcp_stream) send_link;
 	TAILQ_ENTRY(tcp_stream) ack_link;
+	
+    TAILQ_ENTRY(tcp_stream) gen_link;
 
 	TAILQ_ENTRY(tcp_stream) timer_link;		/* timer link (rto list, tw list) */
 	TAILQ_ENTRY(tcp_stream) timeout_link;	/* connection timeout link */

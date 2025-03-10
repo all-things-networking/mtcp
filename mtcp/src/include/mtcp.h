@@ -210,13 +210,14 @@ struct mtcp_sender
 	TAILQ_HEAD (control_head, tcp_stream) control_list;
 	TAILQ_HEAD (send_head, tcp_stream) send_list;
 	TAILQ_HEAD (ack_head, tcp_stream) ack_list;
+	
+    TAILQ_HEAD (gen_head, tcp_stream) gen_list;
 
 	int control_list_cnt;
 	int send_list_cnt;
 	int ack_list_cnt;
 
-    // MTP blueprints
-    //TAILQ_HEAD (pktbp_head, pktbp_t) pktbp_list;
+    int gen_list_cnt;
 };
 /*----------------------------------------------------------------------------*/
 struct mtcp_manager
