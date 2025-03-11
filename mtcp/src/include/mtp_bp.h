@@ -2,7 +2,13 @@
 #define MTP_BP_H
 
 // Should get compiler generated
-struct mtp_bp {
+
+struct tcp_mss_len_opt{
+    uint32_t val;
+    bool valid;
+}
+
+struct mtp_bp_hdr {
     u_int16_t source;
     u_int16_t dest;
     u_int32_t seq;
@@ -32,11 +38,18 @@ struct mtp_bp {
 #  endif
     u_int16_t window;
     u_int16_t check;
-    u_int16_t urg_ptr;
-    uint8_t* payload;
-    uint16_t payloadLen; 
+    u_int16_t urg_ptr; 
 };
 
+struct mtp_bp_payload {
+    uint8_t* payload;
+    uint16_t payloadLen;
+};
+
+struct mtp_bp {
+    struct mtp_bp_hdr hdr;
+    struct mtp_bp_payload payload;
+}
 typedef struct mtp_bp mtp_bp;
 
 #endif

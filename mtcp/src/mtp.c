@@ -267,6 +267,123 @@ ValidateSequence(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts,
 }
 
 /*----------------------------------------------------------------------------*/
+bool
+BPBuffer_isfull(tcp_stream *cur_stream){
+    uint32_t head = cur_stream->mtp_bps_head;
+    uint32_t tail = cur_stream->mtp_bps_tail;
+    uint32_t size = MTP_PER_FLOW_BP_CNT; 
+
+    uint32_t next_tail = (tail + 1) % size;
+    
+    return (next_tail == head);
+}
+
+/*----------------------------------------------------------------------------*/
+// adapted from SendTCPPacket in tcp_out
+int
+GenPacketBP(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
+		      uint32_t cur_ts, uint8_t flags, 
+              uint32_t seq, uint32_t ack, 
+              uint16_t window,
+              uint8_t *payload, uint16_t payloadlen)
+{
+
+    if (BPBuffer_isfull(cur_stream)){
+        //MTP TODO: gotta fix this
+        printf("BP buffer is full!\n");
+        return MTP_BP_BUFFER_FULL_ERROR;
+    }
+
+    uint32_t bp_tail = cur_stream->mtp_bps_tail;
+    mtp_bp* new_bp = cur_stream->mtp_bps + bp_tail;
+    	
+    uint16_t optlen;
+	int rc = -1;
+
+    // MTP TODO: add them to MTP program
+    optlen = CalculateOptionLength(flags);
+
+
+    if (payloadlen + optlen > cur_stream->sndvar->mss) {
+        TRACE_ERROR("Payload size exceeds MSS\n");
+        return ERROR;
+    }
+
+    memset(new_bp->hdr, 0, sizeof(mtp_bp_hdr) + optlen);
+
+	new_bp->hdr.source = cur_stream->sport;
+	new_bp->hdr.dest = cur_stream->dport;
+    new_bp->hdr.seq = htonl(seq);
+    new_bp->hdr.ack_seq = htonl(ack);
+	new_bp->hdr.window = htons(window);
+
+	if (flags & TCP_FLAG_SYN) {
+		new_bp->syn = TRUE;
+	}
+
+	if (flags & TCP_FLAG_ACK) {
+		new_bp->ack = TRUE;
+        // MTP TODO: check these
+		cur_stream->sndvar->ts_lastack_sent = cur_ts;
+		cur_stream->last_active_ts = cur_ts;
+		//UpdateTimeoutList(mtcp, cur_stream);
+	}
+
+    // MTP TODO: zero window
+    /*
+	// if the advertised window is 0, we need to advertise again later 
+	if (window32 == 0) {
+		cur_stream->need_wnd_adv = TRUE;
+	}
+    */
+	//printf("Test 3");
+
+    // MTP TODO: move out of here
+    GenerateTCPOptions(cur_stream, cur_ts, flags,
+            (uint8_t *)tcph + TCP_HEADER_LEN, optlen);
+
+	//printf("Test 4");
+
+    new_bp->doff = (TCP_HEADER_LEN + optlen) >> 2;
+
+	// copy payload if exist
+    if (payloadlen > 0) {
+        memcpy((uint8_t *)tcph + TCP_HEADER_LEN + optlen, payload, payloadlen);
+#if defined(NETSTAT) && defined(ENABLELRO)
+        mtcp->nstat.tx_gdptbytes += payloadlen;
+#endif /* NETSTAT */
+    }
+
+	//printf("Test 5");
+
+#if TCP_CALCULATE_CHECKSUM
+#ifndef DISABLE_HWCSUM
+    if (mtcp->iom->dev_ioctl != NULL)
+        rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
+                      PKT_TX_TCPIP_CSUM, NULL);
+#endif
+	//printf("Test 6");
+
+    if (rc == -1)
+        tcph->check = TCPCalcChecksum((uint16_t *)tcph,
+                          TCP_HEADER_LEN + optlen + payloadlen,
+                          cur_stream->saddr, cur_stream->daddr);
+#endif
+
+	//printf("Test 7\n");
+		
+	// Note: added this for retransmit
+	if(payloadlen > 0) {
+		/* update retransmission timer if have payload */
+		//cur_stream->sndvar->ts_rto = cur_ts + cur_stream->sndvar->rto;
+		//AddtoRTOList(mtcp, cur_stream);
+	}
+
+	return 0;
+}
+
+
+/*----------------------------------------------------------------------------*/
 // adapted from SendTCPPacket in tcp_out
 int
 SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
@@ -1190,6 +1307,7 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 		 uint32_t cur_ts, const int ifidx, const struct iphdr *iph, int ip_len)
 {
 	// MTP: maps to extract in the parser
+    // TODO: change to parse mtp_bp?
 	struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
 	uint8_t *payload    = (uint8_t *)tcph + (tcph->doff << 2);
 	int payloadlen = ip_len - (payload - (u_char *)iph);
