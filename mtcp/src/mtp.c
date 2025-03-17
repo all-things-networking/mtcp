@@ -16,6 +16,33 @@
 #define TCP_CALCULATE_CHECKSUM      TRUE
 #define TCP_MAX_WINDOW 65535
 
+static inline uint16_t
+MTP_CalculateOptionLength(mtp_bp* bp){
+    uint16_t res = 0;
+    struct mtp_bp_options *opts = &(bp->opts);
+    if (opts->mss.valid){
+        res += opts->mss.len;
+    }
+    if (opts->sack_permit.valid){
+        res += opts->sack_permit.len;
+    }
+    if (opts->nop1.valid){
+        res += opts->nop1.len;
+    }
+    if (opts->nop2.valid){
+        res += opts->nop2.len;
+    }
+    if (opts->timestamp.valid){
+        res += opts->timestamp.len;
+    }
+    if (opts->nop3.valid){
+        res += opts->nop3.len;
+    }
+    if (opts->wscale.valid){
+        res += opts->wscale.len;
+    }
+    return res;
+}
 /*----------------------------------------------------------------------------*/
 static inline uint16_t
 CalculateOptionLength(uint8_t flags)
@@ -279,29 +306,38 @@ BPBuffer_isfull(tcp_stream *cur_stream){
 }
 
 /*----------------------------------------------------------------------------*/
+mtp_bp* GetFreeBP(struct tcp_stream *cur_stream){
+    if (BPBuffer_isfull(cur_stream)){
+        //MTP TODO: gotta fix this
+        printf("BP buffer is full!\n");
+        return NULL;
+    }
+
+    uint32_t bp_tail = cur_stream->mtp_bps_tail;
+    mtp_bp* new_bp = cur_stream->mtp_bps + bp_tail;
+    cur_stream->mtp_bps_tail = (cur_stream->mtp_bps_tail + 1) % cur_stream->mtp_bps_size;
+    return new_bp;
+}
+
+/*----------------------------------------------------------------------------*/
 // adapted from SendTCPPacket in tcp_out
 int
 GenPacketBP(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
 		      uint32_t cur_ts, uint8_t flags, 
               uint32_t seq, uint32_t ack, 
               uint16_t window,
+              struct tcp_opt_mss, struct tcp_opt_timstamp,
+              struct tcp_opt_wscale, struct tcp_opt_sack_permit, 
               uint8_t *payload, uint16_t payloadlen)
 {
 
-    if (BPBuffer_isfull(cur_stream)){
-        //MTP TODO: gotta fix this
-        printf("BP buffer is full!\n");
-        return MTP_BP_BUFFER_FULL_ERROR;
-    }
-
-    uint32_t bp_tail = cur_stream->mtp_bps_tail;
-    mtp_bp* new_bp = cur_stream->mtp_bps + bp_tail;
-    	
+   	
     uint16_t optlen;
 	int rc = -1;
 
     // MTP TODO: add them to MTP program
-    optlen = CalculateOptionLength(flags);
+    optlen = MTPCalculateOptionLength(tcp_opt_mss, tcp_opt_timestamp,
+                                      tcp_opt_wscale, tcp_opt_sack_permit);
 
 
     if (payloadlen + optlen > cur_stream->sndvar->mss) {
@@ -647,20 +683,46 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
     }
 
     // MTP pkt gen instruction
+    // MTP TODO: check that size + options is not more than MSS
+   
+    mtp_bp* bp = GetFreeBP(cur_stream);
+    
+    memset(bp->hdr, 0, sizeof(mtp_bp_hdr));
+
+	bp->hdr.source = cur_stream->sport;
+	bp->hdr.dest = cur_stream->dport;
+    bp->hdr.seq = htonl(cur_stream->sndvar->iss);
+    bp->hdr.ack_seq = htonl(init_seq + 1);
+
+    bp->hdr.syn = TRUE;
+    bp->hdr.ack = TRUE;
+
+    // options to calculate data offset
+    // MSS
+    bp->opts.mss.valid = TRUE;
+    bp->opts.mss.value = cur_stream->sndvar->mss;
+   
+    // MTP TODO: SACK? 
+#if TCP_OPT_SACK_ENABLED
+    printf("ERROR:SACK Not supported in MTP TCP\n");
+#endif
+
+    // Timestamp
+    bp->opts.timestamp.valid = TRUE;
+    bp->opts.timestamp.value1 = htonl(cur_ts);
+    bp->opts.timestamp.value2 = htonl(cur_stream->rcvvar->ts_recent); 
+
+    // Window scale
+    bp->opts.nop3.valid = TRUE;
+    bp->opts.wscale.valid = TRUE;
+    bp->opts.wscale.value = cur_stream->sndvar->wscale_mine;
+
+    uint16_t optlen = MTP_CalculateOptionLength(bp);
+    bp->hdr.doff = (TCP_HEADER_LEN + optlen) >> 2;
+
     uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
-
-    SendMTPPacket(mtcp, cur_stream, cur_ts,
-		TCP_FLAG_SYN | TCP_FLAG_ACK, 
-		cur_stream->sndvar->iss, //seq
-		init_seq + 1, //ack
-		advertised_window, //window
-		NULL, 0);
-
-    // MTP TODO: what if there are not buffers available?
-    //if (ret == -2){
-        // not enough space in mbuffs
-    //} 
+	bp->hdr.window = htons(advertised_window);
 }
 
 /*----------------------------------------------------------------------------*/
