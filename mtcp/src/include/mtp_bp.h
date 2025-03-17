@@ -3,6 +3,8 @@
 
 // Should get compiler generated
 
+#define MTP_HEADER_LEN 20
+
 struct mtp_bp_hdr {
     u_int16_t source;
     u_int16_t dest;
@@ -68,7 +70,6 @@ struct tcp_opt_sack_permit {
 struct tcp_opt_nop {
     bool valid = false;
     u_int8_t kind = 1;
-    u_int8_t len = 1;
 };
 
 struct mtp_bp_options{
@@ -82,8 +83,8 @@ struct mtp_bp_options{
 };
 
 struct mtp_bp_payload {
-    uint8_t* payload;
-    uint16_t payloadLen;
+    uint8_t* data;
+    uint16_t len;
 };
 
 struct mtp_bp {

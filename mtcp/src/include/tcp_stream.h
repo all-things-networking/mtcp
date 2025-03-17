@@ -133,6 +133,9 @@ struct tcp_send_vars
 	uint8_t on_control_list;
 	uint8_t on_send_list;
 	uint8_t on_ack_list;
+
+    uint8_t on_gen_list;
+
 	uint8_t on_sendq;
 	uint8_t on_ackq;
 	uint8_t on_closeq;
