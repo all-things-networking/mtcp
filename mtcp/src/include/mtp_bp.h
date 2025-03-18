@@ -39,16 +39,23 @@ struct mtp_bp_hdr {
 };
 
 struct tcp_opt_mss {
-    bool valid = false;
-    u_int8_t kind = 2;
-    u_int8_t len = 4;
+    bool valid;
+    u_int8_t kind;
+    u_int8_t len;
     u_int32_t value;
 };
 
+struct tcp_opt_sack_permit {
+    bool valid;
+    u_int8_t kind;
+    u_int8_t len;
+    u_int16_t value;
+};
+
 struct tcp_opt_timestamp {
-    bool valid = false;
-    u_int8_t kind = 8;
-    u_int8_t len = 10;
+    bool valid;
+    u_int8_t kind;
+    u_int8_t len;
     u_int32_t value1;
     u_int32_t value2;
 };
@@ -60,16 +67,10 @@ struct tcp_opt_wscale {
     u_int32_t value;
 };
 
-struct tcp_opt_sack_permit {
-    bool valid = false;
-    u_int8_t kind = 4;
-    u_int8_t len = 2;
-    u_int16_t value;
-};
-
 struct tcp_opt_nop {
-    bool valid = false;
-    u_int8_t kind = 1;
+    bool valid;
+    u_int8_t kind;
+    u_int8_t len;
 };
 
 struct mtp_bp_options{
@@ -94,5 +95,12 @@ struct mtp_bp {
     // MTP TODO: add segmentation instructions
 }
 typedef struct mtp_bp mtp_bp;
+
+// default header values because C doesn't allow 
+// initialization during declaration
+void MTP_set_opt_mss(struct tcp_opt_mss *mss, uint32_t value);
+void MTP_set_sack_permit(struct tcp_opt_sack_permit *sack_permit, uint16_t value);
+void MTP_set_nop(struct tcp_opt_nop *nop);
+void MTP_set_timestamp(struct tcp_opt_timestamp *ts, uint32_t value1, uint32_t value2);
 
 #endif

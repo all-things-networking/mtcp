@@ -16,6 +16,7 @@
 #define TCP_CALCULATE_CHECKSUM      TRUE
 #define TCP_MAX_WINDOW 65535
 
+
 static inline uint16_t
 MTP_CalculateOptionLength(mtp_bp* bp){
     uint16_t res = 0;
@@ -43,6 +44,7 @@ MTP_CalculateOptionLength(mtp_bp* bp){
     }
     return res;
 }
+
 /*----------------------------------------------------------------------------*/
 inline void 
 AddtoGenList(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
@@ -896,7 +898,7 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
    
     mtp_bp* bp = GetFreeBP(cur_stream);
     
-    memset(bp->hdr, 0, sizeof(mtp_bp_hdr));
+    memset(bp->hdr, 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 
 	bp->hdr.source = cur_stream->sport;
 	bp->hdr.dest = cur_stream->dport;
@@ -908,8 +910,7 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
 
     // options to calculate data offset
     // MSS
-    bp->opts.mss.valid = TRUE;
-    bp->opts.mss.value = cur_stream->sndvar->mss;
+    MTP_set_opt_mss(&(bp->opts.mss), cur_stream->sndvar->mss);
    
     // MTP TODO: SACK? 
 #if TCP_OPT_SACK_ENABLED
@@ -917,15 +918,17 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
 #endif
 
     // Timestamp
-    bp->opts.timestamp.valid = TRUE;
-    bp->opts.timestamp.value1 = htonl(cur_ts);
-    bp->opts.timestamp.value2 = htonl(cur_stream->rcvvar->ts_recent); 
-
+    MTP_set_opt_timestamp(&(bp->opts.timestamp),
+                            htonl(cur_ts),
+                            htonl(cur_stream->rcvvar->ts_recent);
+    
     // Window scale
-    bp->opts.nop3.valid = TRUE;
+    MTP_set_opt_nop(&(bp->opts.nop3));
     bp->opts.wscale.valid = TRUE;
     bp->opts.wscale.value = cur_stream->sndvar->wscale_mine;
-
+   
+    // MTP TODO: would the MTP program do the length 
+    //           calculation itself?
     uint16_t optlen = MTP_CalculateOptionLength(bp);
     bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
