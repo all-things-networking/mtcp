@@ -324,6 +324,9 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 
 	stream->sndvar->rto = TCP_INITIAL_RTO;
 
+    stream->sndvar->mtp_bps_head = 0;
+    stream->sndvar->mtp_bps_tail = 0;
+
 #if BLOCKING_SUPPORT
 	if (pthread_cond_init(&stream->rcvvar->read_cond, NULL)) {
 		perror("pthread_cond_init of read_cond");

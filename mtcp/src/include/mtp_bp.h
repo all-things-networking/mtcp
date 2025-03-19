@@ -61,9 +61,9 @@ struct tcp_opt_timestamp {
 };
 
 struct tcp_opt_wscale {
-    bool valid = false;
-    u_int8_t kind = 3;
-    u_int8_t len = 3;
+    bool valid;
+    u_int8_t kind;
+    u_int8_t len;
     u_int32_t value;
 };
 
@@ -93,14 +93,16 @@ struct mtp_bp {
     struct mtp_bp_options opts;
     struct mtp_bp_payload payload;
     // MTP TODO: add segmentation instructions
-}
+};
+
 typedef struct mtp_bp mtp_bp;
 
 // default header values because C doesn't allow 
 // initialization during declaration
 void MTP_set_opt_mss(struct tcp_opt_mss *mss, uint32_t value);
-void MTP_set_sack_permit(struct tcp_opt_sack_permit *sack_permit, uint16_t value);
-void MTP_set_nop(struct tcp_opt_nop *nop);
-void MTP_set_timestamp(struct tcp_opt_timestamp *ts, uint32_t value1, uint32_t value2);
+void MTP_set_opt_sack_permit(struct tcp_opt_sack_permit *sack_permit, uint16_t value);
+void MTP_set_opt_nop(struct tcp_opt_nop *nop);
+void MTP_set_opt_timestamp(struct tcp_opt_timestamp *ts, uint32_t value1, uint32_t value2);
+void MTP_set_opt_wscale(struct tcp_opt_wscale *wscale, uint32_t value);
 
 #endif

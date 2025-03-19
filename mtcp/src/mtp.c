@@ -46,11 +46,28 @@ MTP_CalculateOptionLength(mtp_bp* bp){
 }
 
 /*----------------------------------------------------------------------------*/
+inline struct mtcp_sender *
+MTP_GetSender(mtcp_manager_t mtcp, tcp_stream *cur_stream)
+{
+	if (cur_stream->sndvar->nif_out < 0) {
+		return mtcp->g_sender;
+	}
+
+	int eidx = CONFIG.nif_to_eidx[cur_stream->sndvar->nif_out];
+	if (eidx < 0 || eidx >= CONFIG.eths_num) {
+		TRACE_ERROR("(NEVER HAPPEN) Failed to find appropriate sender.\n");
+		return NULL;
+	}
+
+	return mtcp->n_sender[eidx];
+}
+
+/*----------------------------------------------------------------------------*/
 inline void 
 AddtoGenList(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 {
     if (!cur_stream->sndvar->on_gen_list) {
-        struct mtcp_sender *sender = GetSender(mtcp, cur_stream);
+        struct mtcp_sender *sender = MTP_GetSender(mtcp, cur_stream);
         assert(sender != NULL);
 
         cur_stream->sndvar->on_gen_list = TRUE;
@@ -63,8 +80,9 @@ AddtoGenList(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 
 /*----------------------------------------------------------------------------*/
 void 
-AdvanceBPListHead(tcp_stream *cur_stream, int advance){
-    cur_stream->mtp_bps_head = (cur_stream->mtp_bps_head + advance) % MTP_PER_FLOW_BP_CNT;
+AdvanceBPListHead(tcp_stream *cur_stream, int advance){ 
+    int cur_head = cur_stream->sndvar->mtp_bps_head; 
+    cur_stream->sndvar->mtp_bps_head = (cur_head + advance) % MTP_PER_FLOW_BP_CNT;
 }
 /*----------------------------------------------------------------------------*/
 // adapted from SendTCPPacket in tcp_out
@@ -75,17 +93,17 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 {
     unsigned int sent = 0;
     unsigned int err = 0;
-    for (unsigned int i = cur_stream->mtp_bps_head;
-         i != cur_stream->mtp_bps_tail;
+    for (unsigned int i = cur_stream->sndvar->mtp_bps_head;
+         i != cur_stream->sndvar->mtp_bps_tail;
          i = (i + 1) % MTP_PER_FLOW_BP_CNT){
         
-        mtp_bp* bp = &(cur_stream->mtp_bps[i]);
-        uint16_t openlen = MTP_CalculateOptionLength(bp);
+        mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
+        uint16_t optlen = MTP_CalculateOptionLength(bp);
         uint16_t payloadLen = 0;
         if (bp->payload.data != NULL){
             payloadLen = bp->payload.len;
         }
-        if (bp->payloadLen + optlen > cur_stream->sndvar->mss){
+        if (payloadLen + optlen > cur_stream->sndvar->mss){
             TRACE_ERROR("Payload size exceeds MSS\n");
             err += 1;
             continue; 
@@ -93,13 +111,13 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
         struct mtp_bp_hdr *mtph;
         mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
-                MTP_HEADER_LEN + optlen + payloadlen);
+                MTP_HEADER_LEN + optlen + payloadLen);
         if (mtph == NULL) {
             AdvanceBPListHead(cur_stream, sent + err);
             return -2;
         }
 
-        memcpy((uint8_t *)mtph, bp->hdr, MTP_HEADER_LEN);
+        memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
 
         // options
         // MTP TODO: this can be further generalized
@@ -129,7 +147,8 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         if (bp_opts->timestamp.valid){
             buff_opts[i++] = bp_opts->timestamp.kind;
             buff_opts[i++] = bp_opts->timestamp.len;
-            uint32_t *tmp = (uint32_t *)(buff_opts[i]);
+            uint8_t* val_start = &buff_opts[i];
+            uint32_t *tmp = (uint32_t *)(val_start);
             tmp[0] = bp_opts->timestamp.value1;
             tmp[1] = bp_opts->timestamp.value2;
             i += 8;
@@ -150,14 +169,14 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
         // copy payload if exist
         if (bp->payload.data != NULL) {
-            memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, bp->payload.data, payloadlen);
+            memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, bp->payload.data, payloadLen);
             #if defined(NETSTAT) && defined(ENABLELRO)
             mtcp->nstat.tx_gdptbytes += payloadlen;
             #endif /* NETSTAT */
         } 
 
         // MTP TODO: checksum is TCP specific
-        int rc = -1
+        int rc = -1;
         #if TCP_CALCULATE_CHECKSUM
         #ifndef DISABLE_HWCSUM
         if (mtcp->iom->dev_ioctl != NULL)
@@ -168,7 +187,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
         if (rc == -1)
             mtph->check = TCPCalcChecksum((uint16_t *)mtph,
-                              MTP_HEADER_LEN + optlen + payloadlen,
+                              MTP_HEADER_LEN + optlen + payloadLen,
                               cur_stream->saddr, cur_stream->daddr);
         #endif
    
@@ -206,15 +225,14 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 	int cnt = 0;
 	int ret;
 
-	thresh = MIN(thresh, sender->control_list_cnt);
+	thresh = MIN(thresh, sender->gen_list_cnt);
 
 	/* Send packets */
 	cnt = 0;
 	cur_stream = TAILQ_FIRST(&sender->gen_list);
 	last = TAILQ_LAST(&sender->gen_list, gen_head);
 	while (cur_stream) {
-		if (++cnt > thresh)
-			break;
+		if (++cnt > thresh) break;
 
 		TRACE_LOOP("Inside gen loop. cnt: %u, stream: %d\n", 
 				cnt, cur_stream->id);
@@ -234,19 +252,20 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 				sender->gen_list_cnt++;
 				/* since there is no available write buffer, break */
 				break;
-			} else if (ret < 0) {
+			} 
+            else if (ret < 0) {
 				/* try again after handling other streams */
 				TAILQ_INSERT_TAIL(&sender->gen_list,
 						  cur_stream, sndvar->gen_link);
 				cur_stream->sndvar->on_gen_list = TRUE;
-				sender->control_list_cnt++;
+				sender->gen_list_cnt++;
 			}
-		} else {
+		} 
+        else {
 			TRACE_ERROR("Stream %d: not on gen list.\n", cur_stream->id);
 		}
 
-		if (cur_stream == last) 
-			break;
+		if (cur_stream == last) break;
 		cur_stream = next;
 	}
 
@@ -507,8 +526,8 @@ ValidateSequence(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts,
 /*----------------------------------------------------------------------------*/
 bool
 BPBuffer_isfull(tcp_stream *cur_stream){
-    uint32_t head = cur_stream->mtp_bps_head;
-    uint32_t tail = cur_stream->mtp_bps_tail;
+    uint32_t head = cur_stream->sndvar->mtp_bps_head;
+    uint32_t tail = cur_stream->sndvar->mtp_bps_tail;
     uint32_t size = MTP_PER_FLOW_BP_CNT; 
 
     uint32_t next_tail = (tail + 1) % size;
@@ -524,111 +543,11 @@ mtp_bp* GetFreeBP(struct tcp_stream *cur_stream){
         return NULL;
     }
 
-    uint32_t bp_tail = cur_stream->mtp_bps_tail;
-    mtp_bp* new_bp = cur_stream->mtp_bps + bp_tail;
-    cur_stream->mtp_bps_tail = (cur_stream->mtp_bps_tail + 1) % cur_stream->mtp_bps_size;
+    uint32_t bp_tail = cur_stream->sndvar->mtp_bps_tail;
+    mtp_bp* new_bp = cur_stream->sndvar->mtp_bps + bp_tail;
+    cur_stream->sndvar->mtp_bps_tail = (bp_tail + 1) % MTP_PER_FLOW_BP_CNT;
     return new_bp;
 }
-
-/*----------------------------------------------------------------------------*/
-// adapted from SendTCPPacket in tcp_out
-int
-GenPacketBP(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
-		      uint32_t cur_ts, uint8_t flags, 
-              uint32_t seq, uint32_t ack, 
-              uint16_t window,
-              struct tcp_opt_mss, struct tcp_opt_timstamp,
-              struct tcp_opt_wscale, struct tcp_opt_sack_permit, 
-              uint8_t *payload, uint16_t payloadlen)
-{
-
-   	
-    uint16_t optlen;
-	int rc = -1;
-
-    // MTP TODO: add them to MTP program
-    optlen = MTPCalculateOptionLength(tcp_opt_mss, tcp_opt_timestamp,
-                                      tcp_opt_wscale, tcp_opt_sack_permit);
-
-
-    if (payloadlen + optlen > cur_stream->sndvar->mss) {
-        TRACE_ERROR("Payload size exceeds MSS\n");
-        return ERROR;
-    }
-
-    memset(new_bp->hdr, 0, sizeof(mtp_bp_hdr) + optlen);
-
-	new_bp->hdr.source = cur_stream->sport;
-	new_bp->hdr.dest = cur_stream->dport;
-    new_bp->hdr.seq = htonl(seq);
-    new_bp->hdr.ack_seq = htonl(ack);
-	new_bp->hdr.window = htons(window);
-
-	if (flags & TCP_FLAG_SYN) {
-		new_bp->syn = TRUE;
-	}
-
-	if (flags & TCP_FLAG_ACK) {
-		new_bp->ack = TRUE;
-        // MTP TODO: check these
-		cur_stream->sndvar->ts_lastack_sent = cur_ts;
-		cur_stream->last_active_ts = cur_ts;
-		//UpdateTimeoutList(mtcp, cur_stream);
-	}
-
-    // MTP TODO: zero window
-    /*
-	// if the advertised window is 0, we need to advertise again later 
-	if (window32 == 0) {
-		cur_stream->need_wnd_adv = TRUE;
-	}
-    */
-	//printf("Test 3");
-
-    // MTP TODO: move out of here
-    GenerateTCPOptions(cur_stream, cur_ts, flags,
-            (uint8_t *)tcph + TCP_HEADER_LEN, optlen);
-
-	//printf("Test 4");
-
-    new_bp->doff = (TCP_HEADER_LEN + optlen) >> 2;
-
-	// copy payload if exist
-    if (payloadlen > 0) {
-        memcpy((uint8_t *)tcph + TCP_HEADER_LEN + optlen, payload, payloadlen);
-#if defined(NETSTAT) && defined(ENABLELRO)
-        mtcp->nstat.tx_gdptbytes += payloadlen;
-#endif /* NETSTAT */
-    }
-
-	//printf("Test 5");
-
-#if TCP_CALCULATE_CHECKSUM
-#ifndef DISABLE_HWCSUM
-    if (mtcp->iom->dev_ioctl != NULL)
-        rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
-                      PKT_TX_TCPIP_CSUM, NULL);
-#endif
-	//printf("Test 6");
-
-    if (rc == -1)
-        tcph->check = TCPCalcChecksum((uint16_t *)tcph,
-                          TCP_HEADER_LEN + optlen + payloadlen,
-                          cur_stream->saddr, cur_stream->daddr);
-#endif
-
-	//printf("Test 7\n");
-		
-	// Note: added this for retransmit
-	if(payloadlen > 0) {
-		/* update retransmission timer if have payload */
-		//cur_stream->sndvar->ts_rto = cur_ts + cur_stream->sndvar->rto;
-		//AddtoRTOList(mtcp, cur_stream);
-	}
-
-	return 0;
-}
-
 
 /*----------------------------------------------------------------------------*/
 // adapted from SendTCPPacket in tcp_out
@@ -738,100 +657,6 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 }
 
 /*----------------------------------------------------------------------------*/
-inline int 
-MTP_PacketGenList(mtcp_manager_t mtcp, 
-		struct mtcp_sender *sender, uint32_t cur_ts, int thresh)
-{
-	tcp_stream *cur_stream;
-	tcp_stream *next, *last;
-	int cnt = 0;
-	int ret;
-
-	/* Instantiate and send packets from blueprints */
-	cnt = 0;
-	cur_stream = TAILQ_FIRST(&sender->gen_list);
-	last = TAILQ_LAST(&sender->gen_list, gen_head);
-	while (cur_stream) {
-		if (++cnt > thresh)
-			break;
-
-		TRACE_LOOP("Inside send loop. cnt: %u, stream: %d\n", 
-				cnt, cur_stream->id);
-		next = TAILQ_NEXT(cur_stream, sndvar->send_link);
-
-		TAILQ_REMOVE(&sender->send_list, cur_stream, sndvar->send_link);
-		if (cur_stream->sndvar->on_send_list) {
-			ret = 0;
-
-			/* Send data here */
-			/* Only can send data when ESTABLISHED or CLOSE_WAIT */
-			if (cur_stream->state == TCP_ST_ESTABLISHED) {
-				if (cur_stream->sndvar->on_control_list) {
-					/* delay sending data after until on_control_list becomes off */
-					//TRACE_DBG("Stream %u: delay sending data.\n", cur_stream->id);
-					ret = -1;
-				} else {
-                    //FIXME: TMP COMMENT
-					//ret = FlushTCPSendingBuffer(mtcp, cur_stream, cur_ts);
-                    ret = 0;
-				}
-			} else if (cur_stream->state == TCP_ST_CLOSE_WAIT || 
-					cur_stream->state == TCP_ST_FIN_WAIT_1 || 
-					cur_stream->state == TCP_ST_LAST_ACK) {
-				//FIXME: TMP COMMENT
-                //ret = FlushTCPSendingBuffer(mtcp, cur_stream, cur_ts);
-                ret = 0;
-			} else {
-				TRACE_DBG("Stream %d: on_send_list at state %s\n", 
-						cur_stream->id, TCPStateToString(cur_stream));
-#if DUMP_STREAM
-				DumpStream(mtcp, cur_stream);
-#endif
-			}
-
-			if (ret < 0) {
-				TAILQ_INSERT_TAIL(&sender->send_list, cur_stream, sndvar->send_link);
-				/* since there is no available write buffer, break */
-				break;
-
-			} else {
-				cur_stream->sndvar->on_send_list = FALSE;
-				sender->send_list_cnt--;
-				/* the ret value is the number of packets sent. */
-				/* decrease ack_cnt for the piggybacked acks */
-#if ACK_PIGGYBACK
-				if (cur_stream->sndvar->ack_cnt > 0) {
-					if (cur_stream->sndvar->ack_cnt > ret) {
-						cur_stream->sndvar->ack_cnt -= ret;
-					} else {
-						cur_stream->sndvar->ack_cnt = 0;
-					}
-				}
-#endif
-#if 1
-				if (cur_stream->control_list_waiting) {
-					if (!cur_stream->sndvar->on_ack_list) {
-						cur_stream->control_list_waiting = FALSE;
-						AddtoControlList(mtcp, cur_stream, cur_ts);
-					}
-				}
-#endif
-			}
-		} else {
-			TRACE_ERROR("Stream %d: not on send list.\n", cur_stream->id);
-#ifdef DUMP_STREAM
-			DumpStream(mtcp, cur_stream);
-#endif
-		}
-
-		if (cur_stream == last) 
-			break;
-		cur_stream = next;
-	}
-
-	return cnt;
-}
-/*----------------------------------------------------------------------------*/
 static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
                              uint32_t remote_ip, uint16_t remote_port, 
                              uint32_t init_seq, uint16_t rwnd,
@@ -898,7 +723,7 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
    
     mtp_bp* bp = GetFreeBP(cur_stream);
     
-    memset(bp->hdr, 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+    memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 
 	bp->hdr.source = cur_stream->sport;
 	bp->hdr.dest = cur_stream->dport;
@@ -920,12 +745,11 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
     // Timestamp
     MTP_set_opt_timestamp(&(bp->opts.timestamp),
                             htonl(cur_ts),
-                            htonl(cur_stream->rcvvar->ts_recent);
+                            htonl(cur_stream->rcvvar->ts_recent));
     
     // Window scale
     MTP_set_opt_nop(&(bp->opts.nop3));
-    bp->opts.wscale.valid = TRUE;
-    bp->opts.wscale.value = cur_stream->sndvar->wscale_mine;
+    MTP_set_opt_wscale(&(bp->opts.wscale), cur_stream->sndvar->wscale_mine);
    
     // MTP TODO: would the MTP program do the length 
     //           calculation itself?

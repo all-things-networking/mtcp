@@ -147,8 +147,8 @@ struct tcp_send_vars
 			is_fin_ackd:1;
 
     mtp_bp mtp_bps[MTP_PER_FLOW_BP_CNT];
-    uint32_t mtp_bps_head = 0;
-    uint32_t mtp_bps_tail = 0;
+    uint32_t mtp_bps_head;
+    uint32_t mtp_bps_tail;
 
 	TAILQ_ENTRY(tcp_stream) control_link;
 	TAILQ_ENTRY(tcp_stream) send_link;
