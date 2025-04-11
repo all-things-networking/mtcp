@@ -303,17 +303,29 @@ list<instr_t> listen_ep (LISTEN ev, null_context ctx, interm_out int_out) {
 list<instr_t> accept_ep (ACCEPT ev, tcp_listen_context ctx, interm_out int_out) {
     list<instr_t> out;
 
-    if (len(ctx.pending) > 0) {
+    // Wait until the condition met, then return accpet_conn_instr
+    if (len(ctx.pending) == 0) {
+        wait_until(ev, len(ctx.pending) > 0);
+    }
+    accept_res res = ctx.pending.remove();
+    instr_t instr = notify(res); // let target allocate socket
+    out.add(instr);
+
+    if (ctx.state == 0)
+        ctx.state = 1; // ACCEPT_ST;
+
+    // This is an alternative version 
+    // (braces indicate that inside steps are executed only when waiting condition is met)
+    /* 
+    wait_until(ev, len(ctx.pending) > 0) {
         accept_res acc = ctx.pending.remove();
         instr_t instr = accept_conn_instr(acc); // allocate socket
         out.add(instr);
 
         if (ctx.state == 0)
             ctx.state = 1; // ACCEPT_ST;
-    } else {
-        instr_t instr = retry_instr(ev);    // retry accept_ep in next polling loop
-        out.add(instr);
     }
+    */
 
     return out;
 }
@@ -356,6 +368,7 @@ list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
     if (len(ctx.pending) < ctx.pending_cap) {
         accept_res acc;
         ctx.pending.add(acc);
+        // set conditional variable by compiler
     }
 
     uint32 init_seq = rand();
