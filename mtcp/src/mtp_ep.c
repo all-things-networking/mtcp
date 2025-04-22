@@ -1,4 +1,4 @@
-#include "mtp.h"
+#include "mtp_ep.h"
 
 #include <linux/tcp.h>
 
@@ -10,64 +10,22 @@
 #include "debug.h"
 #include "ip_out.h"
 #include "tcp_util.h"
+#include "socket.h"
+#include "mtp_instr.h"
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
 #define TCP_CALCULATE_CHECKSUM      TRUE
 #define TCP_MAX_WINDOW 65535
 
-/*----------------------------------------------------------------------------*/
-static inline uint16_t
-CalculateOptionLength(uint8_t flags)
-{
-	uint16_t optlen = 0;
+// Intermediate output
+typedef struct scratchpad_decl {
+	uint8_t change_cwnd;
+	uint8_t skip_ack_eps;
+} scratchpad;
 
-	if (flags & TCP_FLAG_SYN) {
-		optlen += TCP_OPT_MSS_LEN;
-#if TCP_OPT_SACK_ENABLED
-		optlen += TCP_OPT_SACK_PERMIT_LEN;
-#if !TCP_OPT_TIMESTAMP_ENABLED
-		optlen += 2;	// insert NOP padding
-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
-#endif /* TCP_OPT_SACK_ENABLED */
 
-#if TCP_OPT_TIMESTAMP_ENABLED
-		optlen += TCP_OPT_TIMESTAMP_LEN;
-#if !TCP_OPT_SACK_ENABLED
-		optlen += 2;	// insert NOP padding
-#endif /* TCP_OPT_SACK_ENABLED */
-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
 
-		optlen += TCP_OPT_WSCALE_LEN + 1;
-
-	} else {
-
-#if TCP_OPT_TIMESTAMP_ENABLED
-		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
-#endif
-
-#if TCP_OPT_SACK_ENABLED
-		if (flags & TCP_FLAG_SACK) {
-			optlen += TCP_OPT_SACK_LEN + 2;
-		}
-#endif
-	}
-
-	assert(optlen % 4 == 0);
-
-	return optlen;
-}
-/*----------------------------------------------------------------------------*/
-static inline void
-GenerateTCPTimestamp(tcp_stream *cur_stream, uint8_t *tcpopt, uint32_t cur_ts)
-{
-	uint32_t *ts = (uint32_t *)(tcpopt + 2);
-
-	tcpopt[0] = TCP_OPT_TIMESTAMP;
-	tcpopt[1] = TCP_OPT_TIMESTAMP_LEN;
-	ts[0] = htonl(cur_ts);
-	ts[1] = htonl(cur_stream->rcvvar->ts_recent);
-}
 /*----------------------------------------------------------------------------*/
 static inline void 
 EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt)
@@ -122,68 +80,7 @@ EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt)
 			rcvvar->srtt, TS_TO_MSEC((rcvvar->srtt) >> 3), rcvvar->mdev, 
 			rcvvar->mdev_max, rcvvar->rttvar, rcvvar->rtt_seq);
 }
-/*----------------------------------------------------------------------------*/
-static inline void
-GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts, 
-		uint8_t flags, uint8_t *tcpopt, uint16_t optlen)
-{
-	int i = 0;
 
-	if (flags & TCP_FLAG_SYN) {
-		uint16_t mss;
-
-		/* MSS option */
-		mss = cur_stream->sndvar->mss;
-		tcpopt[i++] = TCP_OPT_MSS;
-		tcpopt[i++] = TCP_OPT_MSS_LEN;
-		tcpopt[i++] = mss >> 8;
-		tcpopt[i++] = mss % 256;
-
-		/* SACK permit */
-#if TCP_OPT_SACK_ENABLED
-#if !TCP_OPT_TIMESTAMP_ENABLED
-		tcpopt[i++] = TCP_OPT_NOP;
-		tcpopt[i++] = TCP_OPT_NOP;
-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
-		tcpopt[i++] = TCP_OPT_SACK_PERMIT;
-		tcpopt[i++] = TCP_OPT_SACK_PERMIT_LEN;
-		TRACE_SACK("Local SACK permited.\n");
-#endif /* TCP_OPT_SACK_ENABLED */
-
-		/* Timestamp */
-#if TCP_OPT_TIMESTAMP_ENABLED
-#if !TCP_OPT_SACK_ENABLED
-		tcpopt[i++] = TCP_OPT_NOP;
-		tcpopt[i++] = TCP_OPT_NOP;
-#endif /* TCP_OPT_SACK_ENABLED */
-		GenerateTCPTimestamp(cur_stream, tcpopt + i, cur_ts);
-		i += TCP_OPT_TIMESTAMP_LEN;
-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
-
-		/* Window scale */
-		tcpopt[i++] = TCP_OPT_NOP;
-		tcpopt[i++] = TCP_OPT_WSCALE;
-		tcpopt[i++] = TCP_OPT_WSCALE_LEN;
-		tcpopt[i++] = cur_stream->sndvar->wscale_mine;
-
-	} else {
-
-#if TCP_OPT_TIMESTAMP_ENABLED
-		tcpopt[i++] = TCP_OPT_NOP;
-		tcpopt[i++] = TCP_OPT_NOP;
-		GenerateTCPTimestamp(cur_stream, tcpopt + i, cur_ts);
-		i += TCP_OPT_TIMESTAMP_LEN;
-#endif
-
-#if TCP_OPT_SACK_ENABLED
-		if (flags & TCP_OPT_SACK) {
-			// i += GenerateSACKOption(cur_stream, tcpopt + i);
-		}
-#endif
-	}
-
-	assert (i == optlen);
-}
 /*----------------------------------------------------------------------------*/
 // Copied from tcp_in.c
 static inline int
@@ -266,133 +163,63 @@ ValidateSequence(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts,
 	return TRUE;
 }
 
-/*----------------------------------------------------------------------------*/
-// adapted from SendTCPPacket in tcp_out
-int
-SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
-		      uint32_t cur_ts, uint8_t flags, 
-              uint32_t seq, uint32_t ack, 
-              uint16_t window,
-              uint8_t *payload, uint16_t payloadlen)
-{
-	//printf("\nTest -3");
-	struct tcphdr *tcph;
-    uint16_t optlen;
-	int rc = -1;
 
-	//printf("Test -2");
 
-    // MTP TODO: add them to MTP program
-    optlen = CalculateOptionLength(flags);
-
-	//printf("Test -1");
-
-    if (payloadlen + optlen > cur_stream->sndvar->mss) {
-        TRACE_ERROR("Payload size exceeds MSS\n");
-        return ERROR;
-    }
-	//printf("Test 0");
-
-    tcph = (struct tcphdr *)IPOutput(mtcp, cur_stream,
-            TCP_HEADER_LEN + optlen + payloadlen);
-    if (tcph == NULL) {
-        return -2;
-    }
-	//printf("Test 1");
-    memset(tcph, 0, TCP_HEADER_LEN + optlen);
-
-	//printf("Test 2");
-	tcph->source = cur_stream->sport;
-	tcph->dest = cur_stream->dport;
-    tcph->seq = htonl(seq);
-    tcph->ack_seq = htonl(ack);
-	tcph->window = htons(window);
-
-	if (flags & TCP_FLAG_SYN) {
-		tcph->syn = TRUE;
-	}
-
-	if (flags & TCP_FLAG_ACK) {
-		tcph->ack = TRUE;
-        // MTP TODO: check these
-		cur_stream->sndvar->ts_lastack_sent = cur_ts;
-		cur_stream->last_active_ts = cur_ts;
-		//UpdateTimeoutList(mtcp, cur_stream);
-	}
-
-    // MTP TODO: zero window
-    /*
-	// if the advertised window is 0, we need to advertise again later 
-	if (window32 == 0) {
-		cur_stream->need_wnd_adv = TRUE;
-	}
-    */
-	//printf("Test 3");
-
-    // MTP TODO: move out of here
-    GenerateTCPOptions(cur_stream, cur_ts, flags,
-            (uint8_t *)tcph + TCP_HEADER_LEN, optlen);
-
-	//printf("Test 4");
-
-    tcph->doff = (TCP_HEADER_LEN + optlen) >> 2;
-
-	// copy payload if exist
-    if (payloadlen > 0) {
-        memcpy((uint8_t *)tcph + TCP_HEADER_LEN + optlen, payload, payloadlen);
-#if defined(NETSTAT) && defined(ENABLELRO)
-        mtcp->nstat.tx_gdptbytes += payloadlen;
-#endif /* NETSTAT */
-    }
-
-	//printf("Test 5");
-
-#if TCP_CALCULATE_CHECKSUM
-#ifndef DISABLE_HWCSUM
-    if (mtcp->iom->dev_ioctl != NULL)
-        rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
-                      PKT_TX_TCPIP_CSUM, NULL);
-#endif
-	//printf("Test 6");
-
-    if (rc == -1)
-        tcph->check = TCPCalcChecksum((uint16_t *)tcph,
-                          TCP_HEADER_LEN + optlen + payloadlen,
-                          cur_stream->saddr, cur_stream->daddr);
-#endif
-
-	//printf("Test 7\n");
-		
-	// Note: added this for retransmit
-	if(payloadlen > 0) {
-		/* update retransmission timer if have payload */
-		//cur_stream->sndvar->ts_rto = cur_ts + cur_stream->sndvar->rto;
-		//AddtoRTOList(mtcp, cur_stream);
-	}
-
-	return 0;
+/***********************************************
+ MTP Event Processors
+ 
+ EPs are static and used only by MTP EP chains
+ They have 1-to-1 mappings to mtp code
+ They should be generated by the MTP compiler
+ ***********************************************/
+static inline int listen_ep(mtcp_manager_t mtcp, int sockid, int backlog) {
+	return CreateListenCtx(mtcp, sockid, backlog);
 }
 
-/*----------------------------------------------------------------------------*/
-static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
-                             uint32_t remote_ip, uint16_t remote_port, 
-                             uint32_t init_seq, uint16_t rwnd,
-                             uint32_t local_ip, uint16_t local_port,
-							 struct tcphdr* tcph){
-   
-    // MTP TODO:
-    // Have to check if we already sent it and get here again
-    // to retransmit. See tcp_in.c, ProcessTCPPacket, case TCP_ST_SYN_RCVD
- 
-    // MTP new_ctx instruction
-    tcp_stream *cur_stream = NULL;
+static inline tcp_stream* accept_ep(mctx_t mctx, mtcp_manager_t mtcp, struct mtp_listen_ctx *ctx,
+	struct sockaddr *addr, socklen_t *addrlen) {
+	// Wait until a client request to connect
+	pthread_mutex_lock(&ctx->accept_lock);
+	if (TAILQ_EMPTY(&ctx->pending)) {
+		pthread_cond_wait(&ctx->accept_cond, &ctx->accept_lock);// check lock
+		if (mtcp->ctx->done || mtcp->ctx->exit) {
+			pthread_mutex_unlock(&ctx->accept_lock);
+			errno = EINTR;
+			return NULL;
+		}
+	}
+	struct accept_res *res = TAILQ_FIRST(&ctx->pending);
+	TAILQ_REMOVE(&ctx->pending, res, link);
+	pthread_mutex_unlock(&ctx->accept_lock);
+
+	if (ctx->state == 0)
+	ctx->state = 1;
+
+	// Allocate socket
+	// Return res instead, let target (api) do the following socket allocation
+	return res->stream;
+}
+
+static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
+	uint32_t remote_ip, uint16_t remote_port, 
+	uint32_t init_seq, uint16_t rwnd,
+	uint32_t local_ip, uint16_t local_port,
+	struct tcphdr* tcph,
+	struct mtp_listen_ctx *ctx){
+
+	// MTP TODO:
+	// Have to check if we already sent it and get here again
+	// to retransmit. See tcp_in.c, ProcessTCPPacket, case TCP_ST_SYN_RCVD
+
+	// MTP new_ctx instruction
+	tcp_stream *cur_stream = NULL;
 
 	/* create new stream and add to flow hash table */
-    // MTP TODO: some variables like send_una are already 
-    //           initialized in here. Should move them out
-    //           into the chain at some point
+	// MTP TODO: some variables like send_una are already 
+	//           initialized in here. Should move them out
+	//           into the chain at some point
 	cur_stream = CreateTCPStream(mtcp, NULL, MTCP_SOCK_STREAM, 
-			local_ip, local_port, remote_ip, remote_port);
+	local_ip, local_port, remote_ip, remote_port);
 	if (!cur_stream) {
 		TRACE_ERROR("INFO: Could not allocate tcp_stream!\n");
 	}
@@ -400,59 +227,62 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	cur_stream->sndvar->peer_wnd = rwnd;
 	cur_stream->rcvvar->irs = init_seq;
 	cur_stream->rcv_nxt = (cur_stream->rcvvar->irs + 1);
-    cur_stream->rcvvar->last_flushed_seq = cur_stream->rcvvar->irs;
+	cur_stream->rcvvar->last_flushed_seq = cur_stream->rcvvar->irs;
 	ParseTCPOptions(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, 
-			(tcph->doff << 2) - TCP_HEADER_LEN);
-    // MTP TODO: I think we need to add a state variable in context to MTP code
-    cur_stream->state = TCP_ST_SYN_RCVD;
-  
-    struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
-    if (!rcvvar->rcvbuf) {
+	(tcph->doff << 2) - TCP_HEADER_LEN);
+	// MTP TODO: I think we need to add a state variable in context to MTP code
+	cur_stream->state = TCP_ST_SYN_RCVD;
+
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	if (!rcvvar->rcvbuf) {
 		rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
-        // MTP TODO: this should raise an error event that comes back
-        //           to be processed according to the MTP program
+		// MTP TODO: this should raise an error event that comes back
+		//           to be processed according to the MTP program
 		if (!rcvvar->rcvbuf) {
 			TRACE_ERROR("Stream %d: Failed to allocate receive buffer.\n", 
-					cur_stream->id);
+			cur_stream->id);
 			cur_stream->state = TCP_ST_CLOSED;
 			cur_stream->close_reason = TCP_NO_MEM;
 			RaiseErrorEvent(mtcp, cur_stream);
 			return;
 		}
-    }
+	}
 
-    if (!rcvvar->meta_rwnd) {
+	if (!rcvvar->meta_rwnd) {
 		rcvvar->meta_rwnd = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
-        // MTP TODO: this should raise an error event that comes back
-        //           to be processed according to the MTP program
+		// MTP TODO: this should raise an error event that comes back
+		//           to be processed according to the MTP program
 		if (!rcvvar->meta_rwnd) {
 			TRACE_ERROR("Stream %d: Failed to allocate meta_rwnd.\n", 
-					cur_stream->id);
+			cur_stream->id);
 			cur_stream->state = TCP_ST_CLOSED;
 			cur_stream->close_reason = TCP_NO_MEM;
 			RaiseErrorEvent(mtcp, cur_stream);
 			return;
 		}
-    }
+	}
 
-    // MTP pkt gen instruction
-    uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
+	// Add stream to the listen context
+	struct accept_res *acc = malloc(sizeof(*acc));
+    acc->stream = cur_stream;
+    TAILQ_INSERT_TAIL(&ctx->pending, acc, link);
+
+	// MTP pkt gen instruction
+	uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 
-    SendMTPPacket(mtcp, cur_stream, cur_ts,
-		TCP_FLAG_SYN | TCP_FLAG_ACK, 
-		cur_stream->sndvar->iss, //seq
-		init_seq + 1, //ack
-		advertised_window, //window
-		NULL, 0);
+	SendMTPPacket(mtcp, cur_stream, cur_ts,
+	TCP_FLAG_SYN | TCP_FLAG_ACK, 
+	cur_stream->sndvar->iss, //seq
+	init_seq + 1, //ack
+	advertised_window, //window
+	NULL, 0);
 
-    // MTP TODO: what if there are not buffers available?
-    //if (ret == -2){
-        // not enough space in mbuffs
-    //} 
+	// MTP TODO: what if there are not buffers available?
+	//if (ret == -2){
+	// not enough space in mbuffs
+	//} 
 }
-
-/*----------------------------------------------------------------------------*/
 
 static inline void rto_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
@@ -476,7 +306,6 @@ static inline void rto_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	EstimateRTT(mtcp, cur_stream, round_tt);
 	sndvar->rto = (rcvvar->srtt >> 3) + rcvvar->rttvar;
 }
-
 
 static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
@@ -666,93 +495,6 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	UpdateRetransmissionTimer(mtcp, cur_stream, cur_ts);
 }
 
-
-static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream,
-			struct tcphdr* tcph, uint32_t seq, uint32_t ack_seq, int payloadlen,
-			uint32_t window){
-
-/*static inline void ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
-                             uint32_t cur_ts,
-                            uint32_t ack_seq, uint32_t rwnd){ */
-
-    // "establish" the connection if not established
-    struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	//struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
-	int ret;
-
-    if (cur_stream->state == TCP_ST_SYN_RCVD){
-	    /* check if ACK of SYN */
-		if (ack_seq != sndvar->iss + 1) {
-			CTRACE_ERROR("Stream %d (TCP_ST_SYN_RCVD): "
-					"weird ack_seq: %u, iss: %u\n", 
-					cur_stream->id, ack_seq, sndvar->iss);
-			TRACE_DBG("Stream %d (TCP_ST_SYN_RCVD): "
-					"weird ack_seq: %u, iss: %u\n", 
-					cur_stream->id, ack_seq, sndvar->iss);
-			return;
-		}
-
-		struct tcp_listener *listener;
-		uint32_t prior_cwnd;
-	
-		sndvar->snd_una++;
-		cur_stream->snd_nxt = ack_seq;
-		prior_cwnd = sndvar->cwnd;
-		sndvar->cwnd = ((prior_cwnd == 1)? 
-				(sndvar->mss * TCP_INIT_CWND): sndvar->mss);
-		TRACE_DBG("sync_recvd: updating cwnd from %u to %u\n", prior_cwnd, sndvar->cwnd);
-		
-		//sndvar->nrtx = 0;
-		//cur_stream->rcv_nxt = cur_stream->rcvvar->irs + 1;
-		RemoveFromRTOList(mtcp, cur_stream);
-
-		cur_stream->state = TCP_ST_ESTABLISHED;
-		TRACE_STATE("Stream %d: TCP_ST_ESTABLISHED\n", cur_stream->id);
-
-        // ************* MTP TODO: Start of mTCP app interface
-		/* update listening socket */
-		listener = (struct tcp_listener *)ListenerHTSearch(mtcp->listeners, &cur_stream->sport);
-
-		ret = StreamEnqueue(listener->acceptq, cur_stream);
-		if (ret < 0) {
-			TRACE_ERROR("Stream %d: Failed to enqueue to "
-					"the listen backlog!\n", cur_stream->id);
-			cur_stream->close_reason = TCP_NOT_ACCEPTED;
-			cur_stream->state = TCP_ST_CLOSED;
-			TRACE_STATE("Stream %d: TCP_ST_CLOSED\n", cur_stream->id);
-			//AddtoControlList(mtcp, cur_stream, cur_ts);
-		}
-		//TRACE_DBG("Stream %d inserted into acceptq.\n", cur_stream->id);
-		//if (CONFIG.tcp_timeout > 0)
-		//	AddtoTimeoutList(mtcp, cur_stream);
-
-		/* raise an event to the listening socket */
-		if (listener->socket && (listener->socket->epoll & MTCP_EPOLLIN)) {
-			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, listener->socket, MTCP_EPOLLIN);
-		}
-        // ************** End of mTCP app interface
-    } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
-		scratchpad scratch;
-		rto_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
-		fast_retr_rec_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
-		slows_congc_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
-		ack_net_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch, window);
-    }
-    /*
-    // MTP TODO: syn ack retransmit
-    else {
-		TRACE_DBG("Stream %d (TCP_ST_SYN_RCVD): No ACK.\n", 
-				cur_stream->id);
-		// retransmit SYN/ACK 
-		cur_stream->snd_nxt = sndvar->iss;
-		AddtoControlList(mtcp, cur_stream, cur_ts);
-	} 
-    */   
-
-}
-
-
 /*----------------------------------------------------------------------------*/
 // MTP TODO: what should we do if there are errors? Maybe the target should 
 //           hold off on more events for that flow so that it can roll back the context.
@@ -865,13 +607,105 @@ inline void send_ack_ep(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cu
                   NULL, 0);
 }
 
+
+
+/***********************************************
+ MTP Event Processor Chains
+ 
+ EP chinas are globally exposed
+ They implement parts for dispatcher in MTP code
+ ***********************************************/
+void mtp_ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream,
+			struct tcphdr* tcph, uint32_t seq, uint32_t ack_seq, int payloadlen,
+			uint32_t window){
+
+/*static inline void ack_chain(mtcp_manager_t mtcp, tcp_stream* cur_stream,
+                             uint32_t cur_ts,
+                            uint32_t ack_seq, uint32_t rwnd){ */
+
+    // "establish" the connection if not established
+    struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	//struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	int ret;
+
+    if (cur_stream->state == TCP_ST_SYN_RCVD){
+	    /* check if ACK of SYN */
+		if (ack_seq != sndvar->iss + 1) {
+			CTRACE_ERROR("Stream %d (TCP_ST_SYN_RCVD): "
+					"weird ack_seq: %u, iss: %u\n", 
+					cur_stream->id, ack_seq, sndvar->iss);
+			TRACE_DBG("Stream %d (TCP_ST_SYN_RCVD): "
+					"weird ack_seq: %u, iss: %u\n", 
+					cur_stream->id, ack_seq, sndvar->iss);
+			return;
+		}
+
+		struct tcp_listener *listener;
+		uint32_t prior_cwnd;
+	
+		sndvar->snd_una++;
+		cur_stream->snd_nxt = ack_seq;
+		prior_cwnd = sndvar->cwnd;
+		sndvar->cwnd = ((prior_cwnd == 1)? 
+				(sndvar->mss * TCP_INIT_CWND): sndvar->mss);
+		TRACE_DBG("sync_recvd: updating cwnd from %u to %u\n", prior_cwnd, sndvar->cwnd);
+		
+		//sndvar->nrtx = 0;
+		//cur_stream->rcv_nxt = cur_stream->rcvvar->irs + 1;
+		RemoveFromRTOList(mtcp, cur_stream);
+
+		cur_stream->state = TCP_ST_ESTABLISHED;
+		TRACE_STATE("Stream %d: TCP_ST_ESTABLISHED\n", cur_stream->id);
+
+        // ************* MTP TODO: Start of mTCP app interface
+		/* update listening socket */
+		listener = (struct tcp_listener *)ListenerHTSearch(mtcp->listeners, &cur_stream->sport);
+
+		ret = StreamEnqueue(listener->acceptq, cur_stream);
+		if (ret < 0) {
+			TRACE_ERROR("Stream %d: Failed to enqueue to "
+					"the listen backlog!\n", cur_stream->id);
+			cur_stream->close_reason = TCP_NOT_ACCEPTED;
+			cur_stream->state = TCP_ST_CLOSED;
+			TRACE_STATE("Stream %d: TCP_ST_CLOSED\n", cur_stream->id);
+			//AddtoControlList(mtcp, cur_stream, cur_ts);
+		}
+		//TRACE_DBG("Stream %d inserted into acceptq.\n", cur_stream->id);
+		//if (CONFIG.tcp_timeout > 0)
+		//	AddtoTimeoutList(mtcp, cur_stream);
+
+		/* raise an event to the listening socket */
+		if (listener->socket && (listener->socket->epoll & MTCP_EPOLLIN)) {
+			AddEpollEvent(mtcp->ep, 
+					MTCP_EVENT_QUEUE, listener->socket, MTCP_EPOLLIN);
+		}
+        // ************** End of mTCP app interface
+    } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
+		scratchpad scratch;
+		rto_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
+		fast_retr_rec_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
+		slows_congc_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch);
+		ack_net_ep(mtcp, cur_stream, cur_ts, ack_seq, &scratch, window);
+    }
+    /*
+    // MTP TODO: syn ack retransmit
+    else {
+		TRACE_DBG("Stream %d (TCP_ST_SYN_RCVD): No ACK.\n", 
+				cur_stream->id);
+		// retransmit SYN/ACK 
+		cur_stream->snd_nxt = sndvar->iss;
+		AddtoControlList(mtcp, cur_stream, cur_ts);
+	} 
+    */   
+
+}
+
 /*----------------------------------------------------------------------------*/
 // This is the chain of event processors when an incoming app event is processed
 // It should include one event processor called flush_and_notify
 // flush_and_notify flushes in-order packet data to the application, and notify the
 // application about it.
-inline int
-MTP_recv_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len, socket_map_t socket)
+int mtp_recv_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len, socket_map_t socket)
 {
 	// MTP flush_and_notify - flush part
 	/* Modified from mTCP CopyToUser */
@@ -945,7 +779,7 @@ MTP_recv_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len, 
 }
 
 /*----------------------------------------------------------------------------*/
-inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
+int mtp_send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 {
     if (cur_stream->state != TCP_ST_ESTABLISHED) return 0;
 
@@ -1058,10 +892,10 @@ MTP_ProcessSendEvents(mtcp_manager_t mtcp,
 			ret = 0;
 
 			// Send data here
-            ret = send_chain(mtcp, cur_stream, cur_ts); 
-            ret = send_chain(mtcp, cur_stream, cur_ts); 
+            ret = mtp_send_chain(mtcp, cur_stream, cur_ts); 
+            ret = mtp_send_chain(mtcp, cur_stream, cur_ts); 
 
-            ret = send_chain(mtcp, cur_stream, cur_ts);
+            ret = mtp_send_chain(mtcp, cur_stream, cur_ts);
 
             // MTP TODO: This is where we should properly implement our pkt generation
             //           interface
@@ -1150,9 +984,9 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         // MTP: look up listen flow id
         uint32_t local_ip = iph->daddr;
         uint16_t local_port = tcph->dest;
-        struct tcp_listener *listener;
+        struct mtp_listen_ctx *listener;
         /* if not the address we want, drop */
-        listener = (struct tcp_listener *)ListenerHTSearch(mtcp->listeners, &local_port);
+        listener = (struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &local_port);
         if (listener == NULL) {
             printf("MTP: listen context not found\n");
             TRACE_DBG("Refusing SYN packet.\n");
@@ -1170,7 +1004,7 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 		// Setup connection
         // MTP TODO: cur_ts in events by default or explicity?
         // parser "returns" event and dispatcher calls the event processing chain
-        syn_chain(mtcp, cur_ts, iph->saddr, tcph->source, seq, window, local_ip, local_port, tcph);
+        syn_ep(mtcp, cur_ts, iph->saddr, tcph->source, seq, window, local_ip, local_port, tcph, listener);
         return 0;
     }
    
@@ -1223,7 +1057,7 @@ MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	
 	if (is_ack){
         // event_type = MTP_ACK;
-        ack_chain(mtcp, cur_ts, cur_stream, tcph, seq, ack_seq, payloadlen, window);
+        mtp_ack_chain(mtcp, cur_ts, cur_stream, tcph, seq, ack_seq, payloadlen, window);
     }
 	/*
 
