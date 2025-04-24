@@ -69,7 +69,7 @@ struct accept_res {
 // Accept result (connection) queue definition
 TAILQ_HEAD(conn_queue, accept_res);
 
-// Mark for compiler to generate this part and insert to the end of socket.h (? or add our context to mtp_ctx.h)
+// Mark for compiler to generate this part and insert to the end of socket.h (add this context to mtp_ctx.h instead?)
 struct mtp_listen_ctx {
     uint32_t local_ip;
     uint32_t local_port;
@@ -78,6 +78,7 @@ struct mtp_listen_ctx {
 	/* TAILQ of tcp_stream* */
     struct conn_queue pending;  // pending connections
 	uint32_t pending_cap;
+	uint32_t pending_len;
 
 	socket_map_t socket;
     pthread_mutex_t accept_lock;
