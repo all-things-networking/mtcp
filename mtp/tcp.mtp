@@ -266,6 +266,8 @@ list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
             bytes_to_send = window_avail;
     }
 
+    if (bytes_to_send <= 0) return;
+
     TCPBP bp;
     bp.src_port = ctx.src_port;
     bp.dest_port = ctx.dest_port;
@@ -364,11 +366,13 @@ list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
 
     if (ctx.state != 1) // ACCEPT_ST;
         return out;
-
+    
     if (len(ctx.pending) < ctx.pending_cap) {
         accept_res acc;
+        // set conditional variable according to target
         ctx.pending.add(acc);
-        // set conditional variable by compiler
+    } else {
+        return out;
     }
 
     uint32 init_seq = rand();
@@ -396,9 +400,8 @@ list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
                           last_rwnd_size = ev.rwnd_size,
                           state = 2 // SYNACK_SENT_ST;
                           );
-
-     
     out.add(instr);
+
     return out;
     
 }

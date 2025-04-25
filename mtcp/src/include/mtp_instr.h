@@ -26,7 +26,13 @@ int SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 
 // new_ctx_instr
 int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog);
-int CreateCtx();    // TODO move context creation in syn_ep to here
+tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t local_ip, uint16_t local_port,
+	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd,
+	uint32_t cur_ts, struct tcphdr* tcph);
+
+// flush_and_notify
+int FlushAndNotify(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
+	char* buf, int len, socket_map_t socket);
 
 // Do the ctx & timer ones
 

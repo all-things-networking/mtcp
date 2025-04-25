@@ -78,8 +78,9 @@ struct mtp_listen_ctx {
 	/* TAILQ of tcp_stream* */
     struct conn_queue pending;  // pending connections
 	uint32_t pending_cap;
-	uint32_t pending_len;
 
+	// Target-specific fields
+	uint32_t pending_len;
 	socket_map_t socket;
     pthread_mutex_t accept_lock;
 	pthread_cond_t accept_cond;

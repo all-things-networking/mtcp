@@ -20,6 +20,7 @@
 
 #ifdef USE_MTP
 #include "mtp_ep.h"
+#include "mtp_instr.h"
 #endif
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
@@ -515,7 +516,7 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
 	}
 
 #ifdef USE_MTP
-	return mtp_listen_chain(mtcp, sockid, backlog);
+	return MtpListenChain(mtcp, sockid, backlog);
 #else
 	/* check whether we are not already listening on the same port */
 	if (ListenerHTSearch(mtcp->listeners, 
@@ -593,7 +594,7 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 
 #ifdef USE_MTP
 	mtp_listener = mtcp->smap[sockid].listen_ctx;
-	accepted = mtp_accept_chain(mctx, mtcp, mtp_listener, addr, addrlen);
+	accepted = MtpAcceptChain(mctx, mtcp, addr, addrlen, mtp_listener)->stream;
 #else
 	listener = mtcp->smap[sockid].listener;
 
@@ -1267,7 +1268,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	case 0:
         // MTP: tcp_recv event processing will be added here
     #ifdef USE_MTP
-        ret = mtp_recv_chain(mtcp, cur_stream, buf, len, socket);
+        ret = FlushAndNotify(mtcp, cur_stream, buf, len, socket);
     #else
 		ret = CopyToUser(mtcp, cur_stream, buf, len);
     #endif
