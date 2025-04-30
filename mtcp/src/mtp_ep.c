@@ -256,6 +256,10 @@ static inline int send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_
 	}
 
     SBUF_UNLOCK(&sndvar->write_lock);
+
+	// MTP: maps to timer event
+	TimerStart(mtcp, cur_stream, cur_ts);
+
 	return ret;
 }
 
@@ -370,14 +374,18 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 		rcvvar->snd_wl2 = ack_seq;
 		if (rwindow_prev < cur_stream->snd_nxt - sndvar->snd_una && 
 			sndvar->peer_wnd >= cur_stream->snd_nxt - sndvar->snd_una) {
-			// This is the "notify" instruction in MTP
+			// This is kinda "notify" instruction in MTP
 			RaiseWriteEvent(mtcp, cur_stream);
 		}
 	}
 	
 	uint32_t data_rest = sndvar->snd_una + sndvar->sndbuf->len - cur_stream->snd_nxt;
-	uint32_t effective_window = MIN(sndvar->cwnd, sndvar->peer_wnd);
+	if (data_rest == 0 && ack_seq == cur_stream->snd_nxt) {
+		TimerCancel(mtcp, cur_stream);
+		return;
+	}
 
+	uint32_t effective_window = MIN(sndvar->cwnd, sndvar->peer_wnd);
 	uint32_t bytes_to_send = 0;
 
 	if(rcvvar->dup_acks == 3) {
@@ -445,7 +453,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 		SBUF_UNLOCK(&sndvar->write_lock);
 	}
 
-	UpdateRetransmissionTimer(mtcp, cur_stream, cur_ts);
+	TimerRestart(mtcp, cur_stream, cur_ts);
 }
 
 static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload,
@@ -514,7 +522,7 @@ static inline struct accept_res* accept_ep(mctx_t mctx, mtcp_manager_t mtcp,
 	pthread_mutex_unlock(&ctx->accept_lock);
 
 	if (ctx->state == 0)
-	ctx->state = 1;
+		ctx->state = 1;
 
 	// Return res, let target (api) do the following socket allocation
 	return res;
@@ -525,6 +533,8 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t local_ip, uint16_t local_port, struct tcphdr* tcph,
 	struct mtp_listen_ctx *ctx)
 {
+	if (ctx->state != 1) return;
+
 	// MTP new_ctx instruction
 	tcp_stream *cur_stream = CreateCtx(mtcp, local_ip, local_port,
 		remote_ip, remote_port, init_seq, rwnd, cur_ts, tcph);

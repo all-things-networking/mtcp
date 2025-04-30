@@ -3,6 +3,7 @@
 #include "tcp_out.h"
 #include "debug.h"
 #include "ip_out.h"
+#include "timer.h"
 
 #define MIN(a, b) ((a)<(b)?(a):(b))
 #define TCP_CALCULATE_CHECKSUM      TRUE
@@ -358,4 +359,29 @@ int FlushAndNotify(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int l
 	}
 
 	return copylen;
+}
+
+
+/***********************************************
+ MTP timer_instr
+ 
+ Operations for the "retransmission" timer
+ Modified from UpdateRetransmissionTimer
+ ***********************************************/
+void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts) {
+	printf("start timer\n");
+    stream->sndvar->ts_rto = cur_ts + stream->sndvar->rto;
+    AddtoRTOList(mtcp, stream);
+}
+
+void TimerCancel(mtcp_manager_t mtcp, tcp_stream *stream) {
+	if (stream->on_rto_idx >= 0) {
+        RemoveFromRTOList(mtcp, stream);
+    }
+    stream->sndvar->ts_rto = 0;
+}
+
+void TimerRestart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts) {
+	TimerCancel(mtcp, stream);
+    TimerStart(mtcp, stream, cur_ts);
 }
