@@ -472,6 +472,8 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, struct tcphdr* tcph, uint
 					cur_stream->id, ack_seq, sndvar->iss);
 			return;
 		}
+
+		TimerCancel(mtcp, cur_stream);
 	
 		uint32_t prior_cwnd = sndvar->cwnd;
 		sndvar->snd_una++;
