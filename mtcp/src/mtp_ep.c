@@ -592,8 +592,6 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, struct tcphdr* tcph, uint
 					cur_stream->id, ack_seq, sndvar->iss);
 			return;
 		}
-
-		RemoveFromRTOList(mtcp, cur_stream);
 	
 		uint32_t prior_cwnd = sndvar->cwnd;
 		sndvar->snd_una++;
@@ -601,20 +599,9 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, struct tcphdr* tcph, uint
 		sndvar->cwnd = ((prior_cwnd == 1) ? (sndvar->mss * TCP_INIT_CWND): sndvar->mss);
 		cur_stream->state = TCP_ST_ESTABLISHED;
 
-        // Update listening socket
+		// Raise an event to the listening socket
 		struct mtp_listen_ctx *listen_ctx = 
 			(struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &cur_stream->sport);
-		if (&listen_ctx->pending_len < &listen_ctx->pending_cap) {
-			struct accept_res *acc = malloc(sizeof(*acc));
-			acc->stream = cur_stream;
-			TAILQ_INSERT_TAIL(&listen_ctx->pending, acc, link);
-		} else {
-			// Fail to accept connection
-			cur_stream->close_reason = TCP_NOT_ACCEPTED;
-			cur_stream->state = TCP_ST_CLOSED;
-		}
-
-		// Raise an event to the listening socket
 		if (listen_ctx->socket && (listen_ctx->socket->epoll & MTCP_EPOLLIN)) {
 			AddEpollEvent(mtcp->ep, MTCP_EVENT_QUEUE, listen_ctx->socket, MTCP_EPOLLIN);
 		}

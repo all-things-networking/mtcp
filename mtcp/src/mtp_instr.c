@@ -370,7 +370,6 @@ int FlushAndNotify(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int l
  Modified from UpdateRetransmissionTimer
  ***********************************************/
 void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts) {
-	printf("start timer\n");
     stream->sndvar->ts_rto = cur_ts + stream->sndvar->rto;
     AddtoRTOList(mtcp, stream);
 }

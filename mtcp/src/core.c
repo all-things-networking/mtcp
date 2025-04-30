@@ -745,7 +745,11 @@ static void
 InterruptApplication(mtcp_manager_t mtcp)
 {
 	int i;
+#ifdef USE_MTP
+	struct mtp_listen_ctx *listener = NULL;
+#else
 	struct tcp_listener *listener = NULL;
+#endif
 
 	/* interrupt if the mtcp_epoll_wait() is waiting */
 	if (mtcp->ep) {
