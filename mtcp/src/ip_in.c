@@ -8,7 +8,7 @@
 #include "debug.h"
 #include "icmp.h"
 
-#include "mtp_ep.h"
+#include "mtp_net.h"
 
 #define ETH_P_IP_FRAG   0xF800
 #define ETH_P_IPV6_FRAG 0xF6DD

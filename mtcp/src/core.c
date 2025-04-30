@@ -34,7 +34,7 @@
 #endif
 
 #ifdef USE_MTP
-#include "mtp_ep.h"
+#include "mtp_net.h"
 #endif
 
 #ifndef DISABLE_DPDK
