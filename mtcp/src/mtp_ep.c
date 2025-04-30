@@ -533,7 +533,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t local_ip, uint16_t local_port, struct tcphdr* tcph,
 	struct mtp_listen_ctx *ctx)
 {
-	if (ctx->state != 1) return;
+	if (ctx->state != 0) return;
 
 	// MTP new_ctx instruction
 	tcp_stream *cur_stream = CreateCtx(mtcp, local_ip, local_port,
@@ -715,7 +715,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
 	// TBA to MTP: validate sequence
 	ret = ValidateSequence(mtcp, cur_stream, cur_ts, tcph, seq, ack_seq, payloadlen);
-	if (ret != 0) return TRUE;
+	if (ret == 0) return TRUE;
 
 	// TBA to MTP?: update peer window
 	cur_stream->sndvar->peer_wnd = (uint32_t)window << cur_stream->sndvar->wscale_peer;

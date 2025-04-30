@@ -364,7 +364,7 @@ list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out int_out){
 list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
     list<instr_t> out;
 
-    if (ctx.state != 1) // ACCEPT_ST;
+    if (ctx.state != 0)
         return out;
     
     if (len(ctx.pending) < ctx.pending_cap) {

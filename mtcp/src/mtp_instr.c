@@ -240,7 +240,6 @@ int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog)
 	// Attach listen context to socket & store the context
 	mtcp->smap[sockid].listen_ctx = listener;
 	ListenerHTInsert(mtcp->listeners, listener);
-	printf("before insert listen ctx\n");
 
 	return 0;
 }
