@@ -218,6 +218,7 @@ int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog)
 		/* errno set from the malloc() */
 		return -1;
 	}
+	listener->socket = &mtcp->smap[sockid];
 	listener->local_ip = mtcp->smap[sockid].saddr.sin_addr.s_addr;
 	listener->local_port = mtcp->smap[sockid].saddr.sin_port;
     listener->state = 0;	// LISTEN state
@@ -239,6 +240,7 @@ int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog)
 	// Attach listen context to socket & store the context
 	mtcp->smap[sockid].listen_ctx = listener;
 	ListenerHTInsert(mtcp->listeners, listener);
+	printf("before insert listen ctx\n");
 
 	return 0;
 }

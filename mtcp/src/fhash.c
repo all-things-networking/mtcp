@@ -128,7 +128,7 @@ StreamHTSearch(struct hashtable *ht, const void *it)
 unsigned int
 HashListener(const void *l)
 {
-	struct tcp_listener *listener = (struct tcp_listener *)l;
+	listen_ctx_t *listener = (listen_ctx_t *)l;
 
 	return listener->socket->saddr.sin_port & (NUM_BINS_LISTENERS - 1);
 }
@@ -136,8 +136,8 @@ HashListener(const void *l)
 int
 EqualListener(const void *l1, const void *l2)
 {
-	struct tcp_listener *listener1 = (struct tcp_listener *)l1;
-	struct tcp_listener *listener2 = (struct tcp_listener *)l2;
+	listen_ctx_t *listener1 = (listen_ctx_t *)l1;
+	listen_ctx_t *listener2 = (listen_ctx_t *)l2;
 
 	return (listener1->socket->saddr.sin_port == listener2->socket->saddr.sin_port);
 }
@@ -147,7 +147,7 @@ ListenerHTInsert(struct hashtable *ht, void *it)
 {
 	/* create an entry*/ 
 	int idx;
-	struct tcp_listener *item = (struct tcp_listener *)it;
+	listen_ctx_t *item = (listen_ctx_t *)it;
 
 	assert(ht);
 
@@ -163,7 +163,7 @@ void *
 ListenerHTRemove(struct hashtable *ht, void *it)
 {
 	list_bucket_head *head;
-	struct tcp_listener *item = (struct tcp_listener *)it;
+	listen_ctx_t *item = (listen_ctx_t *)it;
 	int idx = ht->hashfn(item);
 
 	head = &ht->lt_table[idx];
@@ -176,9 +176,9 @@ void *
 ListenerHTSearch(struct hashtable *ht, const void *it)
 {
 	int idx;
-	struct tcp_listener item;
+	listen_ctx_t item;
 	uint16_t port = *((uint16_t *)it);
-	struct tcp_listener *walk;
+	listen_ctx_t *walk;
 	list_bucket_head *head;
 	struct socket_map s;
 

@@ -84,7 +84,9 @@ struct mtp_listen_ctx {
 	socket_map_t socket;
     pthread_mutex_t accept_lock;
 	pthread_cond_t accept_cond;
+	TAILQ_ENTRY(mtp_listen_ctx) he_link;	/* hash table entry link */
 };
+
 /*----------------------------------------------------------------------------*/
 
 #endif /* SOCKET_H */
