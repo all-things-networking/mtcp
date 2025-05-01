@@ -954,23 +954,33 @@ static inline int
 CloseListeningSocket(mctx_t mctx, int sockid)
 {
 	mtcp_manager_t mtcp;
+#ifdef USE_MTP
+	struct mtp_listen_ctx *listener;
+#else
 	struct tcp_listener *listener;
+#endif
 
 	mtcp = GetMTCPManager(mctx);
 	if (!mtcp) {
 		return -1;
 	}
 
+#ifdef USE_MTP
+	listener = mtcp->smap[sockid].listen_ctx;
+#else
 	listener = mtcp->smap[sockid].listener;
+#endif
 	if (!listener) {
 		errno = EINVAL;
 		return -1;
 	}
 
+#ifndef USE_MTP
 	if (listener->acceptq) {
 		DestroyStreamQueue(listener->acceptq);
 		listener->acceptq = NULL;
 	}
+#endif
 
 	pthread_mutex_lock(&listener->accept_lock);
 	pthread_cond_signal(&listener->accept_cond);
@@ -981,6 +991,7 @@ CloseListeningSocket(mctx_t mctx, int sockid)
 
 	free(listener);
 	mtcp->smap[sockid].listener = NULL;
+	mtcp->smap[sockid].listen_ctx = NULL;
 
 	return 0;
 }
