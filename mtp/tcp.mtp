@@ -222,6 +222,7 @@ list<instr_t> listen_ep (LISTEN ev, null_context ctx, interm_out int_out);
 list<instr_t> accept_ep (LISTEN ev, tcp_listen_context ctx, interm_out int_out);
 list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out int_out);
 
+// TODO: match the ACK chain for mTCP code (specially for conn_ack)
 /*************************** dispatcher ************************/
 dispatch disp_table {
     SEND      -> {send_ep};
