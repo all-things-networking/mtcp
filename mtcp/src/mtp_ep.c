@@ -423,6 +423,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	// Add stream to the listen context
 	// Note: since mTCP's accept_res struct includes flow context, we insert
 	//		new accept_res after context creation
+	pthread_mutex_lock(&ctx->accept_lock);
 	if (ctx->pending_len < ctx->pending_cap) {
 		struct accept_res *acc = malloc(sizeof(*acc));
 		acc->stream = cur_stream;
@@ -432,8 +433,10 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 		// Error handling
 		cur_stream->state = TCP_ST_CLOSED;
 		cur_stream->close_reason = TCP_NOT_ACCEPTED;
+		pthread_mutex_unlock(&ctx->accept_lock);
 		return;
 	}
+	pthread_mutex_unlock(&ctx->accept_lock);
 
 	// MTP pkt gen
 	uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
