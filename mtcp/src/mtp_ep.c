@@ -465,7 +465,7 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, struct tcphdr* tcph, uint
     struct tcp_send_vars *sndvar = cur_stream->sndvar;
 
     if (cur_stream->state == TCP_ST_SYN_RCVD){
-	    // check if ACK of SYN
+		// check if we're processing an acknowledgement of a SYN-ACK
 		if (ack_seq != sndvar->iss + 1) {
 			CTRACE_ERROR("Stream %d (TCP_ST_SYN_RCVD): "
 					"weird ack_seq: %u, iss: %u\n", 

@@ -776,6 +776,7 @@ mtcp_connect(mctx_t mctx, int sockid,
 		} else {
 			errno = EALREADY;
 		}
+		// TODO: need to call MTP connect chain here, which is not implemented yet
 		return -1;
 	}
 
