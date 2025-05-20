@@ -1,76 +1,87 @@
 #ifndef MTP_BP_H
 #define MTP_BP_H
 
+#include <stdint.h>
+#include <stdbool.h>
+
+#ifndef TRUE
+#define TRUE (1)
+#endif
+
+#ifndef FALSE
+#define FALSE (0)
+#endif
+
 // Should get compiler generated
 
 #define MTP_HEADER_LEN 20
 
 struct mtp_bp_hdr {
-    u_int16_t source;
-    u_int16_t dest;
-    u_int32_t seq;
-    u_int32_t ack_seq;
+    uint16_t source;
+    uint16_t dest;
+    uint32_t seq;
+    uint32_t ack_seq;
 #  if __BYTE_ORDER == __LITTLE_ENDIAN
-    u_int16_t res1:4;
-    u_int16_t doff:4;
-    u_int16_t fin:1;
-    u_int16_t syn:1;
-    u_int16_t rst:1;
-    u_int16_t psh:1;
-    u_int16_t ack:1;
-    u_int16_t urg:1;
-    u_int16_t res2:2;
+    uint16_t res1:4;
+    uint16_t doff:4;
+    uint16_t fin:1;
+    uint16_t syn:1;
+    uint16_t rst:1;
+    uint16_t psh:1;
+    uint16_t ack:1;
+    uint16_t urg:1;
+    uint16_t res2:2;
 #  elif __BYTE_ORDER == __BIG_ENDIAN
-    u_int16_t doff:4;
-    u_int16_t res1:4;
-    u_int16_t res2:2;
-    u_int16_t urg:1;
-    u_int16_t ack:1;
-    u_int16_t psh:1;
-    u_int16_t rst:1;
-    u_int16_t syn:1;
-    u_int16_t fin:1;
+    uint16_t doff:4;
+    uint16_t res1:4;
+    uint16_t res2:2;
+    uint16_t urg:1;
+    uint16_t ack:1;
+    uint16_t psh:1;
+    uint16_t rst:1;
+    uint16_t syn:1;
+    uint16_t fin:1;
 #  else
 #   error "Adjust your <bits/endian.h> defines"
 #  endif
-    u_int16_t window;
-    u_int16_t check;
-    u_int16_t urg_ptr; 
+    uint16_t window;
+    uint16_t check;
+    uint16_t urg_ptr; 
 };
 
 struct tcp_opt_mss {
     bool valid;
-    u_int8_t kind;
-    u_int8_t len;
-    u_int32_t value;
+    uint8_t kind;
+    uint8_t len;
+    uint32_t value;
 };
 
 struct tcp_opt_sack_permit {
     bool valid;
-    u_int8_t kind;
-    u_int8_t len;
-    u_int16_t value;
+    uint8_t kind;
+    uint8_t len;
+    uint16_t value;
 };
 
 struct tcp_opt_timestamp {
     bool valid;
-    u_int8_t kind;
-    u_int8_t len;
-    u_int32_t value1;
-    u_int32_t value2;
+    uint8_t kind;
+    uint8_t len;
+    uint32_t value1;
+    uint32_t value2;
 };
 
 struct tcp_opt_wscale {
     bool valid;
-    u_int8_t kind;
-    u_int8_t len;
-    u_int32_t value;
+    uint8_t kind;
+    uint8_t len;
+    uint32_t value;
 };
 
 struct tcp_opt_nop {
     bool valid;
-    u_int8_t kind;
-    u_int8_t len;
+    uint8_t kind;
+    uint8_t len;
 };
 
 struct mtp_bp_options{

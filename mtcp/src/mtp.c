@@ -89,8 +89,7 @@ AdvanceBPListHead(tcp_stream *cur_stream, int advance){
 int
 SendMTPPackets(struct mtcp_manager *mtcp, 
                tcp_stream *cur_stream, 
-		       uint32_t cur_ts){
-{
+		       uint32_t cur_ts){    
     unsigned int sent = 0;
     unsigned int err = 0;
     for (unsigned int i = cur_stream->sndvar->mtp_bps_head;
@@ -99,10 +98,12 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
         uint16_t optlen = MTP_CalculateOptionLength(bp);
+        
         uint16_t payloadLen = 0;
         if (bp->payload.data != NULL){
             payloadLen = bp->payload.len;
         }
+        // MTP TODO: segmentation logic here? How does it interact with options?
         if (payloadLen + optlen > cur_stream->sndvar->mss){
             TRACE_ERROR("Payload size exceeds MSS\n");
             err += 1;
@@ -164,6 +165,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             buff_opts[i++] = bp_opts->wscale.value;
         }
 
+        // MTP TODO: this is TCP specific?
         assert (i % 4 == 0);
         assert (i == optlen);
 
@@ -172,29 +174,32 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, bp->payload.data, payloadLen);
             #if defined(NETSTAT) && defined(ENABLELRO)
             mtcp->nstat.tx_gdptbytes += payloadlen;
-            #endif /* NETSTAT */
+            #endif // NETSTAT 
         } 
 
         // MTP TODO: checksum is TCP specific
         int rc = -1;
         #if TCP_CALCULATE_CHECKSUM
         #ifndef DISABLE_HWCSUM
-        if (mtcp->iom->dev_ioctl != NULL)
+        if (mtcp->iom->dev_ioctl != NULL){
             rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
                           PKT_TX_TCPIP_CSUM, NULL);
+        }
         #endif
         //printf("Test 6");
 
-        if (rc == -1)
+        if (rc == -1){
             mtph->check = TCPCalcChecksum((uint16_t *)mtph,
                               MTP_HEADER_LEN + optlen + payloadLen,
                               cur_stream->saddr, cur_stream->daddr);
+        }
         #endif
-   
+    
     }
-
+    
     AdvanceBPListHead(cur_stream, sent + err);
     return 0; 
+    
     // MTP TODO: check these
 		//cur_stream->sndvar->ts_lastack_sent = cur_ts;
 		//cur_stream->last_active_ts = cur_ts;
@@ -214,7 +219,6 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 		//AddtoRTOList(mtcp, cur_stream);
 	//}
 }
-
 
 /*----------------------------------------------------------------------------*/
 int 
@@ -274,7 +278,7 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 }
 
 /*----------------------------------------------------------------------------*/
-static inline uint16_t
+inline uint16_t
 CalculateOptionLength(uint8_t flags)
 {
 	uint16_t optlen = 0;
@@ -315,7 +319,7 @@ CalculateOptionLength(uint8_t flags)
 	return optlen;
 }
 /*----------------------------------------------------------------------------*/
-static inline void
+inline void
 GenerateTCPTimestamp(tcp_stream *cur_stream, uint8_t *tcpopt, uint32_t cur_ts)
 {
 	uint32_t *ts = (uint32_t *)(tcpopt + 2);
@@ -326,7 +330,7 @@ GenerateTCPTimestamp(tcp_stream *cur_stream, uint8_t *tcpopt, uint32_t cur_ts)
 	ts[1] = htonl(cur_stream->rcvvar->ts_recent);
 }
 /*----------------------------------------------------------------------------*/
-static inline void 
+inline void 
 EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt)
 {
 	/* This function should be called for not retransmitted packets */
@@ -380,7 +384,7 @@ EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt)
 			rcvvar->mdev_max, rcvvar->rttvar, rcvvar->rtt_seq);
 }
 /*----------------------------------------------------------------------------*/
-static inline void
+inline void
 GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts, 
 		uint8_t flags, uint8_t *tcpopt, uint16_t optlen)
 {
@@ -443,7 +447,7 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 }
 /*----------------------------------------------------------------------------*/
 // Copied from tcp_in.c
-static inline int
+inline int
 ValidateSequence(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts, 
 		struct tcphdr *tcph, uint32_t seq, uint32_t ack_seq, int payloadlen)
 {
@@ -657,7 +661,7 @@ SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 }
 
 /*----------------------------------------------------------------------------*/
-static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
+inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
                              uint32_t remote_ip, uint16_t remote_port, 
                              uint32_t init_seq, uint16_t rwnd,
                              uint32_t local_ip, uint16_t local_port,
@@ -769,7 +773,7 @@ static inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 /*----------------------------------------------------------------------------*/
 
-static inline void rto_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
+inline void rto_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
                             uint32_t ack_seq, scratchpad* scratch){
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
@@ -793,7 +797,7 @@ static inline void rto_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 }
 
 
-static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
+inline void fast_retr_rec_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
                             uint32_t ack_seq, scratchpad* scratch){
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
@@ -839,7 +843,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	}
 }
 
-static inline void slows_congc_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
+inline void slows_congc_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
                             uint32_t ack_seq, scratchpad* scratch){
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
@@ -863,7 +867,7 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	}
 }
 
-static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
+inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
                              uint32_t cur_ts,
                             uint32_t ack_seq, scratchpad* scratch, uint32_t window){
 
@@ -982,7 +986,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 }
 
 
-static inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream,
+inline void ack_chain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream,
 			struct tcphdr* tcph, uint32_t seq, uint32_t ack_seq, int payloadlen,
 			uint32_t window){
 

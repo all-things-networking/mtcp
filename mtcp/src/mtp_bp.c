@@ -14,7 +14,7 @@ void MTP_set_opt_sack_permit(struct tcp_opt_sack_permit *sack_permit, uint16_t v
     sack_permit->value = value;
 }
 
-void MTP_set_opt_nop(struct tcp_opt_nop *nop, uint32_t value){
+void MTP_set_opt_nop(struct tcp_opt_nop *nop){
     nop->valid = TRUE;
     nop->kind = 1;
     nop->len = 1;
