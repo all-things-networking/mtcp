@@ -29,6 +29,8 @@
 #include <linux/uaccess.h>
 #include <linux/if_ether.h>
 #include <linux/etherdevice.h>
+#include <linux/rtnetlink.h>
+#include <linux/rcupdate.h>
 #include "dpdk_iface.h"
 /*--------------------------------------------------------------------------*/
 struct stats_struct sarrays[MAX_DEVICES][MAX_QID] = {{{0, 0, 0, 0, 0, 0, 0, 0, 0}}};
@@ -85,7 +87,7 @@ clear_all_netdevices(void)
 	do {
 		dpdk_netdev = NULL;
 		freed = 0;
-		write_lock(&dev_base_lock);
+		rtnl_lock();
 		netdev = first_net_device(&init_net);
 		while (netdev) {
 			if (strncmp(netdev->name, IFACE_PREFIX,
@@ -95,7 +97,7 @@ clear_all_netdevices(void)
 			}
 			netdev = next_net_device(netdev);
 		}
-		write_unlock(&dev_base_lock);
+		rtnl_unlock();
 		if (dpdk_netdev) {
 			unregister_netdev(dpdk_netdev);
 			free_netdev(dpdk_netdev);
@@ -104,19 +106,19 @@ clear_all_netdevices(void)
 	} while (freed);
 }
 /*--------------------------------------------------------------------------*/
-int
+static int
 igb_net_open(struct inode *inode, struct file *filp)
 {
 	return 0;
 }
 /*--------------------------------------------------------------------------*/
-int
+static int
 igb_net_release(struct inode *inode, struct file *filp)
 {
 	return 0;
 }
 /*--------------------------------------------------------------------------*/
-long
+static long
 igb_net_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	int ret = 0;
@@ -144,17 +146,15 @@ igb_net_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				     ETH_ALEN);
 		if (!ret) {
 			/* first check whether the entry does not exist */
-			read_lock(&dev_base_lock);
-			netdev = first_net_device(&init_net);
-			while (netdev) {
+			rcu_read_lock();
+			for_each_netdev_rcu(&init_net, netdev) {
 				if (memcmp(netdev->dev_addr, mac_addr, ETH_ALEN) == 0) {
-					read_unlock(&dev_base_lock);
+					rcu_read_unlock();
 					printk(KERN_ERR "%s: port already registered!\n", THIS_MODULE->name);
 					return -EINVAL;
 				}
-				netdev = next_net_device(netdev);
 			}
-			read_unlock(&dev_base_lock);
+			rcu_read_unlock();
 			
 			/* initialize the corresponding netdev */
 			netdev = alloc_etherdev(sizeof(struct net_adapter));
@@ -204,11 +204,10 @@ igb_net_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				     (PciDevice __user *)arg,
 				     sizeof(PciDevice));
 		if (!ret) {
-			read_lock(&dev_base_lock);
-			netdev = first_net_device(&init_net);
-			while (netdev) {
+			rcu_read_lock();
+			for_each_netdev_rcu(&init_net, netdev) {
 				if (strcmp(netdev->name, pd.ifname) == 0) {
-					read_unlock(&dev_base_lock);
+					rcu_read_unlock();
 					printk(KERN_INFO "%s: Passing PCI info of %s to user\n",
 					       THIS_MODULE->name, pd.ifname);
 					adapter = netdev_priv(netdev);
@@ -222,9 +221,9 @@ igb_net_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 					if (ret) return -1;
 					return 0;
 				}
-				netdev = next_net_device(netdev);
 			}
-			read_unlock(&dev_base_lock);
+			// read_unlock(&dev_base_lock);
+			rcu_read_unlock();
 			ret = -1;
 		}
 		break;
@@ -283,6 +282,6 @@ module_init(iface_pci_init_module);
 module_exit(iface_pci_exit_module);
 
 MODULE_DESCRIPTION("Interface driver for DPDK devices");
-MODULE_LICENSE("BSD");
+MODULE_LICENSE("GPL");
 MODULE_AUTHOR("mtcp@list.ndsl.kaist.edu");
 /*--------------------------------------------------------------------------*/
