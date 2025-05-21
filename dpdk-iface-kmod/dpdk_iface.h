@@ -178,7 +178,7 @@ static const struct net_device_ops netdev_ops = {
 /**
  * assignment function
  */
-void
+static inline void
 netdev_assign_netdev_ops(struct net_device *dev)
 {
 	dev->netdev_ops = &netdev_ops;
