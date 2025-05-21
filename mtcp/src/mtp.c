@@ -746,6 +746,9 @@ inline void syn_chain(mtcp_manager_t mtcp, uint32_t cur_ts,
     printf("ERROR:SACK Not supported in MTP TCP\n");
 #endif
 
+    MTP_set_opt_nop(&(bp->opts.nop1));
+    MTP_set_opt_nop(&(bp->opts.nop2));
+
     // Timestamp
     MTP_set_opt_timestamp(&(bp->opts.timestamp),
                             htonl(cur_ts),

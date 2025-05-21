@@ -31,7 +31,7 @@ void MTP_set_opt_timestamp(struct tcp_opt_timestamp *ts, uint32_t value1, uint32
 void MTP_set_opt_wscale(struct tcp_opt_wscale *wscale, uint32_t value){
     wscale->valid = TRUE;
     wscale->kind = 2;
-    wscale->len = 4;
+    wscale->len = 3;
     wscale->value = value;
 }
 
