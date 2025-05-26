@@ -19,7 +19,8 @@
 #include "debug.h"
 
 #ifdef USE_MTP
-#include "mtp.h"
+#include "mtp_ep.h"
+#include "mtp_instr.h"
 #endif
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
@@ -478,7 +479,9 @@ int
 mtcp_listen(mctx_t mctx, int sockid, int backlog)
 {
 	mtcp_manager_t mtcp;
+#ifndef USE_MTP
 	struct tcp_listener *listener;
+#endif
 
 	mtcp = GetMTCPManager(mctx);
 	if (!mtcp) {
@@ -512,6 +515,9 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
 		return -1;
 	}
 
+#ifdef USE_MTP
+	return MtpListenChain(mtcp, sockid, backlog);
+#else
 	/* check whether we are not already listening on the same port */
 	if (ListenerHTSearch(mtcp->listeners, 
 			     &mtcp->smap[sockid].saddr.sin_port)) {
@@ -553,13 +559,19 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
 	ListenerHTInsert(mtcp->listeners, listener);
 
 	return 0;
+#endif
 }
 /*----------------------------------------------------------------------------*/
 int 
 mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 {
 	mtcp_manager_t mtcp;
+
+	struct mtp_listen_ctx *mtp_listener;
 	struct tcp_listener *listener;
+	(void)mtp_listener;
+	(void)listener;
+
 	socket_map_t socket;
 	tcp_stream *accepted = NULL;
 
@@ -580,6 +592,10 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 		return -1;
 	}
 
+#ifdef USE_MTP
+	mtp_listener = mtcp->smap[sockid].listen_ctx;
+	accepted = MtpAcceptChain(mctx, mtcp, addr, addrlen, mtp_listener)->stream;
+#else
 	listener = mtcp->smap[sockid].listener;
 
 	/* dequeue from the acceptq without lock first */
@@ -604,6 +620,7 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 			pthread_mutex_unlock(&listener->accept_lock);
 		}
 	}
+#endif
 
 	if (!accepted) {
 		TRACE_ERROR("[NEVER HAPPEN] Empty accept queue!\n");
@@ -626,11 +643,19 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 		socket->saddr.sin_addr.s_addr = accepted->daddr;
 	}
 
+#ifdef USE_MTP
+	if (!(mtp_listener->socket->epoll & MTCP_EPOLLET) &&
+	    !TAILQ_EMPTY(&mtp_listener->pending))
+		AddEpollEvent(mtcp->ep, 
+			      USR_SHADOW_EVENT_QUEUE,
+			      mtp_listener->socket, MTCP_EPOLLIN);
+#else
 	if (!(listener->socket->epoll & MTCP_EPOLLET) &&
 	    !StreamQueueIsEmpty(listener->acceptq))
 		AddEpollEvent(mtcp->ep, 
 			      USR_SHADOW_EVENT_QUEUE,
 			      listener->socket, MTCP_EPOLLIN);
+#endif
 
 	TRACE_API("Stream %d accepted.\n", accepted->id);
 
@@ -751,6 +776,7 @@ mtcp_connect(mctx_t mctx, int sockid,
 		} else {
 			errno = EALREADY;
 		}
+		// TODO: need to call MTP connect chain here, which is not implemented yet
 		return -1;
 	}
 
@@ -929,23 +955,33 @@ static inline int
 CloseListeningSocket(mctx_t mctx, int sockid)
 {
 	mtcp_manager_t mtcp;
+#ifdef USE_MTP
+	struct mtp_listen_ctx *listener;
+#else
 	struct tcp_listener *listener;
+#endif
 
 	mtcp = GetMTCPManager(mctx);
 	if (!mtcp) {
 		return -1;
 	}
 
+#ifdef USE_MTP
+	listener = mtcp->smap[sockid].listen_ctx;
+#else
 	listener = mtcp->smap[sockid].listener;
+#endif
 	if (!listener) {
 		errno = EINVAL;
 		return -1;
 	}
 
+#ifndef USE_MTP
 	if (listener->acceptq) {
 		DestroyStreamQueue(listener->acceptq);
 		listener->acceptq = NULL;
 	}
+#endif
 
 	pthread_mutex_lock(&listener->accept_lock);
 	pthread_cond_signal(&listener->accept_cond);
@@ -956,6 +992,7 @@ CloseListeningSocket(mctx_t mctx, int sockid)
 
 	free(listener);
 	mtcp->smap[sockid].listener = NULL;
+	mtcp->smap[sockid].listen_ctx = NULL;
 
 	return 0;
 }
@@ -1243,7 +1280,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	case 0:
         // MTP: tcp_recv event processing will be added here
     #ifdef USE_MTP
-        ret = MTP_recv_chain(mtcp, cur_stream, buf, len, socket);
+        ret = FlushAndNotify(mtcp, cur_stream, buf, len, socket);
     #else
 		ret = CopyToUser(mtcp, cur_stream, buf, len);
     #endif

@@ -25,6 +25,7 @@
 
 //#include "mtp_bp.h"
 
+// TURN MTP ON/OFF BY COMMENTING OUT THIS LINE
 #define USE_MTP     1
 
 #ifdef ENABLE_ONVM

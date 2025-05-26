@@ -21,6 +21,7 @@ struct socket_map
 
 	union {
 		struct tcp_stream *stream;
+		struct mtp_listen_ctx *listen_ctx;	// MTP specific
 		struct tcp_listener *listener;
 		struct mtcp_epoll *ep;
 		struct pipe *pp;
@@ -58,6 +59,34 @@ struct tcp_listener
 
 	TAILQ_ENTRY(tcp_listener) he_link;	/* hash table entry link */
 };
+
+// Wrapper structure for the MTP accept result queue
+struct accept_res {
+    struct tcp_stream *stream;
+    TAILQ_ENTRY(accept_res) link;
+};
+
+// Accept result (connection) queue definition
+TAILQ_HEAD(conn_queue, accept_res);
+
+// Mark for compiler to generate this part and insert to the end of socket.h (add this context to mtp_ctx.h instead?)
+struct mtp_listen_ctx {
+    uint32_t local_ip;
+    uint32_t local_port;
+    uint8_t state;
+    
+	/* TAILQ of tcp_stream* */
+    struct conn_queue pending;  // pending connections
+	uint32_t pending_cap;
+
+	// Target-specific fields
+	uint32_t pending_len;
+	socket_map_t socket;
+    pthread_mutex_t accept_lock;
+	pthread_cond_t accept_cond;
+	TAILQ_ENTRY(mtp_listen_ctx) he_link;	/* hash table entry link */
+};
+
 /*----------------------------------------------------------------------------*/
 
 #endif /* SOCKET_H */

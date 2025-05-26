@@ -34,7 +34,7 @@ def bulk_send(conn, host, remoteport, send_time):
         elapsed = now - last_report
         if elapsed > REPORT_INTERVAL:
             thru_interval = ((bytes_sent / elapsed) * 8) / 1000000
-            print "{} {:06.3f} Mbps".format((i * REPORT_INTERVAL), thru_interval)
+            print("{} {:06.3f} Mbps".format((i * REPORT_INTERVAL), thru_interval))
             i += 1
             last_report = now
             bytes_sent = 0
@@ -51,8 +51,8 @@ def bulk_send(conn, host, remoteport, send_time):
     # Final throughput calculation
     end = time.time()
     thru = ((total_sent / (end - start)) * 8) / 1000000  # Mbps
-    print("Done with {}:{}, bytes_sent: {}, time: {}, thru: {} Mbps".format(
-        host, remoteport, bytes_sent, (end - start), thru))
+    print(("Done with {}:{}, bytes_sent: {}, time: {}, thru: {} Mbps".format(
+        host, remoteport, bytes_sent, (end - start), thru)))
 
 def client(mode):
     ip = None
@@ -65,10 +65,10 @@ def client(mode):
         s = socket(AF_INET, SOCK_STREAM)
         s.bind((sys.argv[2], port))
         s.listen(1)
-        print 'Client ready...'
+        print('Client ready...')
         while 1:
             conn, (host, remoteport) = s.accept()
-            print 'Connected!'
+            print('Connected!')
             bulk_send(conn, host, remoteport, send_time)
     elif mode == "send":
         ip = sys.argv[2]
@@ -77,7 +77,7 @@ def client(mode):
         s = socket(AF_INET, SOCK_STREAM)
         #s.setsockopt(SOL_SOCKET, SO_RCVBUF, 450000)
         s.connect((ip, port))
-        print 'Connected'
+        print('Connected')
         #while True:
         bulk_send(s, ip, port, send_time)
         
@@ -85,8 +85,8 @@ def client(mode):
 
 def usage():
     sys.stdout = sys.stderr
-    print "usage: python send.py wait [port] [send time (seconds)]"
-    print "usage: python send.py send [ip] [port] [send time (seconds)]"
+    print("usage: python send.py wait [port] [send time (seconds)]")
+    print("usage: python send.py send [ip] [port] [send time (seconds)]")
     sys.exit(2)
 
 def main():
@@ -101,7 +101,7 @@ def main():
             if len(sys.argv) != 5:
                 usage()
         else:
-            print "Unknown mode", mode
+            print("Unknown mode", mode)
         client(mode)
 
 main()

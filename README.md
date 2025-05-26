@@ -385,7 +385,7 @@ ONVM basics are explained in https://github.com/sdnfv/openNetVM.
 
 1. [Install openNetVM following these instructions](https://github.com/sdnfv/openNetVM/blob/master/docs/Install.md)
 
-2. Set up the dpdk interfaces:
+2. Set up the dpdk interfaces (can skip if have done DPDK setup in the Google Docs)
 
     ```bash
 	./setup_mtcp_onvm_env.sh

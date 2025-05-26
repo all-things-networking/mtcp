@@ -222,6 +222,7 @@ list<instr_t> listen_ep (LISTEN ev, null_context ctx, interm_out int_out);
 list<instr_t> accept_ep (LISTEN ev, tcp_listen_context ctx, interm_out int_out);
 list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out int_out);
 
+// TODO: match the ACK chain for mTCP code (specially for conn_ack)
 /*************************** dispatcher ************************/
 dispatch disp_table {
     SEND      -> {send_ep};
@@ -266,6 +267,8 @@ list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
             bytes_to_send = window_avail;
     }
 
+    if (bytes_to_send <= 0) return;
+
     TCPBP bp;
     bp.src_port = ctx.src_port;
     bp.dest_port = ctx.dest_port;
@@ -303,17 +306,29 @@ list<instr_t> listen_ep (LISTEN ev, null_context ctx, interm_out int_out) {
 list<instr_t> accept_ep (ACCEPT ev, tcp_listen_context ctx, interm_out int_out) {
     list<instr_t> out;
 
-    if (len(ctx.pending) > 0) {
+    // Wait until the condition met, then return accpet_conn_instr
+    if (len(ctx.pending) == 0) {
+        wait_until(ev, len(ctx.pending) > 0);
+    }
+    accept_res res = ctx.pending.remove();
+    instr_t instr = notify(res); // let target allocate socket
+    out.add(instr);
+
+    if (ctx.state == 0)
+        ctx.state = 1; // ACCEPT_ST;
+
+    // This is an alternative version 
+    // (braces indicate that inside steps are executed only when waiting condition is met)
+    /* 
+    wait_until(ev, len(ctx.pending) > 0) {
         accept_res acc = ctx.pending.remove();
         instr_t instr = accept_conn_instr(acc); // allocate socket
         out.add(instr);
 
         if (ctx.state == 0)
             ctx.state = 1; // ACCEPT_ST;
-    } else {
-        instr_t instr = retry_instr(ev);    // retry accept_ep in next polling loop
-        out.add(instr);
     }
+    */
 
     return out;
 }
@@ -350,12 +365,15 @@ list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out int_out){
 list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
     list<instr_t> out;
 
-    if (ctx.state != 1) // ACCEPT_ST;
+    if (ctx.state != 0)
         return out;
-
+    
     if (len(ctx.pending) < ctx.pending_cap) {
         accept_res acc;
+        // set conditional variable according to target
         ctx.pending.add(acc);
+    } else {
+        return out;
     }
 
     uint32 init_seq = rand();
@@ -383,9 +401,8 @@ list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
                           last_rwnd_size = ev.rwnd_size,
                           state = 2 // SYNACK_SENT_ST;
                           );
-
-     
     out.add(instr);
+
     return out;
     
 }

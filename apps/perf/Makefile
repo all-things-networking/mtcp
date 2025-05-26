@@ -9,6 +9,7 @@ NETMAP=0
 ONVM=0
 CCP=
 CFLAGS=-g -O2
+RTE_SDK=/opt/dpdk-23.11
 
 # Add arch-specific optimization
 ifeq ($(shell uname -m),x86_64)
@@ -44,9 +45,6 @@ endif
 
 # dpdk-specific variables
 ifeq ($(DPDK),1)
-#DPDK_MACHINE_LINKER_FLAGS=$${RTE_SDK}/$${RTE_TARGET}/lib/ldflags.txt
-#DPDK_MACHINE_LDFLAGS=$(shell cat ${DPDK_MACHINE_LINKER_FLAGS})
-#LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lmtcp -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
 DPDK_MACHINE_LINKER_FLAGS=$(shell pkg-config --libs libdpdk)
 DPDK_MACHINE_LDFLAGS=$(DPDK_MACHINE_LINKER_FLAGS)
 LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lmtcp -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
