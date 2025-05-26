@@ -1,12 +1,12 @@
 /**************  event declarations ***************/
 
-event LISTEN: INCOMING::APP_EVENT{
-    uinr32 ip_addr;
-    uint16 port;
-}
-
 event SEND : INCOMING::APP_EVENT {
     uint32 data_size;
+}
+
+event RECV: INCOMING::APP_EVENT {
+    uint32 data_size;
+    addr_t user_buf_addr;
 }
 
 event SYN : INCOMING::NET_EVENT {
@@ -15,6 +15,12 @@ event SYN : INCOMING::NET_EVENT {
     uint32 init_seq;
     uint16 rwnd_size;
 }
+
+event SYNACK : INCOMING::NET_EVENT {
+    uint32 init_seq;
+    uint16 rwnd_size;
+}
+
 
 event ACK : INCOMING::NET_EVENT {
     uint32 ack_seq;
@@ -29,6 +35,22 @@ event DATA : INCOMING::NET_EVENT {
 
 event MISS_ACK : TIMER_EVENT {
     uint32 seq_num;
+}
+
+event LISTEN: INCOMING::APP_EVENT{
+    uint32 ip_addr;
+    uint16 port;
+    uint32 pending_cap;
+}
+
+event ACCEPT: INCOMING::APP_EVENT{
+}
+
+event CONNECT: INCOMING::APP_EVENT{
+    uint32 local_ip;
+    uint32 remote_ip;
+    uint16 local_port;
+    uint16 remote_port;
 }
 
 
@@ -56,9 +78,12 @@ pkt_bp TCPBP {
 }
 
 /****************** contexts and other structs **************/
-context tcp_listen_context{
+context tcp_listen_context {
     uint32 local_ip;
     uint32 local_port;
+    uint8  state;
+    uint32 pending_cap;
+    list<accept_res> pending;
 }
 
 context tcp_context {
@@ -67,6 +92,9 @@ context tcp_context {
     uint16 remote_port;
     uint16 local_port;
     addr_t buf_addr;
+    
+    uint8 state;
+    uint32 SMSS = 1460;
 
     // sender vars
     uint32 init_seq;
@@ -91,7 +119,9 @@ context tcp_context {
     uint32 rwnd_size = 16959;
     //uint32 snd_wl1;		// segment seq number for last window update
 	//uint32 snd_wl2;		// segment ack number for last window update
-    uint32 recv_next = 0;
+    uint32 recv_next;
+    uint32 last_flushed;
+    bool first_data_rcvd = true;
     //list<sent_pkt_info> data_recv_info_array(500);
     //uint32 data_recv_array_head = 0;
     //uint32 data_recv_array_tail = 0;
@@ -127,17 +157,29 @@ net_to_transp ntt_module {
         list<event_t> out;
         TCPBP pkt_bp;
         p.extract(pkt_bp);
-        flow_id id(i.src_ip, i.dst_ip, p.src_port, p.dst_port);
         if (pkt_bp.is_syn && !pkt_bp.is_ack){
            SYN event;
            event.remote_ip = i.src_ip;
            event.remote_port = pkt_bp.src_port;
            event.init_seq = pkt_bp.seq;
            event.rwnd_size = pkt_bp.rwnd_size;
+           flow_id id(i.dst_ip, p.dst_port);
            set_flow_id(event, id);
            out.add(event);
-           return out;
+           return out
         }
+
+        flow_id id(i.src_ip, i.dst_ip, p.src_port, p.dst_port);
+
+        if (pkt_bp.is_syn && pkt_bp.is_ack){
+            SYNACK event;
+            event.init_seq = pkt_bp.seq;
+            event.rwnd_size = pkt_bp.rwnd_size;
+            set_flow_id(event, id);
+            out.add(event);
+            return out;
+        }            
+        
         if(len(pkt_bp.data) > 0) {
             DATA event;
             event.seq_num = pkt_bp.seq;
@@ -159,27 +201,38 @@ net_to_transp ntt_module {
 
 /************************ event processor declarations **************************/
 list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out);
-
-list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out);
+list<instr_t> flush_ep (RECV ev, tcp_context ctx, interm_out int_out);
 
 void rto_ep (ACK ev, tcp_context ctx, interm_out int_out);
 void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out int_out);
 void slows_congc_ep (ACK ev, tcp_context ctx, interm_out int_out);
 list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out);
 
-void data_net_ep (DATA ev, tcp_context ctx, interm_out int_out);
+list<instr_t> data_net_ep (DATA ev, tcp_context ctx, interm_out int_out);
 list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out);
-list<intr_t> app_feedback_ep (DATA ev, tcp_context ctx, interm_out int_out);
+list<instr_t> app_feedback_ep (DATA ev, tcp_context ctx, interm_out int_out);
 
 list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out int_out);
+
+list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out);
+list<instr_t> synack_ep (SYNACK ev, tcp_context ctx, interm_out int_out);
+list<instr_t> conn_ep (ACK ev, tcp_context ctx, interm_out int_out);
+
+list<instr_t> listen_ep (LISTEN ev, null_context ctx, interm_out int_out);
+list<instr_t> accept_ep (LISTEN ev, tcp_listen_context ctx, interm_out int_out);
+list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out int_out);
 
 /*************************** dispatcher ************************/
 dispatch disp_table {
     SEND      -> {send_ep};
-    SYN       -> {syn_ep};
-    ACK       -> {rto_ep, fast_retr_rec_ep, slows_congc_ep, ack_net_ep};
-    DATA      -> {data_net_ep, send_ack, app_feedback_ep};
+    ACK       -> {rto_ep, fast_retr_rec_ep, slows_congc_ep, conn_ack, ack_net_ep};
+    DATA      -> {data_net_ep, send_ack};
     MISS_ACK   -> {ack_timeout_ep};
+    
+    LISTEN    -> {listen_ep};
+    ACCEPT    -> {accept_ep};
+    CONNECT   -> {connect_ep};
+    SYN       -> {syn_ep};
 }
 
 /************************* event processor definitions ****************************/
@@ -190,6 +243,8 @@ list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
     uint32 SMSS = 1460;
 
     ctx.data_end = ctx.data_end + ev.data_size;
+
+    if (ctx.state != 5) return out; // ESTABLISHED_ST
 
     uint32 data_rest = ctx.data_end - ctx.send_next;
     uint32 effective_window = ctx.cwnd_size;
@@ -218,7 +273,7 @@ list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
     bp.is_ack = 0;
     // bp.checksum = CRC16_t();
     addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
-    bp.data = unseg_data(addr, bytes_to_send, SMSS, TCPBP::seq_num, len(TCPBP::data));
+    bp.data = unseg_data(addr, bytes_to_send, SMSS, [TCPBP::seq_num, ctx.send_next, prev.hdr.seq_no + prev.payload_len]);
 
     instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
     out.add(instr);
@@ -227,29 +282,83 @@ list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
 
     MISS_ACK time_ev;
     time_ev.seq_num = ctx.send_una;
-    ctx.ack_timeout.set_duration(nanosecond(ctx.RTO));
-    ctx.ack_timeout.start(time_ev);
+    instr_t instr = timer_start_instr(ack_timeout, nanoseconds(ctx.RTO), time_ev); 
+    out.add(instr); 
+
+    return out;
+}
+
+list<instr_t> listen_ep (LISTEN ev, null_context ctx, interm_out int_out) {
+   list<instr_t> out;
+   instr_t instr = new_ctx_instr(tcp_listen_context,
+                                 local_ip = ev.ip_addr,
+                                 local_port = ev.port,
+                                 state = 0, // LISTEN_STATE
+                                 pending_cap = ev.pending_cap);
+    out.add(instr);
+    return out; 
+}
+
+
+list<instr_t> accept_ep (ACCEPT ev, tcp_listen_context ctx, interm_out int_out) {
+    list<instr_t> out;
+
+    if (len(ctx.pending) > 0) {
+        accept_res acc = ctx.pending.remove();
+        instr_t instr = accept_conn_instr(acc); // allocate socket
+        out.add(instr);
+
+        if (ctx.state == 0)
+            ctx.state = 1; // ACCEPT_ST;
+    } else {
+        instr_t instr = retry_instr(ev);    // retry accept_ep in next polling loop
+        out.add(instr);
+    }
 
     return out;
 }
 
 
+list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out int_out){
+    list<instr_t> out;
+
+    uint32 init_seq = rand();
+
+    TCBBP bp;
+    bp.src_port = ev.local_port;
+    bp.dst_port = ev.remote_port;
+    bp.is_syn = true;
+    bp.is_ack = false;
+    bp.ack_seq = ev.init_seq + 1;
+    bp.seq = init_seq;
+    instr_t instr = pkt_gen_instr(ev.local_ip, ev.remote_ip, bp);
+    out.add(instr);
+
+    instr = new_ctx_instr(tcp_context, 
+                          remote_ip = ev.remote_ip, 
+                          local_ip = ev.local_ip,
+                          remote_port = ev.remote_port,
+                          local_port = ev.local_port,
+                          init_seq = init_seq,
+                          send_next = init_seq + 1,
+                          state = 3 // SYN_SENT_ST;
+                          );
+    out.add(instr);
+    return out;
+}
+
 list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
     list<instr_t> out;
-    uint32 init_seq = rand();
-    instr_t instr = new_ctx_instr(tcp_context, 
-                                  remote_ip = ev.remote_ip, 
-                                  local_ip = ctx.local_ip,
-                                  remote_port = ev.remote_port,
-                                  local_port = ctx.local_port,
-                                  init_seq = init_seq,
-                                  send_next = init_seq + 1,
-                                  recv_init_seq = ev.init_seq,
-                                  recv_next = ev.init_seq + 1,
-                                  last_rwnd_size = ev.rwnd_size);
 
-     
-    out.add(instr);
+    if (ctx.state != 1) // ACCEPT_ST;
+        return out;
+
+    if (len(ctx.pending) < ctx.pending_cap) {
+        accept_res acc;
+        ctx.pending.add(acc);
+    }
+
+    uint32 init_seq = rand();
 
     TCBBP bp;
     bp.src_port = ctx.local_port;
@@ -258,13 +367,56 @@ list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
     bp.is_ack = true;
     bp.ack_seq = ev.init_seq + 1;
     bp.seq = init_seq;
-    instr_t instr = pkt_gen_instr(local_ip, remote_ip, bp);
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ev.remote_ip, bp);
+    out.add(instr);
+
+    instr = new_ctx_instr(tcp_context, 
+                          remote_ip = ev.remote_ip, 
+                          local_ip = ctx.local_ip,
+                          remote_port = ev.remote_port,
+                          local_port = ctx.local_port,
+                          init_seq = init_seq,
+                          send_next = init_seq + 1,
+                          recv_init_seq = ev.init_seq,
+                          recv_next = ev.init_seq + 1,
+                          last_flushed = ev.init_seq;
+                          last_rwnd_size = ev.rwnd_size,
+                          state = 2 // SYNACK_SENT_ST;
+                          );
+
+     
+    out.add(instr);
+    return out;
+    
+}
+
+list<instr_t> synack_ep (SYNACK ev, tcp_context ctx, interm_out int_out) {
+    list<instr_t> out;
+
+    if (ctx.state != 3) // SYN_SENT_ST;
+        return out;
+
+    ctx.state = 5; //ESTABLISHED_ST
+    ctx.recv_init_seq = ev.init_seq;
+    ctx.recv_next = ev.init_seq + 1;
+    ctx.last_rwnd_size = ev.rwnd_size;
+    ctx.last_flushed = ev.init_seq;
+
+    TCBBP bp;
+    bp.src_port = ctx.local_port;
+    bp.dst_port = ctx.remote_port;
+    bp.is_ack = true;
+    bp.ack_seq = ev.init_seq + 1;
+    bp.seq = ctx.init_seq;
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
     out.add(instr);
 
     return out;
 }
 
+
 void rto_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+    if (ctx.state != 5) return; //ESTABLISHED_ST
 
     int_out.skip_ack_eps = 0;
 
@@ -296,6 +448,7 @@ void rto_ep (ACK ev, tcp_context ctx, interm_out int_out) {
 }
 
 void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+    if (ctx.state != 5) return; //ESTABLISHED_ST
 
     if(int_out.skip_ack_eps)
         return;
@@ -340,6 +493,7 @@ void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out int_out) {
 }
 
 void slows_congc_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+    if (ctx.state != 5) return; //ESTABLISHED_ST
 
     if(int_out.skip_ack_eps)
         return;
@@ -365,8 +519,19 @@ void slows_congc_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     }
 }
 
+void conn_ack_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+    if (ctx.state == SYNACK_SENT_ST &&
+        ev.ack_seq == ctx.init_seq + 1){
+        ctx.state == 5; // ESTABLISHED_ST
+        int_out.skip_ack_eps = false;
+    }
+
+}
+
+
 list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     list<instr_t> out;
+    if (ctx.state != 5) return out; //ESTABLISHED_ST
 
     uint32 SMSS = 1460;
 
@@ -379,14 +544,14 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     ctx.rwnd_size = ev.rwnd_size;
     if (ctx.last_rwnd_size < ctx.send_next - ctx.send_una &&
         ctx.rwnd_size >= ctx.send_next - ctx.send_una) {
-        // TODO fill in parameters for notify()
-        intr_t instr = notify();
+        instr_t instr = notify_instr();
         out.add(instr);
     }
 
     uint32 data_rest = ctx.data_end - ctx.send_next;
     if(data_rest == 0 && ev.ack_seq == ctx.send_next) {
-        ctx.ack_timeout.cancel();
+        instr_t instr = timer_cancel_instr(ack_timeout);
+        out.add(instr);
         return out;
     }
 
@@ -440,7 +605,7 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     bp.is_ack = 0;
     // bp.checksum = CRC16_t();
     addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
-    bp.data = unseg_data(addr, bytes_to_send, SMSS, plan1);
+    bp.data = unseg_data(addr, bytes_to_send, SMSS, [TCPBP::seq_num, ctx.send_next, prev.hdr.seq_no + prev.payload_len]);
 
     instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
     out.add(instr);
@@ -455,16 +620,23 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
         ctx.send_una = ev.ack_seq;
     }
 
-    ctx.ack_timeout.cancel();
     MISS_ACK time_ev;
     time_ev.seq_num = ctx.send_una;
-    ctx.ack_timeout.set_duration(nanosecond(ctx.RTO));
-    ctx.ack_timeout.start(time_ev);
+    instr_t instr = timer_restart_instr(ack_timeout, nanoseconds(ctx.RTO), time_ev);
+    out.add(instr);
 
     return out;
 }
 
-void data_net_ep (DATA ev, tcp_context ctx, interm_out int_out) {
+
+list<instr_t> data_net_ep (DATA ev, tcp_context ctx, interm_out int_out) {
+    list<instr_t> out;
+    
+    if (ctx.first_data_rcvd){
+        instr_t instr = new_ordered_data(INF, get_flow_id(ev));
+        ctx.first_data_rcvd = false;
+        out.add(instr); 
+    }
 
     if((ctx.rwnd_size == 0 && ev.data_len > 0) ||
     (ev.seq_num > ctx.recv_next + ctx.rwnd_size) ||
@@ -474,32 +646,15 @@ void data_net_ep (DATA ev, tcp_context ctx, interm_out int_out) {
     uint32 data_end = ev.seq_num + ev.data_len;
     ctx.meta_rwnd.set(ev.seq_num, data_end);
     ctx.recv_next = ctx.meta_rwnd.first_unset();
+
+    instr_t instr = add_data_seg(ev.hold_addr, ev.data_len, get_flow_id(ev), ev.seq_num - ctx.recv_init_seq);
+    out.add(instr);
+
+    return out;
 }
 
 list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out) {
     list<instr_t> out;
-
-    uint32 SMSS = 1460;
-
-    uint32 data_rest = ctx.data_end - ctx.send_next;
-    uint32 effective_window = ctx.cwnd_size;
-    if(effective_window > ctx.last_rwnd_size)
-        effective_window = ctx.last_rwnd_size;
-
-    uint32 window_avail = ctx.send_una + effective_window - ctx.send_next;
-    uint32 bytes_to_send = 0;
-
-    if(window_avail < 0)
-        bytes_to_send = 0;
-    else {
-        if(data_rest < window_avail)
-            bytes_to_send = data_rest;
-        else
-            bytes_to_send = window_avail;
-        
-        if(bytes_to_send > SMSS)
-            bytes_to_send = SMSS;
-    }
 
     TCPBP bp;
     bp.src_port = ctx.src_port;
@@ -509,10 +664,6 @@ list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out) {
     bp.ack_seq = ctx.recv_next;
     bp.wnd_size = ctx.rwnd_size;
     // bp.checksum = CRC16_t();
-    addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
-    // Q: in case no payload is sent, what should the address be?
-    // A: have something special for NULL data
-    bp.data = seg_data(addr, bytes_to_send);
 
     instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
     out.add(instr);
@@ -520,17 +671,16 @@ list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out int_out) {
     return out;
 }
 
-list<intr_t> app_feedback_ep (DATA ev, tcp_context ctx, interm_out int_out) {
-    list<intr_t> out;
+list<instr_t> flush_ep (RECV ev, tcp_context ctx, interm_out int_out) {
+    list<instr_t> out;
 
-    //DATA_EVENT ev;
-    //ev.read_addr = ev.hold_addr;
-    //ev.size = ev.data_len;
-    //ev.buffer_id = ctx.bid;
-    //ev.offset = ev.seq_num - ctx.init_seq;
+    uint32 data_avail = ctx.rcv_next - ctx.last_flushed - 1;
+    if (data_avail > ev.data_size){
+        data_avail = ev.data_size;
+    }
+    instr_t instr = flush_and_notify(get_flow_id(ev), data_avail, ev.user_buf_addr);
+    ctx.last_flushed += data_avail;
 
-    // TODO fill in parameters for flush_and_notify(uid, len, addr)
-    instr_t instr = flush_and_notify();
     out.add(instr);
 
     return out;
@@ -584,7 +734,11 @@ list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out int_out) 
     instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
     out.add(instr);
 
-    ctx.ack_timeout.restart(nanosecond(ctx.RTO));
+    MISS_ACK time_ev;
+    time_ev.seq_num = ctx.send_una;
+
+    instr_t instr = timer_restart_instr(ack_timeout, nanosecond(ctx.RTO));
+    out.add(instr);
+
+    return out;
 }
-
-
