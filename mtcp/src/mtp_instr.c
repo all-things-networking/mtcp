@@ -14,6 +14,67 @@
  Funcion & helper functions for packet generation
  instruction
  ***********************************************/
+
+/*----------------------------------------------------------------------------*/
+inline struct mtcp_sender *
+MTP_GetSender(mtcp_manager_t mtcp, tcp_stream *cur_stream)
+{
+	if (cur_stream->sndvar->nif_out < 0) {
+		return mtcp->g_sender;
+	}
+
+	int eidx = CONFIG.nif_to_eidx[cur_stream->sndvar->nif_out];
+	if (eidx < 0 || eidx >= CONFIG.eths_num) {
+		TRACE_ERROR("(NEVER HAPPEN) Failed to find appropriate sender.\n");
+		return NULL;
+	}
+
+	return mtcp->n_sender[eidx];
+}
+
+/*----------------------------------------------------------------------------*/
+inline void 
+AddtoGenList(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
+{
+    if (!cur_stream->sndvar->on_gen_list) {
+        struct mtcp_sender *sender = MTP_GetSender(mtcp, cur_stream);
+        assert(sender != NULL);
+
+        cur_stream->sndvar->on_gen_list = TRUE;
+        TAILQ_INSERT_TAIL(&sender->gen_list, cur_stream, sndvar->gen_link);
+        sender->gen_list_cnt++;
+        TRACE_DBG("Stream %u: added to gen list (cnt: %d)\n", 
+        		cur_stream->id, sender->gen_list_cnt);
+    }
+}
+
+/*----------------------------------------------------------------------------*/
+bool
+BPBuffer_isfull(tcp_stream *cur_stream){
+    uint32_t head = cur_stream->sndvar->mtp_bps_head;
+    uint32_t tail = cur_stream->sndvar->mtp_bps_tail;
+    uint32_t size = MTP_PER_FLOW_BP_CNT; 
+
+    uint32_t next_tail = (tail + 1) % size;
+    
+    return (next_tail == head);
+}
+
+/*----------------------------------------------------------------------------*/
+mtp_bp* GetFreeBP(struct tcp_stream *cur_stream){
+    if (BPBuffer_isfull(cur_stream)){
+        //MTP TODO: gotta fix this
+        printf("BP buffer is full!\n");
+        return NULL;
+    }
+
+    uint32_t bp_tail = cur_stream->sndvar->mtp_bps_tail;
+    mtp_bp* new_bp = cur_stream->sndvar->mtp_bps + bp_tail;
+    cur_stream->sndvar->mtp_bps_tail = (bp_tail + 1) % MTP_PER_FLOW_BP_CNT;
+    return new_bp;
+}
+
+
 uint16_t CalculateOptionLength(uint8_t flags)
 {
 	uint16_t optlen = 0;

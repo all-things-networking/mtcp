@@ -5,6 +5,9 @@
 #include "tcp_out.h"
 #include "tcp_util.h"
 #include "timer.h"
+#include "ip_out.h"
+
+#define TCP_CALCULATE_CHECKSUM      TRUE
 
 // Helper functions
 /*----------------------------------------------------------------------------*/
@@ -138,7 +141,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	/* RX parser(parse_net_packet) + incoming net events' "dispatcher"
 	   incoming net events are "created" from parsing, and dispatched to eps directly
 	   following a "run-to-completion model" */
-	
+
 	// MTP: maps to extract in the parser
 	struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
 	uint8_t *payload    = (uint8_t *)tcph + (tcph->doff << 2);
@@ -251,3 +254,238 @@ void MTP_ProcessSendEvents(mtcp_manager_t mtcp, struct mtcp_sender *sender,
 		cur_stream = next;
 	}
 }
+
+/***********************************************
+ MTP Net TX
+***********************************************/
+static inline uint16_t
+MTP_CalculateOptionLength(mtp_bp* bp){
+    uint16_t res = 0;
+    struct mtp_bp_options *opts = &(bp->opts);
+    if (opts->mss.valid){
+        res += opts->mss.len;
+    }
+    if (opts->sack_permit.valid){
+        res += opts->sack_permit.len;
+    }
+    if (opts->nop1.valid){
+        res += opts->nop1.len;
+    }
+    if (opts->nop2.valid){
+        res += opts->nop2.len;
+    }
+    if (opts->timestamp.valid){
+        res += opts->timestamp.len;
+    }
+    if (opts->nop3.valid){
+        res += opts->nop3.len;
+    }
+    if (opts->wscale.valid){
+        res += opts->wscale.len;
+    }
+    return res;
+}
+
+/*----------------------------------------------------------------------------*/
+void 
+AdvanceBPListHead(tcp_stream *cur_stream, int advance){ 
+    int cur_head = cur_stream->sndvar->mtp_bps_head; 
+    cur_stream->sndvar->mtp_bps_head = (cur_head + advance) % MTP_PER_FLOW_BP_CNT;
+}
+/*----------------------------------------------------------------------------*/
+// adapted from SendTCPPacket in tcp_out
+int
+SendMTPPackets(struct mtcp_manager *mtcp, 
+               tcp_stream *cur_stream, 
+		       uint32_t cur_ts){    
+    unsigned int sent = 0;
+    unsigned int err = 0;
+    for (unsigned int i = cur_stream->sndvar->mtp_bps_head;
+         i != cur_stream->sndvar->mtp_bps_tail;
+         i = (i + 1) % MTP_PER_FLOW_BP_CNT){
+        
+        mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
+        uint16_t optlen = MTP_CalculateOptionLength(bp);
+        
+        uint16_t payloadLen = 0;
+        if (bp->payload.data != NULL){
+            payloadLen = bp->payload.len;
+        }
+        // MTP TODO: segmentation logic here? How does it interact with options?
+        if (payloadLen + optlen > cur_stream->sndvar->mss){
+            TRACE_ERROR("Payload size exceeds MSS\n");
+            err += 1;
+            continue; 
+        }
+
+        struct mtp_bp_hdr *mtph;
+        mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
+                MTP_HEADER_LEN + optlen + payloadLen);
+        if (mtph == NULL) {
+            AdvanceBPListHead(cur_stream, sent + err);
+            return -2;
+        }
+
+        memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
+
+        // MTP TODO: this is TCP specific
+        mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+        // options
+        // MTP TODO: this can be further generalized
+        int i = 0;
+        uint8_t *buff_opts = (uint8_t*)mtph + MTP_HEADER_LEN;
+        struct mtp_bp_options *bp_opts = &(bp->opts);
+
+        if (bp_opts->mss.valid){
+            buff_opts[i++] = bp_opts->mss.kind;
+            buff_opts[i++] = bp_opts->mss.len;
+            buff_opts[i++] = bp_opts->mss.value >> 8;
+            buff_opts[i++] = bp_opts->mss.value % 256;
+        }
+        
+        if (bp_opts->sack_permit.valid){
+            buff_opts[i++] = bp_opts->sack_permit.kind;
+            buff_opts[i++] = bp_opts->sack_permit.len;
+        }    
+   
+        if (bp_opts->nop1.valid){
+            buff_opts[i++] = bp_opts->nop1.kind;
+        }
+        if (bp_opts->nop2.valid){
+            buff_opts[i++] = bp_opts->nop2.kind;
+        }
+
+        if (bp_opts->timestamp.valid){
+            buff_opts[i++] = bp_opts->timestamp.kind;
+            buff_opts[i++] = bp_opts->timestamp.len;
+            uint8_t* val_start = &buff_opts[i];
+            uint32_t *tmp = (uint32_t *)(val_start);
+            tmp[0] = bp_opts->timestamp.value1;
+            tmp[1] = bp_opts->timestamp.value2;
+            i += 8;
+        }
+        
+        if (bp_opts->nop3.valid){
+            buff_opts[i++] = bp_opts->nop3.kind;
+        }
+ 
+        if (bp_opts->wscale.valid){
+            buff_opts[i++] = bp_opts->wscale.kind;
+            buff_opts[i++] = bp_opts->wscale.len;
+            buff_opts[i++] = bp_opts->wscale.value;
+        }
+
+        // MTP TODO: this is TCP specific?
+        assert (i % 4 == 0);
+        assert (i == optlen); 
+
+        // copy payload if exist
+        if (bp->payload.data != NULL) {
+            memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, bp->payload.data, payloadLen);
+            #if defined(NETSTAT) && defined(ENABLELRO)
+            mtcp->nstat.tx_gdptbytes += payloadlen;
+            #endif // NETSTAT 
+        } 
+
+        // MTP TODO: checksum is TCP specific
+        int rc = -1;
+        #if TCP_CALCULATE_CHECKSUM
+        #ifndef DISABLE_HWCSUM
+        if (mtcp->iom->dev_ioctl != NULL){
+            rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
+                          PKT_TX_TCPIP_CSUM, NULL);
+        }
+        #endif
+        //printf("Test 6");
+
+        if (rc == -1){
+            mtph->check = TCPCalcChecksum((uint16_t *)mtph,
+                              MTP_HEADER_LEN + optlen + payloadLen,
+                              cur_stream->saddr, cur_stream->daddr);
+        }
+        #endif
+    
+    }
+    
+    AdvanceBPListHead(cur_stream, sent + err);
+    return 0; 
+    
+    // MTP TODO: check these
+		//cur_stream->sndvar->ts_lastack_sent = cur_ts;
+		//cur_stream->last_active_ts = cur_ts;
+		//UpdateTimeoutList(mtcp, cur_stream);
+    // MTP TODO: zero window
+    /*
+	// if the advertised window is 0, we need to advertise again later 
+	if (window32 == 0) {
+		cur_stream->need_wnd_adv = TRUE;
+	}
+    */
+    // MTP TODO: check this
+    // Note: added this for retransmit
+	//if(payloadlen > 0) {
+		/* update retransmission timer if have payload */
+		//cur_stream->sndvar->ts_rto = cur_ts + cur_stream->sndvar->rto;
+		//AddtoRTOList(mtcp, cur_stream);
+	//}
+}
+
+/*----------------------------------------------------------------------------*/
+int 
+MTP_PacketGenList(mtcp_manager_t mtcp, 
+		struct mtcp_sender *sender, uint32_t cur_ts, int thresh){
+    tcp_stream *cur_stream;
+	tcp_stream *next, *last;
+	int cnt = 0;
+	int ret;
+
+	thresh = MIN(thresh, sender->gen_list_cnt);
+
+	/* Send packets */
+	cnt = 0;
+	cur_stream = TAILQ_FIRST(&sender->gen_list);
+	last = TAILQ_LAST(&sender->gen_list, gen_head);
+	while (cur_stream) {
+		if (++cnt > thresh) break;
+
+		TRACE_LOOP("Inside gen loop. cnt: %u, stream: %d\n", 
+				cnt, cur_stream->id);
+		next = TAILQ_NEXT(cur_stream, sndvar->gen_link);
+
+		TAILQ_REMOVE(&sender->gen_list, cur_stream, sndvar->gen_link);
+		sender->gen_list_cnt--;
+
+		if (cur_stream->sndvar->on_gen_list) {
+			cur_stream->sndvar->on_gen_list = FALSE;
+			TRACE_DBG("Stream %u: Sending packets\n", cur_stream->id);
+			ret = SendMTPPackets(mtcp, cur_stream, cur_ts);
+			if (ret == -2) {
+				TAILQ_INSERT_HEAD(&sender->gen_list, 
+						cur_stream, sndvar->gen_link);
+				cur_stream->sndvar->on_gen_list = TRUE;
+				sender->gen_list_cnt++;
+				/* since there is no available write buffer, break */
+				break;
+			} 
+            else if (ret < 0) {
+				/* try again after handling other streams */
+				TAILQ_INSERT_TAIL(&sender->gen_list,
+						  cur_stream, sndvar->gen_link);
+				cur_stream->sndvar->on_gen_list = TRUE;
+				sender->gen_list_cnt++;
+			}
+		} 
+        else {
+			TRACE_ERROR("Stream %d: not on gen list.\n", cur_stream->id);
+		}
+
+		if (cur_stream == last) break;
+		cur_stream = next;
+	}
+
+	return cnt;
+
+}
+
+

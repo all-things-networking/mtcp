@@ -12,6 +12,7 @@
 #include "tcp_util.h"
 #include "socket.h"
 #include "mtp_instr.h"
+#include "mtp_net.h"
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
@@ -439,7 +440,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	pthread_mutex_unlock(&ctx->accept_lock);
 
 	// MTP pkt gen
-	uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
+	/*uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 
 	SendMTPPacket(mtcp, cur_stream, cur_ts,
@@ -448,6 +449,56 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 		init_seq + 1, //ack
 		advertised_window, //window
 		NULL, 0);
+    */
+    // MTP TODO: check that size + options is not more than MSS
+   
+    mtp_bp* bp = GetFreeBP(cur_stream);
+    
+    memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+	bp->hdr.source = cur_stream->sport;
+	bp->hdr.dest = cur_stream->dport;
+    bp->hdr.seq = htonl(cur_stream->sndvar->iss);
+    bp->hdr.ack_seq = htonl(init_seq + 1);
+
+    bp->hdr.syn = TRUE;
+    bp->hdr.ack = TRUE;
+
+    // options to calculate data offset
+    // MSS
+    MTP_set_opt_mss(&(bp->opts.mss), cur_stream->sndvar->mss);
+   
+    // MTP TODO: SACK? 
+#if TCP_OPT_SACK_ENABLED
+    printf("ERROR:SACK Not supported in MTP TCP\n");
+#endif
+
+    MTP_set_opt_nop(&(bp->opts.nop1));
+    MTP_set_opt_nop(&(bp->opts.nop2));
+
+    // Timestamp
+    MTP_set_opt_timestamp(&(bp->opts.timestamp),
+                            htonl(cur_ts),
+                            htonl(cur_stream->rcvvar->ts_recent));
+    
+    // Window scale
+    MTP_set_opt_nop(&(bp->opts.nop3));
+    MTP_set_opt_wscale(&(bp->opts.wscale), cur_stream->sndvar->wscale_mine);
+   
+    // MTP TODO: would the MTP program do the length 
+    //           calculation itself?
+    //uint16_t optlen = MTP_CalculateOptionLength(bp);
+    //bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+    uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
+	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+	bp->hdr.window = htons(advertised_window);
+
+    // Payload
+    bp->payload.data = NULL;
+    bp->payload.len = 0;
+
+    AddtoGenList(mtcp, cur_stream, cur_ts);
 }
 
 
