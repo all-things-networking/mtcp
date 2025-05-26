@@ -24,13 +24,10 @@ static inline int HandleMissingCtx(mtcp_manager_t mtcp,
 }
 
 /*----------------------------------------------------------------------------*/
-static inline int ValidatePacketHeader(mtcp_manager_t mtcp, const int ifidx,  
-	const struct iphdr *iph, int ip_len, struct tcphdr* tcph) {
-	// IP validation
-	if (ip_len < ((iph->ihl + tcph->doff) << 2))
-		return ERROR;
-
-	// Checksum validation
+static inline int MTP_ValidateChecksum(mtcp_manager_t mtcp, const int ifidx,  
+	const struct iphdr *iph, int ip_len, struct mtp_bp_hdr* mtph) {
+	
+    // Checksum validation
 #if VERIFY_RX_CHECKSUM
 	int rc = 0;
 #ifndef DISABLE_HWCSUM
@@ -38,8 +35,8 @@ static inline int ValidatePacketHeader(mtcp_manager_t mtcp, const int ifidx,
 		rc = mtcp->iom->dev_ioctl(mtcp->ctx, ifidx, PKT_RX_TCP_CSUM, NULL);
 #endif
 	if (rc == -1) {
-		check = TCPCalcChecksum((uint16_t *)tcph, 
-			(tcph->doff << 2) + payloadlen, iph->saddr, iph->daddr);
+		check = MTP_CalcChecksum((uint16_t *)mtph, 
+			(mtph->doff << 2) + payloadlen, iph->saddr, iph->daddr);
 		if (check) {
 			TRACE_DBG("Checksum Error: Original: 0x%04x, calculated: 0x%04x\n", 
 				tcph->check, TCPCalcChecksum((uint16_t *)tcph, 
@@ -142,7 +139,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	   incoming net events are "created" from parsing, and dispatched to eps directly
 	   following a "run-to-completion model" */
 
-	// MTP - Compiler-Start
+	// MTP - Compiler-Start: extract
     // maps to extract in the parser
     struct mtp_bp_hdr *mtph = (struct mtp_bp_hdr *) ((u_char *)iph + (iph->ihl << 2));
     // MTP TODO: parse options
@@ -150,7 +147,11 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     struct mtp_bp_payload payload;
 	payload.data = (uint8_t *)mtph + (mtph->doff << 2);
     payload.len = ip_len - (payload.data - (u_char *)iph); 
-    // MTP - Compiler-End
+    // MTP - Compiler-End: extract
+
+    if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
+    int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph);
+    if (ret != 0) return MTP_ERROR;
 
     bool is_syn = mtph->syn;
     bool is_ack = mtph->ack;
@@ -161,10 +162,6 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     uint16_t local_port = mtph->dest;
 	uint32_t remote_ip = iph->saddr;
 	uint16_t remote_port = mtph->source;
-
-	// TBA to MTP: validate header
-	//int ret = ValidatePacketHeader(mtcp, ifidx, iph, ip_len, mtph);
-	//if (ret != 0) return TRUE;
 
 #if defined(NETSTAT) && defined(ENABLELRO)
 	mtcp->nstat.rx_gdptbytes += payload.len;

@@ -143,6 +143,7 @@ interm_output interm_out {
 /****************** extracting events out of packets ********************/
 net_to_transp ntt_module {
     net_header IPheader {
+        uint4 hdr_len;
         uint16 tot_len;
         uint16 identification;
         uint3 flags;
@@ -157,6 +158,9 @@ net_to_transp ntt_module {
         list<event_t> out;
         TCPBP pkt_bp;
         p.extract(pkt_bp);
+
+        if (i.tot_len < ((i->hdr_len + pkt_bp.data_offset) << 2)) return;
+        // TODO: validate checksum
         if (pkt_bp.is_syn && !pkt_bp.is_ack){
            SYN event;
            event.remote_ip = i.src_ip;
