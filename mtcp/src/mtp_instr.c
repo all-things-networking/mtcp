@@ -307,7 +307,7 @@ int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog)
 
 tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t local_ip, uint16_t local_port,
 	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd,
-	uint32_t cur_ts, struct tcphdr* tcph)
+	uint32_t cur_ts, struct mtp_bp_hdr* tcph)
 {
 	// Create new stream and add to flow hash table
 	tcp_stream *cur_stream = CreateTCPStream(mtcp, NULL, MTCP_SOCK_STREAM, 

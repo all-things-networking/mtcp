@@ -142,27 +142,32 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	   incoming net events are "created" from parsing, and dispatched to eps directly
 	   following a "run-to-completion model" */
 
-	// MTP: maps to extract in the parser
-	struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
-	uint8_t *payload    = (uint8_t *)tcph + (tcph->doff << 2);
+	// MTP - Compiler-Start
+    // maps to extract in the parser
+    struct mtp_bp_hdr *mtph = (struct mtp_bp_hdr *) ((u_char *)iph + (iph->ihl << 2));
+    // MTP TODO: parse options
+	//struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
+    struct mtp_bp_payload payload;
+	payload.data = (uint8_t *)mtph + (mtph->doff << 2);
+    payload.len = ip_len - (payload.data - (u_char *)iph); 
+    // MTP - Compiler-End
 
-	int payloadlen = ip_len - (payload - (u_char *)iph);
-    bool is_syn = tcph->syn;
-    bool is_ack = tcph->ack;
-	uint32_t seq = ntohl(tcph->seq);
-	uint32_t ack_seq = ntohl(tcph->ack_seq);
-	uint16_t window = ntohs(tcph->window);
+    bool is_syn = mtph->syn;
+    bool is_ack = mtph->ack;
+	uint32_t seq = ntohl(mtph->seq);
+	uint32_t ack_seq = ntohl(mtph->ack_seq);
+	uint16_t window = ntohs(mtph->window);
 	uint32_t local_ip = iph->daddr;
-    uint16_t local_port = tcph->dest;
+    uint16_t local_port = mtph->dest;
 	uint32_t remote_ip = iph->saddr;
-	uint16_t remote_port = tcph->source;
+	uint16_t remote_port = mtph->source;
 
 	// TBA to MTP: validate header
-	int ret = ValidatePacketHeader(mtcp, ifidx, iph, ip_len, tcph);
-	if (ret != 0) return TRUE;
+	//int ret = ValidatePacketHeader(mtcp, ifidx, iph, ip_len, mtph);
+	//if (ret != 0) return TRUE;
 
 #if defined(NETSTAT) && defined(ENABLELRO)
-	mtcp->nstat.rx_gdptbytes += payloadlen;
+	mtcp->nstat.rx_gdptbytes += payload.len;
 #endif /* NETSTAT */
 
     // MTP: maps to SYN event
@@ -171,11 +176,12 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         struct mtp_listen_ctx *listen_ctx = 
 			(struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &local_port);
         if (listen_ctx == NULL) {
-            return HandleMissingCtx(mtcp, iph, tcph, seq, payloadlen, cur_ts);
+            // MTP TODO: uncomment
+            //return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
         }           
 
-        MtpSynChain(mtcp, cur_ts, iph->saddr, tcph->source, seq, window, 
-			local_ip, local_port, tcph, listen_ctx);
+        MtpSynChain(mtcp, cur_ts, iph->saddr, mtph->source, seq, window, 
+			local_ip, local_port, mtph, listen_ctx);
         return 0;
     }
 	
@@ -189,12 +195,12 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     // Context lookup
 	tcp_stream *cur_stream = NULL;
 	if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-        return HandleMissingCtx(mtcp, iph, tcph, seq, payloadlen, cur_ts);
+        // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
     }
 
 	// TBA to MTP: validate sequence
-	ret = ValidateSequence(mtcp, cur_stream, cur_ts, tcph, seq, ack_seq, payloadlen);
-	if (ret == 0) return TRUE;
+	// MTP TODO: ret = ValidateSequence(mtcp, cur_stream, cur_ts, tcph, seq, ack_seq, payload.len);
+	// MTP TODO: if (ret == 0) return TRUE;
 
 	// TBA to MTP?: update peer window
 	cur_stream->sndvar->peer_wnd = (uint32_t)window << cur_stream->sndvar->wscale_peer;
@@ -202,13 +208,13 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	// MTP TODO: SYN_ACK event
 
 	// MTP: maps to DATA event
-	if (payloadlen > 0){
-		MtpDataChain(mtcp, cur_ts, seq, payload, payloadlen, cur_stream);
+	if (payload.len > 0){
+		MtpDataChain(mtcp, cur_ts, seq, payload.data, payload.len, cur_stream);
     } 
 	
 	// MTP: maps to ACK event
 	if (is_ack){
-        MtpAckChain(mtcp, cur_ts, tcph, seq, ack_seq, payloadlen, window, cur_stream);
+        MtpAckChain(mtcp, cur_ts, mtph, seq, ack_seq, payload.len, window, cur_stream);
     }
 	
 	return TRUE;

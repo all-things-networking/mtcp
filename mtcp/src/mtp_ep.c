@@ -411,7 +411,7 @@ static inline struct accept_res* accept_ep(mctx_t mctx, mtcp_manager_t mtcp,
 
 static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd,
-	uint32_t local_ip, uint16_t local_port, struct tcphdr* tcph,
+	uint32_t local_ip, uint16_t local_port, struct mtp_bp_hdr* tcph,
 	struct mtp_listen_ctx *ctx)
 {
 	if (ctx->state != 0) return;
@@ -513,7 +513,7 @@ int MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
     return send_ep(mtcp, cur_ts, cur_stream);
 }
 
-void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, struct tcphdr* tcph, uint32_t seq, 
+void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, struct mtp_bp_hdr* tcph, uint32_t seq, 
 	uint32_t ack_seq, int payloadlen, uint32_t window, tcp_stream* cur_stream)
 {
     struct tcp_send_vars *sndvar = cur_stream->sndvar;
@@ -570,7 +570,7 @@ struct accept_res* MtpAcceptChain(mctx_t mctx, mtcp_manager_t mtcp, struct socka
 
 void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd,
-	uint32_t local_ip, uint16_t local_port, struct tcphdr* tcph, struct mtp_listen_ctx *ctx) 
+	uint32_t local_ip, uint16_t local_port, struct mtp_bp_hdr* tcph, struct mtp_listen_ctx *ctx) 
 {
 	syn_ep(mtcp, cur_ts, remote_ip, remote_port, init_seq, rwnd, local_ip, local_port, tcph, ctx);
 }
