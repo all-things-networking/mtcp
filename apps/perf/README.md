@@ -53,6 +53,8 @@ Setup Notes
 ===========
 
 1. Ensure the ARP table and routing table are populated correctly and located inside ./config/
+   - Note this step is ___not_ needed when running on a Mellanox NIC__ since it requires virtual memory from the kernel, who still knows the Mellanox's IP address and hence how to route packets to this NIC.
+   - However, for other NICs this step is indeed needed, since the kernel won't know the DPDK-bound NIC's IP.
 
 2. Build this application by simply running make in this directory (apps/perf)
 
@@ -65,11 +67,12 @@ Setup Notes
 
     (you can also easily remove the qdiscs later with ./rm-delay.sh ETH)
 
-4. Start mTCP perf client in wait mode, listening on, e.g., port 9000 and
-sending for 30 seconds:
+4. Start mTCP perf client in wait mode (for example, listening on port 9000 and
+sending for 30 seconds):
 
-`sudo env LD_LIBRARY_PATH=$LD_LIBRARY_PATH ./client wait 10.1.1.5 9000 30`
+`sudo ./client wait 10.1.1.5 9000 30`
+- Note the IP to be used in the above command should be the IP shown in `ifconfig` for the NIC you bound to DPDK on this device.
 
-4. Start python receiver in send mode, where client ip is e.g. 10.1.1.5
+5. Start Python receiver in send mode, sending to the client's IP address and port as specified above:
 
-`sudo python recv.py send 10.1.1.5 9000`
+`sudo python3 recv.py send 10.1.1.5 9000`
