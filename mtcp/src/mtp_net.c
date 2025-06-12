@@ -8,24 +8,29 @@
 #include "ip_out.h"
 
 #define TCP_CALCULATE_CHECKSUM      TRUE
+#define VERIFY_RX_CHECKSUM          TRUE
 
 // Helper functions
 /*----------------------------------------------------------------------------*/
-static inline int HandleMissingCtx(mtcp_manager_t mtcp, 
-	const struct iphdr *iph, struct tcphdr* tcph,
-	uint32_t seq, int payloadlen, uint32_t cur_ts) {
+static inline void HandleMissingCtx(mtcp_manager_t mtcp, 
+	const struct iphdr *iph, struct mtp_bp_hdr* mtph,
+    int payloadlen, uint32_t cur_ts) {
 	// TODO? This can be considered as processor for an "error" event
     TRACE_DBG("Refusing packet: context not found.\n");
+    printf("Refusing packet: listen context not found.\n");
+    /*
 	SendTCPPacketStandalone(mtcp, 
 		iph->daddr, tcph->dest, iph->saddr, tcph->source, 
 		0, seq + payloadlen + 1, 0, TCP_FLAG_RST | TCP_FLAG_ACK, 
 		NULL, 0, cur_ts, 0);
 	return TRUE;
+    */
 }
 
 /*----------------------------------------------------------------------------*/
+// MTP TODO: make protocol independent, like P4
 static inline int MTP_ValidateChecksum(mtcp_manager_t mtcp, const int ifidx,  
-	const struct iphdr *iph, int ip_len, struct mtp_bp_hdr* mtph) {
+	const struct iphdr *iph, int ip_len, struct mtp_bp_hdr* mtph, uint16_t payloadlen) {
 	
     // Checksum validation
 #if VERIFY_RX_CHECKSUM
@@ -35,14 +40,14 @@ static inline int MTP_ValidateChecksum(mtcp_manager_t mtcp, const int ifidx,
 		rc = mtcp->iom->dev_ioctl(mtcp->ctx, ifidx, PKT_RX_TCP_CSUM, NULL);
 #endif
 	if (rc == -1) {
-		check = MTP_CalcChecksum((uint16_t *)mtph, 
-			(mtph->doff << 2) + payloadlen, iph->saddr, iph->daddr);
+		uint16_t check = TCPCalcChecksum((uint16_t *)mtph, 
+			             (mtph->doff << 2) + payloadlen, iph->saddr, iph->daddr);
 		if (check) {
 			TRACE_DBG("Checksum Error: Original: 0x%04x, calculated: 0x%04x\n", 
-				tcph->check, TCPCalcChecksum((uint16_t *)tcph, 
-				(tcph->doff << 2) + payloadlen, iph->saddr, iph->daddr));
-			tcph->check = 0;
-			return ERROR;
+				mtph->check, TCPCalcChecksum((uint16_t *)mtph, 
+				(mtph->doff << 2) + payloadlen, iph->saddr, iph->daddr));
+			mtph->check = 0;
+			return MTP_ERROR;
 		}
 	}
 #endif
@@ -142,6 +147,12 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	// MTP - Compiler-Start: extract
     // maps to extract in the parser
     struct mtp_bp_hdr *mtph = (struct mtp_bp_hdr *) ((u_char *)iph + (iph->ihl << 2));
+    mtph->seq = ntohl(mtph->seq);
+	mtph->ack_seq = ntohl(mtph->ack_seq);
+    mtph->window = ntohs(mtph->window);
+    // MTP TODO: add this after changing tcp_stream because that one keeps it in network order
+    //mtph->dest = ntohs(mtph->dest);
+	//mtph->source = ntohs(mtph->source);
     // MTP TODO: parse options
 	//struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
     struct mtp_bp_payload payload;
@@ -150,35 +161,28 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     // MTP - Compiler-End: extract
 
     if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
-    int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph);
+    int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
     if (ret != 0) return MTP_ERROR;
 
-    bool is_syn = mtph->syn;
-    bool is_ack = mtph->ack;
-	uint32_t seq = ntohl(mtph->seq);
-	uint32_t ack_seq = ntohl(mtph->ack_seq);
-	uint16_t window = ntohs(mtph->window);
-	uint32_t local_ip = iph->daddr;
-    uint16_t local_port = mtph->dest;
-	uint32_t remote_ip = iph->saddr;
-	uint16_t remote_port = mtph->source;
-
-#if defined(NETSTAT) && defined(ENABLELRO)
-	mtcp->nstat.rx_gdptbytes += payload.len;
-#endif /* NETSTAT */
+    // MTP - Combining dispatcher, context look up, and event chain
 
     // MTP: maps to SYN event
-    if (is_syn && !is_ack){
+    if (mtph->syn && !mtph->ack){
+        // MTP TODO: change key to include IP
+        // MTP TODO: separate out  flow id construction
 		// Listen context lookup
         struct mtp_listen_ctx *listen_ctx = 
-			(struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &local_port);
+			(struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &(mtph->dest));
         if (listen_ctx == NULL) {
-            // MTP TODO: uncomment
-            //return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
+            HandleMissingCtx(mtcp, iph, mtph, payload.len, cur_ts);
         }           
 
-        MtpSynChain(mtcp, cur_ts, iph->saddr, mtph->source, seq, window, 
-			local_ip, local_port, mtph, listen_ctx);
+        uint32_t remote_ip = iph->saddr;
+        uint16_t remote_port = mtph->source;
+        uint32_t init_seq = mtph->seq;
+        uint16_t rwnd_size = mtph->window; 
+        MtpSynChain(mtcp, cur_ts, remote_ip, remote_port, 
+                    mtph->seq, rwnd_size, listen_ctx);
         return 0;
     }
 	

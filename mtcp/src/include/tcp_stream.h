@@ -176,6 +176,52 @@ struct tcp_send_vars
 #endif
 };
 
+#ifdef USE_MTP
+struct mtp_ctx {
+    uint32_t remote_ip;
+    uint32_t local_ip;
+    uint16_t remote_port;
+    uint16_t local_port;
+    //addr_t buf_addr;
+
+    uint8_t state;
+    //uint32_t SMSS = 1460;
+
+    // sender vars
+    uint32_t init_seq;
+    //uint32 last_ack = 429496729;
+    //uint8_t duplicate_acks = 0;
+    //uint32_t flightsize_dupl = 0;
+    //uint32_t ssthresh = 0;
+    //uint32_t cwnd_size = 3 * SMSS;
+
+    //uint32 RTO = ONE_SEC;
+    //int64 SRTT = 0;
+    //uint32 RTTVAR = 0;
+    //bool first_rto = 1;
+
+    //uint32_t send_una = 0;
+    uint32_t send_next;
+    //uint32_t data_end = 0;
+    uint32_t last_rwnd_size;
+
+    // receiver vars
+    uint32_t recv_init_seq;
+    //uint32 rwnd_size = 16959;
+    uint32_t recv_next;
+    uint32_t last_flushed;
+    //bool first_data_rcvd = true;
+
+    //timer_t ack_timeout;
+
+    //addr_t read_from_addr;
+    //addr_t write_to_addr;
+
+    //sliding_wnd meta_rwnd;
+    //buffer_id_t bid;
+};
+#endif
+
 typedef struct tcp_stream
 {
 	socket_map_t socket;
@@ -216,6 +262,11 @@ typedef struct tcp_stream
 
 	struct tcp_recv_vars *rcvvar;
 	struct tcp_send_vars *sndvar;
+
+#ifdef USE_MTP
+    struct mtp_ctx *mtp;
+#endif
+
 #if RATE_LIMIT_ENABLED
 	struct token_bucket  *bucket;
 #endif

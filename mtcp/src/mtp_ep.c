@@ -410,15 +410,20 @@ static inline struct accept_res* accept_ep(mctx_t mctx, mtcp_manager_t mtcp,
 }
 
 static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
-	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd,
-	uint32_t local_ip, uint16_t local_port, struct mtp_bp_hdr* tcph,
+	uint32_t ev_remote_ip, uint16_t ev_remote_port, uint32_t ev_init_seq, uint16_t ev_rwnd_size,
 	struct mtp_listen_ctx *ctx)
 {
 	if (ctx->state != 0) return;
+    
+    // MTP TODO: do rand init seq
+    // uint32_t init_seq = rand_r(&next_seed) % TCP_MAX_SEQ;
+    uint32_t init_seq = 0;
 
 	// MTP new_ctx instruction
-	tcp_stream *cur_stream = CreateCtx(mtcp, local_ip, local_port,
-		remote_ip, remote_port, init_seq, rwnd, cur_ts, tcph);
+	tcp_stream *cur_stream = CreateCtx(mtcp, cur_ts, ev_remote_ip, ctx->local_ip, 
+        ev_remote_port, ctx->local_port, init_seq, init_seq + 1,
+        ev_init_seq, ev_init_seq + 1, ev_init_seq,
+        ev_rwnd_size, 2);
 	if (cur_stream == NULL) return;
 
 	// Add stream to the listen context
@@ -569,8 +574,8 @@ struct accept_res* MtpAcceptChain(mctx_t mctx, mtcp_manager_t mtcp, struct socka
 }
 
 void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts,
-	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd,
-	uint32_t local_ip, uint16_t local_port, struct mtp_bp_hdr* tcph, struct mtp_listen_ctx *ctx) 
+	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd_size,
+	struct mtp_listen_ctx *ctx) 
 {
-	syn_ep(mtcp, cur_ts, remote_ip, remote_port, init_seq, rwnd, local_ip, local_port, tcph, ctx);
+	syn_ep(mtcp, cur_ts, remote_ip, remote_port, init_seq, rwnd_size, ctx);
 }

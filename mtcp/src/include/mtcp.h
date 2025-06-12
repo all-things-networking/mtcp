@@ -232,6 +232,9 @@ struct mtcp_manager
 	mem_pool_t rv_pool;			/* memory pool for recv variables */
 	mem_pool_t sv_pool;			/* memory pool for send variables */
 	mem_pool_t mv_pool;			/* memory pool for monitor variables */
+    #ifdef USE_MTP
+	mem_pool_t mtp_pool;		/* memory pool for MTP variables */
+    #endif
 
 	//mem_pool_t socket_pool;
 	sb_manager_t rbm_snd;

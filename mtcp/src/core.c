@@ -1011,6 +1011,17 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 		CTRACE_ERROR("Failed to allocate tcp send variable pool.\n");
 		return NULL;
 	}
+   
+    #ifdef USE_MTP
+    sprintf(pool_name, "mtp_pool_%d", ctx->cpu);
+	mtcp->mtp_pool = MPCreate(pool_name, sizeof(struct mtp_ctx), 
+			sizeof(struct mtp_ctx) * CONFIG.max_concurrency);
+	if (!mtcp->mtp_pool) {
+		CTRACE_ERROR("Failed to allocate MTP context pool.\n");
+		return NULL;
+	}
+    #endif
+ 
 #else
 	mtcp->flow_pool = MPCreate(sizeof(tcp_stream),
 				   sizeof(tcp_stream) * CONFIG.max_concurrency);
@@ -1029,7 +1040,18 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 	if (!mtcp->sv_pool) {
 		CTRACE_ERROR("Failed to allocate tcp send variable pool.\n");
 		return NULL;
-	}	
+	}
+
+    #ifdef USE_MTP
+    sprintf(pool_name, "mtp_pool_%d", ctx->cpu);
+	mtcp->mtp_pool = MPCreate(pool_name, sizeof(struct mtp_ctx), 
+			sizeof(struct mtp_ctx) * CONFIG.max_concurrency);
+	if (!mtcp->mtp_pool) {
+		CTRACE_ERROR("Failed to allocate MTP context pool.\n");
+		return NULL;
+	}
+    #endif
+	
 #endif
 	mtcp->rbm_snd = SBManagerCreate(mtcp, CONFIG.sndbuf_size, CONFIG.max_num_buffers);
 	if (!mtcp->rbm_snd) {
@@ -1534,6 +1556,7 @@ mtcp_free_context(mctx_t mctx)
 		DestroyMTCPSender(mtcp->n_sender[i]);
 	}
 
+	MPDestroy(mtcp->mtp_pool);
 	MPDestroy(mtcp->rv_pool);
 	MPDestroy(mtcp->sv_pool);
 	MPDestroy(mtcp->flow_pool);
