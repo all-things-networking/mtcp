@@ -185,7 +185,7 @@ struct mtp_ctx {
     //addr_t buf_addr;
 
     uint8_t state;
-    //uint32_t SMSS = 1460;
+    uint32_t SMSS;
 
     // sender vars
     uint32_t init_seq;
@@ -207,7 +207,7 @@ struct mtp_ctx {
 
     // receiver vars
     uint32_t recv_init_seq;
-    //uint32 rwnd_size = 16959;
+    uint32_t rwnd_size;
     uint32_t recv_next;
     uint32_t last_flushed;
     //bool first_data_rcvd = true;

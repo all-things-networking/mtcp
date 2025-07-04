@@ -307,7 +307,7 @@ int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog)
 
 tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint32_t remote_ip, uint32_t local_ip, 
-    uint16_t remote_ip, uint16_t local_port,
+    uint16_t remote_port, uint16_t local_port,
 	uint32_t init_seq, uint32_t send_next, 
     uint32_t recv_init_seq, uint32_t recv_next, uint32_t last_flushed,
     uint16_t last_rwnd_size, uint8_t state) 
@@ -315,14 +315,33 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	// Create new stream and add to flow hash table
 	tcp_stream *cur_stream = CreateTCPStream(mtcp, NULL, MTCP_SOCK_STREAM, 
 		local_ip, local_port, remote_ip, remote_port);
+    /**
 	cur_stream->sndvar->cwnd = 1;
-	cur_stream->sndvar->peer_wnd = rwnd;
+	cur_stream->sndvar->peer_wnd = last_rwnd_size;
 	cur_stream->rcvvar->irs = init_seq;
 	cur_stream->rcv_nxt = (cur_stream->rcvvar->irs + 1);
 	cur_stream->rcvvar->last_flushed_seq = cur_stream->rcvvar->irs;
 	ParseTCPOptions(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, 
 	(tcph->doff << 2) - TCP_HEADER_LEN);
 	cur_stream->state = TCP_ST_SYN_RCVD;
+    **/
+
+    // Setting according to input
+    cur_stream->mtp->remote_ip = remote_ip;
+    cur_stream->mtp->local_ip = local_ip;
+    cur_stream->mtp->remote_port = remote_port;
+    cur_stream->mtp->local_port = local_port;
+    cur_stream->mtp->state = state;
+    cur_stream->mtp->init_seq = init_seq;
+    cur_stream->mtp->send_next = send_next;
+    cur_stream->mtp->last_rwnd_size = last_rwnd_size;
+    cur_stream->mtp->recv_init_seq = recv_init_seq;
+    cur_stream->mtp->recv_next = recv_next;
+    cur_stream->mtp->last_flushed = last_flushed; 
+
+    // Setting defaults
+    cur_stream->mtp->SMSS = 1460;
+    cur_stream->mtp->rwnd_size = 14600;
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	if (!rcvvar->rcvbuf) {

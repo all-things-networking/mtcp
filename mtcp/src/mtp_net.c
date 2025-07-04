@@ -182,10 +182,11 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         uint32_t init_seq = mtph->seq;
         uint16_t rwnd_size = mtph->window; 
         MtpSynChain(mtcp, cur_ts, remote_ip, remote_port, 
-                    mtph->seq, rwnd_size, listen_ctx);
+                    init_seq, rwnd_size, listen_ctx);
         return 0;
     }
-	
+
+    /*	
 	// MTP: maps to flow id generation in parser
 	tcp_stream s_stream;
     s_stream.saddr = local_ip;
@@ -217,6 +218,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	if (is_ack){
         MtpAckChain(mtcp, cur_ts, mtph, seq, ack_seq, payload.len, window, cur_stream);
     }
+    */
 	
 	return TRUE;
 }

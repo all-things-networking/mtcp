@@ -461,17 +461,17 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     
     memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 
-	bp->hdr.source = cur_stream->sport;
-	bp->hdr.dest = cur_stream->dport;
-    bp->hdr.seq = htonl(cur_stream->sndvar->iss);
-    bp->hdr.ack_seq = htonl(init_seq + 1);
+	bp->hdr.source = cur_stream->mtp->local_port;
+	bp->hdr.dest = cur_stream->mtp->remote_port;
+    bp->hdr.seq = htonl(cur_stream->mtp->init_seq);
+    bp->hdr.ack_seq = htonl(ev_init_seq + 1);
 
     bp->hdr.syn = TRUE;
     bp->hdr.ack = TRUE;
 
     // options to calculate data offset
     // MSS
-    MTP_set_opt_mss(&(bp->opts.mss), cur_stream->sndvar->mss);
+    MTP_set_opt_mss(&(bp->opts.mss), cur_stream->mtp->SMSS);
    
     // MTP TODO: SACK? 
 #if TCP_OPT_SACK_ENABLED
@@ -481,12 +481,12 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     MTP_set_opt_nop(&(bp->opts.nop1));
     MTP_set_opt_nop(&(bp->opts.nop2));
 
-    // Timestamp
+    // MTP TODO: Timestamp
     MTP_set_opt_timestamp(&(bp->opts.timestamp),
                             htonl(cur_ts),
                             htonl(cur_stream->rcvvar->ts_recent));
     
-    // Window scale
+    // MTP TODO: Window scale
     MTP_set_opt_nop(&(bp->opts.nop3));
     MTP_set_opt_wscale(&(bp->opts.wscale), cur_stream->sndvar->wscale_mine);
    
@@ -495,7 +495,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     //uint16_t optlen = MTP_CalculateOptionLength(bp);
     //bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
-    uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
+    uint32_t window32 = cur_stream->mtp->rwnd_size;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
 

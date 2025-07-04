@@ -31,7 +31,7 @@ int SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog);
 tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint32_t remote_ip, uint32_t local_ip,
-    uint16_t remote_ip, uint16_t local_port,
+    uint16_t remote_port, uint16_t local_port,
     uint32_t init_seq, uint32_t send_next, 
     uint32_t recv_init_seq, uint32_t recv_next, uint32_t last_flushed,
     uint16_t last_rwnd_size, uint8_t state);
