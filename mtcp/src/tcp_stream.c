@@ -256,8 +256,24 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
 		return NULL;
 	}
+
+    #ifdef USE_MTP
+    stream->mtp = (struct mtp_ctx *)MPAllocateChunk(mtcp->mtp_pool);
+	if (!stream->mtp) {
+		MPFreeChunk(mtcp->sv_pool, stream->sndvar);
+		MPFreeChunk(mtcp->rv_pool, stream->rcvvar);
+		MPFreeChunk(mtcp->flow_pool, stream);
+		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+		return NULL;
+	}
+    #endif
+
 	memset(stream->rcvvar, 0, sizeof(struct tcp_recv_vars));
 	memset(stream->sndvar, 0, sizeof(struct tcp_send_vars));
+
+    #ifdef USE_MTP
+	memset(stream->sndvar, 0, sizeof(struct mtp_ctx));
+    #endif
 
 	stream->id = mtcp->g_id++;
 	stream->saddr = saddr;
@@ -541,6 +557,9 @@ DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream)
 	
 	mtcp->flow_cnt--;
 
+    #ifdef USE_MTP
+	MPFreeChunk(mtcp->mtp_pool, stream->mtp);
+    #endif
 	MPFreeChunk(mtcp->rv_pool, stream->rcvvar);
 	MPFreeChunk(mtcp->sv_pool, stream->sndvar);
 	MPFreeChunk(mtcp->flow_pool, stream);
