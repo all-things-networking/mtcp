@@ -312,7 +312,6 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint32_t recv_init_seq, uint32_t recv_next, uint32_t last_flushed,
     uint16_t last_rwnd_size, uint8_t state) 
 {
-    printf("c1\n");
 	// Create new stream and add to flow hash table
 	tcp_stream *cur_stream = CreateTCPStream(mtcp, NULL, MTCP_SOCK_STREAM, 
 		local_ip, local_port, remote_ip, remote_port);
@@ -327,13 +326,9 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	cur_stream->state = TCP_ST_SYN_RCVD;
     **/
 
-    
-    printf("c2\n");
     // Setting according to input
     cur_stream->mtp->remote_ip = remote_ip;
-    printf("c21\n");
     cur_stream->mtp->local_ip = local_ip;
-    printf("c22\n");
     cur_stream->mtp->remote_port = remote_port;
     cur_stream->mtp->local_port = local_port;
     cur_stream->mtp->state = state;
@@ -348,8 +343,6 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     cur_stream->mtp->SMSS = 1460;
     cur_stream->mtp->rwnd_size = 14600;
 
-    
-    printf("c3\n");
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	if (!rcvvar->rcvbuf) {
 		rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
@@ -375,8 +368,6 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 		}
 	}
 
-    
-    printf("c4\n");
 	return cur_stream;
 }
 

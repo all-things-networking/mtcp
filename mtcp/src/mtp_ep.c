@@ -413,7 +413,6 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t ev_remote_ip, uint16_t ev_remote_port, uint32_t ev_init_seq, uint16_t ev_rwnd_size,
 	struct mtp_listen_ctx *ctx)
 {
-    printf("s1\n");
 	if (ctx->state != 0) return;
     
     // MTP TODO: do rand init seq
@@ -425,11 +424,8 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
         ev_remote_port, ctx->local_port, init_seq, init_seq + 1,
         ev_init_seq, ev_init_seq + 1, ev_init_seq,
         ev_rwnd_size, 2);
-    
-    printf("s2\n");
 	if (cur_stream == NULL) return;
 
-    printf("s3\n");
 	// Add stream to the listen context
 	// Note: since mTCP's accept_res struct includes flow context, we insert
 	//		new accept_res after context creation
@@ -448,8 +444,6 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	}
 	pthread_mutex_unlock(&ctx->accept_lock);
 
-    
-    printf("s5\n");
 	// MTP pkt gen
 	/*uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
@@ -463,8 +457,6 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     */
     // MTP TODO: check that size + options is not more than MSS
    
-    
-    printf("s6\n");
     mtp_bp* bp = GetFreeBP(cur_stream);
     
     memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
@@ -512,8 +504,6 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     bp->payload.len = 0;
 
     AddtoGenList(mtcp, cur_stream, cur_ts);
-    
-    printf("s7\n");
 }
 
 

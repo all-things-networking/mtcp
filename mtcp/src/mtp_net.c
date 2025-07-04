@@ -144,7 +144,6 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	   incoming net events are "created" from parsing, and dispatched to eps directly
 	   following a "run-to-completion model" */
 
-    printf("1\n");
 	// MTP - Compiler-Start: extract
     // maps to extract in the parser
     struct mtp_bp_hdr *mtph = (struct mtp_bp_hdr *) ((u_char *)iph + (iph->ihl << 2));
@@ -167,8 +166,6 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
     // MTP - Combining dispatcher, context look up, and event chain
 
-    
-    printf("2\n");
     // MTP: maps to SYN event
     if (mtph->syn && !mtph->ack){
         // MTP TODO: change key to include IP
@@ -184,15 +181,11 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         uint16_t remote_port = mtph->source;
         uint32_t init_seq = mtph->seq;
         uint16_t rwnd_size = mtph->window; 
-        
-        printf("3\n");
         MtpSynChain(mtcp, cur_ts, remote_ip, remote_port, 
                     init_seq, rwnd_size, listen_ctx);
-        printf("4\n");
         return 0;
     }
 
-    printf("5\n");
     /*	
 	// MTP: maps to flow id generation in parser
 	tcp_stream s_stream;
