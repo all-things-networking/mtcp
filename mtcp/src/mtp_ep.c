@@ -59,11 +59,11 @@ static inline void EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint
 				rcvvar->rttvar = rcvvar->mdev_max;
 			}
 		}
-		if (TCP_SEQ_GT(cur_stream->sndvar->snd_una, rcvvar->rtt_seq)) {
+		if (TCP_SEQ_GT(cur_stream->mtp->send_una, rcvvar->rtt_seq)) {
 			if (rcvvar->mdev_max < rcvvar->rttvar) {
 				rcvvar->rttvar -= (rcvvar->rttvar - rcvvar->mdev_max) >> 2;
 			}
-			rcvvar->rtt_seq = cur_stream->snd_nxt;
+			rcvvar->rtt_seq = cur_stream->mtp->send_next;
 			rcvvar->mdev_max = tcp_rto_min;
 		}
 	} else {
@@ -71,7 +71,7 @@ static inline void EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint
 		rcvvar->srtt = m << 3;
 		rcvvar->mdev = m << 1;
 		rcvvar->mdev_max = rcvvar->rttvar = MAX(rcvvar->mdev, tcp_rto_min);
-		rcvvar->rtt_seq = cur_stream->snd_nxt;
+		rcvvar->rtt_seq = cur_stream->mtp->send_next;
 	}
 
 	TRACE_RTT("mrtt: %u (%uus), srtt: %u (%ums), mdev: %u, mdev_max: %u, "
@@ -146,11 +146,14 @@ static inline int send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_
 
 static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq, 
         tcp_stream* cur_stream, scratchpad* scratch){
+
     if (cur_stream->mtp->state == MTP_TCP_SYNACK_SENT_ST &&
         ack_seq == cur_stream->mtp->init_seq + 1){
         cur_stream->mtp->state = MTP_TCP_ESTABLISHED_ST;
         cur_stream->mtp->send_una += 1;
         cur_stream->mtp->send_next = ack_seq;
+        cur_stream->mtp->last_ack = ack_seq;
+
         if (cur_stream->mtp->cwnd_size == 1){
             cur_stream->mtp->cwnd_size = 2 * cur_stream->mtp->SMSS;
         }
@@ -178,18 +181,20 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq
 {
     if (scratch->skip_ack_eps) return;
 
-	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
 
-	if (cur_stream->state != TCP_ST_ESTABLISHED) return;
-
-	if(ack_seq < sndvar->snd_una || cur_stream->snd_nxt < ack_seq) {
+    struct mtp_ctx* ctx = cur_stream->mtp;
+	
+    if(ack_seq < ctx->send_una || ctx->send_next < ack_seq) {
 		scratch->skip_ack_eps = 1;
 		return;
 	}
-
-	// Set RTO, using RTT calculation logic from mTCP
-	uint32_t rtt = cur_ts - rcvvar->ts_lastack_rcvd;
+    
+	// MTP TODO: make consistent with MTP
+    // Set RTO, using RTT calculation logic from mTCP
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+    uint32_t rtt = cur_ts - rcvvar->ts_lastack_rcvd;
 	EstimateRTT(mtcp, cur_stream, rtt);
 	sndvar->rto = (rcvvar->srtt >> 3) + rcvvar->rttvar;
 }
@@ -197,65 +202,62 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq
 static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
     tcp_stream* cur_stream, scratchpad* scratch)
 {
-	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
-
-	if (cur_stream->state != TCP_ST_ESTABLISHED) return;
-
-	if(scratch->skip_ack_eps)
-		return;
+	if(scratch->skip_ack_eps) return;
+	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
+    struct mtp_ctx* ctx = cur_stream->mtp;
 
 	scratch->change_cwnd = 1;
 
-	if(ack_seq == rcvvar->last_ack_seq) {
-		rcvvar->dup_acks++;
+	if(ack_seq == ctx->last_ack) {
+		ctx->duplicate_acks++;
 
 		scratch->change_cwnd = 0;
 
-		if(rcvvar->dup_acks == 1) {
-			rcvvar->flightsize_dupl = cur_stream->snd_nxt - sndvar->snd_una;
+		if(ctx->duplicate_acks == 1) {
+			ctx->flightsize_dupl = ctx->send_next - ctx->send_una;
 		}
 
-		if(rcvvar->dup_acks == 3) {
+		if(ctx->duplicate_acks == 3) {
 			// MTP congestion window resize
-			sndvar->ssthresh = MAX(rcvvar->flightsize_dupl / 2, 2 * MSS);
-			sndvar->cwnd = sndvar->ssthresh + 1 * MSS;
+            uint32_t opt1 = ctx->flightsize_dupl/2;
+            uint32_t opt2 = 2 * ctx->SMSS;
+            if (opt1 >= opt2) ctx->ssthresh = opt1;
+            else ctx->ssthresh = opt2;
+			
+            ctx->cwnd_size = ctx->ssthresh + ctx->SMSS;
 		}
 
-		if(rcvvar->dup_acks != 3) {
-			sndvar->cwnd += MSS;
+		if(ctx->duplicate_acks != 3) {
+			ctx->cwnd_size += ctx->SMSS;
 		}
 	} else {
-		if(rcvvar->dup_acks > 0) {
-			sndvar->cwnd = sndvar->ssthresh;
+		if(ctx->duplicate_acks > 0) {
+			ctx->cwnd_size = ctx->ssthresh;
 		}
-		rcvvar->dup_acks = 0;
-		rcvvar->last_ack_seq = ack_seq;
+		ctx->duplicate_acks = 0;
+		ctx->last_ack = ack_seq;
 	}
 }
 
 static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
 	tcp_stream* cur_stream, scratchpad* scratch)
 {
-	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-
-	if (cur_stream->state != TCP_ST_ESTABLISHED) return;
-
-	if(scratch->skip_ack_eps)
-		return;
+	if(scratch->skip_ack_eps) return;
+	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
+    struct mtp_ctx *ctx = cur_stream->mtp;
 
 	if(scratch->change_cwnd) {
-		uint32_t rmlen = ack_seq - sndvar->snd_una;
-		uint16_t packets = rmlen / sndvar->eff_mss;
-		if (packets * sndvar->eff_mss > rmlen) {
+		uint32_t rmlen = ack_seq - ctx->send_una;
+		uint16_t packets = rmlen / ctx->eff_SMSS;
+		if (packets * ctx->eff_SMSS > rmlen) {
 			packets++;
 		}
 
-		if (sndvar->cwnd < sndvar->ssthresh) {
-			sndvar->cwnd += (sndvar->mss * packets);
+		if (ctx->cwnd_size < ctx->ssthresh) {
+			ctx->cwnd_size += (ctx->SMSS * packets);
 		} else {
-			uint32_t add_cwnd = packets * sndvar->mss * sndvar->mss / sndvar->cwnd;
-			sndvar->cwnd += add_cwnd;
+			uint32_t add_cwnd = packets * ctx->SMSS * ctx->SMSS / ctx->cwnd_size;
+			ctx->cwnd_size += add_cwnd;
 		}
 	}
 }

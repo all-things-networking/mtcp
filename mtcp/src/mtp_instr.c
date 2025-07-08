@@ -326,24 +326,28 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	cur_stream->state = TCP_ST_SYN_RCVD;
     **/
 
+    struct mtp_ctx* mtp = cur_stream->mtp;
     // Setting according to input
-    cur_stream->mtp->remote_ip = remote_ip;
-    cur_stream->mtp->local_ip = local_ip;
-    cur_stream->mtp->remote_port = remote_port;
-    cur_stream->mtp->local_port = local_port;
-    cur_stream->mtp->state = state;
-    cur_stream->mtp->init_seq = init_seq;
-    cur_stream->mtp->send_una = send_una;
-    cur_stream->mtp->send_next = send_next;
-    cur_stream->mtp->last_rwnd_size = last_rwnd_size;
-    cur_stream->mtp->recv_init_seq = recv_init_seq;
-    cur_stream->mtp->recv_next = recv_next;
-    cur_stream->mtp->last_flushed = last_flushed; 
+    mtp->remote_ip = remote_ip;
+    mtp->local_ip = local_ip;
+    mtp->remote_port = remote_port;
+    mtp->local_port = local_port;
+    mtp->state = state;
+    mtp->init_seq = init_seq;
+    mtp->send_una = send_una;
+    mtp->send_next = send_next;
+    mtp->last_rwnd_size = last_rwnd_size;
+    mtp->recv_init_seq = recv_init_seq;
+    mtp->recv_next = recv_next;
+    mtp->last_flushed = last_flushed; 
 
     // Setting defaults
-    cur_stream->mtp->cwnd_size = 1;
-    cur_stream->mtp->SMSS = 1460;
-    cur_stream->mtp->rwnd_size = 14600;
+    mtp->SMSS = 1460;
+    // MTP TODO: fix this
+    mtp->eff_SMSS = mtp->SMSS - (TCP_OPT_TIMESTAMP_LEN + 2); 
+    mtp->rwnd_size = 14600;
+    mtp->cwnd_size = 1;
+    mtp->duplicate_acks = 0;
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	if (!rcvvar->rcvbuf) {

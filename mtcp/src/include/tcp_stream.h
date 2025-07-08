@@ -186,13 +186,14 @@ struct mtp_ctx {
 
     uint8_t state;
     uint32_t SMSS;
+    uint32_t eff_SMSS;
 
     // sender vars
     uint32_t init_seq;
-    //uint32 last_ack = 429496729;
-    //uint8_t duplicate_acks = 0;
-    //uint32_t flightsize_dupl = 0;
-    //uint32_t ssthresh = 0;
+    uint32_t last_ack;
+    uint8_t duplicate_acks;
+    uint32_t flightsize_dupl;
+    uint32_t ssthresh;
     uint32_t cwnd_size;
 
     //uint32 RTO = ONE_SEC;

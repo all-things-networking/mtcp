@@ -435,6 +435,36 @@ list<instr_t> synack_ep (SYNACK ev, tcp_context ctx, interm_out int_out) {
     return out;
 }
 
+list<instr_t> conn_ack_ep (ACK ev, tcp_context ctx, interm_out int_out) {
+    list<instr_t> out;
+
+    if (ctx.state == SYNACK_SENT_ST &&
+        ev.ack_seq == ctx.init_seq + 1){
+        ctx.state == 5; // ESTABLISHED_ST
+        ctx.send_una = ctx.send_una + 1;
+        ctx.send_next = ev.ack_seq;
+        ctx.last_ack = ev.ack_seq;
+        if (ctx.cwnd_size == 1){
+            ctx.cwnd_size = 2 * SMSS;
+        }
+        else {
+            ctx.cwnd_size = SMSS;
+        }
+        int_out.skip_ack_eps = true;
+        instr_t instr = timer_cancel_instr(ack_timeout);
+        out.add(instr);
+
+        // TODO: fill out
+        instr = notify();
+        out.add(instr);
+    }
+    else {
+        in_out.skip_ack_eps = false;
+    }
+
+    return out;
+}
+
 
 void rto_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     if(int_out.skip_ack_eps)
@@ -475,8 +505,6 @@ void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     
     if (ctx.state != 5) return; //ESTABLISHED_ST
     
-    uint32 SMSS = 1460;
-
     int_out.change_cwnd = 1;
 
     if(ev.ack_seq == ctx.last_ack) {
@@ -520,7 +548,6 @@ void slows_congc_ep (ACK ev, tcp_context ctx, interm_out int_out) {
 
     if (ctx.state != 5) return; //ESTABLISHED_ST
     
-    uint32 SMSS = 1460;
     uint32 EFF_SMSS = 1448;     // SMSS - TCP options (timestamp + alignment)
 
     if(int_out.change_cwnd) {
@@ -539,35 +566,6 @@ void slows_congc_ep (ACK ev, tcp_context ctx, interm_out int_out) {
             ctx.cwnd_size = ctx.cwnd_size + add_cwnd;
         }
     }
-}
-
-list<instr_t> conn_ack_ep (ACK ev, tcp_context ctx, interm_out int_out) {
-    list<instr_t> out;
-
-    if (ctx.state == SYNACK_SENT_ST &&
-        ev.ack_seq == ctx.init_seq + 1){
-        ctx.state == 5; // ESTABLISHED_ST
-        ctx.send_una = ctx.send_una + 1;
-        ctx.send_next = ev.ack_seq;
-        if (ctx.cwnd_size == 1){
-            ctx.cwnd_size = 2 * SMSS;
-        }
-        else {
-            ctx.cwnd_size = SMSS;
-        }
-        int_out.skip_ack_eps = true;
-        instr_t instr = timer_cancel_instr(ack_timeout);
-        out.add(instr);
-
-        // TODO: fill out
-        instr = notify();
-        out.add(instr);
-    }
-    else {
-        in_out.skip_ack_eps = false;
-    }
-
-    return out;
 }
 
 
