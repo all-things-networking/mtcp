@@ -193,14 +193,14 @@ struct mtp_ctx {
     //uint8_t duplicate_acks = 0;
     //uint32_t flightsize_dupl = 0;
     //uint32_t ssthresh = 0;
-    //uint32_t cwnd_size = 3 * SMSS;
+    uint32_t cwnd_size;
 
     //uint32 RTO = ONE_SEC;
     //int64 SRTT = 0;
     //uint32 RTTVAR = 0;
     //bool first_rto = 1;
 
-    //uint32_t send_una = 0;
+    uint32_t send_una;
     uint32_t send_next;
     //uint32_t data_end = 0;
     uint32_t last_rwnd_size;

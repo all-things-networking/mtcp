@@ -10,6 +10,11 @@
 #define MTP_NO_EVENT -1
 #define MTP_SYN 0
 
+#define MTP_TCP_LISTEN_ST 0
+#define MTP_TCP_ACCEPT_ST 1
+#define MTP_TCP_SYNACK_SENT_ST 2
+#define MTP_TCP_SYN_SENT_ST 3
+#define MTP_TCP_ESTABLISHED_ST 5
 
 /********************** MTP EPs & EP Chains **********************
  * This module implements MTP Event Processors(EP), and EP chains
@@ -23,8 +28,8 @@
 int MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream);
 
 // handles received ACKs
-void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, struct mtp_bp_hdr* tcph, uint32_t seq, 
-	uint32_t ack_seq, int payloadlen, uint32_t window, tcp_stream* cur_stream);
+void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
+    uint32_t window, tcp_stream* cur_stream);
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload,
 	int payloadlen, tcp_stream *cur_stream);

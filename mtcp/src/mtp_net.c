@@ -168,6 +168,11 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
     // MTP: maps to SYN event
     if (mtph->syn && !mtph->ack){
+        uint32_t remote_ip = iph->saddr;
+        uint16_t remote_port = mtph->source;
+        uint32_t init_seq = mtph->seq;
+        uint16_t rwnd_size = mtph->window;
+        
         // MTP TODO: change key to include IP
         // MTP TODO: separate out  flow id construction
 		// Listen context lookup
@@ -177,24 +182,44 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
             HandleMissingCtx(mtcp, iph, mtph, payload.len, cur_ts);
         }           
 
-        uint32_t remote_ip = iph->saddr;
-        uint16_t remote_port = mtph->source;
-        uint32_t init_seq = mtph->seq;
-        uint16_t rwnd_size = mtph->window; 
         MtpSynChain(mtcp, cur_ts, remote_ip, remote_port, 
                     init_seq, rwnd_size, listen_ctx);
         return 0;
     }
 
-    /*	
+    	
 	// MTP: maps to flow id generation in parser
 	tcp_stream s_stream;
-    s_stream.saddr = local_ip;
-	s_stream.sport = local_port;
-	s_stream.daddr = remote_ip;
-	s_stream.dport = remote_port;
+    s_stream.saddr = iph->daddr;
+	s_stream.sport = mtph->dest;
+	s_stream.daddr = iph->saddr;
+	s_stream.dport = mtph->source;
+
+    //if (mtph->syn && mtph->ack){
+    //    return 0;
+    //}
+
+    //if (payload.len > 0){
+    //}
+
+    if (mtph->ack){
+
+        uint32_t ev_ack_seq = mtph->ack_seq;
+        uint16_t ev_rwnd_size = mtph->window;
+ 
+        // Context lookup
+        tcp_stream *cur_stream = NULL;
+	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
+            printf("No context\n");
+            return -1;
+            // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
+        }
+        
+        MtpAckChain(mtcp, cur_ts, ev_ack_seq, ev_rwnd_size, cur_stream);
+    } 
 
     // Context lookup
+    /*
 	tcp_stream *cur_stream = NULL;
 	if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
         // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);

@@ -144,15 +144,44 @@ static inline int send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_
 	return ret;
 }
 
+static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq, 
+        tcp_stream* cur_stream, scratchpad* scratch){
+    if (cur_stream->mtp->state == MTP_TCP_SYNACK_SENT_ST &&
+        ack_seq == cur_stream->mtp->init_seq + 1){
+        cur_stream->mtp->state = MTP_TCP_ESTABLISHED_ST;
+        cur_stream->mtp->send_una += 1;
+        cur_stream->mtp->send_next = ack_seq;
+        if (cur_stream->mtp->cwnd_size == 1){
+            cur_stream->mtp->cwnd_size = 2 * cur_stream->mtp->SMSS;
+        }
+        else {
+            cur_stream->mtp->cwnd_size = cur_stream->mtp->SMSS;
+        }
+        scratch->skip_ack_eps = 1;
+        TimerCancel(mtcp, cur_stream);
+
+        // Raise an event to the listening socket
+		struct mtp_listen_ctx *listen_ctx = 
+			(struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &cur_stream->sport);
+		if (listen_ctx->socket && (listen_ctx->socket->epoll & MTCP_EPOLLIN)) {
+			AddEpollEvent(mtcp->ep, MTCP_EVENT_QUEUE, listen_ctx->socket, MTCP_EPOLLIN);
+		}
+
+    }
+    else {
+        scratch->skip_ack_eps = 0;
+    }
+}
+
 static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq, 
     tcp_stream* cur_stream, scratchpad* scratch)
 {
+    if (scratch->skip_ack_eps) return;
+
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 
 	if (cur_stream->state != TCP_ST_ESTABLISHED) return;
-
-	scratch->skip_ack_eps = 0;
 
 	if(ack_seq < sndvar->snd_una || cur_stream->snd_nxt < ack_seq) {
 		scratch->skip_ack_eps = 1;
@@ -413,17 +442,19 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t ev_remote_ip, uint16_t ev_remote_port, uint32_t ev_init_seq, uint16_t ev_rwnd_size,
 	struct mtp_listen_ctx *ctx)
 {
-	if (ctx->state != 0) return;
+	if (ctx->state != MTP_TCP_LISTEN_ST) return;
     
     // MTP TODO: do rand init seq
     // uint32_t init_seq = rand_r(&next_seed) % TCP_MAX_SEQ;
     uint32_t init_seq = 0;
 
 	// MTP new_ctx instruction
-	tcp_stream *cur_stream = CreateCtx(mtcp, cur_ts, ev_remote_ip, ctx->local_ip, 
-        ev_remote_port, ctx->local_port, init_seq, init_seq + 1,
-        ev_init_seq, ev_init_seq + 1, ev_init_seq,
-        ev_rwnd_size, 2);
+	tcp_stream *cur_stream = CreateCtx(mtcp, cur_ts, 
+                                      ev_remote_ip, ctx->local_ip, 
+                                      ev_remote_port, ctx->local_port, 
+                                      init_seq, init_seq, init_seq + 1,
+                                      ev_init_seq, ev_init_seq + 1, ev_init_seq,
+                                      ev_rwnd_size, MTP_TCP_SYNACK_SENT_ST);
 	if (cur_stream == NULL) return;
 
 	// Add stream to the listen context
@@ -518,9 +549,10 @@ int MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
     return send_ep(mtcp, cur_ts, cur_stream);
 }
 
-void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, struct mtp_bp_hdr* tcph, uint32_t seq, 
-	uint32_t ack_seq, int payloadlen, uint32_t window, tcp_stream* cur_stream)
+void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
+    uint32_t window, tcp_stream* cur_stream)
 {
+    /*
     struct tcp_send_vars *sndvar = cur_stream->sndvar;
 
     if (cur_stream->state == TCP_ST_SYN_RCVD){
@@ -547,12 +579,13 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, struct mtp_bp_hdr* tcph, 
 			AddEpollEvent(mtcp->ep, MTCP_EVENT_QUEUE, listen_ctx->socket, MTCP_EPOLLIN);
 		}
     } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
-		scratchpad scratch;
-		rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-		fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-		slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-		ack_net_ep(mtcp, cur_ts, ack_seq, window, cur_stream, &scratch);
-    }
+    */
+    scratchpad scratch;
+    conn_ack_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
+    rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
+    fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
+    slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
+    ack_net_ep(mtcp, cur_ts, ack_seq, window, cur_stream, &scratch);
 }
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload, 

@@ -28,8 +28,12 @@
 // TURN MTP ON/OFF BY COMMENTING OUT THIS LINE
 #define USE_MTP     1
 
-#ifndef MTP_ERROR
-#define MTP_ERROR (-1)
+#ifdef USE_MTP
+
+    #ifndef MTP_ERROR
+    #define MTP_ERROR (-1)
+    #endif
+
 #endif
 
 

@@ -308,7 +308,7 @@ int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog)
 tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint32_t remote_ip, uint32_t local_ip, 
     uint16_t remote_port, uint16_t local_port,
-	uint32_t init_seq, uint32_t send_next, 
+	uint32_t init_seq, uint32_t send_una, uint32_t send_next, 
     uint32_t recv_init_seq, uint32_t recv_next, uint32_t last_flushed,
     uint16_t last_rwnd_size, uint8_t state) 
 {
@@ -333,6 +333,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     cur_stream->mtp->local_port = local_port;
     cur_stream->mtp->state = state;
     cur_stream->mtp->init_seq = init_seq;
+    cur_stream->mtp->send_una = send_una;
     cur_stream->mtp->send_next = send_next;
     cur_stream->mtp->last_rwnd_size = last_rwnd_size;
     cur_stream->mtp->recv_init_seq = recv_init_seq;
@@ -340,6 +341,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     cur_stream->mtp->last_flushed = last_flushed; 
 
     // Setting defaults
+    cur_stream->mtp->cwnd_size = 1;
     cur_stream->mtp->SMSS = 1460;
     cur_stream->mtp->rwnd_size = 14600;
 
