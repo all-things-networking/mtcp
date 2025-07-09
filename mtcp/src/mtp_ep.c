@@ -265,17 +265,15 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
 	uint32_t window, tcp_stream* cur_stream, scratchpad* scratch)
 {
+	if(scratch->skip_ack_eps) return;
+	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
+    struct mtp_ctx *ctx = cur_stream->mtp;
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
-
-	if (cur_stream->state != TCP_ST_ESTABLISHED) return;
-
-	if(scratch->skip_ack_eps) {
-		return;
-	}
+	
 
 	// Update window
-	uint32_t rwindow = window << sndvar->wscale_peer;
+	uint32_t rwindow = window << ctx->wscale_remote;
 	uint32_t seq = rcvvar->last_ack_seq;
 	if (TCP_SEQ_LT(rcvvar->snd_wl1, seq) ||
 		(rcvvar->snd_wl1 == seq && TCP_SEQ_LT(rcvvar->snd_wl2, ack_seq)) ||
@@ -442,6 +440,7 @@ static inline struct accept_res* accept_ep(mctx_t mctx, mtcp_manager_t mtcp,
 
 static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t ev_remote_ip, uint16_t ev_remote_port, uint32_t ev_init_seq, uint16_t ev_rwnd_size,
+    bool ev_sack_permit, bool ev_mss_valid, uint16_t ev_mss, bool ev_wscale_valid, uint8_t ev_wscale,
 	struct mtp_listen_ctx *ctx)
 {
 	if (ctx->state != MTP_TCP_LISTEN_ST) return;
@@ -450,13 +449,20 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     // uint32_t init_seq = rand_r(&next_seed) % TCP_MAX_SEQ;
     uint32_t init_seq = 0;
 
+    uint8_t wscale = 0;
+    if (ev_wscale_valid) wscale = ev_wscale;
+
+    uint16_t mss = 1460;
+    if (ev_mss_valid) mss = ev_mss;
 	// MTP new_ctx instruction
 	tcp_stream *cur_stream = CreateCtx(mtcp, cur_ts, 
                                       ev_remote_ip, ctx->local_ip, 
-                                      ev_remote_port, ctx->local_port, 
+                                      ev_remote_port, ctx->local_port,
+                                      ev_sack_permit, mss, 
                                       init_seq, init_seq, init_seq + 1,
                                       ev_init_seq, ev_init_seq + 1, ev_init_seq,
-                                      ev_rwnd_size, MTP_TCP_SYNACK_SENT_ST);
+                                      ev_rwnd_size, wscale,
+                                      MTP_TCP_SYNACK_SENT_ST);
 	if (cur_stream == NULL) return;
 
 	// Add stream to the listen context
@@ -610,7 +616,9 @@ struct accept_res* MtpAcceptChain(mctx_t mctx, mtcp_manager_t mtcp, struct socka
 
 void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd_size,
+    bool sack_permit, bool mss_valid, uint16_t mss, bool wscale_valid, uint8_t wscale,
 	struct mtp_listen_ctx *ctx) 
 {
-	syn_ep(mtcp, cur_ts, remote_ip, remote_port, init_seq, rwnd_size, ctx);
+	syn_ep(mtcp, cur_ts, remote_ip, remote_port, init_seq, rwnd_size, 
+           sack_permit, mss_valid, mss, wscale_valid, wscale, ctx);
 }

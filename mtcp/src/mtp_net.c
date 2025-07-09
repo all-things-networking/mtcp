@@ -136,6 +136,102 @@ static inline int ValidateSequence(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
 /***********************************************
  MTP net interface
  ***********************************************/
+
+void 
+MTPExtractOptions(uint8_t *buff,
+                  struct mtp_bp_options *opts,
+                  int sel_len,
+                  int len)
+{
+	int i;
+
+	for (i = 0; i < len; ) {
+        // MTP TODO: need to generalize for sel_len > 1
+        uint8_t opttype = *(buff + i);
+        i++;
+        for (int j = 0; j < sel_len - 1; j++){
+            opttype = (opttype << 8) + *(buff + i);
+            i++;
+        }
+
+        if (opttype == MTP_TCP_OPT_MSS){
+            i++; // for len
+            uint16_t mss = *(buff + i) << 8;
+            i++;
+            mss += *(buff + i);
+            i++;
+            MTP_set_opt_mss(&(opts->mss), mss); 
+        }
+
+        else if (opttype == MTP_TCP_OPT_SACK_PERMIT){
+            i++; // for len
+            MTP_set_opt_sack_permit(&(opts->sack_permit));
+        }      
+
+        else if (opttype == MTP_TCP_OPT_NOP) continue;
+
+        else if (opttype == MTP_TCP_OPT_TIMESTAMP){
+            i++; // for len
+            uint32_t t1 = ntohl(*(uint32_t *)(buff + i));
+            i += 4;
+            uint32_t t2 = ntohl(*(uint32_t *)(buff + i));
+            i += 4;
+            MTP_set_opt_timestamp(&(opts->timestamp), t1, t2); 
+        }
+
+        else if (opttype == MTP_TCP_OPT_WSCALE){
+            i++; // for len
+            uint8_t wscale = *(buff + i);
+            i++;
+            MTP_set_opt_wscale(&(opts->wscale), wscale);
+        } 
+
+        else {
+            // MTP TODO: parse option default;
+            uint8_t len = *(buff + i);
+            i++;
+            i += len - 2;
+        }
+/* 
+		opt = *(tcpopt + i++);
+		
+		if (opt == TCP_OPT_END) {	// end of option field
+			break;
+		} else if (opt == TCP_OPT_NOP) {	// no option
+			continue;
+		} else {
+
+			optlen = *(tcpopt + i++);
+			if (i + optlen - 2 > len) {
+				break;
+			}
+
+			if (opt == TCP_OPT_MSS) {
+				cur_stream->sndvar->mss = *(tcpopt + i++) << 8;
+				cur_stream->sndvar->mss += *(tcpopt + i++);
+				cur_stream->sndvar->eff_mss = cur_stream->sndvar->mss;
+#if TCP_OPT_TIMESTAMP_ENABLED
+				cur_stream->sndvar->eff_mss -= (TCP_OPT_TIMESTAMP_LEN + 2);
+#endif
+			} else if (opt == TCP_OPT_WSCALE) {
+				cur_stream->sndvar->wscale_peer = *(tcpopt + i++);
+			} else if (opt == TCP_OPT_SACK_PERMIT) {
+				cur_stream->sack_permit = TRUE;
+				TRACE_SACK("Remote SACK permited.\n");
+			} else if (opt == TCP_OPT_TIMESTAMP) {
+				TRACE_TSTAMP("Saw peer timestamp!\n");
+				cur_stream->saw_timestamp = TRUE;
+				cur_stream->rcvvar->ts_recent = ntohl(*(uint32_t *)(tcpopt + i));
+				cur_stream->rcvvar->ts_last_ts_upd = cur_ts;
+				i += 8;
+			} else {
+				// not handle
+				i += optlen - 2;
+			}
+		} */
+	}
+}
+
 // Net RX 
 int MTP_ProcessTransportPacket(mtcp_manager_t mtcp, 
 	uint32_t cur_ts, const int ifidx, const struct iphdr *iph, int ip_len) 
@@ -154,6 +250,10 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     //mtph->dest = ntohs(mtph->dest);
 	//mtph->source = ntohs(mtph->source);
     // MTP TODO: parse options
+    struct mtp_bp_options mtp_opt;
+    uint8_t *opt_buff = (uint8_t*) mtph + 20;
+    int opt_len = (mtph->doff - 5) * 4; 
+    MTPExtractOptions(opt_buff, &mtp_opt, 1, opt_len); 
 	//struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
     struct mtp_bp_payload payload;
 	payload.data = (uint8_t *)mtph + (mtph->doff << 2);
@@ -172,6 +272,11 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         uint16_t remote_port = mtph->source;
         uint32_t init_seq = mtph->seq;
         uint16_t rwnd_size = mtph->window;
+        bool sack_permit = mtp_opt.sack_permit.valid;
+        bool mss_valid = mtp_opt.mss.valid;
+        uint16_t mss = mtp_opt.mss.value;
+        bool wscale_valid = mtp_opt.wscale.valid;
+        uint8_t wscale = mtp_opt.mss.value;
         
         // MTP TODO: change key to include IP
         // MTP TODO: separate out  flow id construction
@@ -183,7 +288,9 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         }           
 
         MtpSynChain(mtcp, cur_ts, remote_ip, remote_port, 
-                    init_seq, rwnd_size, listen_ctx);
+                    init_seq, rwnd_size, sack_permit,
+                    mss_valid, mss, wscale_valid, wscale, 
+                    listen_ctx);
         return 0;
     }
 
@@ -297,25 +404,25 @@ MTP_CalculateOptionLength(mtp_bp* bp){
     uint16_t res = 0;
     struct mtp_bp_options *opts = &(bp->opts);
     if (opts->mss.valid){
-        res += opts->mss.len;
+        res += 4;
     }
     if (opts->sack_permit.valid){
-        res += opts->sack_permit.len;
+        res += 2;
     }
     if (opts->nop1.valid){
-        res += opts->nop1.len;
+        res += 1;
     }
     if (opts->nop2.valid){
-        res += opts->nop2.len;
+        res += 1;
     }
     if (opts->timestamp.valid){
-        res += opts->timestamp.len;
+        res += 10;
     }
     if (opts->nop3.valid){
-        res += opts->nop3.len;
+        res += 1;
     }
     if (opts->wscale.valid){
-        res += opts->wscale.len;
+        res += 3;
     }
     return res;
 }

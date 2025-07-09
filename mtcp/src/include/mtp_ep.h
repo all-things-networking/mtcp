@@ -40,6 +40,7 @@ struct accept_res* MtpAcceptChain(mctx_t mctx, mtcp_manager_t mtcp, struct socka
 	socklen_t *addrlen, struct mtp_listen_ctx *ctx);
 
 void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t remote_ip, uint16_t remote_port, 
-	uint32_t init_seq, uint16_t rwnd, struct mtp_listen_ctx *ctx);
+	uint32_t init_seq, uint16_t rwnd, bool sack_permit, bool mss_valid, uint16_t mss,
+    bool wscale_valid, uint8_t wscale, struct mtp_listen_ctx *ctx);
 
 #endif

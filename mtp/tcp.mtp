@@ -14,11 +14,21 @@ event SYN : INCOMING::NET_EVENT {
     uint16 remote_port;
     uint32 init_seq;
     uint16 rwnd_size;
+    bool sack_permit;
+    bool wscale_valid;
+    uint8 wscale;
+    bool mss_valid;
+    uint16 mss;
 }
 
 event SYNACK : INCOMING::NET_EVENT {
     uint32 init_seq;
     uint16 rwnd_size;
+    bool sack_permit;
+    bool wscale_valid;
+    uint8 wscale;
+    bool mss_valid;
+    uint16 mss;
 }
 
 
@@ -55,6 +65,47 @@ event CONNECT: INCOMING::APP_EVENT{
 
 
 /**************  TCP packet blueprint  ***************/
+opt_t tcp_opt_mss {
+    uint8 kind = 2;
+    uint8 len = 4;
+    uint32 value;
+}
+
+opt_t tcp_opt_sack_permit {
+    uint8 kind = 4;
+    uint8 len = 2;
+    uint16 value;
+}
+
+opt_t tcp_opt_timestamp {
+    uint8 kind = 8;
+    uint8 len = 10;
+    uint64 value;
+}
+
+opt_t tcp_opt_wscale {
+    uint8 kind = 2;
+    uint8 len = 3;
+    uint8 value;
+}
+
+opt_t tcp_opt_nop {
+    uint8 kind = 1;
+}
+
+opt_union tcp_opt_type{
+    tcp_opt_mss,
+    tcp_opt_sack_permit, 
+    tcp_opt_timestamp,
+    tcp_opt_wscale,
+    tcp_opt_nop
+}
+
+opt_list tcp_options {
+    uint32 len = data_offset - 20; 
+    type_select = 8;
+    list<tcp_opt_type> opts; 
+}
 
 pkt_bp TCPBP {
     uint16 src_port;
@@ -73,7 +124,8 @@ pkt_bp TCPBP {
     bool   is_fin;
     uint16 rwnd_size;
     checksum16_t checksum;
-    uint16  urg_ptr;
+    uint16 urg_ptr;
+    opt_list<(data_offset - 5)*32, 8, tcp_opt_type> tcp_opts;
     data_t data;
 }
 
@@ -92,6 +144,7 @@ context tcp_context {
     uint16 remote_port;
     uint16 local_port;
     addr_t buf_addr;
+    bool remote_sack_permit;
     
     uint8 state;
     uint32 SMSS = 1460;
@@ -112,6 +165,7 @@ context tcp_context {
     uint32 send_una = 0;
     uint32 send_next = 0;
     uint32 data_end = 0;
+    uint32_t remote_wscale = 0;
     uint32 last_rwnd_size = 16959;
 
     // receiver vars
@@ -167,6 +221,15 @@ net_to_transp ntt_module {
            event.remote_port = pkt_bp.src_port;
            event.init_seq = pkt_bp.seq;
            event.rwnd_size = pkt_bp.rwnd_size;
+           event.sack_permit = op_list["tcp_opt_sack_permit"].valid();
+           event.mss_valid = opt_list[tcp_opt_mss].valid();
+           if (event.mss_valid){
+                event.mss = op_list[tcp_opt_mss].value;
+           }
+           event.wscale_valid = opt_list[tcp_opt_wscale].valid();
+           if (event.wscale_valid){
+                event.wscale = op_list[tcp_opt_wscale].value;
+           }  
            flow_id id(i.dst_ip, p.dst_port);
            set_flow_id(event, id);
            out.add(event);
@@ -392,17 +455,26 @@ list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out int_out) {
     instr_t instr = pkt_gen_instr(ctx.local_ip, ev.remote_ip, bp);
     out.add(instr);
 
+    uint8 wscale = 0;
+    if (ev.wscale_valid) wscale = ev.wscale;
+
+    uint16 mss = 1460;
+    if (ev.mss_valid) mss = ev.mss;
+
     instr = new_ctx_instr(tcp_context, 
                           remote_ip = ev.remote_ip, 
                           local_ip = ctx.local_ip,
                           remote_port = ev.remote_port,
                           local_port = ctx.local_port,
+                          sack_permit = ev.sack_permit,
+                          SMSS = mss,
                           init_seq = init_seq,
                           send_next = init_seq + 1,
                           recv_init_seq = ev.init_seq,
                           recv_next = ev.init_seq + 1,
                           last_flushed = ev.init_seq;
                           last_rwnd_size = ev.rwnd_size,
+                          wscale_remote = wscale,
                           state = 2 // SYNACK_SENT_ST;
                           );
     out.add(instr);
@@ -576,8 +648,6 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
         return out;
 
     if (ctx.state != 5) return out; //ESTABLISHED_ST
-
-    uint32 SMSS = 1460;
 
     // Update window, and allow user to start writing 
     // if peer just has space to receive packets

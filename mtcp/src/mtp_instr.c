@@ -308,9 +308,10 @@ int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog)
 tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint32_t remote_ip, uint32_t local_ip, 
     uint16_t remote_port, uint16_t local_port,
+    bool sack_permit, uint16_t mss,
 	uint32_t init_seq, uint32_t send_una, uint32_t send_next, 
     uint32_t recv_init_seq, uint32_t recv_next, uint32_t last_flushed,
-    uint16_t last_rwnd_size, uint8_t state) 
+    uint16_t last_rwnd_remote, uint8_t wscale, uint8_t state) 
 {
 	// Create new stream and add to flow hash table
 	tcp_stream *cur_stream = CreateTCPStream(mtcp, NULL, MTCP_SOCK_STREAM, 
@@ -332,17 +333,19 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     mtp->local_ip = local_ip;
     mtp->remote_port = remote_port;
     mtp->local_port = local_port;
+    mtp->sack_permit_remote = sack_permit;
+    mtp->SMSS = mss;
     mtp->state = state;
     mtp->init_seq = init_seq;
     mtp->send_una = send_una;
     mtp->send_next = send_next;
-    mtp->last_rwnd_size = last_rwnd_size;
+    mtp->last_rwnd_remote = last_rwnd_remote;
     mtp->recv_init_seq = recv_init_seq;
     mtp->recv_next = recv_next;
+    mtp->wscale_remote = wscale;
     mtp->last_flushed = last_flushed; 
 
     // Setting defaults
-    mtp->SMSS = 1460;
     // MTP TODO: fix this
     mtp->eff_SMSS = mtp->SMSS - (TCP_OPT_TIMESTAMP_LEN + 2); 
     mtp->rwnd_size = 14600;

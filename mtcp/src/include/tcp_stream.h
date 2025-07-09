@@ -182,6 +182,7 @@ struct mtp_ctx {
     uint32_t local_ip;
     uint16_t remote_port;
     uint16_t local_port;
+    bool sack_permit_remote;
     //addr_t buf_addr;
 
     uint8_t state;
@@ -204,7 +205,8 @@ struct mtp_ctx {
     uint32_t send_una;
     uint32_t send_next;
     //uint32_t data_end = 0;
-    uint32_t last_rwnd_size;
+    uint32_t wscale_remote;
+    uint32_t last_rwnd_remote;
 
     // receiver vars
     uint32_t recv_init_seq;
