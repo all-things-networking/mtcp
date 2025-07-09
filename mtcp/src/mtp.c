@@ -17,34 +17,6 @@
 #define TCP_MAX_WINDOW 65535
 
 
-static inline uint16_t
-MTP_CalculateOptionLength(mtp_bp* bp){
-    uint16_t res = 0;
-    struct mtp_bp_options *opts = &(bp->opts);
-    if (opts->mss.valid){
-        res += opts->mss.len;
-    }
-    if (opts->sack_permit.valid){
-        res += opts->sack_permit.len;
-    }
-    if (opts->nop1.valid){
-        res += opts->nop1.len;
-    }
-    if (opts->nop2.valid){
-        res += opts->nop2.len;
-    }
-    if (opts->timestamp.valid){
-        res += opts->timestamp.len;
-    }
-    if (opts->nop3.valid){
-        res += opts->nop3.len;
-    }
-    if (opts->wscale.valid){
-        res += opts->wscale.len;
-    }
-    return res;
-}
-
 /*----------------------------------------------------------------------------*/
 inline struct mtcp_sender *
 MTP_GetSender(mtcp_manager_t mtcp, tcp_stream *cur_stream)

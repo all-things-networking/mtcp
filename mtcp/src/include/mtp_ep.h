@@ -29,7 +29,7 @@ int MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream);
 
 // handles received ACKs
 void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
-    uint32_t window, tcp_stream* cur_stream);
+    uint32_t window, uint32_t seq, tcp_stream* cur_stream);
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload,
 	int payloadlen, tcp_stream *cur_stream);

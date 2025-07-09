@@ -33,4 +33,32 @@ void MTP_set_opt_wscale(struct tcp_opt_wscale *wscale, uint8_t value){
     wscale->value = value;
 }
 
+uint16_t
+MTP_CalculateOptionLength(mtp_bp* bp){
+    uint16_t res = 0;
+    struct mtp_bp_options *opts = &(bp->opts);
+    if (opts->mss.valid){
+        res += 4;
+    }
+    if (opts->sack_permit.valid){
+        res += 2;
+    }
+    if (opts->nop1.valid){
+        res += 1;
+    }
+    if (opts->nop2.valid){
+        res += 1;
+    }
+    if (opts->timestamp.valid){
+        res += 10;
+    }
+    if (opts->nop3.valid){
+        res += 1;
+    }
+    if (opts->wscale.valid){
+        res += 3;
+    }
+    return res;
+}
+
 

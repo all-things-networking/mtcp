@@ -121,5 +121,6 @@ void MTP_set_opt_sack_permit(struct tcp_opt_sack_permit *sack_permit);
 void MTP_set_opt_nop(struct tcp_opt_nop *nop);
 void MTP_set_opt_timestamp(struct tcp_opt_timestamp *ts, uint32_t value1, uint32_t value2);
 void MTP_set_opt_wscale(struct tcp_opt_wscale *wscale, uint8_t value);
+uint16_t MTP_CalculateOptionLength(mtp_bp* bp);
 
 #endif

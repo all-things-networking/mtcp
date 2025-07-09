@@ -35,6 +35,7 @@ event SYNACK : INCOMING::NET_EVENT {
 event ACK : INCOMING::NET_EVENT {
     uint32 ack_seq;
     uint32 rwnd_size;
+    uint32 seq;
 }
 
 event DATA : INCOMING::NET_EVENT {
@@ -148,6 +149,7 @@ context tcp_context {
     
     uint8 state;
     uint32 SMSS = 1460;
+    uint32 eff_SMSS;
 
     // sender vars
     uint32 init_seq;
@@ -165,8 +167,10 @@ context tcp_context {
     uint32 send_una = 0;
     uint32 send_next = 0;
     uint32 data_end = 0;
-    uint32_t remote_wscale = 0;
+    uint32 remote_wscale = 0;
     uint32 last_rwnd_size = 16959;
+    uint32 lwu_seq;
+    uint32 lwu_ack; 
 
     // receiver vars
     uint32 recv_init_seq;
@@ -620,13 +624,11 @@ void slows_congc_ep (ACK ev, tcp_context ctx, interm_out int_out) {
 
     if (ctx.state != 5) return; //ESTABLISHED_ST
     
-    uint32 EFF_SMSS = 1448;     // SMSS - TCP options (timestamp + alignment)
-
     if(int_out.change_cwnd) {
         // calculate how many packets have been acked
         uint32 rmlen = ev.ack_seq - ctx.send_una;
-        uint16 packets = rmlen / EFF_SMSS;
-        if (packets * EFF_SMSS > rmlen) {
+        uint16 packets = rmlen / ctx.eff_SMSS;
+        if (packets * ctx.eff_SMSS > rmlen) {
             packets = packets + 1;
         }
 
@@ -651,14 +653,23 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
 
     // Update window, and allow user to start writing 
     // if peer just has space to receive packets
-    ctx.last_rwnd_size = ctx.rwnd_size;
-    ctx.rwnd_size = ev.rwnd_size;
-    if (ctx.last_rwnd_size < ctx.send_next - ctx.send_una &&
-        ctx.rwnd_size >= ctx.send_next - ctx.send_una) {
-        instr_t instr = notify_instr();
-        out.add(instr);
+    uint32 rwindow = window << ctx->wscale_remote;
+    // MTP TODO: sequence comparisons
+    if (ctx.lwu_seq < ev.seq ||
+        (ctx.lwu_seq == ev.seq && ctx.lwu_ack < ev.ack_seq) ||
+        (ctx.lwu_ack == ev.ack_seq && rwindow > ctx.last_rwnd_remote)){
+        uint32_t rwindow_prev = ctx.last_rwnd_remote;
+        ctx.last_rwnd_remote = rwindow;
+        ctx.lwu_seq = ev.seq;
+        ctx.lwu_ack = ev.ack_seq;
+        if (rwindow_prev < (ctx.send_next - ctx.send_una) &&
+            ctx.last_rwnd_remote >= (ctx.send_next - ctx.send_una)){
+            // TODO: fix
+            instr_t instr = notify_instr();
+            out.add(instr);
+        }
     }
-
+    
     uint32 data_rest = ctx.data_end - ctx.send_next;
     if(data_rest == 0 && ev.ack_seq == ctx.send_next) {
         instr_t instr = timer_cancel_instr(ack_timeout);
@@ -673,7 +684,7 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     uint32 bytes_to_send = 0;
 
     if(ctx.duplicate_acks == 3) {
-        bytes_to_send = SMSS;
+        bytes_to_send = ctx.eff_SMSS;
         if(bytes_to_send > effective_window)
             bytes_to_send = effective_window;
 

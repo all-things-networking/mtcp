@@ -263,54 +263,101 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 }
 
 static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
-	uint32_t window, tcp_stream* cur_stream, scratchpad* scratch)
+	uint32_t window, uint32_t seq, tcp_stream* cur_stream, scratchpad* scratch)
 {
 	if(scratch->skip_ack_eps) return;
 	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
     struct mtp_ctx *ctx = cur_stream->mtp;
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	
 
 	// Update window
 	uint32_t rwindow = window << ctx->wscale_remote;
-	uint32_t seq = rcvvar->last_ack_seq;
-	if (TCP_SEQ_LT(rcvvar->snd_wl1, seq) ||
-		(rcvvar->snd_wl1 == seq && TCP_SEQ_LT(rcvvar->snd_wl2, ack_seq)) ||
-		(rcvvar->snd_wl2 == ack_seq && rwindow > sndvar->peer_wnd)) {
-		uint32_t rwindow_prev = sndvar->peer_wnd;
-		sndvar->peer_wnd = rwindow;
-		rcvvar->snd_wl1 = seq;
-		rcvvar->snd_wl2 = ack_seq;
-		if (rwindow_prev < cur_stream->snd_nxt - sndvar->snd_una && 
-			sndvar->peer_wnd >= cur_stream->snd_nxt - sndvar->snd_una) {
-			// This is kinda "notify" instruction in MTP
-			RaiseWriteEvent(mtcp, cur_stream);
-		}
-	}
-	
-	uint32_t data_rest = sndvar->snd_una + sndvar->sndbuf->len - cur_stream->snd_nxt;
-	if (data_rest == 0 && ack_seq == cur_stream->snd_nxt) {
+    // MTP TODO: sequence comparisons
+    if (TCP_SEQ_LT(ctx->lwu_seq, seq) ||
+        (ctx->lwu_seq == seq && TCP_SEQ_LT(ctx->lwu_ack, ack_seq)) ||
+        (ctx->lwu_ack == ack_seq && rwindow > ctx->last_rwnd_remote)){
+        uint32_t rwindow_prev = ctx->last_rwnd_remote;
+        ctx->last_rwnd_remote = rwindow;
+        ctx->lwu_seq = seq;
+        ctx->lwu_ack = ack_seq;
+        if (rwindow_prev < (ctx->send_next - ctx->send_una) &&
+            ctx->last_rwnd_remote >= (ctx->send_next - ctx->send_una)){
+            // This is kinda "notify" in MTP
+            RaiseWriteEvent(mtcp, cur_stream);
+        }
+    }
+ 
+    // MTP TODO: fix sndbuf->len	
+	uint32_t data_rest = ctx->send_una + sndvar->sndbuf->len - ctx->send_next;
+	if (data_rest == 0 && ack_seq == ctx->send_next) {
 		TimerCancel(mtcp, cur_stream);
 		return;
 	}
 
-	uint32_t effective_window = MIN(sndvar->cwnd, sndvar->peer_wnd);
-	uint32_t bytes_to_send = 0;
+	uint32_t effective_window = ctx->cwnd_size;
+    if (ctx->last_rwnd_remote < effective_window){
+        effective_window = ctx->last_rwnd_remote;
+    }
+	
+    uint32_t bytes_to_send = 0;
 
-	if(rcvvar->dup_acks == 3) {
-		SBUF_LOCK(&sndvar->write_lock);
+	if(ctx->duplicate_acks == 3) {
+		//SBUF_LOCK(&sndvar->write_lock);
 
-		bytes_to_send = sndvar->eff_mss;
-		bytes_to_send = MIN(effective_window, bytes_to_send);
+		bytes_to_send = ctx->eff_SMSS;
+        if (bytes_to_send > effective_window){
+            bytes_to_send = effective_window;
+        }
 
-		seq = sndvar->snd_una;
-		uint8_t *data = sndvar->sndbuf->head + (seq - sndvar->snd_una);
+        // MTP TODO: check that size + options is not more than MSS
+        mtp_bp* bp = GetFreeBP(cur_stream);
+        
+        memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 
-		SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, seq, cur_stream->rcv_nxt, 
-			effective_window, data, bytes_to_send);
+        bp->hdr.source = cur_stream->mtp->local_port;
+        bp->hdr.dest = cur_stream->mtp->remote_port;
+        bp->hdr.seq = htonl(ctx->send_una);
+        bp->hdr.ack_seq = htonl(ctx->recv_next);
+
+        bp->hdr.syn = FALSE;
+        bp->hdr.ack = FALSE;
+
+        // options to calculate data offset
+       
+        // MTP TODO: SACK? 
+    #if TCP_OPT_SACK_ENABLED
+        printf("ERROR:SACK Not supported in MTP TCP\n");
+    #endif
+
+        MTP_set_opt_nop(&(bp->opts.nop1));
+        MTP_set_opt_nop(&(bp->opts.nop2));
+
+        // MTP TODO: Timestamp
+        MTP_set_opt_timestamp(&(bp->opts.timestamp),
+                                htonl(cur_ts),
+                                htonl(cur_stream->rcvvar->ts_recent));
+        
+       
+        // MTP TODO: would the MTP program do the length 
+        //           calculation itself?
+        uint16_t optlen = MTP_CalculateOptionLength(bp);
+        bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+        // MTP TODO: wscale on local
+        uint32_t window32 = cur_stream->mtp->rwnd_size;
+        uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+        bp->hdr.window = htons(advertised_window);
+
+        // Payload
+        // MTP TODO: fix snbuf
+		uint8_t *data = sndvar->sndbuf->head + ctx->send_una;
+        bp->payload.data = data;
+        bp->payload.len = bytes_to_send;
+
+        AddtoGenList(mtcp, cur_stream, cur_ts);
 		
-		SBUF_UNLOCK(&sndvar->write_lock);
+		//SBUF_UNLOCK(&sndvar->write_lock);
 		return;
 	}
 
@@ -531,8 +578,8 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
    
     // MTP TODO: would the MTP program do the length 
     //           calculation itself?
-    //uint16_t optlen = MTP_CalculateOptionLength(bp);
-    //bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+    uint16_t optlen = MTP_CalculateOptionLength(bp);
+    bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
     uint32_t window32 = cur_stream->mtp->rwnd_size;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
@@ -558,7 +605,7 @@ int MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 }
 
 void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
-    uint32_t window, tcp_stream* cur_stream)
+    uint32_t window, uint32_t seq, tcp_stream* cur_stream)
 {
     /*
     struct tcp_send_vars *sndvar = cur_stream->sndvar;
@@ -593,7 +640,7 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-    ack_net_ep(mtcp, cur_ts, ack_seq, window, cur_stream, &scratch);
+    ack_net_ep(mtcp, cur_ts, ack_seq, window, seq, cur_stream, &scratch);
 }
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload, 
