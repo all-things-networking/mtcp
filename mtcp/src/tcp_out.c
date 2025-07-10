@@ -1018,6 +1018,9 @@ AddtoSendList(mtcp_manager_t mtcp, tcp_stream *cur_stream)
 		TAILQ_INSERT_TAIL(&sender->send_list, cur_stream, sndvar->send_link);
 		sender->send_list_cnt++;
 	}
+
+	printf("on_send_list: %d, send_list_cnt: %d\n", cur_stream->sndvar->on_send_list, 
+												   sender->send_list_cnt);
 }
 /*----------------------------------------------------------------------------*/
 inline void 

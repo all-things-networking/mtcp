@@ -504,6 +504,7 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 
 	/* send queue handling */
 	while ((stream = StreamDequeue(mtcp->sendq))) {
+		printf("dequeuing a send call\n");
 		stream->sndvar->on_sendq = FALSE;
 		AddtoSendList(mtcp, stream);
 	}

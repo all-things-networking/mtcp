@@ -1551,7 +1551,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	
 	cur_stream = socket->stream;
 	if (!cur_stream || 
-			!(cur_stream->state == TCP_ST_ESTABLISHED || 
+			!(cur_stream->mtp->state == MTP_TCP_ESTABLISHED_ST || 
 			  cur_stream->state == TCP_ST_CLOSE_WAIT)) {
 		errno = ENOTCONN;
 		return -1;
@@ -1592,6 +1592,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	if (ret > 0 && !(sndvar->on_sendq || sndvar->on_send_list)) {
 		SQ_LOCK(&mtcp->ctx->sendq_lock);
 		sndvar->on_sendq = TRUE;
+		printf("enqueue in send queue\n");
 		StreamEnqueue(mtcp->sendq, cur_stream);		/* this always success */
 		SQ_UNLOCK(&mtcp->ctx->sendq_lock);
 		mtcp->wakeup_flag = TRUE;

@@ -364,6 +364,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 void MTP_ProcessSendEvents(mtcp_manager_t mtcp, struct mtcp_sender *sender, 
 	uint32_t cur_ts, int thresh) 
 {
+    printf("Inside MTP_ProcessSendEvents\n");
 	tcp_stream *cur_stream, *next, *last;
 
 	// Loop through flows and send data
@@ -414,7 +415,116 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
         uint16_t optlen = MTP_CalculateOptionLength(bp);
         if (bp->payload.needs_segmentation){
+            uint32_t bytes_to_send = bp->payload.len;
+            uint8_t *data_ptr = bp->payload.data;
+            SBUF_LOCK(&cur_stream->sndvar->write_lock);
 
+            printf("1 sending, here\n");
+            if (bp->payload.seg_rule_group_id == 1){
+                uint32_t seq = bp->hdr.seq;
+                uint32_t seg_size = bp->payload.seg_size;
+
+                while (bytes_to_send > 0) {
+                    printf("sending, here: %d\n", bytes_to_send);
+                    int32_t pkt_len = MIN(seg_size, bytes_to_send);
+
+                    // Send the next packet
+                    struct mtp_bp_hdr *mtph;
+                    mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
+                            MTP_HEADER_LEN + optlen + pkt_len);
+                    if (mtph == NULL) {
+                        AdvanceBPListHead(cur_stream, sent + err);
+                        return -2;
+                    }
+
+                    memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
+
+                    // MTP TODO: this is TCP specific
+                    mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+                    // options
+                    // MTP TODO: this can be further generalized
+                    int i = 0;
+                    uint8_t *buff_opts = (uint8_t*)mtph + MTP_HEADER_LEN;
+                    struct mtp_bp_options *bp_opts = &(bp->opts);
+
+                    if (bp_opts->mss.valid){
+                        buff_opts[i++] = bp_opts->mss.kind;
+                        buff_opts[i++] = bp_opts->mss.len;
+                        buff_opts[i++] = bp_opts->mss.value >> 8;
+                        buff_opts[i++] = bp_opts->mss.value % 256;
+                    }
+                    
+                    if (bp_opts->sack_permit.valid){
+                        buff_opts[i++] = bp_opts->sack_permit.kind;
+                        buff_opts[i++] = bp_opts->sack_permit.len;
+                    }    
+            
+                    if (bp_opts->nop1.valid){
+                        buff_opts[i++] = bp_opts->nop1.kind;
+                    }
+                    if (bp_opts->nop2.valid){
+                        buff_opts[i++] = bp_opts->nop2.kind;
+                    }
+
+                    if (bp_opts->timestamp.valid){
+                        buff_opts[i++] = bp_opts->timestamp.kind;
+                        buff_opts[i++] = bp_opts->timestamp.len;
+                        uint8_t* val_start = &buff_opts[i];
+                        uint32_t *tmp = (uint32_t *)(val_start);
+                        tmp[0] = bp_opts->timestamp.value1;
+                        tmp[1] = bp_opts->timestamp.value2;
+                        i += 8;
+                    }
+                    
+                    if (bp_opts->nop3.valid){
+                        buff_opts[i++] = bp_opts->nop3.kind;
+                    }
+            
+                    if (bp_opts->wscale.valid){
+                        buff_opts[i++] = bp_opts->wscale.kind;
+                        buff_opts[i++] = bp_opts->wscale.len;
+                        buff_opts[i++] = bp_opts->wscale.value;
+                    }
+
+                    // MTP TODO: this is TCP specific?
+                    assert (i % 4 == 0);
+                    assert (i == optlen); 
+
+                    // MTP TODO: do we need to lock here?
+                    // copy payload if exist
+                    memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, data_ptr, pkt_len);
+                    #if defined(NETSTAT) && defined(ENABLELRO)
+                    mtcp->nstat.tx_gdptbytes += payloadlen;
+                    #endif // NETSTAT 
+                     
+
+                    // MTP TODO: checksum is TCP specific
+                    int rc = -1;
+                    #if TCP_CALCULATE_CHECKSUM
+                    #ifndef DISABLE_HWCSUM
+                    if (mtcp->iom->dev_ioctl != NULL){
+                        rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
+                                    PKT_TX_TCPIP_CSUM, NULL);
+                    }
+                    #endif
+                    //printf("Test 6");
+
+                    if (rc == -1){
+                        mtph->check = TCPCalcChecksum((uint16_t *)mtph,
+                                        MTP_HEADER_LEN + optlen + pkt_len,
+                                        cur_stream->saddr, cur_stream->daddr);
+                    }
+                    #endif
+
+                    // update for next packet based on segementation rules
+                    bytes_to_send -= pkt_len;
+                    seq += pkt_len;
+                    data_ptr += pkt_len;
+                           
+                }
+            }
+            SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
         }
         else {
             uint16_t payloadLen = 0;
@@ -489,6 +599,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             assert (i % 4 == 0);
             assert (i == optlen); 
 
+            // MTP TODO: do we need to lock here?
             // copy payload if exist
             if (bp->payload.data != NULL) {
                 memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, bp->payload.data, payloadLen);

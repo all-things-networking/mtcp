@@ -309,6 +309,7 @@ end_wait_loop:
 	memset(buf, 0x90, sizeof(char) * BUF_LEN);
 	buf[BUF_LEN-1] = '\0';
 
+	printf("Starting to write\n");
 	while (1) {
 		wrote = mtcp_write(ctx->mctx, sockfd, buf, BUF_LEN);
 		bytes_sent += wrote;

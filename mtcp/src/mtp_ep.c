@@ -164,6 +164,8 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     AddtoGenList(mtcp, cur_stream, cur_ts);	
 
+	ctx->send_next += bytes_to_send;
+
 	// MTP TODO: map to timer event with event input
 	TimerStart(mtcp, cur_stream, cur_ts);
 
@@ -451,6 +453,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 
     AddtoGenList(mtcp, cur_stream, cur_ts);	
 
+	ctx->send_next += bytes_to_send;
+
 	// Remove acked sequence from sending buffer
 	// This step is kinda target dependent (depending on the implementation of sending buffer)
 	uint32_t rmlen = ack_seq - ctx->send_una;
@@ -653,6 +657,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
  ***********************************************/
 void MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 {
+	printf("Calling send chain\n");
     send_ep(mtcp, cur_ts, cur_stream);
 }
 
