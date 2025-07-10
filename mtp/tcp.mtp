@@ -172,6 +172,8 @@ context tcp_context {
     uint32 lwu_seq;
     uint32 lwu_ack; 
 
+    bool first_send_req = true;
+
     // receiver vars
     uint32 recv_init_seq;
     uint32 rwnd_size = 16959;
@@ -318,6 +320,12 @@ list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
     ctx.data_end = ctx.data_end + ev.data_size;
 
     if (ctx.state != 5) return out; // ESTABLISHED_ST
+
+    if (ctx.first_send_req){
+        instr_t instr = new_tx_ordered_data(INF, get_flow_id(ev));
+        ctx.first_send_req = false;
+        out.add(instr);
+    }
 
     uint32 data_rest = ctx.data_end - ctx.send_next;
     uint32 effective_window = ctx.cwnd_size;
@@ -697,7 +705,7 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
         bp.seq_num = ctx.send_una;
         bp.is_ack = 0;
         // bp.checksum = CRC16_t();
-        addr_t addr = ctx.buf_addr + ctx.send_una - ctx.init_seq;
+        addr_t addr = tx_data_addr(get_flow_id(ev), ctx.send_una - ctx.init_seq);
         bp.data = seg_data(addr, bytes_to_send);
 
         instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
@@ -726,7 +734,7 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     bp.seq_num = ctx.send_next;
     bp.is_ack = 0;
     // bp.checksum = CRC16_t();
-    addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
+    addr_t addr = tx_data_addr(get_flow_id(ev), ctx.send_next - ctx.init_seq);
     bp.data = unseg_data(addr, bytes_to_send, ctx->eff_SMSS, [TCPBP::seq_num, ctx.send_next, prev.hdr.seq_no + prev.payload_len]);
 
     instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
@@ -738,7 +746,9 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     // The implementation of sending buffer is more target dependent
     uint32 rmlen = ev.ack_seq - ctx.send_una;
     if (rmlen > 0) {
-        ctx.buf_addr = ctx.buf_addr + rmlen;
+        uint32 offset = ctx.send_una - ctx.init_seq;
+        instr_t instr = tx_data_flush(get_flow_id(ev), offset, rmlen);
+        out.add(instr);
         ctx.send_una = ev.ack_seq;
     }
 
@@ -755,7 +765,7 @@ list<instr_t> data_net_ep (DATA ev, tcp_context ctx, interm_out int_out) {
     list<instr_t> out;
     
     if (ctx.first_data_rcvd){
-        instr_t instr = new_ordered_data(INF, get_flow_id(ev));
+        instr_t instr = new_rx_ordered_data(INF, get_flow_id(ev));
         ctx.first_data_rcvd = false;
         out.add(instr); 
     }

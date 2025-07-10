@@ -37,7 +37,9 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint32_t recv_init_seq, uint32_t recv_next, uint32_t last_flushed,
     uint16_t last_rwnd_remote, uint8_t wscale, uint8_t state);
 
-// flush_and_notify_intr
+// "buffer" instructions
+void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
+                uint32_t offset, uint32_t len);
 int FlushAndNotify(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
 	char* buf, int len, socket_map_t socket);
 

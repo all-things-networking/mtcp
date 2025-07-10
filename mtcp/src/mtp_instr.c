@@ -382,10 +382,24 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 
 /***********************************************
- MTP flush_and_notify_instr
- 
- Funcion to flush data to and notify app
+ MTP "buffer" instructions
  ***********************************************/
+void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
+                uint32_t offset, uint32_t len){
+	// if (SBUF_LOCK(&sndvar->write_lock)) {
+	// 	if (errno == EDEADLK) perror("ProcessACK: write_lock blocked\n");
+	// 	assert(0);
+	// }
+	// SBRemove(mtcp->rbm_snd, sndvar->sndbuf, rmlen);
+	// sndvar->snd_una = ack_seq;
+	// sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
+
+	// RaiseWriteEvent(mtcp, cur_stream);
+	// SBUF_UNLOCK(&sndvar->write_lock);				
+}
+
+
+//  Funcion to flush data to and notify app
 int FlushAndNotify(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len, socket_map_t socket)
 {
 	// Flush part (modified from mTCP CopyToUser)

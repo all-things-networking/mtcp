@@ -274,7 +274,6 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 	// Update window
 	uint32_t rwindow = window << ctx->wscale_remote;
     // MTP TODO: sequence comparisons
-    // MTP TODO: initialize lwu_seq and lwu_ack properly
     if (TCP_SEQ_LT(ctx->lwu_seq, seq) ||
         (ctx->lwu_seq == seq && TCP_SEQ_LT(ctx->lwu_ack, ack_seq)) ||
         (ctx->lwu_ack == ack_seq && rwindow > ctx->last_rwnd_remote)){
@@ -426,20 +425,14 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 
 	// Remove acked sequence from sending buffer
 	// This step is kinda target dependent (depending on the implementation of sending buffer)
-	uint32_t rmlen = ack_seq - sndvar->snd_una;
+	uint32_t rmlen = ack_seq - ctx->send_una;
 	if(rmlen > 0) {
-		if (SBUF_LOCK(&sndvar->write_lock)) {
-			if (errno == EDEADLK) perror("ProcessACK: write_lock blocked\n");
-			assert(0);
-		}
-		SBRemove(mtcp->rbm_snd, sndvar->sndbuf, rmlen);
-		sndvar->snd_una = ack_seq;
-		sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
-
-		RaiseWriteEvent(mtcp, cur_stream);
-		SBUF_UNLOCK(&sndvar->write_lock);
+		uint32_t offset = ctx->send_una - ctx->init_seq;
+		TxDataFlush(mtcp, cur_stream, offset, rmlen);
+		ctx->send_una = ack_seq;
 	}
 
+	// MTP TODO: match the mtp file in creating right "event" on timeout
 	TimerRestart(mtcp, cur_stream, cur_ts);
 }
 
