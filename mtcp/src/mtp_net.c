@@ -431,7 +431,31 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             err += 1;
             continue; 
         }
+    
+        /*
+        // MTP: maps to segmenting data
+        seq = cur_stream->snd_nxt;
+        int32_t ack_num = cur_stream->rcv_nxt;
+        uint8_t *data = sndvar->sndbuf->head + (seq - sndvar->snd_una);
+        int ret = 0;
+        SBUF_LOCK(&sndvar->write_lock);
+        while (bytes_to_send > 0) {
+            int32_t pkt_len = MIN(bytes_to_send, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
 
+            ret = SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK,
+                seq, ack_num, effective_window, data, pkt_len);
+
+            if (ret < 0){
+                break;
+            } else {
+                bytes_to_send -= pkt_len;
+                seq += pkt_len;
+                data += pkt_len;
+                cur_stream->snd_nxt += pkt_len;
+            }
+        }
+	    SBUF_UNLOCK(&sndvar->write_lock);
+        */
         struct mtp_bp_hdr *mtph;
         mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
                 MTP_HEADER_LEN + optlen + payloadLen);

@@ -263,6 +263,7 @@ net_to_transp ntt_module {
             ACK event;
             event.ack_seq = pkt_bp.ack_seq;
             event.rwnd_size = pkt_bp.rwnd_size;
+            event.seq = pkt_bp.seq;
             set_flow_id(event, id);
             out.add(event);
         }
@@ -526,6 +527,8 @@ list<instr_t> conn_ack_ep (ACK ev, tcp_context ctx, interm_out int_out) {
         else {
             ctx.cwnd_size = SMSS;
         }
+        ctx.lwu_seq = ev.seq;
+        ctx.lwu_ack = ev.ack_seq;
         int_out.skip_ack_eps = true;
         instr_t instr = timer_cancel_instr(ack_timeout);
         out.add(instr);
@@ -713,10 +716,7 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
         if(data_rest < window_avail) {
             bytes_to_send = data_rest;
         } else {
-            if (window_avail < data_rest)
-                bytes_to_send = window_avail;
-            else
-                bytes_to_send = data_rest;
+            bytes_to_send = window_avail;
         }
     }
 
@@ -727,7 +727,7 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out int_out) {
     bp.is_ack = 0;
     // bp.checksum = CRC16_t();
     addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
-    bp.data = unseg_data(addr, bytes_to_send, SMSS, [TCPBP::seq_num, ctx.send_next, prev.hdr.seq_no + prev.payload_len]);
+    bp.data = unseg_data(addr, bytes_to_send, ctx->eff_SMSS, [TCPBP::seq_num, ctx.send_next, prev.hdr.seq_no + prev.payload_len]);
 
     instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
     out.add(instr);

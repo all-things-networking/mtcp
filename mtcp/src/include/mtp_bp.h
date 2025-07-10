@@ -103,6 +103,9 @@ struct mtp_bp_options{
 struct mtp_bp_payload {
     uint8_t* data;
     uint16_t len;
+    bool needs_segmentation;
+    uint32_t seg_size;
+    uint32_t seg_rule_group_id;
 };
 
 struct mtp_bp {

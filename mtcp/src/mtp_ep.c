@@ -274,6 +274,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 	// Update window
 	uint32_t rwindow = window << ctx->wscale_remote;
     // MTP TODO: sequence comparisons
+    // MTP TODO: initialize lwu_seq and lwu_ack properly
     if (TCP_SEQ_LT(ctx->lwu_seq, seq) ||
         (ctx->lwu_seq == seq && TCP_SEQ_LT(ctx->lwu_ack, ack_seq)) ||
         (ctx->lwu_ack == ack_seq && rwindow > ctx->last_rwnd_remote)){
@@ -351,9 +352,10 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 
         // Payload
         // MTP TODO: fix snbuf
-		uint8_t *data = sndvar->sndbuf->head + ctx->send_una;
+		uint8_t *data = sndvar->sndbuf->head - sndvar->sndbuf->head_seq + ctx->send_una;
         bp->payload.data = data;
         bp->payload.len = bytes_to_send;
+        bp->payload.needs_segmentation = FALSE;
 
         AddtoGenList(mtcp, cur_stream, cur_ts);
 		
@@ -363,36 +365,64 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 
 	// Continue sending if window is available and there's remaining data in sending buffer
 	uint32_t window_avail = 0;
-	if (sndvar->snd_una + effective_window > cur_stream->snd_nxt) 
-		window_avail = sndvar->snd_una + effective_window - cur_stream->snd_nxt;
+	if (ctx->send_una + effective_window > ctx->send_next) 
+		window_avail = ctx->send_una + effective_window - ctx->send_next;
 
 	if (window_avail == 0)
 		bytes_to_send = 0;
-	else
-		bytes_to_send = MIN(data_rest, window_avail);
+	else {
+        if (data_rest < window_avail) bytes_to_send = data_rest;
+        else bytes_to_send = window_avail;
+    }
 
-	// MTP: maps to segmenting data
-	seq = cur_stream->snd_nxt;
-	int32_t ack_num = cur_stream->rcv_nxt;
-	uint8_t *data = sndvar->sndbuf->head + (seq - sndvar->snd_una);
-	int ret = 0;
-	SBUF_LOCK(&sndvar->write_lock);
-	while (bytes_to_send > 0) {
-		int32_t pkt_len = MIN(bytes_to_send, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
+    mtp_bp* bp = GetFreeBP(cur_stream);
+    
+    memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 
-		ret = SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK,
-            seq, ack_num, effective_window, data, pkt_len);
+    bp->hdr.source = cur_stream->mtp->local_port;
+    bp->hdr.dest = cur_stream->mtp->remote_port;
+    bp->hdr.seq = htonl(ctx->send_next);
+    bp->hdr.ack_seq = htonl(ctx->recv_next);
 
-		if (ret < 0){
-			break;
-		} else {
-			bytes_to_send -= pkt_len;
-			seq += pkt_len;
-			data += pkt_len;
-			cur_stream->snd_nxt += pkt_len;
-		}
-	}
-	SBUF_UNLOCK(&sndvar->write_lock);
+    bp->hdr.syn = FALSE;
+    bp->hdr.ack = FALSE;
+
+    // options to calculate data offset
+   
+    // MTP TODO: SACK? 
+#if TCP_OPT_SACK_ENABLED
+    printf("ERROR:SACK Not supported in MTP TCP\n");
+#endif
+
+    MTP_set_opt_nop(&(bp->opts.nop1));
+    MTP_set_opt_nop(&(bp->opts.nop2));
+
+    // MTP TODO: Timestamp
+    MTP_set_opt_timestamp(&(bp->opts.timestamp),
+                            htonl(cur_ts),
+                            htonl(cur_stream->rcvvar->ts_recent));
+    
+   
+    // MTP TODO: would the MTP program do the length 
+    //           calculation itself?
+    uint16_t optlen = MTP_CalculateOptionLength(bp);
+    bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+    // MTP TODO: wscale on local
+    uint32_t window32 = cur_stream->mtp->rwnd_size;
+    uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+    bp->hdr.window = htons(advertised_window);
+
+    // Payload
+    // MTP TODO: fix snbuf
+    uint8_t *data = sndvar->sndbuf->head - sndvar->sndbuf->head_seq + ctx->send_next;
+    bp->payload.data = data;
+    bp->payload.len = bytes_to_send;
+    bp->payload.needs_segmentation = TRUE;
+    bp->payload.seg_size = ctx->eff_SMSS;
+    bp->payload.seg_rule_group_id = 1; 
+
+    AddtoGenList(mtcp, cur_stream, cur_ts);	
 
 	// Remove acked sequence from sending buffer
 	// This step is kinda target dependent (depending on the implementation of sending buffer)
@@ -588,6 +618,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     // Payload
     bp->payload.data = NULL;
     bp->payload.len = 0;
+    bp->payload.needs_segmentation = FALSE;
 
     AddtoGenList(mtcp, cur_stream, cur_ts);
 }
