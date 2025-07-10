@@ -351,6 +351,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     mtp->rwnd_size = 14600;
     mtp->cwnd_size = 1;
     mtp->duplicate_acks = 0;
+	mtp->wscale = 7;
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	if (!rcvvar->rcvbuf) {

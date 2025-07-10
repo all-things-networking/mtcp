@@ -158,6 +158,7 @@ context tcp_context {
     uint32 flightsize_dupl = 0;
     uint32 ssthresh = 0;
     uint32 cwnd_size = 3 * SMSS;
+    uint8 wscale = 7;
 
     uint32 RTO = ONE_SEC;
     int64 SRTT = 0;
@@ -315,10 +316,6 @@ dispatch disp_table {
 list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
     list<instr_t> out;
 
-    uint32 SMSS = 1460;
-
-    ctx.data_end = ctx.data_end + ev.data_size;
-
     if (ctx.state != 5) return out; // ESTABLISHED_ST
 
     if (ctx.first_send_req){
@@ -326,6 +323,9 @@ list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out int_out) {
         ctx.first_send_req = false;
         out.add(instr);
     }
+
+    ctx.data_end = ctx.data_end + ev.data_size;
+    instr_t instr = add_tx_data_seg();
 
     uint32 data_rest = ctx.data_end - ctx.send_next;
     uint32 effective_window = ctx.cwnd_size;

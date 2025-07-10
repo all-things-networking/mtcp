@@ -25,7 +25,7 @@
  *****************************************************************/
 
 // Event Processor Chains (tcp_strem = flow context)
-int MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream);
+void MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream);
 
 // handles received ACKs
 void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,

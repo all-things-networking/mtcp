@@ -207,6 +207,7 @@ struct mtp_ctx {
     //uint32_t data_end = 0;
     uint32_t wscale_remote;
     uint32_t last_rwnd_remote;
+	uint8_t wscale;
     uint32_t lwu_seq;
     uint32_t lwu_ack;
     

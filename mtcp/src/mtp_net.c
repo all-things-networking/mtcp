@@ -360,6 +360,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 // MTP Note: the SEND event is not fully inline with MTP's tcp code because
 //           data len is not in it and the data is already copied
 //           and recorded in the flow context (tcp_stream) before getting here.
+// MTP TODO: this doesn't quite work well at this point, because it is not actually sending packets
 void MTP_ProcessSendEvents(mtcp_manager_t mtcp, struct mtcp_sender *sender, 
 	uint32_t cur_ts, int thresh) 
 {
@@ -379,17 +380,9 @@ void MTP_ProcessSendEvents(mtcp_manager_t mtcp, struct mtcp_sender *sender,
 
 		TAILQ_REMOVE(&sender->send_list, cur_stream, sndvar->send_link);
 		if (cur_stream->sndvar->on_send_list) {
-            int ret = MtpSendChain(mtcp, cur_ts, cur_stream); 
-			if (ret < 0) {
-				// No available write buffer, retry sending later and break
-				TAILQ_INSERT_TAIL(&sender->send_list, cur_stream, sndvar->send_link);
-				break;
-			} else {
-				cur_stream->sndvar->on_send_list = FALSE;
-				sender->send_list_cnt--;
-				// MTP TODO: the ret value is the number of packets sent.
-				// decrease ack_cnt for the piggybacked acks
-			}
+            MtpSendChain(mtcp, cur_ts, cur_stream); 
+            cur_stream->sndvar->on_send_list = FALSE;
+            sender->send_list_cnt--;
 		}
 
 		if (cur_stream == last) break;
@@ -420,17 +413,109 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
         uint16_t optlen = MTP_CalculateOptionLength(bp);
-        
-        uint16_t payloadLen = 0;
-        if (bp->payload.data != NULL){
-            payloadLen = bp->payload.len;
+        if (bp->payload.needs_segmentation){
+
         }
-        // MTP TODO: segmentation logic here? How does it interact with options?
-        if (payloadLen + optlen > cur_stream->sndvar->mss){
-            TRACE_ERROR("Payload size exceeds MSS\n");
-            err += 1;
-            continue; 
+        else {
+            uint16_t payloadLen = 0;
+            if (bp->payload.data != NULL){
+                payloadLen = bp->payload.len;
+            }
+            // MTP TODO: 
+            if (payloadLen + optlen > cur_stream->sndvar->mss){
+                TRACE_ERROR("Payload size exceeds MSS\n");
+                err += 1;
+                continue; 
+            }
+            struct mtp_bp_hdr *mtph;
+            mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
+                    MTP_HEADER_LEN + optlen + payloadLen);
+            if (mtph == NULL) {
+                AdvanceBPListHead(cur_stream, sent + err);
+                return -2;
+            }
+
+            memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
+
+            // MTP TODO: this is TCP specific
+            mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+            // options
+            // MTP TODO: this can be further generalized
+            int i = 0;
+            uint8_t *buff_opts = (uint8_t*)mtph + MTP_HEADER_LEN;
+            struct mtp_bp_options *bp_opts = &(bp->opts);
+
+            if (bp_opts->mss.valid){
+                buff_opts[i++] = bp_opts->mss.kind;
+                buff_opts[i++] = bp_opts->mss.len;
+                buff_opts[i++] = bp_opts->mss.value >> 8;
+                buff_opts[i++] = bp_opts->mss.value % 256;
+            }
+            
+            if (bp_opts->sack_permit.valid){
+                buff_opts[i++] = bp_opts->sack_permit.kind;
+                buff_opts[i++] = bp_opts->sack_permit.len;
+            }    
+    
+            if (bp_opts->nop1.valid){
+                buff_opts[i++] = bp_opts->nop1.kind;
+            }
+            if (bp_opts->nop2.valid){
+                buff_opts[i++] = bp_opts->nop2.kind;
+            }
+
+            if (bp_opts->timestamp.valid){
+                buff_opts[i++] = bp_opts->timestamp.kind;
+                buff_opts[i++] = bp_opts->timestamp.len;
+                uint8_t* val_start = &buff_opts[i];
+                uint32_t *tmp = (uint32_t *)(val_start);
+                tmp[0] = bp_opts->timestamp.value1;
+                tmp[1] = bp_opts->timestamp.value2;
+                i += 8;
+            }
+            
+            if (bp_opts->nop3.valid){
+                buff_opts[i++] = bp_opts->nop3.kind;
+            }
+    
+            if (bp_opts->wscale.valid){
+                buff_opts[i++] = bp_opts->wscale.kind;
+                buff_opts[i++] = bp_opts->wscale.len;
+                buff_opts[i++] = bp_opts->wscale.value;
+            }
+
+            // MTP TODO: this is TCP specific?
+            assert (i % 4 == 0);
+            assert (i == optlen); 
+
+            // copy payload if exist
+            if (bp->payload.data != NULL) {
+                memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, bp->payload.data, payloadLen);
+                #if defined(NETSTAT) && defined(ENABLELRO)
+                mtcp->nstat.tx_gdptbytes += payloadlen;
+                #endif // NETSTAT 
+            } 
+
+            // MTP TODO: checksum is TCP specific
+            int rc = -1;
+            #if TCP_CALCULATE_CHECKSUM
+            #ifndef DISABLE_HWCSUM
+            if (mtcp->iom->dev_ioctl != NULL){
+                rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
+                            PKT_TX_TCPIP_CSUM, NULL);
+            }
+            #endif
+            //printf("Test 6");
+
+            if (rc == -1){
+                mtph->check = TCPCalcChecksum((uint16_t *)mtph,
+                                MTP_HEADER_LEN + optlen + payloadLen,
+                                cur_stream->saddr, cur_stream->daddr);
+            }
+            #endif
         }
+    }
     
         /*
         // MTP: maps to segmenting data
@@ -456,95 +541,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         }
 	    SBUF_UNLOCK(&sndvar->write_lock);
         */
-        struct mtp_bp_hdr *mtph;
-        mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
-                MTP_HEADER_LEN + optlen + payloadLen);
-        if (mtph == NULL) {
-            AdvanceBPListHead(cur_stream, sent + err);
-            return -2;
-        }
-
-        memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
-
-        // MTP TODO: this is TCP specific
-        mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
-
-        // options
-        // MTP TODO: this can be further generalized
-        int i = 0;
-        uint8_t *buff_opts = (uint8_t*)mtph + MTP_HEADER_LEN;
-        struct mtp_bp_options *bp_opts = &(bp->opts);
-
-        if (bp_opts->mss.valid){
-            buff_opts[i++] = bp_opts->mss.kind;
-            buff_opts[i++] = bp_opts->mss.len;
-            buff_opts[i++] = bp_opts->mss.value >> 8;
-            buff_opts[i++] = bp_opts->mss.value % 256;
-        }
         
-        if (bp_opts->sack_permit.valid){
-            buff_opts[i++] = bp_opts->sack_permit.kind;
-            buff_opts[i++] = bp_opts->sack_permit.len;
-        }    
-   
-        if (bp_opts->nop1.valid){
-            buff_opts[i++] = bp_opts->nop1.kind;
-        }
-        if (bp_opts->nop2.valid){
-            buff_opts[i++] = bp_opts->nop2.kind;
-        }
-
-        if (bp_opts->timestamp.valid){
-            buff_opts[i++] = bp_opts->timestamp.kind;
-            buff_opts[i++] = bp_opts->timestamp.len;
-            uint8_t* val_start = &buff_opts[i];
-            uint32_t *tmp = (uint32_t *)(val_start);
-            tmp[0] = bp_opts->timestamp.value1;
-            tmp[1] = bp_opts->timestamp.value2;
-            i += 8;
-        }
-        
-        if (bp_opts->nop3.valid){
-            buff_opts[i++] = bp_opts->nop3.kind;
-        }
- 
-        if (bp_opts->wscale.valid){
-            buff_opts[i++] = bp_opts->wscale.kind;
-            buff_opts[i++] = bp_opts->wscale.len;
-            buff_opts[i++] = bp_opts->wscale.value;
-        }
-
-        // MTP TODO: this is TCP specific?
-        assert (i % 4 == 0);
-        assert (i == optlen); 
-
-        // copy payload if exist
-        if (bp->payload.data != NULL) {
-            memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, bp->payload.data, payloadLen);
-            #if defined(NETSTAT) && defined(ENABLELRO)
-            mtcp->nstat.tx_gdptbytes += payloadlen;
-            #endif // NETSTAT 
-        } 
-
-        // MTP TODO: checksum is TCP specific
-        int rc = -1;
-        #if TCP_CALCULATE_CHECKSUM
-        #ifndef DISABLE_HWCSUM
-        if (mtcp->iom->dev_ioctl != NULL){
-            rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
-                          PKT_TX_TCPIP_CSUM, NULL);
-        }
-        #endif
-        //printf("Test 6");
-
-        if (rc == -1){
-            mtph->check = TCPCalcChecksum((uint16_t *)mtph,
-                              MTP_HEADER_LEN + optlen + payloadLen,
-                              cur_stream->saddr, cur_stream->daddr);
-        }
-        #endif
-    
-    }
     
     AdvanceBPListHead(cur_stream, sent + err);
     return 0; 
