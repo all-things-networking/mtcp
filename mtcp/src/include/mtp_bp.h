@@ -126,4 +126,8 @@ void MTP_set_opt_timestamp(struct tcp_opt_timestamp *ts, uint32_t value1, uint32
 void MTP_set_opt_wscale(struct tcp_opt_wscale *wscale, uint8_t value);
 uint16_t MTP_CalculateOptionLength(mtp_bp* bp);
 
+void print_MTP_bp(struct mtp_bp* bp);
+void MTP_hton_bp(struct mtp_bp *bp);
+void MTP_ntoh_bp(struct mtp_bp *bp);
+
 #endif

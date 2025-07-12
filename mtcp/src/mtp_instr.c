@@ -316,6 +316,8 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	// Create new stream and add to flow hash table
 	tcp_stream *cur_stream = CreateTCPStream(mtcp, NULL, MTCP_SOCK_STREAM, 
 		local_ip, local_port, remote_ip, remote_port);
+
+	cur_stream->sndvar->on_gen_list = FALSE;
     /**
 	cur_stream->sndvar->cwnd = 1;
 	cur_stream->sndvar->peer_wnd = last_rwnd_size;

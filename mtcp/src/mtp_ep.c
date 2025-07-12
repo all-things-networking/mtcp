@@ -111,6 +111,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
         return;
 	}
 
+	printf("bytes to send: %d\n", bytes_to_send);
 	// MTP: maps to packet blueprint creation
 	
 	mtp_bp* bp = GetFreeBP(cur_stream);
@@ -158,12 +159,16 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
     uint8_t *data = sndvar->sndbuf->head - sndvar->sndbuf->head_seq + ctx->send_next;
     bp->payload.data = data;
     bp->payload.len = bytes_to_send;
-    bp->payload.needs_segmentation = TRUE;
-    bp->payload.seg_size = ctx->eff_SMSS;
-    bp->payload.seg_rule_group_id = 1; 
+	if (bytes_to_send > ctx->eff_SMSS){
+		bp->payload.needs_segmentation = TRUE;
+		bp->payload.seg_size = ctx->eff_SMSS;
+		bp->payload.seg_rule_group_id = 1; 
+	}
 
     AddtoGenList(mtcp, cur_stream, cur_ts);	
 
+	printf("prepared bp:\n");
+	print_MTP_bp(bp);
 	ctx->send_next += bytes_to_send;
 
 	// MTP TODO: map to timer event with event input

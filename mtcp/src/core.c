@@ -35,6 +35,7 @@
 
 #ifdef USE_MTP
 #include "mtp_net.h"
+#include "mtp_ep.h"
 #endif
 
 #ifndef DISABLE_DPDK
@@ -505,8 +506,13 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 	/* send queue handling */
 	while ((stream = StreamDequeue(mtcp->sendq))) {
 		printf("dequeuing a send call\n");
+		
+		#ifdef USE_MTP
+		MtpSendChain(mtcp, cur_ts, stream);
+		#else
 		stream->sndvar->on_sendq = FALSE;
 		AddtoSendList(mtcp, stream);
+		#endif
 	}
 	
 	/* ack queue handling */

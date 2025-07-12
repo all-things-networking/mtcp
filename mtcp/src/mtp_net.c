@@ -405,23 +405,32 @@ AdvanceBPListHead(tcp_stream *cur_stream, int advance){
 int
 SendMTPPackets(struct mtcp_manager *mtcp, 
                tcp_stream *cur_stream, 
-		       uint32_t cur_ts){    
+		       uint32_t cur_ts){   
+    // TODO: gotta advance this? 
     unsigned int sent = 0;
     unsigned int err = 0;
     for (unsigned int i = cur_stream->sndvar->mtp_bps_head;
          i != cur_stream->sndvar->mtp_bps_tail;
          i = (i + 1) % MTP_PER_FLOW_BP_CNT){
         
+        printf("bp index: %d\n", i);
+        
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
+        printf("dequeued bp:");
+        print_MTP_bp(bp);
+
         uint16_t optlen = MTP_CalculateOptionLength(bp);
+
         if (bp->payload.needs_segmentation){
             uint32_t bytes_to_send = bp->payload.len;
             uint8_t *data_ptr = bp->payload.data;
+
+            printf("before grabbing the lock\n");
             SBUF_LOCK(&cur_stream->sndvar->write_lock);
 
             printf("1 sending, here\n");
             if (bp->payload.seg_rule_group_id == 1){
-                uint32_t seq = bp->hdr.seq;
+                uint32_t seq = ntohl(bp->hdr.seq);
                 uint32_t seg_size = bp->payload.seg_size;
 
                 while (bytes_to_send > 0) {
@@ -433,11 +442,14 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
                             MTP_HEADER_LEN + optlen + pkt_len);
                     if (mtph == NULL) {
-                        AdvanceBPListHead(cur_stream, sent + err);
+                        bp->hdr.seq = htonl(seq);
+                        bp->payload.data = data_ptr;
+                        // AdvanceBPListHead(cur_stream, sent + err);
                         return -2;
                     }
 
                     memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
+                    mtph->seq = htonl(seq);
 
                     // MTP TODO: this is TCP specific
                     mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
@@ -525,6 +537,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                 }
             }
             SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
+            sent += 1;
         }
         else {
             uint16_t payloadLen = 0;
@@ -541,7 +554,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
                     MTP_HEADER_LEN + optlen + payloadLen);
             if (mtph == NULL) {
-                AdvanceBPListHead(cur_stream, sent + err);
+                // AdvanceBPListHead(cur_stream, sent + err);
                 return -2;
             }
 
@@ -625,6 +638,8 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                                 cur_stream->saddr, cur_stream->daddr);
             }
             #endif
+
+            sent += 1;
         }
     }
     
