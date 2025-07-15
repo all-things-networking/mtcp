@@ -720,6 +720,7 @@ WritePacketsToChunks(mtcp_manager_t mtcp, uint32_t cur_ts)
 }
 
 /*----------------------------------------------------------------------------*/
+#ifdef USE_MTP
 static inline void 
 MTP_PacketGen(mtcp_manager_t mtcp, uint32_t cur_ts)
 {
@@ -740,6 +741,7 @@ MTP_PacketGen(mtcp_manager_t mtcp, uint32_t cur_ts)
         }
 	}
 }
+#endif
 
 /*----------------------------------------------------------------------------*/
 #if TESTING
@@ -1563,7 +1565,9 @@ mtcp_free_context(mctx_t mctx)
 		DestroyMTCPSender(mtcp->n_sender[i]);
 	}
 
+	#ifdef USE_MTP
 	MPDestroy(mtcp->mtp_pool);
+	#endif
 	MPDestroy(mtcp->rv_pool);
 	MPDestroy(mtcp->sv_pool);
 	MPDestroy(mtcp->flow_pool);

@@ -567,6 +567,7 @@ ProcessACK(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts,
 			}
 		}
 
+		printf("lock in tcp_in.c\n");
 		if (SBUF_LOCK(&sndvar->write_lock)) {
 			if (errno == EDEADLK)
 				perror("ProcessACK: write_lock blocked\n");

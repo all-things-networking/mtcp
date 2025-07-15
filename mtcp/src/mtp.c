@@ -887,6 +887,7 @@ inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	uint32_t bytes_to_send = 0;
 
 	if(rcvvar->dup_acks == 3) {
+		printf("lock in mtp.c\n");
 		SBUF_LOCK(&sndvar->write_lock);
 
 		bytes_to_send = sndvar->eff_mss;
@@ -920,6 +921,7 @@ inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	int32_t ack_num = cur_stream->rcv_nxt;
 	uint8_t *data = sndvar->sndbuf->head + (seq - sndvar->snd_una);
 	int ret = 0;
+	printf("lock in mtp.c\n");
 	SBUF_LOCK(&sndvar->write_lock);
 	while (len > 0) {
 		int32_t pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
@@ -943,6 +945,7 @@ inline void ack_net_ep(mtcp_manager_t mtcp, tcp_stream* cur_stream,
 	// This step is kinda target dependent (depending on the implementation of sending buffer)
 	uint32_t rmlen = ack_seq - sndvar->snd_una;
 	if(rmlen > 0) {
+		printf("lock in mtp.c\n");
 		if (SBUF_LOCK(&sndvar->write_lock)) {
 			if (errno == EDEADLK)
 				perror("ProcessACK: write_lock blocked\n");
@@ -1256,7 +1259,7 @@ inline int send_chain(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
 		assert(0);
 		return 0;
 	}
-	
+	printf("lock in mtp.c\n");
 	SBUF_LOCK(&sndvar->write_lock);
 
 	if (sndvar->sndbuf->len == 0) {

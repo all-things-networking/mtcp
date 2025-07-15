@@ -28,14 +28,6 @@
 // TURN MTP ON/OFF BY COMMENTING OUT THIS LINE
 #define USE_MTP     1
 
-#ifdef USE_MTP
-
-    #ifndef MTP_ERROR
-    #define MTP_ERROR (-1)
-    #endif
-
-#endif
-
 
 #ifdef ENABLE_ONVM
 #include "onvm_nflib.h"

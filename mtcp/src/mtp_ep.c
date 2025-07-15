@@ -96,7 +96,9 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
 	struct mtp_ctx *ctx = cur_stream->mtp;
 	
+	printf("send_ep before grabbing lock\n");
 	SBUF_LOCK(&sndvar->write_lock);
+	printf("send_ep after grabbing lock\n");
 	if (!sndvar->sndbuf || sndvar->sndbuf->len == 0) {
         SBUF_UNLOCK(&sndvar->write_lock);
         return;
@@ -107,7 +109,9 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	int window_avail = MIN(ctx->cwnd_size, ctx->last_rwnd_remote) - (ctx->send_next - ctx->send_una);
     int bytes_to_send = MIN(data_rest, window_avail);
 	if (bytes_to_send <= 0) {
+		printf("send_ep before releasing lock\n");
 		SBUF_UNLOCK(&sndvar->write_lock);
+		printf("send_ep after releasing lock\n");
         return;
 	}
 
@@ -124,7 +128,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
     bp->hdr.ack_seq = htonl(ctx->recv_next);
 
     bp->hdr.syn = FALSE;
-    bp->hdr.ack = FALSE;
+    bp->hdr.ack = TRUE;
 
     // options to calculate data offset
    
@@ -174,6 +178,9 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	// MTP TODO: map to timer event with event input
 	TimerStart(mtcp, cur_stream, cur_ts);
 
+	printf("send_ep before releasing lock\n");
+	SBUF_UNLOCK(&sndvar->write_lock);
+	printf("send_ep after releasing lock\n");
 	return;
 }
 
@@ -354,7 +361,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
         bp->hdr.ack_seq = htonl(ctx->recv_next);
 
         bp->hdr.syn = FALSE;
-        bp->hdr.ack = FALSE;
+        bp->hdr.ack = TRUE;
 
         // options to calculate data offset
        
@@ -419,7 +426,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
     bp->hdr.ack_seq = htonl(ctx->recv_next);
 
     bp->hdr.syn = FALSE;
-    bp->hdr.ack = FALSE;
+    bp->hdr.ack = TRUE;
 
     // options to calculate data offset
    

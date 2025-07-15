@@ -176,7 +176,7 @@ struct tcp_send_vars
 #endif
 };
 
-#ifdef USE_MTP
+//#ifdef USE_MTP
 struct mtp_ctx {
     uint32_t remote_ip;
     uint32_t local_ip;
@@ -226,7 +226,7 @@ struct mtp_ctx {
     //sliding_wnd meta_rwnd;
     //buffer_id_t bid;
 };
-#endif
+//#endif
 
 typedef struct tcp_stream
 {
@@ -269,9 +269,9 @@ typedef struct tcp_stream
 	struct tcp_recv_vars *rcvvar;
 	struct tcp_send_vars *sndvar;
 
-#ifdef USE_MTP
+//#ifdef USE_MTP
     struct mtp_ctx *mtp;
-#endif
+//#endif
 
 #if RATE_LIMIT_ENABLED
 	struct token_bucket  *bucket;

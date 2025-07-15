@@ -425,8 +425,9 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             uint32_t bytes_to_send = bp->payload.len;
             uint8_t *data_ptr = bp->payload.data;
 
-            printf("before grabbing the lock\n");
+            printf("SENDMTPPackets: before grabbing the lock\n");
             SBUF_LOCK(&cur_stream->sndvar->write_lock);
+            printf("SENDMTPPackets: after grabbing the lock\n");
 
             printf("1 sending, here\n");
             if (bp->payload.seg_rule_group_id == 1){
@@ -445,6 +446,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                         bp->hdr.seq = htonl(seq);
                         bp->payload.data = data_ptr;
                         // AdvanceBPListHead(cur_stream, sent + err);
+                        SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
                         return -2;
                     }
 
@@ -536,7 +538,6 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                            
                 }
             }
-            SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
             sent += 1;
         }
         else {
@@ -555,6 +556,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     MTP_HEADER_LEN + optlen + payloadLen);
             if (mtph == NULL) {
                 // AdvanceBPListHead(cur_stream, sent + err);
+                SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
                 return -2;
             }
 
@@ -670,6 +672,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         
     
     AdvanceBPListHead(cur_stream, sent + err);
+    SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
     return 0; 
     
     // MTP TODO: check these

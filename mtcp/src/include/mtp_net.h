@@ -4,6 +4,14 @@
 #include "mtcp.h"
 #include "tcp_stream.h"
 
+
+
+#ifndef MTP_ERROR
+#define MTP_ERROR (-1)
+#endif
+
+
+
 /********************** MTP Network Interface **********************
  * This module implements MTP net RX and TX interfaces
  *
