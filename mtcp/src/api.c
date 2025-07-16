@@ -1577,9 +1577,9 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 	sndvar = cur_stream->sndvar;
 
-	printf("mtcp_write before grabbing lock\n");
+	// printf("mtcp_write before grabbing lock\n");
 	SBUF_LOCK(&sndvar->write_lock);
-	printf("mtcp_write after grabbing lock\n");
+	// printf("mtcp_write after grabbing lock\n");
 #if BLOCKING_SUPPORT
 	if (!(socket->opts & MTCP_NONBLOCK)) {
 		while (sndvar->snd_wnd <= 0) {
@@ -1598,9 +1598,9 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 	ret = CopyFromUser(mtcp, cur_stream, buf, len);
 
-	printf("mtcp_write before releasing lock\n");
+	// printf("mtcp_write before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
-	printf("mtcp_write after releasing lock\n");
+	// printf("mtcp_write after releasing lock\n");
 
 	if (ret > 0 && !(sndvar->on_sendq || sndvar->on_send_list)) {
 		SQ_LOCK(&mtcp->ctx->sendq_lock);

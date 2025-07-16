@@ -475,7 +475,7 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
 		return 0;
 	}
 	
-	printf("lock in tcp out\n");
+	// printf("lock in tcp out\n");
 	SBUF_LOCK(&sndvar->write_lock);
 
 	if (sndvar->sndbuf->len == 0) {

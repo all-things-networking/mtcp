@@ -389,15 +389,26 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
  ***********************************************/
 void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
                 uint32_t offset, uint32_t len){
+	struct tcp_send_vars* sndvar = cur_stream->sndvar;
+	
 	// if (SBUF_LOCK(&sndvar->write_lock)) {
 	// 	if (errno == EDEADLK) perror("ProcessACK: write_lock blocked\n");
 	// 	assert(0);
 	// }
-	// SBRemove(mtcp->rbm_snd, sndvar->sndbuf, rmlen);
-	// sndvar->snd_una = ack_seq;
-	// sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
+	
+	// MTP TODO: should we change offset and assume you can only continuously flush?
+	uint32_t rmlen = len + (offset - sndvar->sndbuf->head_seq);
+	// printf("TxDataFlush rmlen:%d\n", rmlen);
+	// printf("Before: head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
+	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
+	SBRemove(mtcp->rbm_snd, sndvar->sndbuf, rmlen);
+	// printf("After: head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
+	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
+	
+	sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
 
-	// RaiseWriteEvent(mtcp, cur_stream);
+	// MTP TODO: How is this modeled in MTP, if at all?
+	RaiseWriteEvent(mtcp, cur_stream);
 	// SBUF_UNLOCK(&sndvar->write_lock);				
 }
 

@@ -406,18 +406,19 @@ int
 SendMTPPackets(struct mtcp_manager *mtcp, 
                tcp_stream *cur_stream, 
 		       uint32_t cur_ts){   
-    // TODO: gotta advance this? 
+
     unsigned int sent = 0;
     unsigned int err = 0;
     for (unsigned int i = cur_stream->sndvar->mtp_bps_head;
          i != cur_stream->sndvar->mtp_bps_tail;
          i = (i + 1) % MTP_PER_FLOW_BP_CNT){
         
-        printf("bp index: %d\n", i);
+        // printf("bp index: %d\n", i);
         
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
-        printf("dequeued bp:");
-        print_MTP_bp(bp);
+        
+        // printf("dequeued bp:");
+        // print_MTP_bp(bp);
 
         uint16_t optlen = MTP_CalculateOptionLength(bp);
 
@@ -425,18 +426,22 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             uint32_t bytes_to_send = bp->payload.len;
             uint8_t *data_ptr = bp->payload.data;
 
-            printf("SENDMTPPackets: before grabbing the lock\n");
-            SBUF_LOCK(&cur_stream->sndvar->write_lock);
-            printf("SENDMTPPackets: after grabbing the lock\n");
+            // printf("SENDMTPPackets: before grabbing the lock\n");
+            // SBUF_LOCK(&cur_stream->sndvar->write_lock);
+            // printf("SENDMTPPackets: after grabbing the lock\n");
 
-            printf("1 sending, here\n");
+            // printf("1 sending, here\n");
+
             if (bp->payload.seg_rule_group_id == 1){
                 uint32_t seq = ntohl(bp->hdr.seq);
                 uint32_t seg_size = bp->payload.seg_size;
 
                 while (bytes_to_send > 0) {
-                    printf("sending, here: %d\n", bytes_to_send);
+                    // printf("sending, here: %d\n", bytes_to_send);
+
                     int32_t pkt_len = MIN(seg_size, bytes_to_send);
+
+                    // printf("pkt_len: %d\n", pkt_len);
 
                     // Send the next packet
                     struct mtp_bp_hdr *mtph;
@@ -446,15 +451,23 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                         bp->hdr.seq = htonl(seq);
                         bp->payload.data = data_ptr;
                         // AdvanceBPListHead(cur_stream, sent + err);
-                        SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
+                        // SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
+                        // printf("ran out midway\n");
                         return -2;
                     }
 
+                    // printf("got packet memory\n");
+
                     memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
+
+                    // printf("copied the header\n");
+
                     mtph->seq = htonl(seq);
 
                     // MTP TODO: this is TCP specific
                     mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+                    // printf("setup some fields\n");
 
                     // options
                     // MTP TODO: this can be further generalized
@@ -501,17 +514,21 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                         buff_opts[i++] = bp_opts->wscale.value;
                     }
 
+                    // printf("setup options\n");
                     // MTP TODO: this is TCP specific?
                     assert (i % 4 == 0);
                     assert (i == optlen); 
 
                     // MTP TODO: do we need to lock here?
                     // copy payload if exist
+                    // printf("packet addr:%p\n", (uint8_t *)mtph + MTP_HEADER_LEN + optlen);
+                    // printf("data pointer: %p\n", data_ptr);
                     memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, data_ptr, pkt_len);
                     #if defined(NETSTAT) && defined(ENABLELRO)
                     mtcp->nstat.tx_gdptbytes += payloadlen;
                     #endif // NETSTAT 
                      
+                    // printf("copied payload\n");
 
                     // MTP TODO: checksum is TCP specific
                     int rc = -1;
@@ -531,10 +548,13 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     }
                     #endif
 
+                    // printf("setup checksum\n");
                     // update for next packet based on segementation rules
                     bytes_to_send -= pkt_len;
                     seq += pkt_len;
                     data_ptr += pkt_len;
+
+                    // printf("moving on\n");
                            
                 }
             }
@@ -556,7 +576,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     MTP_HEADER_LEN + optlen + payloadLen);
             if (mtph == NULL) {
                 // AdvanceBPListHead(cur_stream, sent + err);
-                SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
+                // SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
                 return -2;
             }
 
@@ -672,7 +692,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         
     
     AdvanceBPListHead(cur_stream, sent + err);
-    SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
+    // SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
     return 0; 
     
     // MTP TODO: check these
