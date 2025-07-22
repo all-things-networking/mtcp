@@ -74,7 +74,7 @@ struct tcp_opt_timestamp {
     uint32_t value2;
 };
 
-#define MTP_TCP_OPT_WSCALE 2
+#define MTP_TCP_OPT_WSCALE 3
 struct tcp_opt_wscale {
     bool valid;
     uint8_t kind;

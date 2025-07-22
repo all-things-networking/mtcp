@@ -21,7 +21,7 @@
 // Intermediate output
 typedef struct scratchpad_decl {
 	uint8_t change_cwnd;
-	uint8_t skip_ack_eps;
+	bool skip_ack_eps;
 } scratchpad;
 
 
@@ -96,9 +96,9 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
 	struct mtp_ctx *ctx = cur_stream->mtp;
 	
-	printf("send_ep before grabbing lock\n");
+	// printf("send_ep before grabbing lock\n");
 	SBUF_LOCK(&sndvar->write_lock);
-	printf("send_ep after grabbing lock\n");
+	// printf("send_ep after grabbing lock\n");
 	if (!sndvar->sndbuf || sndvar->sndbuf->len == 0) {
         SBUF_UNLOCK(&sndvar->write_lock);
         return;
@@ -109,9 +109,9 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	int window_avail = MIN(ctx->cwnd_size, ctx->last_rwnd_remote) - (ctx->send_next - ctx->send_una);
     int bytes_to_send = MIN(data_rest, window_avail);
 	if (bytes_to_send <= 0) {
-		printf("send_ep before releasing lock\n");
+		// printf("send_ep before releasing lock\n");
 		SBUF_UNLOCK(&sndvar->write_lock);
-		printf("send_ep after releasing lock\n");
+		// printf("send_ep after releasing lock\n");
         return;
 	}
 
@@ -181,21 +181,21 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	// MTP TODO: map to timer event with event input
 	TimerStart(mtcp, cur_stream, cur_ts);
 
-	printf("send_ep before releasing lock\n");
+	// printf("send_ep before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
-	printf("send_ep after releasing lock\n");
+	// printf("send_ep after releasing lock\n");
 	return;
 }
 
-static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq, 
-        tcp_stream* cur_stream, scratchpad* scratch){
+static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq, 
+        uint32_t ev_seq, tcp_stream* cur_stream, scratchpad* scratch){
 
     if (cur_stream->mtp->state == MTP_TCP_SYNACK_SENT_ST &&
-        ack_seq == cur_stream->mtp->init_seq + 1){
+        ev_ack_seq == cur_stream->mtp->init_seq + 1){
         cur_stream->mtp->state = MTP_TCP_ESTABLISHED_ST;
         cur_stream->mtp->send_una += 1;
-        cur_stream->mtp->send_next = ack_seq;
-        cur_stream->mtp->last_ack = ack_seq;
+        cur_stream->mtp->send_next = ev_ack_seq;
+        cur_stream->mtp->last_ack = ev_ack_seq;
 
         if (cur_stream->mtp->cwnd_size == 1){
             cur_stream->mtp->cwnd_size = 2 * cur_stream->mtp->SMSS;
@@ -203,7 +203,11 @@ static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t a
         else {
             cur_stream->mtp->cwnd_size = cur_stream->mtp->SMSS;
         }
-        scratch->skip_ack_eps = 1;
+
+		cur_stream->mtp->lwu_seq = ev_seq;
+		cur_stream->mtp->lwu_ack = ev_ack_seq;
+        scratch->skip_ack_eps = TRUE;
+		// MTP TODO: timer
         TimerCancel(mtcp, cur_stream);
 
         // Raise an event to the listening socket
@@ -213,10 +217,19 @@ static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t a
 			AddEpollEvent(mtcp->ep, MTCP_EVENT_QUEUE, listen_ctx->socket, MTCP_EPOLLIN);
 		}
 
+		printf("conn_ack, skip: lwu_seq: %u, lwu_ack: %u, rwindow: %u\n", cur_stream->mtp->lwu_seq,
+									   cur_stream->mtp->lwu_ack,
+									   cur_stream->mtp->last_rwnd_remote);
+
     }
     else {
-        scratch->skip_ack_eps = 0;
+        scratch->skip_ack_eps = FALSE;
+		printf("conn_ack, no skip: lwu_seq: %u, lwu_ack: %u, rwindow: %u\n", cur_stream->mtp->lwu_seq,
+									   cur_stream->mtp->lwu_ack,
+									   cur_stream->mtp->last_rwnd_remote);
     }
+
+	
 }
 
 static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq, 
@@ -229,7 +242,7 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq
     struct mtp_ctx* ctx = cur_stream->mtp;
 	
     if(ack_seq < ctx->send_una || ctx->send_next < ack_seq) {
-		scratch->skip_ack_eps = 1;
+		scratch->skip_ack_eps = TRUE;
 		return;
 	}
     
@@ -305,9 +318,10 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 	}
 }
 
-static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
-	uint32_t window, uint32_t seq, tcp_stream* cur_stream, scratchpad* scratch)
+static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_ack_seq, 
+	uint32_t ev_window, uint32_t ev_seq, tcp_stream* cur_stream, scratchpad* scratch)
 {
+	// MTP TODO: do wscale properly?
 	if(scratch->skip_ack_eps) return;
 	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
 
@@ -318,15 +332,23 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 	SBUF_LOCK(&sndvar->write_lock);
 
 	// Update window
-	uint32_t rwindow = window << ctx->wscale_remote;
+	printf("ev_window: %u, wscale_remote: %u\n", ev_window, ctx->wscale_remote);
+	uint32_t rwindow = ev_window << ctx->wscale_remote;
+	printf("rwindow: %u\n", rwindow);
     // MTP TODO: sequence comparisons
-    if (TCP_SEQ_LT(ctx->lwu_seq, seq) ||
-        (ctx->lwu_seq == seq && TCP_SEQ_LT(ctx->lwu_ack, ack_seq)) ||
-        (ctx->lwu_ack == ack_seq && rwindow > ctx->last_rwnd_remote)){
+    if (TCP_SEQ_LT(ctx->lwu_seq, ev_seq) ||
+        (ctx->lwu_seq == ev_seq && TCP_SEQ_LT(ctx->lwu_ack, ev_ack_seq)) ||
+        (ctx->lwu_ack == ev_ack_seq && rwindow > ctx->last_rwnd_remote)){
         uint32_t rwindow_prev = ctx->last_rwnd_remote;
+		printf("ack_net_ep, before: lwu_seq: %u, lwu_ack: %u, rwindow: %u\n", cur_stream->mtp->lwu_seq,
+									   cur_stream->mtp->lwu_ack,
+									   cur_stream->mtp->last_rwnd_remote);
         ctx->last_rwnd_remote = rwindow;
-        ctx->lwu_seq = seq;
-        ctx->lwu_ack = ack_seq;
+        ctx->lwu_seq = ev_seq;
+        ctx->lwu_ack = ev_ack_seq;
+		printf("ack_net_ep, after: lwu_seq: %u, lwu_ack: %u, rwindow: %u\n", cur_stream->mtp->lwu_seq,
+									   cur_stream->mtp->lwu_ack,
+									   cur_stream->mtp->last_rwnd_remote);
         if (rwindow_prev < (ctx->send_next - ctx->send_una) &&
             ctx->last_rwnd_remote >= (ctx->send_next - ctx->send_una)){
             // This is kinda "notify" in MTP
@@ -336,7 +358,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
  
     // MTP TODO: fix sndbuf->len	
 	uint32_t data_rest = sndvar->sndbuf->head_seq + sndvar->sndbuf->len - ctx->send_next;
-	if (data_rest == 0 && ack_seq == ctx->send_next) {
+	if (data_rest == 0 && ev_ack_seq == ctx->send_next) {
 		TimerCancel(mtcp, cur_stream);
 		SBUF_UNLOCK(&sndvar->write_lock);
 		return;
@@ -347,6 +369,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
         effective_window = ctx->last_rwnd_remote;
     }
 	
+	printf("ack_net_ep: cwnd: %d, rwnd: %d\n", ctx->cwnd_size, ctx->last_rwnd_remote);
     uint32_t bytes_to_send = 0;
 
 	if(ctx->duplicate_acks == 3) {
@@ -428,6 +451,11 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
         else bytes_to_send = window_avail;
     }
 
+	// MTP TODO: check bytes to send is not zero
+	printf("ack_net_ep: bytes to send: %d\n", bytes_to_send);
+
+	// if (bytes_to_send == 0) return;
+
     mtp_bp* bp = GetFreeBP(cur_stream);
     
     memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
@@ -486,12 +514,12 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack
 
 	// Remove acked sequence from sending buffer
 	// This step is kinda target dependent (depending on the implementation of sending buffer)
-	uint32_t rmlen = ack_seq - ctx->send_una;
+	uint32_t rmlen = ev_ack_seq - ctx->send_una;
 	if(rmlen > 0) {
 		// printf("Removing %d bytes\n", rmlen);
 		uint32_t offset = ctx->send_una - ctx->init_seq;
 		TxDataFlush(mtcp, cur_stream, offset, rmlen);
-		ctx->send_una = ack_seq;
+		ctx->send_una = ev_ack_seq;
 	}
 
 	// MTP TODO: match the mtp file in creating right "event" on timeout
@@ -724,7 +752,7 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
     */
     scratchpad scratch;
-    conn_ack_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
+    conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, &scratch);
     rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);

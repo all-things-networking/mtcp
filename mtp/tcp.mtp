@@ -529,6 +529,7 @@ list<instr_t> conn_ack_ep (ACK ev, tcp_context ctx, interm_out int_out) {
         ctx.send_una = ctx.send_una + 1;
         ctx.send_next = ev.ack_seq;
         ctx.last_ack = ev.ack_seq;
+        
         if (ctx.cwnd_size == 1){
             ctx.cwnd_size = 2 * SMSS;
         }

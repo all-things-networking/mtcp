@@ -1605,7 +1605,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	if (ret > 0 && !(sndvar->on_sendq || sndvar->on_send_list)) {
 		SQ_LOCK(&mtcp->ctx->sendq_lock);
 		sndvar->on_sendq = TRUE;
-		printf("enqueue in send queue\n");
+		// printf("enqueue in send queue\n");
 		StreamEnqueue(mtcp->sendq, cur_stream);		/* this always success */
 		SQ_UNLOCK(&mtcp->ctx->sendq_lock);
 		mtcp->wakeup_flag = TRUE;

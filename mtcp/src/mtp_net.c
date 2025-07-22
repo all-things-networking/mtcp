@@ -148,11 +148,14 @@ MTPExtractOptions(uint8_t *buff,
 	for (i = 0; i < len; ) {
         // MTP TODO: need to generalize for sel_len > 1
         uint8_t opttype = *(buff + i);
+        
         i++;
         for (int j = 0; j < sel_len - 1; j++){
             opttype = (opttype << 8) + *(buff + i);
             i++;
         }
+
+        // printf("i: %u, opttype: %u\n", i, opttype);
 
         if (opttype == MTP_TCP_OPT_MSS){
             i++; // for len
@@ -182,6 +185,7 @@ MTPExtractOptions(uint8_t *buff,
         else if (opttype == MTP_TCP_OPT_WSCALE){
             i++; // for len
             uint8_t wscale = *(buff + i);
+            printf("parsed wscale: %u\n", wscale);
             i++;
             MTP_set_opt_wscale(&(opts->wscale), wscale);
         } 
@@ -276,7 +280,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         bool mss_valid = mtp_opt.mss.valid;
         uint16_t mss = mtp_opt.mss.value;
         bool wscale_valid = mtp_opt.wscale.valid;
-        uint8_t wscale = mtp_opt.mss.value;
+        uint8_t wscale = mtp_opt.wscale.value;
         
         // MTP TODO: change key to include IP
         // MTP TODO: separate out  flow id construction
