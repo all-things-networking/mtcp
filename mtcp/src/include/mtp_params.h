@@ -3,6 +3,6 @@
 
 #define MTP_BP_BUFFER_FULL_ERROR  -2
 
-#define MTP_PER_FLOW_BP_CNT 50
+#define MTP_PER_FLOW_BP_CNT 1000
 
 #endif

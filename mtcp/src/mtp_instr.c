@@ -355,6 +355,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     mtp->eff_SMSS = mtp->SMSS - (TCP_OPT_TIMESTAMP_LEN + 2); 
     mtp->rwnd_size = 14600;
     mtp->cwnd_size = 1;
+	mtp->ssthresh = mtp->SMSS * 10;
     mtp->duplicate_acks = 0;
 	mtp->wscale = 7;
 

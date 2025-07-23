@@ -424,8 +424,8 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
         
-        // printf("dequeued bp:");
-        // print_MTP_bp(bp);
+        printf("bp @ index %u:\n", i);
+        print_MTP_bp(bp);
 
         uint16_t optlen = MTP_CalculateOptionLength(bp);
 
@@ -452,8 +452,9 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                             MTP_HEADER_LEN + optlen + pkt_len);
                     if (mtph == NULL) {
                         bp->hdr.seq = htonl(seq);
+                        bp->payload.len = bytes_to_send;
                         bp->payload.data = data_ptr;
-                        // AdvanceBPListHead(cur_stream, sent + err);
+                        AdvanceBPListHead(cur_stream, sent + err);
                         printf("ran out midway\n");
                         return -2;
                     }
@@ -578,7 +579,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
                     MTP_HEADER_LEN + optlen + payloadLen);
             if (mtph == NULL) {
-                // AdvanceBPListHead(cur_stream, sent + err);
+                AdvanceBPListHead(cur_stream, sent + err);
                 return -2;
             }
 
