@@ -414,8 +414,8 @@ SendMTPPackets(struct mtcp_manager *mtcp,
     // printf("in SendMTPPackets\n");
     unsigned int sent = 0;
     unsigned int err = 0;
-    printf("bp list head: %u, bp list tail: %u\n", cur_stream->sndvar->mtp_bps_head,
-                                                   cur_stream->sndvar->mtp_bps_tail);
+    // printf("bp list head: %u, bp list tail: %u\n", cur_stream->sndvar->mtp_bps_head,
+    //                                                cur_stream->sndvar->mtp_bps_tail);
     for (unsigned int i = cur_stream->sndvar->mtp_bps_head;
          i != cur_stream->sndvar->mtp_bps_tail;
          i = (i + 1) % MTP_PER_FLOW_BP_CNT){
@@ -424,8 +424,8 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
         
-        printf("bp @ index %u:\n", i);
-        print_MTP_bp(bp);
+        // printf("bp @ index %u:\n", i);
+        // print_MTP_bp(bp);
 
         uint16_t optlen = MTP_CalculateOptionLength(bp);
 
@@ -455,7 +455,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                         bp->payload.len = bytes_to_send;
                         bp->payload.data = data_ptr;
                         AdvanceBPListHead(cur_stream, sent + err);
-                        printf("ran out midway\n");
+                        // printf("ran out midway\n");
                         return -2;
                     }
 
@@ -466,7 +466,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     // printf("copied the header\n");
 
                     mtph->seq = htonl(seq);
-                    printf("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
+                    // printf("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
 
                     // MTP TODO: this is TCP specific
                     mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
@@ -585,7 +585,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
             memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
 
-            printf("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
+            // printf("Sent Seq 2: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
 
             // MTP TODO: this is TCP specific
             mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;

@@ -115,7 +115,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
         return;
 	}
 
-	printf("send_ep bytes to send: %d\n", bytes_to_send);
+	// printf("send_ep bytes to send: %d\n", bytes_to_send);
 	// MTP: maps to packet blueprint creation
 	
 	mtp_bp* bp = GetFreeBP(cur_stream);
@@ -127,7 +127,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
     bp->hdr.source = cur_stream->mtp->local_port;
     bp->hdr.dest = cur_stream->mtp->remote_port;
     bp->hdr.seq = htonl(ctx->send_next);
-	printf("Seq in send_ep: %u\n", ntohl(bp->hdr.seq));
+	// printf("Seq in send_ep: %u\n", ntohl(bp->hdr.seq));
     bp->hdr.ack_seq = htonl(ctx->recv_next);
 
     bp->hdr.syn = FALSE;
@@ -174,14 +174,14 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     AddtoGenList(mtcp, cur_stream, cur_ts);	
 
-	printf("prepared bp:\n");
-	print_MTP_bp(bp);
+	// printf("prepared bp:\n");
+	// print_MTP_bp(bp);
 	// printf("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 
 	ctx->send_next += bytes_to_send;
 
-	printf("send next: %u\n", ctx->send_next);
+	// printf("send next: %u\n", ctx->send_next);
 
 	// MTP TODO: map to timer event with event input
 	TimerStart(mtcp, cur_stream, cur_ts);
@@ -195,7 +195,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq, 
         uint32_t ev_seq, tcp_stream* cur_stream, scratchpad* scratch){
 
-	printf("Ack: %u\n", ev_ack_seq);
+	// printf("Ack: %u\n", ev_ack_seq);
 
     if (cur_stream->mtp->state == MTP_TCP_SYNACK_SENT_ST &&
         ev_ack_seq == cur_stream->mtp->init_seq + 1){
@@ -271,7 +271,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32
 
 	scratch->change_cwnd = 1;
 
-	printf("fast_retr BEFORE: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
+	// printf("fast_retr BEFORE: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
 	if(ack_seq == ctx->last_ack) {
 		ctx->duplicate_acks++;
 
@@ -301,7 +301,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32
 		ctx->duplicate_acks = 0;
 		ctx->last_ack = ack_seq;
 	}
-	printf("fast_retr AFTER: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
+	// printf("fast_retr AFTER: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
 }
 
 static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
@@ -311,13 +311,13 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
     struct mtp_ctx *ctx = cur_stream->mtp;
 
-	printf("before DIV\n");
-	printf("slows_cong BEFORE: cwnd:%u\n", ctx->cwnd_size);
+	// printf("before DIV\n");
+	// printf("slows_cong BEFORE: cwnd:%u\n", ctx->cwnd_size);
 	if(scratch->change_cwnd) {
 		uint32_t rmlen = ack_seq - ctx->send_una;
-		printf("rmlen: %u, eff_SMSS: %u\n", rmlen, ctx->eff_SMSS);
+		// printf("rmlen: %u, eff_SMSS: %u\n", rmlen, ctx->eff_SMSS);
 		uint16_t packets = rmlen / ctx->eff_SMSS;
-		printf("after\n");
+		// printf("after\n");
 		if (packets * ctx->eff_SMSS > rmlen) {
 			packets++;
 		}
@@ -325,14 +325,14 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 		if (ctx->cwnd_size < ctx->ssthresh) {
 			ctx->cwnd_size += (ctx->SMSS * packets);
 		} else {
-			printf("SMSS: %u, cwnd: %u\n", ctx->SMSS, ctx->cwnd_size);
+			// printf("SMSS: %u, cwnd: %u\n", ctx->SMSS, ctx->cwnd_size);
 			uint32_t add_cwnd = packets * ctx->SMSS * ctx->SMSS / ctx->cwnd_size;
-			printf("after\n");
+			// printf("after\n");
 			ctx->cwnd_size += add_cwnd;
 		}
 	}
-	printf("after DIV\n");
-	printf("slows_cong AFTER: cwnd:%u\n", ctx->cwnd_size);
+	// printf("after DIV\n");
+	// printf("slows_cong AFTER: cwnd:%u\n", ctx->cwnd_size);
 }
 
 static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_ack_seq, 
@@ -346,7 +346,9 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
     struct mtp_ctx *ctx = cur_stream->mtp;
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 	
+	// printf("ack_net_ep before grabbing lock\n");
 	SBUF_LOCK(&sndvar->write_lock);
+	// printf("ack_net_ep after grabbing lock\n");
 
 	// Update window
 	// printf("ev_window: %u, wscale_remote: %u\n", ev_window, ctx->wscale_remote);
@@ -377,7 +379,9 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	uint32_t data_rest = sndvar->sndbuf->head_seq + sndvar->sndbuf->len - ctx->send_next;
 	if (data_rest == 0 && ev_ack_seq == ctx->send_next) {
 		TimerCancel(mtcp, cur_stream);
+		// printf("ack_net_ep before releasing lock\n");
 		SBUF_UNLOCK(&sndvar->write_lock);
+		// printf("ack_net_ep after releasing lock\n");
 		return;
 	}
 
@@ -386,7 +390,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
         effective_window = ctx->last_rwnd_remote;
     }
 	
-	printf("ack_net_ep: cwnd: %d, rwnd: %d\n", ctx->cwnd_size, ctx->last_rwnd_remote);
+	// printf("ack_net_ep: cwnd: %d, rwnd: %d\n", ctx->cwnd_size, ctx->last_rwnd_remote);
     uint32_t bytes_to_send = 0;
 
 	if(ctx->duplicate_acks == 3) {
@@ -407,7 +411,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
         bp->hdr.source = cur_stream->mtp->local_port;
         bp->hdr.dest = cur_stream->mtp->remote_port;
         bp->hdr.seq = htonl(ctx->send_una);
-		printf("Seq: %u\n", ntohl(bp->hdr.seq));
+		// printf("Seq: %u\n", ntohl(bp->hdr.seq));
         bp->hdr.ack_seq = htonl(ctx->recv_next);
 
         bp->hdr.syn = FALSE;
@@ -455,7 +459,9 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		// printf("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 		// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 		
+		// printf("ack_net_ep before releasing lock\n");
 		SBUF_UNLOCK(&sndvar->write_lock);
+		// printf("ack_net_ep after releasing lock\n");
 		return;
 	}
 
@@ -472,7 +478,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
     }
 
 	// MTP TODO: check bytes to send is not zero
-	printf("ack_net_ep: bytes to send: %d\n", bytes_to_send);
+	// printf("ack_net_ep: bytes to send: %d\n", bytes_to_send);
 
 	// if (bytes_to_send == 0) return;
 
@@ -486,7 +492,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
     bp->hdr.source = cur_stream->mtp->local_port;
     bp->hdr.dest = cur_stream->mtp->remote_port;
     bp->hdr.seq = htonl(ctx->send_next);
-	printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+	// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
     bp->hdr.ack_seq = htonl(ctx->recv_next);
 
     bp->hdr.syn = FALSE;
@@ -529,13 +535,13 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
     AddtoGenList(mtcp, cur_stream, cur_ts);	
 
-	printf("prepared bp:\n");
-	print_MTP_bp(bp);
+	// printf("prepared bp:\n");
+	// print_MTP_bp(bp);
 	// printf("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 
 	ctx->send_next += bytes_to_send;
-	printf("ack_ep send next: %u\n", ctx->send_next);
+	// printf("ack_ep send next: %u\n", ctx->send_next);
 
 	// Remove acked sequence from sending buffer
 	// This step is kinda target dependent (depending on the implementation of sending buffer)
@@ -549,7 +555,9 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 	// MTP TODO: match the mtp file in creating right "event" on timeout
 	TimerRestart(mtcp, cur_stream, cur_ts);
+	// printf("ack_net_ep before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
+	// printf("ack_net_ep after releasing lock\n");
 }
 
 static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload,

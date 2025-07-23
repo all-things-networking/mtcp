@@ -45,10 +45,10 @@ AddtoGenList(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
         sender->gen_list_cnt++;
         TRACE_DBG("Stream %u: added to gen list (cnt: %d)\n", 
         		cur_stream->id, sender->gen_list_cnt);
-		printf("add to gen list\n");
+		// printf("add to gen list\n");
 		return;
     }
-	printf("already on gen list\n");
+	// printf("already on gen list\n");
 }
 
 /*----------------------------------------------------------------------------*/
