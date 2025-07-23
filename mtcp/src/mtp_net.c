@@ -411,8 +411,11 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                tcp_stream *cur_stream, 
 		       uint32_t cur_ts){   
 
+    // printf("in SendMTPPackets\n");
     unsigned int sent = 0;
     unsigned int err = 0;
+    printf("bp list head: %u, bp list tail: %u\n", cur_stream->sndvar->mtp_bps_head,
+                                                   cur_stream->sndvar->mtp_bps_tail);
     for (unsigned int i = cur_stream->sndvar->mtp_bps_head;
          i != cur_stream->sndvar->mtp_bps_tail;
          i = (i + 1) % MTP_PER_FLOW_BP_CNT){
@@ -429,10 +432,6 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         if (bp->payload.needs_segmentation){
             uint32_t bytes_to_send = bp->payload.len;
             uint8_t *data_ptr = bp->payload.data;
-
-            // printf("SENDMTPPackets: before grabbing the lock\n");
-            // SBUF_LOCK(&cur_stream->sndvar->write_lock);
-            // printf("SENDMTPPackets: after grabbing the lock\n");
 
             // printf("1 sending, here\n");
 
@@ -455,8 +454,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                         bp->hdr.seq = htonl(seq);
                         bp->payload.data = data_ptr;
                         // AdvanceBPListHead(cur_stream, sent + err);
-                        // SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
-                        // printf("ran out midway\n");
+                        printf("ran out midway\n");
                         return -2;
                     }
 
@@ -467,6 +465,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     // printf("copied the header\n");
 
                     mtph->seq = htonl(seq);
+                    printf("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
 
                     // MTP TODO: this is TCP specific
                     mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
@@ -580,11 +579,12 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     MTP_HEADER_LEN + optlen + payloadLen);
             if (mtph == NULL) {
                 // AdvanceBPListHead(cur_stream, sent + err);
-                // SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
                 return -2;
             }
 
             memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
+
+            printf("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
 
             // MTP TODO: this is TCP specific
             mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
@@ -669,34 +669,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         }
     }
     
-        /*
-        // MTP: maps to segmenting data
-        seq = cur_stream->snd_nxt;
-        int32_t ack_num = cur_stream->rcv_nxt;
-        uint8_t *data = sndvar->sndbuf->head + (seq - sndvar->snd_una);
-        int ret = 0;
-        SBUF_LOCK(&sndvar->write_lock);
-        while (bytes_to_send > 0) {
-            int32_t pkt_len = MIN(bytes_to_send, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
-
-            ret = SendMTPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK,
-                seq, ack_num, effective_window, data, pkt_len);
-
-            if (ret < 0){
-                break;
-            } else {
-                bytes_to_send -= pkt_len;
-                seq += pkt_len;
-                data += pkt_len;
-                cur_stream->snd_nxt += pkt_len;
-            }
-        }
-	    SBUF_UNLOCK(&sndvar->write_lock);
-        */
-        
-    
     AdvanceBPListHead(cur_stream, sent + err);
-    // SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
     return 0; 
     
     // MTP TODO: check these
@@ -730,6 +703,7 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 
 	thresh = MIN(thresh, sender->gen_list_cnt);
 
+    // printf("in packet gen list\n");
 	/* Send packets */
 	cnt = 0;
 	cur_stream = TAILQ_FIRST(&sender->gen_list);
@@ -737,6 +711,8 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 	while (cur_stream) {
 		if (++cnt > thresh) break;
 
+        // printf("Inside gen loop. cnt: %u, stream: %d\n", 
+				// cnt, cur_stream->id);
 		TRACE_LOOP("Inside gen loop. cnt: %u, stream: %d\n", 
 				cnt, cur_stream->id);
 		next = TAILQ_NEXT(cur_stream, sndvar->gen_link);
@@ -747,6 +723,7 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 		if (cur_stream->sndvar->on_gen_list) {
 			cur_stream->sndvar->on_gen_list = FALSE;
 			TRACE_DBG("Stream %u: Sending packets\n", cur_stream->id);
+            // printf("Stream %u: Sending packets\n", cur_stream->id);
 			ret = SendMTPPackets(mtcp, cur_stream, cur_ts);
 			if (ret == -2) {
 				TAILQ_INSERT_HEAD(&sender->gen_list, 

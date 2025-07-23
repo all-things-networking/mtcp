@@ -724,6 +724,8 @@ WritePacketsToChunks(mtcp_manager_t mtcp, uint32_t cur_ts)
 static inline void 
 MTP_PacketGen(mtcp_manager_t mtcp, uint32_t cur_ts)
 {
+	
+	// printf("in MTP packet gen\n");
 	int thresh = CONFIG.max_concurrency;
 	int i;
 
@@ -731,12 +733,14 @@ MTP_PacketGen(mtcp_manager_t mtcp, uint32_t cur_ts)
 	/* Otherwise, set to appropriate value (e.g. thresh) */
 	assert(mtcp->g_sender != NULL);
 	if (mtcp->g_sender->gen_list_cnt){
+		// printf("first loop\n");
 	    MTP_PacketGenList(mtcp, mtcp->g_sender, cur_ts, thresh);
     }
 
 	for (i = 0; i < CONFIG.eths_num; i++) {
 		assert(mtcp->n_sender[i] != NULL);
 		if (mtcp->n_sender[i]->gen_list_cnt){
+			// printf("second loop\n");
 			MTP_PacketGenList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
         }
 	}
@@ -869,7 +873,7 @@ RunMainLoop(struct mtcp_thread_context *ctx)
 			if (thresh == -1)
 				thresh = CONFIG.max_concurrency;
 
-			CheckRtmTimeout(mtcp, ts, thresh);
+			//CheckRtmTimeout(mtcp, ts, thresh);
 			CheckTimewaitExpire(mtcp, ts, CONFIG.max_concurrency);
 
 			if (CONFIG.tcp_timeout > 0 && ts != ts_prev) {
