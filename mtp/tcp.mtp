@@ -621,7 +621,7 @@ void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out int_out) {
         }
 
     } else {
-        if(ctx.duplicate_acks > 0) {
+        if(ctx.duplicate_acks >= 3) {
             ctx.cwnd_size = ctx.ssthresh;
         }
 

@@ -271,6 +271,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32
 
 	scratch->change_cwnd = 1;
 
+	printf("fast_retr BEFORE: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
 	if(ack_seq == ctx->last_ack) {
 		ctx->duplicate_acks++;
 
@@ -294,12 +295,13 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32
 			ctx->cwnd_size += ctx->SMSS;
 		}
 	} else {
-		if(ctx->duplicate_acks > 0) {
+		if(ctx->duplicate_acks >= 3) {
 			ctx->cwnd_size = ctx->ssthresh;
 		}
 		ctx->duplicate_acks = 0;
 		ctx->last_ack = ack_seq;
 	}
+	printf("fast_retr AFTER: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
 }
 
 static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
@@ -309,9 +311,13 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
     struct mtp_ctx *ctx = cur_stream->mtp;
 
+	printf("before DIV\n");
+	printf("slows_cong BEFORE: cwnd:%u\n", ctx->cwnd_size);
 	if(scratch->change_cwnd) {
 		uint32_t rmlen = ack_seq - ctx->send_una;
+		printf("rmlen: %u, eff_SMSS: %u\n", rmlen, ctx->eff_SMSS);
 		uint16_t packets = rmlen / ctx->eff_SMSS;
+		printf("after\n");
 		if (packets * ctx->eff_SMSS > rmlen) {
 			packets++;
 		}
@@ -319,10 +325,14 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 		if (ctx->cwnd_size < ctx->ssthresh) {
 			ctx->cwnd_size += (ctx->SMSS * packets);
 		} else {
+			printf("SMSS: %u, cwnd: %u\n", ctx->SMSS, ctx->cwnd_size);
 			uint32_t add_cwnd = packets * ctx->SMSS * ctx->SMSS / ctx->cwnd_size;
+			printf("after\n");
 			ctx->cwnd_size += add_cwnd;
 		}
 	}
+	printf("after DIV\n");
+	printf("slows_cong AFTER: cwnd:%u\n", ctx->cwnd_size);
 }
 
 static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_ack_seq, 
