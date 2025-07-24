@@ -169,7 +169,9 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     // Payload
     // MTP TODO: fix snbuf
-    uint8_t *data = sndvar->sndbuf->head - sndvar->sndbuf->head_seq + ctx->send_next;
+    uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+													   sndvar->sndbuf->head_seq,
+													   sndvar->sndbuf->head_seq);
     bp->payload.data = data;
     bp->payload.len = bytes_to_send;
 	if (bytes_to_send > ctx->eff_SMSS){
@@ -325,7 +327,7 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 	// printf("before DIV\n");
 	// printf("slows_cong BEFORE: cwnd:%u\n", ctx->cwnd_size);
 	if(scratch->change_cwnd) {
-		uint32_t rmlen = ack_seq - ctx->send_una;
+		uint32_t rmlen = MTP_SEQ_SUB(ack_seq, ctx->send_una, ctx->send_una);
 		// printf("rmlen: %u, eff_SMSS: %u\n", rmlen, ctx->eff_SMSS);
 		uint16_t packets = rmlen / ctx->eff_SMSS;
 		// printf("after\n");
@@ -366,8 +368,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	uint32_t rwindow = ev_window << ctx->wscale_remote;
 	// printf("rwindow: %u\n", rwindow);
     // MTP TODO: sequence comparisons
-    if (TCP_SEQ_LT(ctx->lwu_seq, ev_seq) ||
-        (ctx->lwu_seq == ev_seq && TCP_SEQ_LT(ctx->lwu_ack, ev_ack_seq)) ||
+    if (MTP_SEQ_LT(ctx->lwu_seq, ev_seq, ctx->send_una) ||
+        (ctx->lwu_seq == ev_seq && MTP_SEQ_LT(ctx->lwu_ack, ev_ack_seq, ctx->send_una)) ||
         (ctx->lwu_ack == ev_ack_seq && rwindow > ctx->last_rwnd_remote)){
         uint32_t rwindow_prev = ctx->last_rwnd_remote;
 		// printf("ack_net_ep, before: lwu_seq: %u, lwu_ack: %u, rwindow: %u\n", cur_stream->mtp->lwu_seq,
@@ -379,15 +381,17 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		// printf("ack_net_ep, after: lwu_seq: %u, lwu_ack: %u, rwindow: %u\n", cur_stream->mtp->lwu_seq,
 		// 							   cur_stream->mtp->lwu_ack,
 		// 							   cur_stream->mtp->last_rwnd_remote);
-        if (rwindow_prev < (ctx->send_next - ctx->send_una) &&
-            ctx->last_rwnd_remote >= (ctx->send_next - ctx->send_una)){
+        if (rwindow_prev < MTP_SEQ_SUB(ctx->send_next, ctx->send_una, ctx->send_una) &&
+            ctx->last_rwnd_remote >= MTP_SEQ_SUB(ctx->send_next, ctx->send_una, ctx->send_una)){
             // This is kinda "notify" in MTP
             RaiseWriteEvent(mtcp, cur_stream);
         }
     }
  
     // MTP TODO: fix sndbuf->len	
-	uint32_t data_rest = sndvar->sndbuf->head_seq + sndvar->sndbuf->len - ctx->send_next;
+	uint32_t data_rest =  sndvar->sndbuf->len + 
+					      MTP_SEQ_SUB(sndvar->sndbuf->head_seq, ctx->send_next,
+									  sndvar->sndbuf->head_seq);
 	if (data_rest == 0 && ev_ack_seq == ctx->send_next) {
 		TimerCancel(mtcp, cur_stream);
 		// printf("ack_net_ep before releasing lock\n");
@@ -458,7 +462,9 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
         // Payload
         // MTP TODO: fix snbuf
-		uint8_t *data = sndvar->sndbuf->head - sndvar->sndbuf->head_seq + ctx->send_una;
+		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_una,
+														   sndvar->sndbuf->head_seq,
+														   sndvar->sndbuf->head_seq);
         bp->payload.data = data;
         bp->payload.len = bytes_to_send;
         bp->payload.needs_segmentation = FALSE;
@@ -478,8 +484,10 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 	// Continue sending if window is available and there's remaining data in sending buffer
 	uint32_t window_avail = 0;
-	if (ctx->send_una + effective_window > ctx->send_next) 
-		window_avail = ctx->send_una + effective_window - ctx->send_next;
+	uint32_t window_end = ctx->send_una + effective_window;
+	if (MTP_SEQ_GT(window_end, ctx->send_next, ctx->send_una)) 
+		window_avail = MTP_SEQ_SUB(window_end, ctx->send_next,
+								   ctx->send_una);
 
 	if (window_avail == 0)
 		bytes_to_send = 0;
@@ -537,7 +545,9 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
     // Payload
     // MTP TODO: fix snbuf
-    uint8_t *data = sndvar->sndbuf->head - sndvar->sndbuf->head_seq + ctx->send_next;
+    uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+													   sndvar->sndbuf->head_seq,
+													   sndvar->sndbuf->head_seq);
     bp->payload.data = data;
     bp->payload.len = bytes_to_send;
     bp->payload.needs_segmentation = TRUE;
@@ -556,10 +566,10 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 	// Remove acked sequence from sending buffer
 	// This step is kinda target dependent (depending on the implementation of sending buffer)
-	uint32_t rmlen = ev_ack_seq - ctx->send_una;
+	uint32_t rmlen = MTP_SEQ_SUB(ev_ack_seq, ctx->send_una, ctx->send_una);
 	if(rmlen > 0) {
 		// printf("Removing %d bytes\n", rmlen);
-		uint32_t offset = ctx->send_una - ctx->init_seq;
+		uint32_t offset = MTP_SEQ_SUB(ctx->send_una, ctx->init_seq, ctx->init_seq);
 		TxDataFlush(mtcp, cur_stream, offset, rmlen);
 		ctx->send_una = ev_ack_seq;
 	}
