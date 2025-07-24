@@ -13,6 +13,7 @@
 #include "socket.h"
 #include "mtp_instr.h"
 #include "mtp_net.h"
+#include "mtp_seq.h"
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
@@ -105,9 +106,14 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	}
 
 	// MTP: maps to bytes_to_send
-	int data_rest = sndvar->sndbuf->head_seq + sndvar->sndbuf->len - ctx->send_next;
-	int window_avail = MIN(ctx->cwnd_size, ctx->last_rwnd_remote) - (ctx->send_next - ctx->send_una);
+	int data_rest = sndvar->sndbuf->len + 
+					MTP_SEQ_SUB(sndvar->sndbuf->head_seq, ctx->send_next, 
+								sndvar->sndbuf->head_seq);
+	int window_avail = MIN(ctx->cwnd_size, ctx->last_rwnd_remote) - 
+					   MTP_SEQ_SUB(ctx->send_next, ctx->send_una, ctx->send_una);
+
     int bytes_to_send = MIN(data_rest, window_avail);
+
 	if (bytes_to_send <= 0) {
 		// printf("send_ep before releasing lock\n");
 		SBUF_UNLOCK(&sndvar->write_lock);
@@ -179,6 +185,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	// printf("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 
+	// MTP TODO: implement + for MTP_SEQ
 	ctx->send_next += bytes_to_send;
 
 	// printf("send next: %u\n", ctx->send_next);
@@ -248,7 +255,8 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq
 
     struct mtp_ctx* ctx = cur_stream->mtp;
 	
-    if(ack_seq < ctx->send_una || ctx->send_next < ack_seq) {
+    if(MTP_SEQ_LT(ack_seq, ctx->send_una, ctx->send_una) || 
+	   MTP_SEQ_LT(ctx->send_next, ack_seq, ctx->send_una)) {
 		scratch->skip_ack_eps = TRUE;
 		return;
 	}
@@ -267,6 +275,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32
 {
 	if(scratch->skip_ack_eps) return;
 	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
+
     struct mtp_ctx* ctx = cur_stream->mtp;
 
 	scratch->change_cwnd = 1;
@@ -278,7 +287,9 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32
 		scratch->change_cwnd = 0;
 
 		if(ctx->duplicate_acks == 1) {
-			ctx->flightsize_dupl = ctx->send_next - ctx->send_una;
+			ctx->flightsize_dupl = MTP_SEQ_SUB(ctx->send_next, 
+											   ctx->send_una, 
+											   ctx->send_una);
 		}
 
 		if(ctx->duplicate_acks == 3) {
