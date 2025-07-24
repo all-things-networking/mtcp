@@ -206,37 +206,34 @@ static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t e
 
 	// printf("Ack: %u\n", ev_ack_seq);
 
-    if (cur_stream->mtp->state == MTP_TCP_SYNACK_SENT_ST &&
-        ev_ack_seq == cur_stream->mtp->init_seq + 1){
-        cur_stream->mtp->state = MTP_TCP_ESTABLISHED_ST;
-        cur_stream->mtp->send_una += 1;
-        cur_stream->mtp->send_next = ev_ack_seq;
-        cur_stream->mtp->last_ack = ev_ack_seq;
+	struct mtp_ctx *ctx = cur_stream->mtp;
 
-        if (cur_stream->mtp->cwnd_size == 1){
-            cur_stream->mtp->cwnd_size = 2 * cur_stream->mtp->SMSS;
+    if (ctx->state == MTP_TCP_SYNACK_SENT_ST &&
+        ev_ack_seq == ctx->init_seq + 1){
+        ctx->state = MTP_TCP_ESTABLISHED_ST;
+        ctx->send_una += 1;
+        ctx->send_next = ev_ack_seq;
+        ctx->last_ack = ev_ack_seq;
+
+        if (ctx->cwnd_size == 1){
+            ctx->cwnd_size = 2 * ctx->SMSS;
         }
         else {
-            cur_stream->mtp->cwnd_size = cur_stream->mtp->SMSS;
+            ctx->cwnd_size = ctx->SMSS;
         }
 
-		cur_stream->mtp->lwu_seq = ev_seq;
-		cur_stream->mtp->lwu_ack = ev_ack_seq;
+		ctx->lwu_seq = ev_seq;
+		ctx->lwu_ack = ev_ack_seq;
         scratch->skip_ack_eps = TRUE;
 		// MTP TODO: timer
         TimerCancel(mtcp, cur_stream);
 
-        // Raise an event to the listening socket
+        // MTP TODO: Raise an event to the listening socket
 		struct mtp_listen_ctx *listen_ctx = 
 			(struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &cur_stream->sport);
 		if (listen_ctx->socket && (listen_ctx->socket->epoll & MTCP_EPOLLIN)) {
 			AddEpollEvent(mtcp->ep, MTCP_EVENT_QUEUE, listen_ctx->socket, MTCP_EPOLLIN);
 		}
-
-		// printf("conn_ack, skip: lwu_seq: %u, lwu_ack: %u, rwindow: %u\n", cur_stream->mtp->lwu_seq,
-		// 							   cur_stream->mtp->lwu_ack,
-		// 							   cur_stream->mtp->last_rwnd_remote);
-
     }
     else {
         scratch->skip_ack_eps = FALSE;
@@ -248,7 +245,7 @@ static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t e
 	
 }
 
-static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq, 
+static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq, 
     tcp_stream* cur_stream, scratchpad* scratch)
 {
     if (scratch->skip_ack_eps) return;
@@ -257,8 +254,8 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq
 
     struct mtp_ctx* ctx = cur_stream->mtp;
 	
-    if(MTP_SEQ_LT(ack_seq, ctx->send_una, ctx->send_una) || 
-	   MTP_SEQ_LT(ctx->send_next, ack_seq, ctx->send_una)) {
+    if(MTP_SEQ_LT(ev_ack_seq, ctx->send_una, ctx->send_una) || 
+	   MTP_SEQ_LT(ctx->send_next, ev_ack_seq, ctx->send_una)) {
 		scratch->skip_ack_eps = TRUE;
 		return;
 	}
@@ -272,8 +269,9 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ack_seq
 	sndvar->rto = (rcvvar->srtt >> 3) + rcvvar->rttvar;
 }
 
-static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
-    tcp_stream* cur_stream, scratchpad* scratch)
+static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
+								    uint32_t ev_ack_seq, tcp_stream* cur_stream, 
+									scratchpad* scratch)
 {
 	if(scratch->skip_ack_eps) return;
 	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
@@ -283,8 +281,8 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32
 	scratch->change_cwnd = 1;
 
 	// printf("fast_retr BEFORE: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
-	if(ack_seq == ctx->last_ack) {
-		ctx->duplicate_acks++;
+	if(ev_ack_seq == ctx->last_ack) {
+		ctx->duplicate_acks = ctx->duplicate_acks + 1;
 
 		scratch->change_cwnd = 0;
 
@@ -312,7 +310,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32
 			ctx->cwnd_size = ctx->ssthresh;
 		}
 		ctx->duplicate_acks = 0;
-		ctx->last_ack = ack_seq;
+		ctx->last_ack = ev_ack_seq;
 	}
 	// printf("fast_retr AFTER: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
 }
@@ -409,8 +407,6 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
     uint32_t bytes_to_send = 0;
 
 	if(ctx->duplicate_acks == 3) {
-		//SBUF_LOCK(&sndvar->write_lock);
-
 		bytes_to_send = ctx->eff_SMSS;
         if (bytes_to_send > effective_window){
             bytes_to_send = effective_window;
@@ -423,8 +419,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
         
         memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 
-        bp->hdr.source = cur_stream->mtp->local_port;
-        bp->hdr.dest = cur_stream->mtp->remote_port;
+        bp->hdr.source = ctx->local_port;
+        bp->hdr.dest = ctx->remote_port;
         bp->hdr.seq = htonl(ctx->send_una);
 		// printf("Seq: %u\n", ntohl(bp->hdr.seq));
         bp->hdr.ack_seq = htonl(ctx->recv_next);
@@ -561,7 +557,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	// printf("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 
-	ctx->send_next += bytes_to_send;
+	ctx->send_next = ctx->send_next + bytes_to_send;
 	// printf("ack_ep send next: %u\n", ctx->send_next);
 
 	// Remove acked sequence from sending buffer
