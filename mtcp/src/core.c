@@ -508,6 +508,7 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 		// printf("dequeuing a send call\n");
 		
 		#ifdef USE_MTP
+		stream->sndvar->on_sendq = FALSE;
 		MtpSendChain(mtcp, cur_ts, stream);
 		#else
 		stream->sndvar->on_sendq = FALSE;
@@ -873,7 +874,7 @@ RunMainLoop(struct mtcp_thread_context *ctx)
 			if (thresh == -1)
 				thresh = CONFIG.max_concurrency;
 
-			//CheckRtmTimeout(mtcp, ts, thresh);
+			// CheckRtmTimeout(mtcp, ts, thresh);
 			CheckTimewaitExpire(mtcp, ts, CONFIG.max_concurrency);
 
 			if (CONFIG.tcp_timeout > 0 && ts != ts_prev) {

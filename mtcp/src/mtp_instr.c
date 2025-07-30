@@ -4,6 +4,7 @@
 #include "debug.h"
 #include "ip_out.h"
 #include "timer.h"
+#include "mtp_seq.h"
 
 #define MIN(a, b) ((a)<(b)?(a):(b))
 #define TCP_CALCULATE_CHECKSUM      TRUE
@@ -401,7 +402,7 @@ void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream,
 	// }
 	
 	// MTP TODO: should we change offset and assume you can only continuously flush?
-	uint32_t rmlen = len + (offset - sndvar->sndbuf->head_seq);
+	uint32_t rmlen = len + MTP_SEQ_SUB(offset, sndvar->sndbuf->head_seq, sndvar->sndbuf->head_seq);
 	// printf("TxDataFlush rmlen:%d\n", rmlen);
 	// printf("Before: head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);

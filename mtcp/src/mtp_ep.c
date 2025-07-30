@@ -100,19 +100,24 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	// printf("send_ep before grabbing lock\n");
 	SBUF_LOCK(&sndvar->write_lock);
 	// printf("send_ep after grabbing lock\n");
+
+	// printf("in send ep\n");
 	if (!sndvar->sndbuf || sndvar->sndbuf->len == 0) {
         SBUF_UNLOCK(&sndvar->write_lock);
         return;
 	}
 
 	// MTP: maps to bytes_to_send
-	int data_rest = sndvar->sndbuf->len + 
-					MTP_SEQ_SUB(sndvar->sndbuf->head_seq, ctx->send_next, 
+	int data_rest = sndvar->sndbuf->len - 
+					MTP_SEQ_SUB(ctx->send_next, sndvar->sndbuf->head_seq, 
 								sndvar->sndbuf->head_seq);
 	int window_avail = MIN(ctx->cwnd_size, ctx->last_rwnd_remote) - 
 					   MTP_SEQ_SUB(ctx->send_next, ctx->send_una, ctx->send_una);
 
     int bytes_to_send = MIN(data_rest, window_avail);
+
+	// printf("send_ep bytes to send: %d, data_rest: %d, window_avail: %d\n", 
+	// 		bytes_to_send, data_rest, window_avail);
 
 	if (bytes_to_send <= 0) {
 		// printf("send_ep before releasing lock\n");
@@ -204,7 +209,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq, 
         uint32_t ev_seq, tcp_stream* cur_stream, scratchpad* scratch){
 
-	// printf("Ack: %u\n", ev_ack_seq);
+	// printf("----------------------------- Ack: %u\n", ev_ack_seq);
 
 	struct mtp_ctx *ctx = cur_stream->mtp;
 
@@ -387,9 +392,13 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
     }
  
     // MTP TODO: fix sndbuf->len	
-	uint32_t data_rest =  sndvar->sndbuf->len + 
-					      MTP_SEQ_SUB(sndvar->sndbuf->head_seq, ctx->send_next,
+	uint32_t data_rest =  sndvar->sndbuf->len - 
+					      MTP_SEQ_SUB(ctx->send_next, sndvar->sndbuf->head_seq,
 									  sndvar->sndbuf->head_seq);
+
+	// printf("ack_net_ep: data_rest: %d, ev_ack_seq: %u, send_next: %u, len: %d, head_seq:%d\n", 
+	// 		data_rest, ev_ack_seq, ctx->send_next, sndvar->sndbuf->len, sndvar->sndbuf->head_seq);
+
 	if (data_rest == 0 && ev_ack_seq == ctx->send_next) {
 		TimerCancel(mtcp, cur_stream);
 		// printf("ack_net_ep before releasing lock\n");
@@ -414,7 +423,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
         // MTP TODO: check that size + options is not more than MSS
         mtp_bp* bp = GetFreeBP(cur_stream);
-		// printf("got bp\n");
+		// printf("dup ack got bp\n");
 		// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
         
         memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
@@ -422,7 +431,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
         bp->hdr.source = ctx->local_port;
         bp->hdr.dest = ctx->remote_port;
         bp->hdr.seq = htonl(ctx->send_una);
-		// printf("Seq: %u\n", ntohl(bp->hdr.seq));
+		// printf("dup ack Seq: %u\n", ntohl(bp->hdr.seq));
         bp->hdr.ack_seq = htonl(ctx->recv_next);
 
         bp->hdr.syn = FALSE;
@@ -467,10 +476,10 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
         AddtoGenList(mtcp, cur_stream, cur_ts);
 
-		// printf("prepared bp:\n");
+		// printf("dup ack prepared bp:\n");
 		// print_MTP_bp(bp);
-		// printf("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
-		// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
+		// printf("dup ack head ptr: %p, head seq: %d, len: %d, snd wnd: %d\n", sndvar->sndbuf->head, 
+		// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len, sndvar->snd_wnd);
 		
 		// printf("ack_net_ep before releasing lock\n");
 		SBUF_UNLOCK(&sndvar->write_lock);
@@ -480,7 +489,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 	// Continue sending if window is available and there's remaining data in sending buffer
 	uint32_t window_avail = 0;
-	uint32_t window_end = ctx->send_una + effective_window;
+	uint32_t window_end = ev_ack_seq + effective_window;
 	if (MTP_SEQ_GT(window_end, ctx->send_next, ctx->send_una)) 
 		window_avail = MTP_SEQ_SUB(window_end, ctx->send_next,
 								   ctx->send_una);
@@ -495,78 +504,84 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	// MTP TODO: check bytes to send is not zero
 	// printf("ack_net_ep: bytes to send: %d\n", bytes_to_send);
 
-	// if (bytes_to_send == 0) return;
+	if (bytes_to_send > 0) {
 
-    mtp_bp* bp = GetFreeBP(cur_stream);
+		mtp_bp* bp = GetFreeBP(cur_stream);
 
-	// printf("got bp\n");
-	// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
-    
-    memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+		// printf("got bp\n");
+		// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+		
+		memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 
-    bp->hdr.source = cur_stream->mtp->local_port;
-    bp->hdr.dest = cur_stream->mtp->remote_port;
-    bp->hdr.seq = htonl(ctx->send_next);
-	// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
-    bp->hdr.ack_seq = htonl(ctx->recv_next);
+		bp->hdr.source = cur_stream->mtp->local_port;
+		bp->hdr.dest = cur_stream->mtp->remote_port;
+		bp->hdr.seq = htonl(ctx->send_next);
+		// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+		bp->hdr.ack_seq = htonl(ctx->recv_next);
 
-    bp->hdr.syn = FALSE;
-    bp->hdr.ack = TRUE;
+		bp->hdr.syn = FALSE;
+		bp->hdr.ack = TRUE;
 
-    // options to calculate data offset
-   
-    // MTP TODO: SACK? 
-#if TCP_OPT_SACK_ENABLED
-    printf("ERROR:SACK Not supported in MTP TCP\n");
-#endif
+		// options to calculate data offset
+	
+		// MTP TODO: SACK? 
+	#if TCP_OPT_SACK_ENABLED
+		printf("ERROR:SACK Not supported in MTP TCP\n");
+	#endif
 
-    MTP_set_opt_nop(&(bp->opts.nop1));
-    MTP_set_opt_nop(&(bp->opts.nop2));
+		MTP_set_opt_nop(&(bp->opts.nop1));
+		MTP_set_opt_nop(&(bp->opts.nop2));
 
-    // MTP TODO: Timestamp
-    MTP_set_opt_timestamp(&(bp->opts.timestamp),
-                            htonl(cur_ts),
-                            htonl(cur_stream->rcvvar->ts_recent));
-    
-   
-    // MTP TODO: would the MTP program do the length 
-    //           calculation itself?
-    uint16_t optlen = MTP_CalculateOptionLength(bp);
-    bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+		// MTP TODO: Timestamp
+		MTP_set_opt_timestamp(&(bp->opts.timestamp),
+								htonl(cur_ts),
+								htonl(cur_stream->rcvvar->ts_recent));
+		
+	
+		// MTP TODO: would the MTP program do the length 
+		//           calculation itself?
+		uint16_t optlen = MTP_CalculateOptionLength(bp);
+		bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
-    // MTP TODO: wscale on local
-    uint32_t window32 = cur_stream->mtp->rwnd_size;
-    uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
-    bp->hdr.window = htons(advertised_window);
+		// MTP TODO: wscale on local
+		uint32_t window32 = cur_stream->mtp->rwnd_size;
+		uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+		bp->hdr.window = htons(advertised_window);
 
-    // Payload
-    // MTP TODO: fix snbuf
-    uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
-													   sndvar->sndbuf->head_seq,
-													   sndvar->sndbuf->head_seq);
-    bp->payload.data = data;
-    bp->payload.len = bytes_to_send;
-    bp->payload.needs_segmentation = TRUE;
-    bp->payload.seg_size = ctx->eff_SMSS;
-    bp->payload.seg_rule_group_id = 1; 
+		// Payload
+		// MTP TODO: fix snbuf
+		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+														sndvar->sndbuf->head_seq,
+														sndvar->sndbuf->head_seq);
+		bp->payload.data = data;
+		bp->payload.len = bytes_to_send;
+		bp->payload.needs_segmentation = TRUE;
+		bp->payload.seg_size = ctx->eff_SMSS;
+		bp->payload.seg_rule_group_id = 1; 
 
-    AddtoGenList(mtcp, cur_stream, cur_ts);	
+		AddtoGenList(mtcp, cur_stream, cur_ts);	
 
-	// printf("prepared bp:\n");
-	// print_MTP_bp(bp);
-	// printf("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
-	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
+		// printf("prepared bp:\n");
+		// print_MTP_bp(bp);
+		// printf("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
+		// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len, sndvar->snd_wnd);
 
-	ctx->send_next = ctx->send_next + bytes_to_send;
-	// printf("ack_ep send next: %u\n", ctx->send_next);
+		ctx->send_next = ctx->send_next + bytes_to_send;
+		// printf("ack_ep send next: %u\n", ctx->send_next);
+	}
 
 	// Remove acked sequence from sending buffer
 	// This step is kinda target dependent (depending on the implementation of sending buffer)
 	uint32_t rmlen = MTP_SEQ_SUB(ev_ack_seq, ctx->send_una, ctx->send_una);
+	// printf("ack_net_ep: rmlen: %u, send_una: %u, ev_ack_seq: %u\n", 
+	// 		rmlen, ctx->send_una, ev_ack_seq);
 	if(rmlen > 0) {
 		// printf("Removing %d bytes\n", rmlen);
-		uint32_t offset = MTP_SEQ_SUB(ctx->send_una, ctx->init_seq, ctx->init_seq);
+		//uint32_t offset = MTP_SEQ_SUB(ctx->send_una, ctx->init_seq, ctx->init_seq);
+		uint32_t offset = ctx->send_una;
 		TxDataFlush(mtcp, cur_stream, offset, rmlen);
+		// printf("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
+			// sndvar->sndbuf->head_seq, sndvar->sndbuf->len, sndvar->snd_wnd);
 		ctx->send_una = ev_ack_seq;
 	}
 

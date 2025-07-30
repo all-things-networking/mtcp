@@ -1507,6 +1507,8 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 	if (sndvar->snd_wnd <= 0) {
 		TRACE_SNDBUF("%u Sending buffer became full!! snd_wnd: %u\n", 
 				cur_stream->id, sndvar->snd_wnd);
+		// printf("%u Sending buffer became full!! snd_wnd: %u\n", 
+		// 		cur_stream->id, sndvar->snd_wnd);
 	}
 
 	return ret;

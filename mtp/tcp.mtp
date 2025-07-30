@@ -716,7 +716,7 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out scratch) {
     }
 
     uint32 window_avail = 0;
-    uint32 window_end = ctx.send_una + effective_window;
+    uint32 window_end = ev.ack_seq + effective_window;
     if (window_end > ctx.send_next)
         window_avail = window_end - ctx.send_next;
 
