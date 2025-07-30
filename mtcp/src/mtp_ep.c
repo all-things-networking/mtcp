@@ -206,6 +206,20 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	return;
 }
 
+static inline void timestamp_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
+		struct tcp_opt_timestamp* ev_ts, tcp_stream* cur_stream, scratchpad* scratch)
+{
+	if (ev_ts->valid) {
+		// printf("timestamp_ep: %u\n", ntohl(ev_ts->value1));
+		cur_stream->mtp->ts_recent = ev_ts->value1;
+		cur_stream->mtp->ts_lastack_rcvd = ev_ts->value2;
+		cur_stream->rcvvar->ts_lastack_rcvd = ev_ts->value2;
+		cur_stream->mtp->ts_last_ts_upd = cur_ts;
+	}
+	else {
+		printf("timestamp_ep: no valid timestamp\n");
+	}
+}
 static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq, 
         uint32_t ev_seq, tcp_stream* cur_stream, scratchpad* scratch){
 
@@ -790,7 +804,7 @@ void MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 }
 
 void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
-    uint32_t window, uint32_t seq, tcp_stream* cur_stream)
+    uint32_t window, uint32_t seq, struct tcp_opt_timestamp* ev_ts, tcp_stream* cur_stream)
 {
     /*
     struct tcp_send_vars *sndvar = cur_stream->sndvar;
@@ -821,6 +835,7 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
     */
     scratchpad scratch;
+	timestamp_ep(mtcp, cur_ts, ev_ts, cur_stream, &scratch);
     conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, &scratch);
     rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
@@ -853,4 +868,8 @@ void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 {
 	syn_ep(mtcp, cur_ts, remote_ip, remote_port, init_seq, rwnd_size, 
            sack_permit, mss_valid, mss, wscale_valid, wscale, ctx);
+}
+
+void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts){
+	// printf("NOT IMPLEMENTED");
 }

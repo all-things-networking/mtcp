@@ -225,6 +225,11 @@ struct mtp_ctx {
 
     //sliding_wnd meta_rwnd;
     //buffer_id_t bid;
+
+	// timestamps
+	uint32_t ts_recent;			/* recent peer timestamp */
+	uint32_t ts_lastack_rcvd;	/* last ack rcvd time */
+	uint32_t ts_last_ts_upd;	/* last peer ts update time */
 };
 //#endif
 

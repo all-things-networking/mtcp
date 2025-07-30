@@ -29,7 +29,7 @@ void MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream);
 
 // handles received ACKs
 void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
-    uint32_t window, uint32_t seq, tcp_stream* cur_stream);
+    uint32_t window, uint32_t seq, struct tcp_opt_timestamp* ev_ts, tcp_stream* cur_stream);
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload,
 	int payloadlen, tcp_stream *cur_stream);
@@ -42,5 +42,7 @@ struct accept_res* MtpAcceptChain(mctx_t mctx, mtcp_manager_t mtcp, struct socka
 void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t remote_ip, uint16_t remote_port, 
 	uint32_t init_seq, uint16_t rwnd, bool sack_permit, bool mss_valid, uint16_t mss,
     bool wscale_valid, uint8_t wscale, struct mtp_listen_ctx *ctx);
+
+void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts);
 
 #endif

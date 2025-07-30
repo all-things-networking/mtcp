@@ -7,6 +7,10 @@
 #include "ccp.h"
 #endif
 
+#ifdef USE_MTP
+#include "mtp_ep.h"
+#endif
+
 #ifndef MAX
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #endif
@@ -416,7 +420,11 @@ CheckRtmTimeout(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh)
 				TAILQ_REMOVE(rto_list, walk, sndvar->timer_link);
 				mtcp->rto_list_cnt--;
 				walk->on_rto_idx = -1;
+				#ifdef USE_MTP
+				MtpTimeoutChain(mtcp, cur_ts);
+				#else
 				HandleRTO(mtcp, cur_ts, walk);
+				#endif
 			} else {
 				TRACE_ERROR("Stream %d: not on rto list.\n", walk->id);
 #ifdef DUMP_STREAM

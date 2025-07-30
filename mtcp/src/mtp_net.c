@@ -318,6 +318,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         uint32_t ev_ack_seq = mtph->ack_seq;
         uint16_t ev_rwnd_size = mtph->window;
         uint32_t ev_seq = mtph->seq;
+        struct tcp_opt_timestamp* ev_ts = &(mtp_opt.timestamp);
  
         // Context lookup
         tcp_stream *cur_stream = NULL;
@@ -327,7 +328,8 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
             // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
         }
         
-        MtpAckChain(mtcp, cur_ts, ev_ack_seq, ev_rwnd_size, ev_seq, cur_stream);
+        MtpAckChain(mtcp, cur_ts, ev_ack_seq, ev_rwnd_size, 
+                        ev_seq, ev_ts, cur_stream);
     } 
 
     // Context lookup

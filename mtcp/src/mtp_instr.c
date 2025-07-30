@@ -496,6 +496,7 @@ int FlushAndNotify(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int l
  ***********************************************/
 void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts) {
     stream->sndvar->ts_rto = cur_ts + stream->sndvar->rto;
+	// printf("TimerStart: stream %u, rto %u, cur_ts: %d\n", stream->id, stream->sndvar->rto, cur_ts);
     AddtoRTOList(mtcp, stream);
 }
 

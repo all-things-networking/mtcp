@@ -874,7 +874,7 @@ RunMainLoop(struct mtcp_thread_context *ctx)
 			if (thresh == -1)
 				thresh = CONFIG.max_concurrency;
 
-			// CheckRtmTimeout(mtcp, ts, thresh);
+			CheckRtmTimeout(mtcp, ts, thresh);
 			CheckTimewaitExpire(mtcp, ts, CONFIG.max_concurrency);
 
 			if (CONFIG.tcp_timeout > 0 && ts != ts_prev) {
