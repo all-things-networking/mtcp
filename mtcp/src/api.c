@@ -1514,8 +1514,7 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 	return ret;
 }
 /*----------------------------------------------------------------------------*/
-#ifdef USE_MTP
-ssize_t
+/*ssize_t
 mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 {
 	mtcp_manager_t mtcp;
@@ -1610,9 +1609,9 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 	TRACE_API("Stream %d: mtcp_write() returning %d\n", cur_stream->id, ret);
 	return ret;
-	/* if there are remaining sending buffer, generate write event */
+	//if there are remaining sending buffer, generate write event
 }
-#else
+*/
 ssize_t
 mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 {
@@ -1697,6 +1696,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	}
 #endif
 
+	// MTP TODO: add this to "application event parser"
 	ret = CopyFromUser(mtcp, cur_stream, buf, len);
 
 	// printf("mtcp_write before releasing lock\n");
@@ -1737,7 +1737,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	TRACE_API("Stream %d: mtcp_write() returning %d\n", cur_stream->id, ret);
 	return ret;
 }
-#endif
+
 /*----------------------------------------------------------------------------*/
 int
 mtcp_writev(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
