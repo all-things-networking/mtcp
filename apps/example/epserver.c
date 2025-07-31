@@ -429,6 +429,8 @@ RunServerThread(void *arg)
 		TRACE_ERROR("Failed to initialize server thread.\n");
 		return NULL;
 	}
+
+	printf("1\n");
 	mctx = ctx->mctx;
 	ep = ctx->ep;
 
@@ -445,8 +447,11 @@ RunServerThread(void *arg)
 		exit(-1);
 	}
 
+	printf("2\n");
 	while (!done[core]) {
+		printf("3\n");
 		nevents = mtcp_epoll_wait(mctx, ep, events, MAX_EVENTS, -1);
+		printf("4\n");
 		if (nevents < 0) {
 			if (errno != EINTR)
 				perror("mtcp_epoll_wait");
@@ -459,6 +464,7 @@ RunServerThread(void *arg)
 			if (events[i].data.sockid == listener) {
 				/* if the event is for the listener, accept connection */
 				do_accept = TRUE;
+				printf("5\n");
 
 			} else if (events[i].events & MTCP_EPOLLERR) {
 				int err;

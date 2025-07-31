@@ -416,6 +416,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 	if (data_rest == 0 && ev_ack_seq == ctx->send_next) {
 		TimerCancel(mtcp, cur_stream);
+		printf("THIS CASE\n");
 		// printf("ack_net_ep before releasing lock\n");
 		SBUF_UNLOCK(&sndvar->write_lock);
 		// printf("ack_net_ep after releasing lock\n");
@@ -999,6 +1000,83 @@ struct accept_res* MtpAcceptChain(mctx_t mctx, mtcp_manager_t mtcp, struct socka
 	socklen_t *addrlen, struct mtp_listen_ctx *ctx) 
 {
 	return accept_ep(mctx, mtcp, addr, addrlen, ctx);
+}
+
+
+tcp_stream* MtpConnectChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts,
+					 uint32_t ev_local_ip, uint32_t ev_remote_ip, 
+					 uint16_t ev_local_port, uint16_t ev_remote_port){
+	
+	// MTP TODO: do rand init seq
+	// uint32_t init_seq = rand_r(&next_seed) % TCP_MAX_SEQ;
+	uint32_t init_seq = 0;	
+
+	tcp_stream *cur_stream = CreateCtx(mtcp, cur_ts, 
+                                      ev_remote_ip, ev_local_ip, 
+                                      ev_remote_port, ev_local_port,
+                                      false, 1460, 
+                                      init_seq, init_seq, init_seq + 1,
+                                      0, 0, 0, 0, 0,
+                                      MTP_TCP_SYN_SENT_ST);
+	return cur_stream;
+}
+	
+void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
+					 uint32_t ev_local_ip, uint32_t ev_remote_ip, 
+					 uint16_t ev_local_port, uint16_t ev_remote_port, 
+					 tcp_stream *cur_stream){	
+	
+	mtp_bp* bp = GetFreeBP(cur_stream);
+
+	// printf("got bp\n");
+	// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+    
+    memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+	struct mtp_ctx *ctx = cur_stream->mtp;
+	bp->hdr.source = ctx->local_port;
+	bp->hdr.dest = ctx->remote_port;
+	// MTP TODO: technically, should be the variable in Part1
+    bp->hdr.seq = htonl(ctx->init_seq);
+    bp->hdr.syn = TRUE;
+    bp->hdr.ack = FALSE;
+
+    // options to calculate data offset
+    // MSS
+    MTP_set_opt_mss(&(bp->opts.mss), cur_stream->mtp->SMSS);
+   
+    // MTP TODO: SACK? 
+#if TCP_OPT_SACK_ENABLED
+    printf("ERROR:SACK Not supported in MTP TCP\n");
+#endif
+
+    MTP_set_opt_nop(&(bp->opts.nop1));
+    MTP_set_opt_nop(&(bp->opts.nop2));
+
+    // MTP TODO: Timestamp
+    MTP_set_opt_timestamp(&(bp->opts.timestamp),
+                            htonl(cur_ts),
+                            htonl(cur_stream->rcvvar->ts_recent));
+    
+    // MTP TODO: Window scale
+    MTP_set_opt_nop(&(bp->opts.nop3));
+    MTP_set_opt_wscale(&(bp->opts.wscale), cur_stream->mtp->wscale);
+   
+    // MTP TODO: would the MTP program do the length 
+    //           calculation itself?
+    uint16_t optlen = MTP_CalculateOptionLength(bp);
+    bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+    uint32_t window32 = cur_stream->mtp->rwnd_size;
+	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+	bp->hdr.window = htons(advertised_window);
+
+    // Payload
+    bp->payload.data = NULL;
+    bp->payload.len = 0;
+    bp->payload.needs_segmentation = FALSE;
+
+    AddtoGenList(mtcp, cur_stream, cur_ts);
 }
 
 void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts,

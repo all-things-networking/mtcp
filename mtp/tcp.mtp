@@ -436,7 +436,6 @@ list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out scratch){
     bp.dst_port = ev.remote_port;
     bp.is_syn = true;
     bp.is_ack = false;
-    bp.ack_seq = ev.init_seq + 1;
     bp.seq = init_seq;
     instr_t instr = pkt_gen_instr(ev.local_ip, ev.remote_ip, bp);
     out.add(instr);
@@ -872,13 +871,9 @@ list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out scratch) 
     uint32 wnd = ctx.cwnd_size;
     if (ctx.last_rwnd_remote < wnd) wnd = ctx.last_rwnd_remote;
     ctx.ssthresh = wnd / 2;
-    ctx.cwnd_size = SMSS * 3;
-    uint32 opt1 = (ctx.send_next - ctx.send_una) / 2;
-    uint32 opt2 = 2 * SMSS;
-    if(opt1 > opt2)
-        ctx.ssthresh = opt1;
-    else
-        ctx.ssthresh = opt2;
+    if (ctx.ssthresh < 2 * ctx.SMSS){
+        ctx.ssthresh = ctx.SMSS;
+    }
     
     uint32 data_rest = ctx.data_end - ctx.send_una;
     uint32 effective_window = ctx.cwnd_size;

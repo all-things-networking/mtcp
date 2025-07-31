@@ -42,6 +42,15 @@ int MtpListenChain(mtcp_manager_t mtcp, int sockid, int backlog);
 struct accept_res* MtpAcceptChain(mctx_t mctx, mtcp_manager_t mtcp, struct sockaddr *addr, 
 	socklen_t *addrlen, struct mtp_listen_ctx *ctx);
 
+tcp_stream* MtpConnectChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts,
+					 uint32_t ev_local_ip, uint32_t ev_remote_ip, 
+					 uint16_t ev_local_port, uint16_t ev_remote_port);
+					 
+void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
+					 uint32_t ev_local_ip, uint32_t ev_remote_ip, 
+					 uint16_t ev_local_port, uint16_t ev_remote_port,
+					 tcp_stream *cur_stream);
+
 void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t remote_ip, uint16_t remote_port, 
 	uint32_t init_seq, uint16_t rwnd, bool sack_permit, bool mss_valid, uint16_t mss,
     bool wscale_valid, uint8_t wscale, struct mtp_listen_ctx *ctx);

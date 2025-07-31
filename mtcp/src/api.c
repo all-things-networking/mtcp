@@ -771,11 +771,15 @@ mtcp_connect(mctx_t mctx, int sockid,
 	socket = &mtcp->smap[sockid];
 	if (socket->stream) {
 		TRACE_API("Socket %d: stream already exist!\n", sockid);
+		#ifdef USE_MTP
+		errno = EALREADY;
+		#else
 		if (socket->stream->state >= TCP_ST_ESTABLISHED) {
 			errno = EISCONN;
 		} else {
 			errno = EALREADY;
 		}
+		#endif
 		// TODO: need to call MTP connect chain here, which is not implemented yet
 		return -1;
 	}
@@ -821,6 +825,18 @@ mtcp_connect(mctx_t mctx, int sockid,
 		is_dyn_bound = TRUE;
 	}
 
+	#ifdef USE_MTP
+	cur_stream = MtpConnectChainPart1(mtcp, mtcp->cur_ts, 
+			socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, 
+			dip, dport);
+	if (!cur_stream) {
+		TRACE_ERROR("Socket %d: failed to create tcp_stream!\n", sockid);
+		errno = ENOMEM;
+		return -1;	
+	}
+	if (is_dyn_bound)
+		cur_stream->is_bound_addr = TRUE;
+	#else
 	cur_stream = CreateTCPStream(mtcp, socket, socket->socktype, 
 			socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, dip, dport);
 	if (!cur_stream) {
@@ -836,6 +852,7 @@ mtcp_connect(mctx_t mctx, int sockid,
 
 	cur_stream->state = TCP_ST_SYN_SENT;
 	TRACE_STATE("Stream %d: TCP_ST_SYN_SENT\n", cur_stream->id);
+	#endif
 
 	SQ_LOCK(&mtcp->ctx->connect_lock);
 	ret = StreamEnqueue(mtcp->connectq, cur_stream);

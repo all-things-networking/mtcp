@@ -500,7 +500,13 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 
 	/* connect handling */
 	while ((stream = StreamDequeue(mtcp->connectq))) {
+		#ifdef USE_MTP
+		struct mtp_ctx *ctx = stream->mtp;
+		MtpConnectChainPart2(mtcp, cur_ts, ctx->local_ip, ctx->remote_ip, 
+				ctx->local_port, ctx->remote_port, stream);
+		#else
 		AddtoControlList(mtcp, stream, cur_ts);
+		#endif
 	}
 
 	/* send queue handling */
