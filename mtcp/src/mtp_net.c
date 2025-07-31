@@ -424,7 +424,9 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         
         // printf("bp index: %d\n", i);
         
+        // SBUF_LOCK(&cur_stream->sndvar->write_lock);
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
+        // SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
         
         // printf("bp @ index %u:\n", i);
         // print_MTP_bp(bp);
@@ -456,7 +458,9 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                         bp->hdr.seq = htonl(seq);
                         bp->payload.len = bytes_to_send;
                         bp->payload.data = data_ptr;
+                        SBUF_LOCK(&cur_stream->sndvar->write_lock);
                         AdvanceBPListHead(cur_stream, sent + err);
+                        SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
                         // printf("ran out midway\n");
                         return -2;
                     }
@@ -581,7 +585,9 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
                     MTP_HEADER_LEN + optlen + payloadLen);
             if (mtph == NULL) {
+                SBUF_LOCK(&cur_stream->sndvar->write_lock);
                 AdvanceBPListHead(cur_stream, sent + err);
+                SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
                 return -2;
             }
 
@@ -672,7 +678,9 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         }
     }
     
+    SBUF_LOCK(&cur_stream->sndvar->write_lock);
     AdvanceBPListHead(cur_stream, sent + err);
+    SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
     return 0; 
     
     // MTP TODO: check these

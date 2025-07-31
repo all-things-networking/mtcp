@@ -98,12 +98,12 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	struct mtp_ctx *ctx = cur_stream->mtp;
 	
 	// printf("send_ep before grabbing lock\n");
-	SBUF_LOCK(&sndvar->write_lock);
+	// SBUF_LOCK(&sndvar->write_lock);
 	// printf("send_ep after grabbing lock\n");
 
 	// printf("in send ep\n");
 	if (!sndvar->sndbuf || sndvar->sndbuf->len == 0) {
-        SBUF_UNLOCK(&sndvar->write_lock);
+        // SBUF_UNLOCK(&sndvar->write_lock);
         return;
 	}
 
@@ -121,7 +121,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
 	if (bytes_to_send <= 0) {
 		// printf("send_ep before releasing lock\n");
-		SBUF_UNLOCK(&sndvar->write_lock);
+		// SBUF_UNLOCK(&sndvar->write_lock);
 		// printf("send_ep after releasing lock\n");
         return;
 	}
@@ -201,7 +201,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	TimerStart(mtcp, cur_stream, cur_ts);
 
 	// printf("send_ep before releasing lock\n");
-	SBUF_UNLOCK(&sndvar->write_lock);
+	// SBUF_UNLOCK(&sndvar->write_lock);
 	// printf("send_ep after releasing lock\n");
 	return;
 }
@@ -973,11 +973,13 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
     */
     scratchpad scratch;
+	SBUF_LOCK(&cur_stream->sndvar->write_lock);
 	timestamp_ep(mtcp, cur_ts, ev_ts, cur_stream, &scratch);
     conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, &scratch);
     rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
+	SBUF_UNLOCK(&cur_stream->sndvar->write_lock);
     ack_net_ep(mtcp, cur_ts, ack_seq, window, seq, cur_stream, &scratch);
 }
 

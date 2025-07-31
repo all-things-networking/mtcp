@@ -1514,6 +1514,105 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 	return ret;
 }
 /*----------------------------------------------------------------------------*/
+#ifdef USE_MTP
+ssize_t
+mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
+{
+	mtcp_manager_t mtcp;
+	socket_map_t socket;
+	tcp_stream *cur_stream;
+	struct tcp_send_vars *sndvar;
+	int ret;
+
+	mtcp = GetMTCPManager(mctx);
+	if (!mtcp) {
+		return -1;
+	}
+
+	if (sockid < 0 || sockid >= CONFIG.max_concurrency) {
+		TRACE_API("Socket id %d out of range.\n", sockid);
+		errno = EBADF;
+		return -1;
+	}
+
+	socket = &mtcp->smap[sockid];
+	if (socket->socktype == MTCP_SOCK_UNUSED) {
+		TRACE_API("Invalid socket id: %d\n", sockid);
+		errno = EBADF;
+		return -1;
+	}
+
+	if (socket->socktype == MTCP_SOCK_PIPE) {
+		return PipeWrite(mctx, sockid, buf, len);
+	}
+
+	if (socket->socktype != MTCP_SOCK_STREAM) {
+		TRACE_API("Not an end socket. id: %d\n", sockid);
+		errno = ENOTSOCK;
+		return -1;
+	}
+	
+	cur_stream = socket->stream;
+	#ifdef USE_MTP
+	if (!cur_stream || 
+			!(cur_stream->mtp->state == MTP_TCP_ESTABLISHED_ST || 
+			  cur_stream->state == TCP_ST_CLOSE_WAIT)) {
+		errno = ENOTCONN;
+		return -1;
+	}
+	#else
+	if (!cur_stream || 
+			!(cur_stream->state == TCP_ST_ESTABLISHED || 
+			  cur_stream->state == TCP_ST_CLOSE_WAIT)) {
+		errno = ENOTCONN;
+		return -1;
+	}
+	#endif 
+
+	if (len <= 0) {
+		if (socket->opts & MTCP_NONBLOCK) {
+			errno = EAGAIN;
+			return -1;
+		} else {
+			return 0;
+		}
+	}
+
+	sndvar = cur_stream->sndvar;
+
+	// printf("mtcp_write before grabbing lock\n");
+	SBUF_LOCK(&sndvar->write_lock);
+	// printf("mtcp_write after grabbing lock\n");
+
+	ret = CopyFromUser(mtcp, cur_stream, buf, len);
+
+	if (ret > 0){
+		// struct timeval cur_ts = {0};
+		// gettimeofday(&cur_ts, NULL);
+		// uint32_t ts = TIMEVAL_TO_TS(&cur_ts);
+		MtpSendChain(mtcp, mtcp->cur_ts, cur_stream);
+	}
+
+	if (ret == 0 && (socket->opts & MTCP_NONBLOCK)) {
+		ret = -1;
+		errno = EAGAIN;
+	}
+
+	if (sndvar->snd_wnd > 0) {
+		if ((socket->epoll & MTCP_EPOLLOUT) && !(socket->epoll & MTCP_EPOLLET)) {
+			AddEpollEvent(mtcp->ep, 
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
+		}
+	}
+	// printf("mtcp_write before releasing lock\n");
+	SBUF_UNLOCK(&sndvar->write_lock);
+	// printf("mtcp_write after releasing lock\n");
+
+	TRACE_API("Stream %d: mtcp_write() returning %d\n", cur_stream->id, ret);
+	return ret;
+	/* if there are remaining sending buffer, generate write event */
+}
+#else
 ssize_t
 mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 {
@@ -1638,6 +1737,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	TRACE_API("Stream %d: mtcp_write() returning %d\n", cur_stream->id, ret);
 	return ret;
 }
+#endif
 /*----------------------------------------------------------------------------*/
 int
 mtcp_writev(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
