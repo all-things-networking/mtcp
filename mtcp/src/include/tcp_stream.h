@@ -210,6 +210,9 @@ struct mtp_ctx {
 	uint8_t wscale;
     uint32_t lwu_seq;
     uint32_t lwu_ack;
+
+	uint32_t num_rtx;
+	uint32_t max_num_rtx;
     
     // receiver vars
     uint32_t recv_init_seq;

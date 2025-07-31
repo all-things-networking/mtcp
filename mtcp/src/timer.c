@@ -421,7 +421,7 @@ CheckRtmTimeout(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh)
 				mtcp->rto_list_cnt--;
 				walk->on_rto_idx = -1;
 				#ifdef USE_MTP
-				MtpTimeoutChain(mtcp, cur_ts);
+				MtpTimeoutChain(mtcp, cur_ts, walk);
 				#else
 				HandleRTO(mtcp, cur_ts, walk);
 				#endif

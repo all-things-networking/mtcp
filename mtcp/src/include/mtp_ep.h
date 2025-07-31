@@ -16,6 +16,9 @@
 #define MTP_TCP_SYN_SENT_ST 3
 #define MTP_TCP_ESTABLISHED_ST 5
 
+#define MTP_TCP_MAX_RTX 16
+#define MTP_TCP_MAX_BACKOFF	7
+
 /********************** MTP EPs & EP Chains **********************
  * This module implements MTP Event Processors(EP), and EP chains
  * Each EP chain is one line in the dispatcher.
@@ -43,6 +46,6 @@ void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t remote_ip, uint1
 	uint32_t init_seq, uint16_t rwnd, bool sack_permit, bool mss_valid, uint16_t mss,
     bool wscale_valid, uint8_t wscale, struct mtp_listen_ctx *ctx);
 
-void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts);
+void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream);
 
 #endif

@@ -36,6 +36,7 @@ event ACK : INCOMING::NET_EVENT {
     uint32 ack_seq;
     uint32 rwnd_size;
     uint32 seq;
+    tcp_opt_timestamp ts;
 }
 
 event DATA : INCOMING::NET_EVENT {
@@ -45,7 +46,6 @@ event DATA : INCOMING::NET_EVENT {
 }
 
 event MISS_ACK : TIMER_EVENT {
-    uint32 seq_num;
 }
 
 event LISTEN: INCOMING::APP_EVENT{
@@ -81,7 +81,8 @@ opt_t tcp_opt_sack_permit {
 opt_t tcp_opt_timestamp {
     uint8 kind = 8;
     uint8 len = 10;
-    uint64 value;
+    uint32 value1;
+    uint32 value2;
 }
 
 opt_t tcp_opt_wscale {
@@ -175,6 +176,9 @@ context tcp_context {
 
     bool first_send_req = true;
 
+    uint32 num_rtx = 0;
+    uint32 max_num_rtx = 0;
+
     // receiver vars
     uint32 recv_init_seq;
     uint32 rwnd_size = 16959;
@@ -194,6 +198,11 @@ context tcp_context {
 
     sliding_wnd meta_rwnd;
     buffer_id_t bid;
+
+    // timestamps
+    uint32 ts_recent;
+	uint32 ts_lastack_rcvd;
+	uint32 ts_last_ts_upd;
 }
 
 interm_output interm_out {
@@ -267,6 +276,8 @@ net_to_transp ntt_module {
             event.ack_seq = pkt_bp.ack_seq;
             event.rwnd_size = pkt_bp.rwnd_size;
             event.seq = pkt_bp.seq;
+            // TODO: Fix this
+            event.ts = pkt_bp.tcp_opts[tcp_opt_timestamp];
             set_flow_id(event, id);
             out.add(event);
         }
@@ -278,10 +289,13 @@ net_to_transp ntt_module {
 list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out scratch);
 list<instr_t> flush_ep (RECV ev, tcp_context ctx, interm_out scratch);
 
+void timestamp_ep(ACK ev, tcp_context ctx, interm_out scratch);
+list<instr_t> conn_ack_ep (ACK ev, tcp_context ctx, interm_out scratch);
 void rto_ep (ACK ev, tcp_context ctx, interm_out scratch);
 void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out scratch);
 void slows_congc_ep (ACK ev, tcp_context ctx, interm_out scratch);
 list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out scratch);
+
 
 list<instr_t> data_net_ep (DATA ev, tcp_context ctx, interm_out scratch);
 list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out scratch);
@@ -291,7 +305,6 @@ list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out scratch);
 
 list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out scratch);
 list<instr_t> synack_ep (SYNACK ev, tcp_context ctx, interm_out scratch);
-list<instr_t> conn_ack_ep (ACK ev, tcp_context ctx, interm_out scratch);
 
 list<instr_t> listen_ep (LISTEN ev, null_context ctx, interm_out scratch);
 list<instr_t> accept_ep (LISTEN ev, tcp_listen_context ctx, interm_out scratch);
@@ -300,7 +313,8 @@ list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out scratch);
 /*************************** dispatcher ************************/
 dispatch disp_table {
     SEND      -> {send_ep};
-    ACK       -> {conn_ack_ep, rto_ep, fast_retr_rec_ep, slows_congc_ep, ack_net_ep};
+    ACK       -> {timestamp_ep, conn_ack_ep, rto_ep, fast_retr_rec_ep, 
+                  slows_congc_ep, ack_net_ep};
     DATA      -> {data_net_ep, send_ack};
     MISS_ACK   -> {ack_timeout_ep};
     
@@ -363,7 +377,6 @@ list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out scratch) {
     ctx.send_next = ctx.send_next + bytes_to_send;
 
     MISS_ACK time_ev;
-    time_ev.seq_num = ctx.send_una;
     instr_t instr = timer_start_instr(ack_timeout, nanoseconds(ctx.RTO), time_ev); 
     out.add(instr); 
 
@@ -517,6 +530,15 @@ list<instr_t> synack_ep (SYNACK ev, tcp_context ctx, interm_out scratch) {
     out.add(instr);
 
     return out;
+}
+
+void timestamp_ep(ACK ev, tcp_context ctx, interm_out scratch)
+{
+	if (valid_opt(ev.ts)) {
+		ctx.ts_recent = ev.ts.value1;
+		ctx.ts_lastack_rcvd = ev.ts.value2;
+		ctx.ts_last_ts_upd = now();
+	}
 }
 
 list<instr_t> conn_ack_ep (ACK ev, tcp_context ctx, interm_out scratch) {
@@ -752,10 +774,10 @@ list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out scratch) {
         instr_t instr = tx_data_flush(get_flow_id(ev), offset, rmlen);
         out.add(instr);
         ctx.send_una = ev.ack_seq;
+        ctx.num_rtx = 0;
     }
 
     MISS_ACK time_ev;
-    time_ev.seq_num = ctx.send_una;
     instr_t instr = timer_restart_instr(ack_timeout, nanoseconds(ctx.RTO), time_ev);
     out.add(instr);
 
@@ -823,8 +845,33 @@ list<instr_t> flush_ep (RECV ev, tcp_context ctx, interm_out scratch) {
 list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out scratch) {
     list<instr_t> out;
 
-    uint32 SMSS = 1460;
+    if (ctx.num_rtx < TCP_MAX_RTX){
+        ctx.num_rtx = ctx.num_rtx + 1;
+    }
 
+    if (ctx.num_rtx > ctx.max_num_rtx){
+        ctx->max_num_rtx = ctx->num_rtx;
+    }
+
+    uint8 backoff;
+    if (ctx.state >= TCP_ESTABLISHED_ST) {
+		backoff = MIN(ctx.num_rtx, TCP_MAX_BACKOFF);
+
+		uint32 rto_prev = ctx.rto;
+		ctx.rto = ((ctx.srtt >> 3) + ctx.rttvar) << backoff;
+		if (ctx.rto <= 0) {
+			ctx.rto = rto_prev;
+		}
+	} else if (ctx.state >= TCP_SYN_SENT_ST) {
+		/* if there is no rtt measured, update rto based on the previous one */
+		if (ctx.num_rtx < TCP_MAX_BACKOFF) {
+			ctx.rto <<= 1;
+		}
+	}
+
+    uint32 wnd = ctx.cwnd_size;
+    if (ctx.last_rwnd_remote < wnd) wnd = ctx.last_rwnd_remote;
+    ctx.ssthresh = wnd / 2;
     ctx.cwnd_size = SMSS * 3;
     uint32 opt1 = (ctx.send_next - ctx.send_una) / 2;
     uint32 opt2 = 2 * SMSS;
@@ -869,7 +916,6 @@ list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out scratch) 
     out.add(instr);
 
     MISS_ACK time_ev;
-    time_ev.seq_num = ctx.send_una;
 
     instr_t instr = timer_restart_instr(ack_timeout, nanosecond(ctx.RTO));
     out.add(instr);

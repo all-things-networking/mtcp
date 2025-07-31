@@ -213,6 +213,7 @@ static inline void timestamp_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 		// printf("timestamp_ep: %u\n", ntohl(ev_ts->value1));
 		cur_stream->mtp->ts_recent = ev_ts->value1;
 		cur_stream->mtp->ts_lastack_rcvd = ev_ts->value2;
+		// MTP TODO: integrate with MTP
 		cur_stream->rcvvar->ts_lastack_rcvd = ev_ts->value2;
 		cur_stream->mtp->ts_last_ts_upd = cur_ts;
 	}
@@ -597,6 +598,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		// printf("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
 			// sndvar->sndbuf->head_seq, sndvar->sndbuf->len, sndvar->snd_wnd);
 		ctx->send_una = ev_ack_seq;
+		ctx->num_rtx = 0;
 	}
 
 	// MTP TODO: match the mtp file in creating right "event" on timeout
@@ -790,6 +792,142 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     AddtoGenList(mtcp, cur_stream, cur_ts);
 }
 
+void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
+	struct mtp_ctx *ctx = cur_stream->mtp;
+	/* count number of retransmissions */
+	if (ctx->num_rtx < MTP_TCP_MAX_RTX) {
+		ctx->num_rtx = ctx->num_rtx + 1;
+	} else {
+		/* if it exceeds the threshold, destroy and notify to application */
+		printf("Stream %d: Exceed MAX_RTX\n", cur_stream->id);
+		
+	}
+	if (ctx->num_rtx > ctx->max_num_rtx) {
+		ctx->max_num_rtx = ctx->num_rtx;
+	}
+	
+	uint8_t backoff;
+	/* update rto timestamp */
+	if (ctx->state >= MTP_TCP_ESTABLISHED_ST) {
+		backoff = MIN(ctx->num_rtx, MTP_TCP_MAX_BACKOFF);
+
+		uint32_t rto_prev;
+		rto_prev = cur_stream->sndvar->rto;
+		cur_stream->sndvar->rto = ((cur_stream->rcvvar->srtt >> 3) + 
+				cur_stream->rcvvar->rttvar) << backoff;
+		if (cur_stream->sndvar->rto <= 0) {
+			printf("Stream %d current rto: %u, prev: %u, state: %s\n", 
+					cur_stream->id, cur_stream->sndvar->rto, rto_prev, 
+					TCPStateToString(cur_stream));
+			cur_stream->sndvar->rto = rto_prev;
+		}
+	} else if (ctx->state >= MTP_TCP_SYN_SENT_ST) {
+		/* if there is no rtt measured, update rto based on the previous one */
+		if (ctx->num_rtx < MTP_TCP_MAX_BACKOFF) {
+			cur_stream->sndvar->rto <<= 1;
+		}
+	}
+	//cur_stream->sndvar->ts_rto = cur_ts + cur_stream->sndvar->rto;
+
+	/* reduce congestion window and ssthresh */
+	ctx->ssthresh = MIN(ctx->cwnd_size, ctx->last_rwnd_remote) / 2;
+	if (ctx->ssthresh < (2 * ctx->SMSS)) {
+		ctx->ssthresh = ctx->SMSS * 2;
+	}
+	ctx->cwnd_size = ctx->SMSS;
+	printf("Stream %d Timeout. cwnd: %u, ssthresh: %u\n", 
+			cur_stream->id, ctx->cwnd_size, ctx->ssthresh);
+
+	/* Retransmission */
+	// MTP TODO: add cases for other states
+	
+	if (ctx->state == MTP_TCP_ESTABLISHED_ST) {
+		/* retransmit data at ESTABLISHED state */
+		
+		struct tcp_send_vars *sndvar = cur_stream->sndvar;
+
+		SBUF_LOCK(&sndvar->write_lock);
+        // MTP TODO: check that size + options is not more than MSS
+        uint32_t data_rest =  sndvar->sndbuf->len - 
+					      MTP_SEQ_SUB(ctx->send_una, sndvar->sndbuf->head_seq,
+									  sndvar->sndbuf->head_seq);
+
+		uint32_t effective_window = ctx->cwnd_size;
+		if (ctx->last_rwnd_remote < effective_window){
+			effective_window = ctx->last_rwnd_remote;
+		}
+		
+		uint32_t bytes_to_send = effective_window;
+		if (data_rest < effective_window) bytes_to_send = data_rest;
+		
+		// MTP TODO: check bytes to send is not zero
+		// printf("ack_net_ep: bytes to send: %d\n", bytes_to_send);
+
+		assert(bytes_to_send > 0);
+
+		mtp_bp* bp = GetFreeBP(cur_stream);
+
+		// printf("got bp\n");
+		// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+		
+		memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+		bp->hdr.source = cur_stream->mtp->local_port;
+		bp->hdr.dest = cur_stream->mtp->remote_port;
+		bp->hdr.seq = htonl(ctx->send_una);
+		// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+		bp->hdr.ack_seq = htonl(ctx->recv_next);
+
+		bp->hdr.syn = FALSE;
+		bp->hdr.ack = TRUE;
+
+		// options to calculate data offset
+	
+		// MTP TODO: SACK? 
+	#if TCP_OPT_SACK_ENABLED
+		printf("ERROR:SACK Not supported in MTP TCP\n");
+	#endif
+
+		MTP_set_opt_nop(&(bp->opts.nop1));
+		MTP_set_opt_nop(&(bp->opts.nop2));
+
+		// MTP TODO: Timestamp
+		MTP_set_opt_timestamp(&(bp->opts.timestamp),
+								htonl(cur_ts),
+								htonl(cur_stream->rcvvar->ts_recent));
+		
+	
+		// MTP TODO: would the MTP program do the length 
+		//           calculation itself?
+		uint16_t optlen = MTP_CalculateOptionLength(bp);
+		bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+		// MTP TODO: wscale on local
+		uint32_t window32 = cur_stream->mtp->rwnd_size;
+		uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+		bp->hdr.window = htons(advertised_window);
+
+		// Payload
+		// MTP TODO: fix snbuf
+		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+														sndvar->sndbuf->head_seq,
+														sndvar->sndbuf->head_seq);
+		bp->payload.data = data;
+		bp->payload.len = bytes_to_send;
+		bp->payload.needs_segmentation = TRUE;
+		bp->payload.seg_size = ctx->eff_SMSS;
+		bp->payload.seg_rule_group_id = 1; 
+
+		AddtoGenList(mtcp, cur_stream, cur_ts);	
+		
+			
+		// printf("ack_net_ep before releasing lock\n");
+		TimerRestart(mtcp, cur_stream, cur_ts);
+		
+		SBUF_UNLOCK(&sndvar->write_lock);
+		// printf("ack_net_ep after releasing lock\n");
+	}
+}
 
 /***********************************************
  MTP Event Processor Chains
@@ -870,6 +1008,6 @@ void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts,
            sack_permit, mss_valid, mss, wscale_valid, wscale, ctx);
 }
 
-void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts){
-	// printf("NOT IMPLEMENTED");
+void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
+	timeout_ep(mtcp, cur_ts, cur_stream);
 }
