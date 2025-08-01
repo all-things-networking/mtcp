@@ -55,6 +55,14 @@ void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t remote_ip, uint1
 	uint32_t init_seq, uint16_t rwnd, bool sack_permit, bool mss_valid, uint16_t mss,
     bool wscale_valid, uint8_t wscale, struct mtp_listen_ctx *ctx);
 
+void MtpSyNAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, 
+					uint32_t ev_init_seq, uint32_t ev_ack_seq, 
+					uint16_t ev_rwnd_size, bool ev_sack_permit, 
+					bool ev_mss_valid, uint16_t ev_mss, 
+                    bool ev_wscale_valid, uint8_t ev_wscale,
+					struct tcp_opt_timestamp* ev_ts, 
+					tcp_stream* cur_stream);
+
 void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream);
 
 #endif

@@ -669,6 +669,7 @@ RunWgetMain(void *arg)
 						events[i].data.sockid, &wvars[events[i].data.sockid]);
 
 			} else if (events[i].events == MTCP_EPOLLOUT) {
+				printf("READY TO WRITE\n");
 				struct wget_vars *wv = &wvars[events[i].data.sockid];
 
 				if (!wv->request_sent) {

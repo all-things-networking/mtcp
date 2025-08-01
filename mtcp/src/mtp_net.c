@@ -306,17 +306,28 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	s_stream.daddr = iph->saddr;
 	s_stream.dport = mtph->source;
 
-    printf("MTP_ProcessTransportPacket: saddr: %u, daddr: %u, sport: %u, dport: %u\n",
-            s_stream.saddr, s_stream.daddr, s_stream.sport, s_stream.dport);
-
     if (mtph->syn && mtph->ack){
+        uint32_t ev_init_seq = mtph->seq;
+        uint32_t ev_ack_seq = mtph->ack_seq;
+        uint16_t ev_rwnd_size = mtph->window;
+        bool ev_sack_permit = mtp_opt.sack_permit.valid;
+        bool ev_wscale_valid = mtp_opt.wscale.valid;
+        uint8_t ev_wscale = mtp_opt.wscale.value;
+        bool ev_mss_valid = mtp_opt.mss.valid;
+        uint16_t ev_mss = mtp_opt.mss.value;
+        struct tcp_opt_timestamp* ev_ts = &(mtp_opt.timestamp);
+
         tcp_stream *cur_stream = NULL;
 	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
             printf("SYNACK: No context\n");
             return -1;
             // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
         }
-       return 0;
+
+        MtpSyNAckChain(mtcp, cur_ts, 
+                       ev_init_seq, ev_ack_seq,
+                       ev_rwnd_size, ev_sack_permit, ev_mss_valid, ev_mss, 
+                       ev_wscale_valid, ev_wscale, ev_ts, cur_stream);
     }
 
     //if (payload.len > 0){
