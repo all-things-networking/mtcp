@@ -706,6 +706,8 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
                                       ev_init_seq, ev_init_seq + 1, ev_init_seq,
                                       ev_rwnd_size, wscale,
                                       MTP_TCP_SYNACK_SENT_ST);
+									  printf("local_ip: %u\n",
+											ctx->local_ip);
 	if (cur_stream == NULL) return;
 
 	// Add stream to the listen context
@@ -749,7 +751,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	bp->hdr.source = cur_stream->mtp->local_port;
 	bp->hdr.dest = cur_stream->mtp->remote_port;
     bp->hdr.seq = htonl(cur_stream->mtp->init_seq);
-	printf("Seq: %u\n", ntohl(bp->hdr.seq));
+	// printf("Seq: %u\n", ntohl(bp->hdr.seq));
     bp->hdr.ack_seq = htonl(ev_init_seq + 1);
 
     bp->hdr.syn = TRUE;
@@ -1018,6 +1020,9 @@ tcp_stream* MtpConnectChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts,
                                       init_seq, init_seq, init_seq + 1,
                                       0, 0, 0, 0, 0,
                                       MTP_TCP_SYN_SENT_ST);
+	printf("Created stream with saddr: %u, daddr: %u, sport: %u, dport: %u\n",
+			cur_stream->saddr, cur_stream->daddr,
+			cur_stream->sport, cur_stream->dport);
 	return cur_stream;
 }
 	

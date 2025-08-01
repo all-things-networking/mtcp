@@ -306,14 +306,23 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	s_stream.daddr = iph->saddr;
 	s_stream.dport = mtph->source;
 
-    //if (mtph->syn && mtph->ack){
-    //    return 0;
-    //}
+    printf("MTP_ProcessTransportPacket: saddr: %u, daddr: %u, sport: %u, dport: %u\n",
+            s_stream.saddr, s_stream.daddr, s_stream.sport, s_stream.dport);
+
+    if (mtph->syn && mtph->ack){
+        tcp_stream *cur_stream = NULL;
+	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
+            printf("SYNACK: No context\n");
+            return -1;
+            // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
+        }
+       return 0;
+    }
 
     //if (payload.len > 0){
     //}
 
-    if (mtph->ack){
+    else if (mtph->ack){
 
         uint32_t ev_ack_seq = mtph->ack_seq;
         uint16_t ev_rwnd_size = mtph->window;
@@ -427,7 +436,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
         
         // printf("bp @ index %u:\n", i);
-        // print_MTP_bp(bp);
+        print_MTP_bp(bp);
 
         uint16_t optlen = MTP_CalculateOptionLength(bp);
 

@@ -386,7 +386,9 @@ CreateListeningSocket(struct thread_context *ctx)
 
 	/* bind to port 80 */
 	saddr.sin_family = AF_INET;
-	saddr.sin_addr.s_addr = INADDR_ANY;
+	// saddr.sin_addr.s_addr = INADDR_ANY;
+	// TODO: change to command line argument
+	saddr.sin_addr.s_addr = inet_addr("10.7.0.5");
 	saddr.sin_port = htons(80);
 	ret = mtcp_bind(ctx->mctx, listener, 
 			(struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
@@ -452,6 +454,7 @@ RunServerThread(void *arg)
 		printf("3\n");
 		nevents = mtcp_epoll_wait(mctx, ep, events, MAX_EVENTS, -1);
 		printf("4\n");
+		fflush(stdout);
 		if (nevents < 0) {
 			if (errno != EINTR)
 				perror("mtcp_epoll_wait");

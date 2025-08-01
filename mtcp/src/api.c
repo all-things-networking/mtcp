@@ -826,9 +826,11 @@ mtcp_connect(mctx_t mctx, int sockid,
 	}
 
 	#ifdef USE_MTP
+	// MTP TODO: change connectq to get event instead of stream and 
+	// combine the two parts.
 	cur_stream = MtpConnectChainPart1(mtcp, mtcp->cur_ts, 
-			socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, 
-			dip, dport);
+			socket->saddr.sin_addr.s_addr, dip, 
+			socket->saddr.sin_port, dport);
 	if (!cur_stream) {
 		TRACE_ERROR("Socket %d: failed to create tcp_stream!\n", sockid);
 		errno = ENOMEM;
