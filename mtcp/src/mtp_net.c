@@ -328,12 +328,13 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
                        ev_init_seq, ev_ack_seq,
                        ev_rwnd_size, ev_sack_permit, ev_mss_valid, ev_mss, 
                        ev_wscale_valid, ev_wscale, ev_ts, cur_stream);
+        return 0;
     }
 
     //if (payload.len > 0){
     //}
 
-    else if (mtph->ack){
+    if (mtph->ack){
 
         uint32_t ev_ack_seq = mtph->ack_seq;
         uint16_t ev_rwnd_size = mtph->window;

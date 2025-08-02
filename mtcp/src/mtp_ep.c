@@ -723,6 +723,14 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 											ctx->local_ip);
 	if (cur_stream == NULL) return;
 
+	cur_stream->sndvar->sndbuf = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);
+	if (!cur_stream->sndvar->sndbuf) {
+		cur_stream->close_reason = TCP_NO_MEM;
+		/* notification may not required due to -1 return */
+		errno = ENOMEM;
+		return;
+	}
+
 	// Add stream to the listen context
 	// Note: since mTCP's accept_res struct includes flow context, we insert
 	//		new accept_res after context creation
@@ -1133,6 +1141,14 @@ tcp_stream* MtpConnectChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts,
 	printf("Created stream with saddr: %u, daddr: %u, sport: %u, dport: %u\n",
 			cur_stream->saddr, cur_stream->daddr,
 			cur_stream->sport, cur_stream->dport);
+
+	cur_stream->sndvar->sndbuf = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);
+	if (!cur_stream->sndvar->sndbuf) {
+		cur_stream->close_reason = TCP_NO_MEM;
+		/* notification may not required due to -1 return */
+		errno = ENOMEM;
+		return NULL;
+	}
 	return cur_stream;
 }
 	

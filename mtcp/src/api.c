@@ -1511,6 +1511,7 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 		return -1;
 	}
 
+	#ifndef USE_MTP
 	/* allocate send buffer if not exist */
 	if (!sndvar->sndbuf) {
 		sndvar->sndbuf = SBInit(mtcp->rbm_snd, sndvar->iss + 1);
@@ -1521,6 +1522,7 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 			return -1;
 		}
 	}
+	#endif
 
 	ret = SBPut(mtcp->rbm_snd, sndvar->sndbuf, buf, sndlen);
 	assert(ret == sndlen);
