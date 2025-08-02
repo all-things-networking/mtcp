@@ -284,6 +284,105 @@ MergeFragments(struct fragment_ctx *a, struct fragment_ctx *b)
 	b->len  = max_seq - min_seq;
 }
 /*----------------------------------------------------------------------------*/
+#ifdef USE_MTP
+int
+MtpWndPut(rb_manager_t rbm, struct tcp_ring_buffer* buff, 
+	   void* data, uint32_t len, uint32_t cur_seq)
+{
+	int putx, end_off;
+	struct fragment_ctx *new_ctx;
+	struct fragment_ctx* iter;
+	struct fragment_ctx* prev, *pprev;
+	int merged = 0;
+
+	if (len <= 0)
+		return 0;
+
+	// if data offset is smaller than head sequence, then drop
+	if (GetMinSeq(buff->head_seq, cur_seq) != buff->head_seq)
+		return 0;
+
+	putx = cur_seq - buff->head_seq;
+	end_off = putx + len;
+	if (buff->size < end_off) {
+		return -2;
+	}
+	
+	// if buffer is at tail, move the data to the first of head
+	if (buff->size <= (buff->head_offset + end_off)) {
+		memmove(buff->data, buff->head, buff->last_len);
+		buff->tail_offset -= buff->head_offset;
+		buff->head_offset = 0;
+		buff->head = buff->data;
+	}
+
+	if (buff->tail_offset < buff->head_offset + end_off) 
+		buff->tail_offset = buff->head_offset + end_off;
+	buff->last_len = buff->tail_offset - buff->head_offset;
+
+	// create fragmentation context blocks
+	new_ctx = AllocateFragmentContext(rbm);
+	if (!new_ctx) {
+		perror("allocating new_ctx failed");
+		return 0;
+	}
+	new_ctx->seq  = cur_seq;
+	new_ctx->len  = len;
+	new_ctx->next = NULL;
+
+	// traverse the fragment list, and merge the new fragment if possible
+	for (iter = buff->fctx, prev = NULL, pprev = NULL; 
+		iter != NULL;
+		pprev = prev, prev = iter, iter = iter->next) {
+		
+		if (CanMerge(new_ctx, iter)) {
+			/* merge the first fragment into the second fragment */
+			MergeFragments(new_ctx, iter);
+
+			/* remove the first fragment */
+			if (prev == new_ctx) {
+				if (pprev)
+					pprev->next = iter;
+				else
+					buff->fctx = iter;
+				prev = pprev;
+			}	
+			FreeFragmentContextSingle(rbm, new_ctx);
+			new_ctx = iter;
+			merged = 1;
+		} 
+		else if (merged || 
+				 GetMaxSeq(cur_seq + len, iter->seq) == iter->seq) {
+			/* merged at some point, but no more mergeable
+			   then stop it now */
+			break;
+		} 
+	}
+
+	if (!merged) {
+		if (buff->fctx == NULL) {
+			buff->fctx = new_ctx;
+		} else if (GetMinSeq(cur_seq, buff->fctx->seq) == cur_seq) {
+			/* if the new packet's seqnum is before the existing fragments */
+			new_ctx->next = buff->fctx;
+			buff->fctx = new_ctx;
+		} else {
+			/* if the seqnum is in-between the fragments or
+			   at the last */
+			assert(GetMinSeq(cur_seq, prev->seq + prev->len) ==
+				   prev->seq + prev->len);
+			prev->next = new_ctx;
+			new_ctx->next = iter;
+		}
+	}
+	if (buff->head_seq == buff->fctx->seq) {
+		buff->cum_len += buff->fctx->len - buff->merged_len;
+		buff->merged_len = buff->fctx->len;
+	}
+	
+	return len;
+}
+#endif
 int
 RBPut(rb_manager_t rbm, struct tcp_ring_buffer* buff, 
 	   void* data, uint32_t len, uint32_t cur_seq)

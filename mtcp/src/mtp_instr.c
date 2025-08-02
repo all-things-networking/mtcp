@@ -375,11 +375,12 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 		}
 	}
 
-	if (!rcvvar->meta_rwnd) {
-		rcvvar->meta_rwnd = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
+	struct mtp_ctx *ctx = cur_stream->mtp;
+	if (!ctx->meta_rwnd) {
+		ctx->meta_rwnd = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
 		// MTP TODO: this should raise an error event that comes back
 		//           to be processed according to the MTP program
-		if (!rcvvar->meta_rwnd) {
+		if (!ctx->meta_rwnd) {
 			cur_stream->state = TCP_ST_CLOSED;
 			cur_stream->close_reason = TCP_NO_MEM;
 			RaiseErrorEvent(mtcp, cur_stream);
