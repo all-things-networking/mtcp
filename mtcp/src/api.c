@@ -594,7 +594,15 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 
 #ifdef USE_MTP
 	mtp_listener = mtcp->smap[sockid].listen_ctx;
-	accepted = MtpAcceptChain(mctx, mtcp, addr, addrlen, mtp_listener)->stream;
+	bool non_block = (mtp_listener->socket->opts & MTCP_NONBLOCK) ? TRUE : FALSE;
+	printf("before MtpAcceptChain\n");
+	struct accept_res* res = MtpAcceptChain(mctx, mtcp, addr, addrlen, non_block, mtp_listener);
+	printf("after MtpAcceptChain: accepted:%p\n", accepted);
+	if (res == NULL) {
+		return -1;
+	}
+	accepted = res->stream;
+	
 #else
 	listener = mtcp->smap[sockid].listener;
 

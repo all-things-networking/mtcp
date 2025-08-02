@@ -288,7 +288,9 @@ AcceptConnection(struct thread_context *ctx, int listener)
 	struct mtcp_epoll_event ev;
 	int c;
 
+	printf("before accept call\n");
 	c = mtcp_accept(mctx, listener, NULL, NULL);
+	printf("after accept call\n");
 
 	if (c >= 0) {
 		if (c >= MAX_FLOW_NUM) {

@@ -40,7 +40,7 @@ void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *p
 int MtpListenChain(mtcp_manager_t mtcp, int sockid, int backlog);
 
 struct accept_res* MtpAcceptChain(mctx_t mctx, mtcp_manager_t mtcp, struct sockaddr *addr, 
-	socklen_t *addrlen, struct mtp_listen_ctx *ctx);
+	socklen_t *addrlen, bool non_block, struct mtp_listen_ctx *ctx);
 
 tcp_stream* MtpConnectChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts,
 					 uint32_t ev_local_ip, uint32_t ev_remote_ip, 

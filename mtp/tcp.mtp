@@ -54,7 +54,9 @@ event LISTEN: INCOMING::APP_EVENT{
     uint32 pending_cap;
 }
 
+// TODO: update event processor
 event ACCEPT: INCOMING::APP_EVENT{
+    bool non_block;
 }
 
 event CONNECT: INCOMING::APP_EVENT{

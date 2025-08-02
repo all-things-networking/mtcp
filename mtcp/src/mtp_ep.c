@@ -657,18 +657,31 @@ static inline int listen_ep(mtcp_manager_t mtcp, int sockid, int backlog)
 }
 
 static inline struct accept_res* accept_ep(mctx_t mctx, mtcp_manager_t mtcp,
-	struct sockaddr *addr, socklen_t *addrlen, struct mtp_listen_ctx *ctx) 
+	struct sockaddr *addr, socklen_t *addrlen, bool non_block, struct mtp_listen_ctx *ctx) 
 {
 	// Wait until a client request to connect
 	pthread_mutex_lock(&ctx->accept_lock);
 	if (TAILQ_EMPTY(&ctx->pending)) {
-		pthread_cond_wait(&ctx->accept_cond, &ctx->accept_lock);// check lock
-		if (mtcp->ctx->done || mtcp->ctx->exit) {
+		if (non_block) {
+			printf("accept_ep: non-blocking mode, no pending connections\n");
 			pthread_mutex_unlock(&ctx->accept_lock);
-			errno = EINTR;
+			printf("accept_ep: errno set to EAGAIN\n");
+			errno = EAGAIN;
+			printf("accept_ep: returning NULL\n");
 			return NULL;
 		}
+		else{
+			printf("accept_ep: blocking mode, waiting for connections\n");
+			pthread_cond_wait(&ctx->accept_cond, &ctx->accept_lock);// check lock
+			if (mtcp->ctx->done || mtcp->ctx->exit) {
+				pthread_mutex_unlock(&ctx->accept_lock);
+				errno = EINTR;
+				return NULL;
+			}
+		}
 	}
+
+	printf("accept_ep: pending connections available, proceeding\n");
 	struct accept_res *res = TAILQ_FIRST(&ctx->pending);
 	TAILQ_REMOVE(&ctx->pending, res, link);
 	ctx->pending_len--;
@@ -997,9 +1010,9 @@ int MtpListenChain(mtcp_manager_t mtcp, int sockid, int backlog)
 }
 
 struct accept_res* MtpAcceptChain(mctx_t mctx, mtcp_manager_t mtcp, struct sockaddr *addr, 
-	socklen_t *addrlen, struct mtp_listen_ctx *ctx) 
+	socklen_t *addrlen, bool non_block, struct mtp_listen_ctx *ctx) 
 {
-	return accept_ep(mctx, mtcp, addr, addrlen, ctx);
+	return accept_ep(mctx, mtcp, addr, addrlen, non_block, ctx);
 }
 
 
