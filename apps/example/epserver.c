@@ -202,7 +202,9 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 	int sent;
 
 	/* HTTP request handling */
+	printf("starting to read HTTP request\n");
 	rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN);
+	printf("finished reading HTTP request, bytes read: %d\n", rd);
 	if (rd <= 0) {
 		return rd;
 	}
@@ -491,6 +493,7 @@ RunServerThread(void *arg)
 						&ctx->svars[events[i].data.sockid]);
 
 			} else if (events[i].events & MTCP_EPOLLIN) {
+				printf("in read event\n");
 				ret = HandleReadEvent(ctx, events[i].data.sockid, 
 						&ctx->svars[events[i].data.sockid]);
 

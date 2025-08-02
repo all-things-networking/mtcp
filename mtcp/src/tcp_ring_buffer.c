@@ -284,7 +284,6 @@ MergeFragments(struct fragment_ctx *a, struct fragment_ctx *b)
 	b->len  = max_seq - min_seq;
 }
 /*----------------------------------------------------------------------------*/
-#ifdef USE_MTP
 int
 MtpWndPut(rb_manager_t rbm, struct tcp_ring_buffer* buff, 
 	   void* data, uint32_t len, uint32_t cur_seq)
@@ -382,7 +381,7 @@ MtpWndPut(rb_manager_t rbm, struct tcp_ring_buffer* buff,
 	
 	return len;
 }
-#endif
+
 int
 RBPut(rb_manager_t rbm, struct tcp_ring_buffer* buff, 
 	   void* data, uint32_t len, uint32_t cur_seq)

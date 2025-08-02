@@ -40,8 +40,8 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 // "buffer" instructions
 void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
                 uint32_t offset, uint32_t len);
-int FlushAndNotify(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
-	char* buf, int len, socket_map_t socket);
+int FlushAndNotify(mtcp_manager_t mtcp, socket_map_t socket, 
+				   tcp_stream* cur_stream, char *buf, int len);
 
 // timer_instr
 void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts);

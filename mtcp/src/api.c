@@ -1264,15 +1264,24 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	
 	/* stream should be in ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT */
 	cur_stream = socket->stream;
+	#ifdef USE_MTP
+		if (!cur_stream || 
+			!(cur_stream->mtp->state >= MTP_TCP_ESTABLISHED_ST)) {
+			errno = ENOTCONN;
+			return -1;
+		}
+	#else
         if (!cur_stream || 
 	    !(cur_stream->state >= TCP_ST_ESTABLISHED && 
 	      cur_stream->state <= TCP_ST_CLOSE_WAIT)) {
 		errno = ENOTCONN;
 		return -1;
 	}
+	#endif
 
 	rcvvar = cur_stream->rcvvar;
 	
+	#ifndef USE_MTP
 	/* if CLOSE_WAIT, return 0 if there is no payload */
 	if (cur_stream->state == TCP_ST_CLOSE_WAIT) {
 		if (!rcvvar->rcvbuf)
@@ -1280,7 +1289,8 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 		
 		if (rcvvar->rcvbuf->merged_len == 0)
 			return 0;
-        }
+	}
+	#endif
 	
 	/* return EAGAIN if no receive buffer */
 	if (socket->opts & MTCP_NONBLOCK) {
@@ -1308,7 +1318,9 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	case 0:
         // MTP: tcp_recv event processing will be added here
     #ifdef USE_MTP
-        ret = FlushAndNotify(mtcp, cur_stream, buf, len, socket);
+		SBUF_UNLOCK(&rcvvar->read_lock);
+		ret = MtpReceiveChain(mtcp, socket, buf, len, cur_stream);
+        // ret = FlushAndNotify(mtcp, cur_stream, buf, len, socket);
     #else
 		ret = CopyToUser(mtcp, cur_stream, buf, len);
     #endif

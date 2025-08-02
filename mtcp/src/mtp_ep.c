@@ -643,7 +643,7 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 		assert(0);
 	}
 
-	RBPut(mtcp->rbm_rcv, ctx->meta_rwnd, ev_payload, ev_payloadlen, ev_seq);
+	MtpWndPut(mtcp->rbm_rcv, ctx->meta_rwnd, ev_payload, ev_payloadlen, ev_seq);
 	ctx->recv_next = ctx->meta_rwnd->head_seq + ctx->meta_rwnd->merged_len;
 
     RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, ev_payload, ev_payloadlen, ev_seq);
@@ -1128,6 +1128,39 @@ void MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 {
 	// printf("Calling send chain\n");
     send_ep(mtcp, cur_ts, cur_stream);
+}
+
+int MtpReceiveChain(mtcp_manager_t mtcp, socket_map_t socket, 
+					char *ev_buf, int ev_data_size, 
+					tcp_stream *cur_stream)
+{
+	struct mtp_ctx* ctx = cur_stream->mtp;
+
+	uint32_t data_avail = ctx->recv_next - 1 - ctx->last_flushed;
+    if (data_avail > ev_data_size){
+        data_avail = ev_data_size;
+    }
+
+	FlushAndNotify(mtcp, socket, cur_stream, ev_buf, data_avail);
+    
+    ctx->last_flushed += data_avail;
+	ctx->rwnd_size = cur_stream->rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->last_flushed, 
+														ctx->recv_next, 
+														ctx->recv_next);
+	
+	// MTP TODO: I think this has race conditions
+	SBUF_LOCK(&cur_stream->rcvvar->read_lock);
+	if (socket->epoll & MTCP_EPOLLIN) {
+		if (!(socket->epoll & MTCP_EPOLLET) && ctx->recv_next > ctx->last_flushed + 1) {
+			if (socket->epoll) {
+				AddEpollEvent(mtcp->ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+			}
+		}
+	}
+	SBUF_UNLOCK(&cur_stream->rcvvar->read_lock);
+
+	return data_avail;
+	// TODO: send ack when window becomes non zero after being zero (part 2)
 }
 
 void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 

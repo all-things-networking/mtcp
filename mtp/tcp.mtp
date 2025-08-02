@@ -315,6 +315,7 @@ list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out scratch);
 /*************************** dispatcher ************************/
 dispatch disp_table {
     SEND      -> {send_ep};
+    RECV      -> {flush_ep};
     ACK       -> {timestamp_ep, conn_ack_ep, rto_ep, fast_retr_rec_ep, 
                   slows_congc_ep, ack_net_ep};
     DATA      -> {data_net_ep, send_ack};
