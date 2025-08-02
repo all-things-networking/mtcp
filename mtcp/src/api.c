@@ -788,7 +788,6 @@ mtcp_connect(mctx_t mctx, int sockid,
 			errno = EALREADY;
 		}
 		#endif
-		// TODO: need to call MTP connect chain here, which is not implemented yet
 		return -1;
 	}
 
@@ -844,6 +843,8 @@ mtcp_connect(mctx_t mctx, int sockid,
 		errno = ENOMEM;
 		return -1;	
 	}
+	socket->stream = cur_stream;
+	cur_stream->socket = socket;
 	if (is_dyn_bound)
 		cur_stream->is_bound_addr = TRUE;
 	#else
