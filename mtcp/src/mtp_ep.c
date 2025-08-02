@@ -808,6 +808,105 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     AddtoGenList(mtcp, cur_stream, cur_ts);
 }
 
+void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
+				uint32_t ev_init_seq, uint32_t ev_ack_seq, 
+				uint16_t ev_rwnd_size, bool ev_sack_permit, 
+				bool ev_mss_valid, uint16_t ev_mss, 
+				bool ev_wscale_valid, uint8_t ev_wscale,
+				struct tcp_opt_timestamp* ev_ts, 
+				tcp_stream* cur_stream)
+{
+	struct mtp_ctx *ctx = cur_stream->mtp;
+
+	if (ctx->state != MTP_TCP_SYN_SENT_ST) {
+		printf("MtpSyNAckChain: Invalid state %d for SYN-ACK\n", ctx->state);
+		return;
+	}
+
+	
+	ctx->state = MTP_TCP_ESTABLISHED_ST; //ESTABLISHED_ST
+
+	// receiver related variables
+    ctx->recv_init_seq = ev_init_seq;
+    ctx->recv_next = ev_init_seq + 1;
+	ctx->last_flushed = ev_init_seq;
+
+	// sender related variables
+    ctx->last_rwnd_remote = ev_rwnd_size;
+	ctx->send_una = ev_ack_seq;
+	ctx->send_next = ev_ack_seq;
+	ctx->lwu_seq = ev_init_seq - 1;
+	ctx->last_ack = ev_ack_seq;
+
+	// options
+	if (ev_wscale_valid) ctx->wscale_remote = ev_wscale;
+	if (ev_mss_valid) ctx->SMSS = ev_mss;
+	ctx->sack_permit_remote = ev_sack_permit;
+	ctx->ts_recent = ev_ts->value1;
+	ctx->ts_lastack_rcvd = ev_ts->value2;
+	// MTP TODO: integrate with MTP
+	cur_stream->rcvvar->ts_lastack_rcvd = ev_ts->value2;
+	ctx->ts_last_ts_upd = cur_ts;
+
+	// Other sender size variables
+	if (ctx->cwnd_size == 1) ctx->cwnd_size = 2 * ctx->SMSS;
+	else ctx->cwnd_size = ctx->SMSS;
+	ctx->ssthresh = ctx->SMSS * 10;
+
+	mtp_bp* bp = GetFreeBP(cur_stream);
+
+	// printf("got bp\n");
+	// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+	
+	memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+	bp->hdr.source = cur_stream->mtp->local_port;
+	bp->hdr.dest = cur_stream->mtp->remote_port;
+	bp->hdr.seq = htonl(ctx->send_next);
+	// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+	bp->hdr.ack_seq = htonl(ctx->recv_next);
+
+	bp->hdr.syn = FALSE;
+	bp->hdr.ack = TRUE;
+
+	// options to calculate data offset
+
+	// MTP TODO: SACK? 
+#if TCP_OPT_SACK_ENABLED
+	printf("ERROR:SACK Not supported in MTP TCP\n");
+#endif
+
+	MTP_set_opt_nop(&(bp->opts.nop1));
+	MTP_set_opt_nop(&(bp->opts.nop2));
+
+	// MTP TODO: Timestamp
+	MTP_set_opt_timestamp(&(bp->opts.timestamp),
+							htonl(cur_ts),
+							htonl(cur_stream->rcvvar->ts_recent));
+	
+
+	// MTP TODO: would the MTP program do the length 
+	//           calculation itself?
+	uint16_t optlen = MTP_CalculateOptionLength(bp);
+	bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+	// MTP TODO: wscale on local
+	uint32_t window32 = cur_stream->mtp->rwnd_size;
+	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+	bp->hdr.window = htons(advertised_window);
+
+	// Payload
+	// MTP TODO: fix snbuf
+	bp->payload.data = NULL;
+	bp->payload.len = 0;
+	bp->payload.needs_segmentation = FALSE;
+
+	AddtoGenList(mtcp, cur_stream, cur_ts);
+	
+	// MTP TODO: integrate into MTP
+	RaiseWriteEvent(mtcp, cur_stream);
+}
+
 void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 	struct mtp_ctx *ctx = cur_stream->mtp;
 	/* count number of retransmissions */
@@ -1111,94 +1210,11 @@ void MtpSyNAckChain(mtcp_manager_t mtcp, uint32_t cur_ts,
                     bool ev_wscale_valid, uint8_t ev_wscale,
 					struct tcp_opt_timestamp* ev_ts, 
 					tcp_stream* cur_stream){
-	struct mtp_ctx *ctx = cur_stream->mtp;
-
-	if (ctx->state != MTP_TCP_SYN_SENT_ST) {
-		printf("MtpSyNAckChain: Invalid state %d for SYN-ACK\n", ctx->state);
-		return;
-	}
-
-	
-	ctx->state = MTP_TCP_ESTABLISHED_ST; //ESTABLISHED_ST
-
-	// receiver related variables
-    ctx->recv_init_seq = ev_init_seq;
-    ctx->recv_next = ev_init_seq + 1;
-	ctx->last_flushed = ev_init_seq;
-
-	// sender related variables
-    ctx->last_rwnd_remote = ev_rwnd_size;
-	ctx->send_next = ev_ack_seq;
-	ctx->lwu_seq = ev_init_seq - 1;
-	ctx->last_ack = ev_ack_seq;
-
-	// options
-	if (ev_wscale_valid) ctx->wscale_remote = ev_wscale;
-	if (ev_mss_valid) ctx->SMSS = ev_mss;
-	ctx->sack_permit_remote = ev_sack_permit;
-	ctx->ts_recent = ev_ts->value1;
-	ctx->ts_lastack_rcvd = ev_ts->value2;
-	// MTP TODO: integrate with MTP
-	cur_stream->rcvvar->ts_lastack_rcvd = ev_ts->value2;
-	ctx->ts_last_ts_upd = cur_ts;
-
-	// Other sender size variables
-	if (ctx->cwnd_size == 1) ctx->cwnd_size = 2 * ctx->SMSS;
-	else ctx->cwnd_size = ctx->SMSS;
-	ctx->ssthresh = ctx->SMSS * 10;
-
-	mtp_bp* bp = GetFreeBP(cur_stream);
-
-	// printf("got bp\n");
-	// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
-	
-	memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
-
-	bp->hdr.source = cur_stream->mtp->local_port;
-	bp->hdr.dest = cur_stream->mtp->remote_port;
-	bp->hdr.seq = htonl(ctx->send_next);
-	// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
-	bp->hdr.ack_seq = htonl(ctx->recv_next);
-
-	bp->hdr.syn = FALSE;
-	bp->hdr.ack = TRUE;
-
-	// options to calculate data offset
-
-	// MTP TODO: SACK? 
-#if TCP_OPT_SACK_ENABLED
-	printf("ERROR:SACK Not supported in MTP TCP\n");
-#endif
-
-	MTP_set_opt_nop(&(bp->opts.nop1));
-	MTP_set_opt_nop(&(bp->opts.nop2));
-
-	// MTP TODO: Timestamp
-	MTP_set_opt_timestamp(&(bp->opts.timestamp),
-							htonl(cur_ts),
-							htonl(cur_stream->rcvvar->ts_recent));
-	
-
-	// MTP TODO: would the MTP program do the length 
-	//           calculation itself?
-	uint16_t optlen = MTP_CalculateOptionLength(bp);
-	bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
-
-	// MTP TODO: wscale on local
-	uint32_t window32 = cur_stream->mtp->rwnd_size;
-	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
-	bp->hdr.window = htons(advertised_window);
-
-	// Payload
-	// MTP TODO: fix snbuf
-	bp->payload.data = NULL;
-	bp->payload.len = 0;
-	bp->payload.needs_segmentation = FALSE;
-
-	AddtoGenList(mtcp, cur_stream, cur_ts);
-	
-	// MTP TODO: integrate into MTP
-	RaiseWriteEvent(mtcp, cur_stream);
+	synack_ep(mtcp, cur_ts, ev_init_seq, ev_ack_seq,	
+				ev_rwnd_size, ev_sack_permit, 
+				ev_mss_valid, ev_mss, 
+				ev_wscale_valid, ev_wscale,
+				ev_ts, cur_stream);
 
 }
 
