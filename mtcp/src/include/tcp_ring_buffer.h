@@ -71,6 +71,7 @@ uint32_t RBIsDanger(rb_manager_t rbm);
 
 int MtpWndPut(rb_manager_t rbm, struct tcp_ring_buffer* buff, 
 	   		void* data, uint32_t len, uint32_t cur_seq);
+size_t MtpWndSlide(rb_manager_t rbm, struct tcp_ring_buffer* buff, int option);
 
 int RBPut(rb_manager_t rbm, struct tcp_ring_buffer* buff, 
 					void* data, uint32_t len , uint32_t seq);

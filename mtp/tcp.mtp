@@ -803,7 +803,8 @@ list<instr_t> data_net_ep (DATA ev, tcp_context ctx, interm_out scratch) {
 
     uint32 data_end = ev.seq_num + ev.data_len;
     ctx.meta_rwnd.set(ev.seq_num, data_end);
-    ctx.recv_next = ctx.meta_rwnd.first_unset();
+    ctx.meta_rwnd.slide();
+    ctx.recv_next = ctx.meta_rwnd.head();
 
     instr_t instr = add_data_seg(ev.hold_addr, ev.data_len, get_flow_id(ev), ev.seq_num - ctx.recv_init_seq);
     out.add(instr);

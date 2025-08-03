@@ -638,6 +638,8 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 
 	// MTP TODO?: new ordered data
 
+	printf("data_net_ep: ev_seq: %u, ev_payloadlen: %d, last_rcvd_seq: %u\n", 
+			ev_seq, ev_payloadlen, last_rcvd_seq);
 	// if seq and segment length is lower than rcv_nxt or exceeds buffer, ignore and send ack
 	if (MTP_SEQ_LT(last_rcvd_seq, ctx->recv_next, ctx->recv_init_seq) ||
 		MTP_SEQ_GT(last_rcvd_seq, ctx->recv_next + ctx->rwnd_size, ctx->recv_init_seq)) {
@@ -648,7 +650,7 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 		rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, ctx->recv_init_seq);
 		ctx->meta_rwnd = RBInit(mtcp->rbm_rcv, ctx->recv_init_seq);
 		if (!rcvvar->rcvbuf || !ctx->meta_rwnd) {
-			TRACE_ERROR("Stream %d: Failed to allocate receive buffer.\n", 
+			printf("Stream %d: Failed to allocate receive buffer.\n", 
 					cur_stream->id);
 			cur_stream->state = TCP_ST_CLOSED;
 			cur_stream->close_reason = TCP_NO_MEM;
@@ -658,13 +660,15 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 		}
 	}
 
+	printf("Grabbing lock in data_net_ep\n");
 	if (SBUF_LOCK(&rcvvar->read_lock)) {
 		if (errno == EDEADLK) perror("ProcessTCPPayload: read_lock blocked\n");
 		assert(0);
 	}
 
 	MtpWndPut(mtcp->rbm_rcv, ctx->meta_rwnd, ev_payload, ev_payloadlen, ev_seq);
-	ctx->recv_next = ctx->meta_rwnd->head_seq + ctx->meta_rwnd->merged_len;
+	MtpWndSlide(mtcp->rbm_rcv, ctx->meta_rwnd, AT_MTCP);
+	ctx->recv_next = ctx->meta_rwnd->head_seq;
 
     RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, ev_payload, ev_payloadlen, ev_seq);
 

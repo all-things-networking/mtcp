@@ -487,6 +487,44 @@ RBPut(rb_manager_t rbm, struct tcp_ring_buffer* buff,
 }
 /*----------------------------------------------------------------------------*/
 size_t
+MtpWndSlide(rb_manager_t rbm, struct tcp_ring_buffer* buff, int option)
+{
+	/* this function should be called only in application thread */
+
+	size_t len = buff->merged_len;
+	
+	if (len == 0) 
+		return 0;
+
+	buff->head_offset += len;
+	buff->head = buff->data + buff->head_offset;
+	buff->head_seq += len;
+
+	buff->merged_len -= len;
+	buff->last_len -= len;
+
+	// modify fragementation chunks
+	if (len == buff->fctx->len)	{
+		struct fragment_ctx* remove = buff->fctx;
+		buff->fctx = buff->fctx->next;
+		if (option == AT_APP) {
+			RBFragEnqueue(rbm->free_fragq, remove);
+		} else if (option == AT_MTCP) {
+			RBFragEnqueue(rbm->free_fragq_int, remove);
+		}
+	} 
+	else if (len < buff->fctx->len) {
+		buff->fctx->seq += len;
+		buff->fctx->len -= len;
+	} 
+	else {
+		assert(0);
+	}
+
+	return len;
+}
+
+size_t
 RBRemove(rb_manager_t rbm, struct tcp_ring_buffer* buff, size_t len, int option)
 {
 	/* this function should be called only in application thread */
