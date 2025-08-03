@@ -206,6 +206,38 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	return;
 }
 
+static inline int receive_ep(mtcp_manager_t mtcp, socket_map_t socket, 
+								char *ev_buf, int ev_data_size, 
+								tcp_stream *cur_stream)
+{
+	struct mtp_ctx* ctx = cur_stream->mtp;
+
+	uint32_t data_avail = ctx->recv_next - 1 - ctx->last_flushed;
+    if (data_avail > ev_data_size){
+        data_avail = ev_data_size;
+    }
+
+	int ret = FlushAndNotify(mtcp, socket, cur_stream, ev_buf, data_avail);
+    
+    ctx->last_flushed += data_avail;
+	ctx->rwnd_size = cur_stream->rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->last_flushed, 
+														ctx->recv_next, 
+														ctx->recv_next);
+	
+	// MTP TODO: I think this has race conditions
+	
+	if (socket->epoll & MTCP_EPOLLIN) {
+		if (!(socket->epoll & MTCP_EPOLLET) && ctx->recv_next > ctx->last_flushed + 1) {
+			if (socket->epoll) {
+				AddEpollEvent(mtcp->ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+			}
+		}
+	}
+
+	return ret;
+	// TODO: send ack when window becomes non zero after being zero (part 2)
+}
+
 static inline void timestamp_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
 		struct tcp_opt_timestamp* ev_ts, tcp_stream* cur_stream, scratchpad* scratch)
 {
@@ -290,9 +322,18 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_
 {
     if (scratch->skip_ack_eps) return;
 
-	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
+	// if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
 
     struct mtp_ctx* ctx = cur_stream->mtp;
+	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST || 
+		ctx->state == MTP_TCP_FIN_WAIT_2_ST ||
+		ctx->state == MTP_TCP_CLOSING_ST || 
+		ctx->state == MTP_TCP_CLOSE_WAIT_ST || 
+		ctx->state == MTP_TCP_LAST_ACK_ST) {
+		if (ctx->fin_sent && ev_ack_seq == ctx->final_seq + 1) {
+			ev_ack_seq--;
+		}
+	}
 	
     if(MTP_SEQ_LT(ev_ack_seq, ctx->send_una, ctx->send_una) || 
 	   MTP_SEQ_LT(ctx->send_next, ev_ack_seq, ctx->send_una)) {
@@ -314,9 +355,18 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 									scratchpad* scratch)
 {
 	if(scratch->skip_ack_eps) return;
-	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
+	// if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
 
     struct mtp_ctx* ctx = cur_stream->mtp;
+	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST || 
+		ctx->state == MTP_TCP_FIN_WAIT_2_ST ||
+		ctx->state == MTP_TCP_CLOSING_ST || 
+		ctx->state == MTP_TCP_CLOSE_WAIT_ST || 
+		ctx->state == MTP_TCP_LAST_ACK_ST) {
+		if (ctx->fin_sent && ev_ack_seq == ctx->final_seq + 1) {
+			ev_ack_seq--;
+		}
+	}
 
 	scratch->change_cwnd = 1;
 
@@ -355,17 +405,27 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	// printf("fast_retr AFTER: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
 }
 
-static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
+static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_ack_seq, 
 	tcp_stream* cur_stream, scratchpad* scratch)
 {
 	if(scratch->skip_ack_eps) return;
-	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
+	// if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
     struct mtp_ctx *ctx = cur_stream->mtp;
+
+	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST || 
+		ctx->state == MTP_TCP_FIN_WAIT_2_ST ||
+		ctx->state == MTP_TCP_CLOSING_ST || 
+		ctx->state == MTP_TCP_CLOSE_WAIT_ST || 
+		ctx->state == MTP_TCP_LAST_ACK_ST) {
+		if (ctx->fin_sent && ev_ack_seq == ctx->final_seq + 1) {
+			ev_ack_seq--;
+		}
+	}
 
 	// printf("before DIV\n");
 	// printf("slows_cong BEFORE: cwnd:%u\n", ctx->cwnd_size);
 	if(scratch->change_cwnd) {
-		uint32_t rmlen = MTP_SEQ_SUB(ack_seq, ctx->send_una, ctx->send_una);
+		uint32_t rmlen = MTP_SEQ_SUB(ev_ack_seq, ctx->send_una, ctx->send_una);
 		// printf("rmlen: %u, eff_SMSS: %u\n", rmlen, ctx->eff_SMSS);
 		uint16_t packets = rmlen / ctx->eff_SMSS;
 		// printf("after\n");
@@ -391,10 +451,22 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 {
 	// MTP TODO: do wscale properly?
 	if(scratch->skip_ack_eps) return;
-	if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
+
+	struct mtp_ctx *ctx = cur_stream->mtp;
+	
+	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST || 
+		ctx->state == MTP_TCP_FIN_WAIT_2_ST ||
+		ctx->state == MTP_TCP_CLOSING_ST || 
+		ctx->state == MTP_TCP_CLOSE_WAIT_ST || 
+		ctx->state == MTP_TCP_LAST_ACK_ST) {
+		if (ctx->fin_sent && ev_ack_seq == ctx->final_seq + 1) {
+			ev_ack_seq--;
+		}
+	}
+	
+	// if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
 
 
-    struct mtp_ctx *ctx = cur_stream->mtp;
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 	
 	// printf("ack_net_ep before grabbing lock\n");
@@ -627,6 +699,29 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	// printf("ack_net_ep before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
 	// printf("ack_net_ep after releasing lock\n");
+}
+
+static inline void fin_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
+		uint32_t ev_ack_seq, tcp_stream *cur_stream, scratchpad *scratch)
+{
+	struct mtp_ctx *ctx = cur_stream->mtp;
+	if (ctx->state != MTP_TCP_FIN_WAIT_1_ST) return;
+	
+	if (ctx->fin_sent && 
+		ev_ack_seq == ctx->final_seq + 1) {
+		ctx->send_una = ev_ack_seq;
+		if (MTP_SEQ_GT(ev_ack_seq, ctx->send_next, ctx->send_una)) {
+			TRACE_DBG("Stream %d: update snd_nxt to %u\n", 
+					cur_stream->id, ev_ack_seq);
+			ctx->send_next = ev_ack_seq;
+		}
+		
+		ctx->num_rtx = 0;
+		TimerCancel(mtcp, cur_stream);
+		ctx->state = MTP_TCP_FIN_WAIT_2_ST;
+		TRACE_STATE("Stream %d: TCP_ST_FIN_WAIT_2\n", 
+					cur_stream->id);
+	}
 }
 
 static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_seq, uint8_t *ev_payload,
@@ -1168,32 +1263,7 @@ int MtpReceiveChain(mtcp_manager_t mtcp, socket_map_t socket,
 					char *ev_buf, int ev_data_size, 
 					tcp_stream *cur_stream)
 {
-	struct mtp_ctx* ctx = cur_stream->mtp;
-
-	uint32_t data_avail = ctx->recv_next - 1 - ctx->last_flushed;
-    if (data_avail > ev_data_size){
-        data_avail = ev_data_size;
-    }
-
-	int ret = FlushAndNotify(mtcp, socket, cur_stream, ev_buf, data_avail);
-    
-    ctx->last_flushed += data_avail;
-	ctx->rwnd_size = cur_stream->rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->last_flushed, 
-														ctx->recv_next, 
-														ctx->recv_next);
-	
-	// MTP TODO: I think this has race conditions
-	
-	if (socket->epoll & MTCP_EPOLLIN) {
-		if (!(socket->epoll & MTCP_EPOLLET) && ctx->recv_next > ctx->last_flushed + 1) {
-			if (socket->epoll) {
-				AddEpollEvent(mtcp->ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
-			}
-		}
-	}
-
-	return ret;
-	// TODO: send ack when window becomes non zero after being zero (part 2)
+	return receive_ep(mtcp, socket, ev_buf, ev_data_size, cur_stream);
 }
 
 void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
@@ -1230,6 +1300,7 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     scratchpad scratch;
 	timestamp_ep(mtcp, cur_ts, ev_ts, cur_stream, &scratch);
     conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, &scratch);
+	fin_ack_ep();
     rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
@@ -1368,4 +1439,167 @@ void MtpSyNAckChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 	timeout_ep(mtcp, cur_ts, cur_stream);
+}
+
+void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
+	struct mtp_ctx *ctx = cur_stream->mtp;
+
+	ctx->closed = TRUE;
+
+	if (ctx->state == MTP_TCP_CLOSED_ST) {
+		printf("Stream %d at TCP_ST_CLOSED. destroying the stream.\n", 
+				cur_stream->id);
+		DestroyCtx(mtcp, cur_stream, ctx->local_port);
+		return;
+
+	} else if (ctx->state == MTP_TCP_SYN_SENT_ST) {
+#if 1
+		DestroyCtx(mtcp, cur_stream, ctx->local_port);
+#endif
+		return;
+
+	} else if (ctx->state != MTP_TCP_ESTABLISHED_ST && 
+			ctx->state != MTP_TCP_CLOSE_WAIT_ST) {
+		TRACE_API("Stream %d at bad state\n", 
+				cur_stream->id);
+		errno = EBADF;
+		return;
+	}
+
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	if (sndvar->sndbuf) {
+		ctx->final_seq = sndvar->sndbuf->head_seq + sndvar->sndbuf->len;
+	} else {
+		ctx->final_seq = ctx->send_next;
+	}
+
+	if (CONFIG.tcp_timeout > 0)
+		RemoveFromTimeoutList(mtcp, cur_stream);
+
+	if (ctx->state == MTP_TCP_ESTABLISHED_ST) {
+		ctx->state = MTP_TCP_FIN_WAIT_1_ST;
+	} else if (ctx->state == MTP_TCP_CLOSE_WAIT_ST) {
+		ctx->state = MTP_TCP_LAST_ACK_ST;
+	}
+	// SEND FIN
+	ctx->fin_sent = TRUE;
+
+	mtp_bp* bp = GetFreeBP(cur_stream);
+
+	// printf("got bp\n");
+	// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+	
+	memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+	bp->hdr.source = cur_stream->mtp->local_port;
+	bp->hdr.dest = cur_stream->mtp->remote_port;
+	bp->hdr.seq = htonl(ctx->final_seq);
+	// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+	bp->hdr.ack_seq = htonl(ctx->recv_next);
+
+	bp->hdr.syn = FALSE;
+	bp->hdr.ack = TRUE;
+	bp->hdr.fin = TRUE;
+
+	// options to calculate data offset
+
+	// MTP TODO: SACK? 
+#if TCP_OPT_SACK_ENABLED
+	printf("ERROR:SACK Not supported in MTP TCP\n");
+#endif
+
+	MTP_set_opt_nop(&(bp->opts.nop1));
+	MTP_set_opt_nop(&(bp->opts.nop2));
+
+	// MTP TODO: Timestamp
+	MTP_set_opt_timestamp(&(bp->opts.timestamp),
+							htonl(cur_ts),
+							htonl(ctx->ts_recent));
+	
+
+	// MTP TODO: would the MTP program do the length 
+	//           calculation itself?
+	uint16_t optlen = MTP_CalculateOptionLength(bp);
+	bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+	// MTP TODO: wscale on local
+	uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
+	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+	bp->hdr.window = htons(advertised_window);
+
+	// Payload
+	// MTP TODO: fix snbuf
+	bp->payload.data = NULL;
+	bp->payload.len = 0;
+	bp->payload.needs_segmentation = FALSE;
+
+	AddtoGenList(mtcp, cur_stream, cur_ts);
+}
+
+void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
+				 uint32_t ev_seq, uint32_t ev_payloadlen, 
+				 tcp_stream* cur_stream){
+	
+    struct mtp_ctx *ctx = cur_stream->mtp;
+
+	if (ctx->state == MTP_TCP_ESTABLISHED_ST){
+		if (ev_seq + ev_payloadlen == ctx->recv_next) {
+				ctx->state = MTP_TCP_CLOSE_WAIT_ST;
+				TRACE_STATE("Stream %d: TCP_ST_CLOSE_WAIT\n", cur_stream->id);
+				ctx->recv_next = ctx->recv_next + 1;
+				/* notify FIN to application */
+				RaiseReadEvent(mtcp, cur_stream);
+		}
+
+		mtp_bp* bp = GetFreeBP(cur_stream);
+
+		// printf("got bp\n");
+		// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+		
+		memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+		bp->hdr.source = cur_stream->mtp->local_port;
+		bp->hdr.dest = cur_stream->mtp->remote_port;
+		bp->hdr.seq = htonl(ctx->send_next);
+		// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+		bp->hdr.ack_seq = htonl(ctx->recv_next);
+
+		bp->hdr.syn = FALSE;
+		bp->hdr.ack = TRUE;
+
+		// options to calculate data offset
+
+		// MTP TODO: SACK? 
+	#if TCP_OPT_SACK_ENABLED
+		printf("ERROR:SACK Not supported in MTP TCP\n");
+	#endif
+
+		MTP_set_opt_nop(&(bp->opts.nop1));
+		MTP_set_opt_nop(&(bp->opts.nop2));
+
+		// MTP TODO: Timestamp
+		MTP_set_opt_timestamp(&(bp->opts.timestamp),
+								htonl(cur_ts),
+								htonl(ctx->ts_recent));
+		
+
+		// MTP TODO: would the MTP program do the length 
+		//           calculation itself?
+		uint16_t optlen = MTP_CalculateOptionLength(bp);
+		bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+		// MTP TODO: wscale on local
+		uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
+		uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+		bp->hdr.window = htons(advertised_window);
+
+		// Payload
+		// MTP TODO: fix snbuf
+		bp->payload.data = NULL;
+		bp->payload.len = 0;
+		bp->payload.needs_segmentation = FALSE;
+
+		AddtoGenList(mtcp, cur_stream, cur_ts);
+
+	}
 }

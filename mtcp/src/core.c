@@ -536,7 +536,11 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 	while ((stream = StreamDequeue(mtcp->closeq))) {
 		struct tcp_send_vars *sndvar = stream->sndvar;
 		sndvar->on_closeq = FALSE;
-		
+
+		#ifdef USE_MTP
+		MtpCloseChain(mtcp, cur_ts, stream);
+		(void) control;
+		#else		
 		if (sndvar->sndbuf) {
 			sndvar->fss = sndvar->sndbuf->head_seq + sndvar->sndbuf->len;
 		} else {
@@ -596,7 +600,9 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 		} else {
 			TRACE_ERROR("Already closed connection!\n");
 		}
+		#endif
 	}
+
 	TRACE_ROUND("Handling close connections. cnt: %d\n", cnt);
 
 	cnt = 0;

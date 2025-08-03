@@ -232,6 +232,11 @@ struct mtp_ctx {
 	uint32_t ts_recent;			/* recent peer timestamp */
 	uint32_t ts_lastack_rcvd;	/* last ack rcvd time */
 	uint32_t ts_last_ts_upd;	/* last peer ts update time */
+
+	// closing
+	bool closed;
+	uint32_t final_seq;
+	bool fin_sent;
 };
 //#endif
 

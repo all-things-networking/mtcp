@@ -176,6 +176,9 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	mtp->wscale = 7;
 	mtp->num_rtx = 0;
 	mtp->max_num_rtx = 0;
+	mtp->closed = FALSE;
+	mtp->fin_sent = FALSE;
+	mtp->final_seq = 0;
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	if (!rcvvar->rcvbuf) {
@@ -206,7 +209,103 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	return cur_stream;
 }
 
+void
+DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
+{
+	struct sockaddr_in addr;
+	int bound_addr = FALSE;
+	uint8_t *sa, *da;
+	int ret;
 
+	sa = (uint8_t *)&stream->saddr;
+	da = (uint8_t *)&stream->daddr;
+
+	if (stream->sndvar->sndbuf) {
+		TRACE_FSTAT("Stream %d: send buffer "
+				"cum_len: %lu, len: %u\n", stream->id, 
+				stream->sndvar->sndbuf->cum_len, 
+				stream->sndvar->sndbuf->len);
+	}
+	if (stream->rcvvar->rcvbuf) {
+		TRACE_FSTAT("Stream %d: recv buffer "
+				"cum_len: %lu, merged_len: %u, last_len: %u\n", stream->id, 
+				stream->rcvvar->rcvbuf->cum_len, 
+				stream->rcvvar->rcvbuf->merged_len, 
+				stream->rcvvar->rcvbuf->last_len);
+	}
+
+	if (stream->is_bound_addr) {
+		bound_addr = TRUE;
+		addr.sin_addr.s_addr = stream->saddr;
+		addr.sin_port = sport;
+	}
+
+	RemoveFromControlList(mtcp, stream);
+	RemoveFromSendList(mtcp, stream);
+	RemoveFromACKList(mtcp, stream);
+	
+	if (stream->on_rto_idx >= 0)
+		RemoveFromRTOList(mtcp, stream);
+ 	
+	if (stream->on_timewait_list)
+		RemoveFromTimewaitList(mtcp, stream);
+
+	if (CONFIG.tcp_timeout > 0)
+		RemoveFromTimeoutList(mtcp, stream);
+
+	SBUF_LOCK_DESTROY(&stream->rcvvar->read_lock);
+	SBUF_LOCK_DESTROY(&stream->sndvar->write_lock);
+
+	assert(stream->on_hash_table == TRUE);
+	
+	/* free ring buffers */
+	if (stream->sndvar->sndbuf) {
+		SBFree(mtcp->rbm_snd, stream->sndvar->sndbuf);
+		stream->sndvar->sndbuf = NULL;
+	}
+	if (stream->rcvvar->rcvbuf) {
+		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf);
+		stream->rcvvar->rcvbuf = NULL;
+	}
+
+	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
+
+	/* remove from flow hash table */
+	StreamHTRemove(mtcp->tcp_flow_table, stream);
+	stream->on_hash_table = FALSE;
+	
+	mtcp->flow_cnt--;
+
+    #ifdef USE_MTP
+	MPFreeChunk(mtcp->mtp_pool, stream->mtp);
+    #endif
+	MPFreeChunk(mtcp->rv_pool, stream->rcvvar);
+	MPFreeChunk(mtcp->sv_pool, stream->sndvar);
+	MPFreeChunk(mtcp->flow_pool, stream);
+	pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+
+	if (bound_addr) {
+		if (mtcp->ap) {
+			ret = FreeAddress(mtcp->ap, &addr);
+		} else {
+			uint8_t is_external;
+			int nif = GetOutputInterface(addr.sin_addr.s_addr, &is_external);
+			if (nif < 0) {
+				TRACE_ERROR("nif is negative!\n");
+				ret = -1;
+			} else {
+			        int eidx = CONFIG.nif_to_eidx[nif];
+				ret = FreeAddress(ap[eidx], &addr);
+			}
+			UNUSED(is_external);
+		}
+		if (ret < 0) {
+			TRACE_ERROR("(NEVER HAPPEN) Failed to free address.\n");
+		}
+	}
+	UNUSED(da);
+	UNUSED(sa);
+}
 /***********************************************
  MTP "buffer" instructions
  ***********************************************/

@@ -938,6 +938,7 @@ CloseStreamSocket(mctx_t mctx, int sockid)
 
 	cur_stream->socket = NULL;
 
+	#ifndef USE_MTP
 	if (cur_stream->state == TCP_ST_CLOSED) {
 		TRACE_API("Stream %d at TCP_ST_CLOSED. destroying the stream.\n", 
 				cur_stream->id);
@@ -963,6 +964,7 @@ CloseStreamSocket(mctx_t mctx, int sockid)
 		errno = EBADF;
 		return -1;
 	}
+	#endif
 	
 	SQ_LOCK(&mtcp->ctx->close_lock);
 	cur_stream->sndvar->on_closeq = TRUE;
