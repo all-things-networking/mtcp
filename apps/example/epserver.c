@@ -150,6 +150,8 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 	ret = 1;
 	while (ret > 0) {
 		len = MIN(SNDBUF_SIZE, sv->fsize - sv->total_sent);
+		printf("Socket %d, sending %d bytes, fsize: %ld, total_sent: %ld\n", 
+				sockid, len, sv->fsize, sv->total_sent);
 		if (len <= 0) {
 			break;
 		}
@@ -170,6 +172,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 		finished++;
 
 		if (sv->keep_alive) {
+			printf("in keep-alive\n");
 			/* if keep-alive connection, wait for the incoming request */
 			ev.events = MTCP_EPOLLIN;
 			ev.data.sockid = sockid;
@@ -178,6 +181,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 			CleanServerVariable(sv);
 		} else {
 			/* else, close connection */
+			printf("Closing the connection\n");
 			CloseConnection(ctx, sockid, sv);
 		}
 	}
@@ -303,11 +307,13 @@ AcceptConnection(struct thread_context *ctx, int listener)
 		sv = &ctx->svars[c];
 		CleanServerVariable(sv);
 		TRACE_APP("New connection %d accepted.\n", c);
+		printf("New connection %d accepted.\n", c);
 		ev.events = MTCP_EPOLLIN;
 		ev.data.sockid = c;
 		mtcp_setsock_nonblock(ctx->mctx, c);
 		mtcp_epoll_ctl(mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, c, &ev);
 		TRACE_APP("Socket %d registered.\n", c);
+		printf("Socket %d registered.\n", c);
 
 	} else {
 		if (errno != EAGAIN) {
@@ -436,7 +442,6 @@ RunServerThread(void *arg)
 		return NULL;
 	}
 
-	printf("1\n");
 	mctx = ctx->mctx;
 	ep = ctx->ep;
 
@@ -453,11 +458,11 @@ RunServerThread(void *arg)
 		exit(-1);
 	}
 
-	printf("2\n");
 	while (!done[core]) {
-		printf("3\n");
+		printf("before epoll wait\n");
 		nevents = mtcp_epoll_wait(mctx, ep, events, MAX_EVENTS, -1);
-		printf("4\n");
+		printf("after epoll wait, nevents: %d\n", nevents);
+
 		fflush(stdout);
 		if (nevents < 0) {
 			if (errno != EINTR)

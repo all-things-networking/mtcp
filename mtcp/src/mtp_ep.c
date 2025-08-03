@@ -676,6 +676,7 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 
 	if (ctx->state == MTP_TCP_ESTABLISHED_ST) {
 		// "add_data_seg" instruction
+		printf("data_net_ep: raising read event\n");
 		RaiseReadEvent(mtcp, cur_stream);
 	}
 }
@@ -1174,7 +1175,7 @@ int MtpReceiveChain(mtcp_manager_t mtcp, socket_map_t socket,
         data_avail = ev_data_size;
     }
 
-	FlushAndNotify(mtcp, socket, cur_stream, ev_buf, data_avail);
+	int ret = FlushAndNotify(mtcp, socket, cur_stream, ev_buf, data_avail);
     
     ctx->last_flushed += data_avail;
 	ctx->rwnd_size = cur_stream->rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->last_flushed, 
@@ -1182,7 +1183,7 @@ int MtpReceiveChain(mtcp_manager_t mtcp, socket_map_t socket,
 														ctx->recv_next);
 	
 	// MTP TODO: I think this has race conditions
-	SBUF_LOCK(&cur_stream->rcvvar->read_lock);
+	
 	if (socket->epoll & MTCP_EPOLLIN) {
 		if (!(socket->epoll & MTCP_EPOLLET) && ctx->recv_next > ctx->last_flushed + 1) {
 			if (socket->epoll) {
@@ -1190,9 +1191,8 @@ int MtpReceiveChain(mtcp_manager_t mtcp, socket_map_t socket,
 			}
 		}
 	}
-	SBUF_UNLOCK(&cur_stream->rcvvar->read_lock);
 
-	return data_avail;
+	return ret;
 	// TODO: send ack when window becomes non zero after being zero (part 2)
 }
 

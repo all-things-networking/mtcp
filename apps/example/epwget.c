@@ -634,6 +634,7 @@ RunWgetMain(void *arg)
 			}
 		}
 
+		usleep(1000);
 		printf("after creating connections\n");
 		nevents = mtcp_epoll_wait(mctx, ep, events, maxevents, -1);
 		printf("mtcp_epoll_wait returned %d events\n", nevents);

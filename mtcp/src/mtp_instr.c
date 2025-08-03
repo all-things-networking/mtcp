@@ -248,14 +248,9 @@ int FlushAndNotify(mtcp_manager_t mtcp, socket_map_t socket,
 		return -1;
 	}
 
-	SBUF_UNLOCK(&rcvvar->read_lock);
 	// Copy data to user buffer and remove it from receiving buffer
 	memcpy(buf, rcvvar->rcvbuf->head, len);
 	RBRemove(mtcp->rbm_rcv, rcvvar->rcvbuf, len, AT_APP);
-
-
-	// SBUF_LOCK is in mtcp_recv
-	SBUF_UNLOCK(&rcvvar->read_lock);
 
 	return len;
 }

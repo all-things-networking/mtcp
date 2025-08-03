@@ -1050,6 +1050,7 @@ mtcp_close(mctx_t mctx, int sockid)
 
 	TRACE_API("Socket %d: mtcp_close called.\n", sockid);
 
+	printf("socktype: %d\n", mtcp->smap[sockid].socktype);
 	switch (mtcp->smap[sockid].socktype) {
 	case MTCP_SOCK_STREAM:
 		ret = CloseStreamSocket(mctx, sockid);
@@ -1234,6 +1235,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	int event_remaining;
 	int ret;
 	
+	printf("mtcp_recv called: sockid %d, len %zu, flags %d\n", sockid, len, flags);
 	mtcp = GetMTCPManager(mctx);
         if (!mtcp) {
 		return -1;
@@ -1300,6 +1302,16 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 		}
 	}
 	
+	#ifdef USE_MTP
+	if (flags == 0){
+		printf("MTP Receive Chain called: sockid %d, len %zu\n", sockid, len);
+		SBUF_LOCK(&rcvvar->read_lock);
+		ret = MtpReceiveChain(mtcp, socket, buf, len, cur_stream);
+		SBUF_UNLOCK(&rcvvar->read_lock);
+		printf("MTP Receive Chain returned: %d\n", ret);
+		(void)event_remaining;
+	}
+	#else
 	SBUF_LOCK(&rcvvar->read_lock);
 #if BLOCKING_SUPPORT
 	if (!(socket->opts & MTCP_NONBLOCK)) {
@@ -1316,14 +1328,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 
 	switch (flags) {
 	case 0:
-        // MTP: tcp_recv event processing will be added here
-    #ifdef USE_MTP
-		SBUF_UNLOCK(&rcvvar->read_lock);
-		ret = MtpReceiveChain(mtcp, socket, buf, len, cur_stream);
-        // ret = FlushAndNotify(mtcp, cur_stream, buf, len, socket);
-    #else
 		ret = CopyToUser(mtcp, cur_stream, buf, len);
-    #endif
 		break;
 	case MSG_PEEK:
 		ret = PeekForUser(mtcp, cur_stream, buf, len);
@@ -1335,7 +1340,6 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 		return ret;
 	}
 	
-#ifndef USE_MTP
 	event_remaining = FALSE;
         /* if there are remaining payload, generate EPOLLIN */
 	/* (may due to insufficient user buffer) */
@@ -1367,8 +1371,6 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 #endif
 		}
 	}
-#else
-	(void)event_remaining;
 #endif
 
 	TRACE_API("Stream %d: mtcp_recv() returning %d\n", cur_stream->id, ret);

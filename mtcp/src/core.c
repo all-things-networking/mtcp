@@ -483,6 +483,8 @@ FlushEpollEvents(mtcp_manager_t mtcp, uint32_t cur_ts)
 		STAT_COUNT(mtcp->runstat.rounds_epoll);
 		TRACE_EPOLL("Broadcasting events. num: %d, cur_ts: %u, prev_ts: %u\n", 
 				ep->usr_queue->num_events, cur_ts, mtcp->ts_last_event);
+		printf("Broadcasting events. num: %d, cur_ts: %u, prev_ts: %u\n", 
+				ep->usr_queue->num_events, cur_ts, mtcp->ts_last_event);
 		mtcp->ts_last_event = cur_ts;
 		ep->stat.wakes++;
 		pthread_cond_signal(&ep->epoll_cond);
