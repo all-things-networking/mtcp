@@ -98,7 +98,7 @@ void print_MTP_bp(struct mtp_bp* bp){
         printf("SACK Permitted\n");
     }
     if (bp->opts.timestamp.valid) {
-        printf("Timestamp: %u/%u\n", bp->opts.timestamp.value1,
+        printf("Timestamp: %u/%u\n", ntohl(bp->opts.timestamp.value1),
                bp->opts.timestamp.value2);
     }
     if (bp->opts.wscale.valid) {

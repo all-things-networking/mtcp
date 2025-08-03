@@ -247,9 +247,6 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	// MTP - Compiler-Start: extract
     // maps to extract in the parser
     struct mtp_bp_hdr *mtph = (struct mtp_bp_hdr *) ((u_char *)iph + (iph->ihl << 2));
-    mtph->seq = ntohl(mtph->seq);
-	mtph->ack_seq = ntohl(mtph->ack_seq);
-    mtph->window = ntohs(mtph->window);
     // MTP TODO: add this after changing tcp_stream because that one keeps it in network order
     //mtph->dest = ntohs(mtph->dest);
 	//mtph->source = ntohs(mtph->source);
@@ -263,6 +260,18 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	payload.data = (uint8_t *)mtph + (mtph->doff << 2);
     payload.len = ip_len - (payload.data - (u_char *)iph); 
     // MTP - Compiler-End: extract
+
+    struct mtp_bp tmp_bp;
+    tmp_bp.hdr = *mtph;
+    tmp_bp.opts = mtp_opt;
+    tmp_bp.payload = payload;
+    printf("---------------------------------\n");
+    printf("Received MTP packet:\n");
+    print_MTP_bp(&tmp_bp);
+
+    mtph->seq = ntohl(mtph->seq);
+	mtph->ack_seq = ntohl(mtph->ack_seq);
+    mtph->window = ntohs(mtph->window);
 
     if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
     int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
@@ -281,6 +290,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         uint16_t mss = mtp_opt.mss.value;
         bool wscale_valid = mtp_opt.wscale.valid;
         uint8_t wscale = mtp_opt.wscale.value;
+        struct tcp_opt_timestamp *ev_ts = &(mtp_opt.timestamp);
         
         // MTP TODO: change key to include IP
         // MTP TODO: separate out  flow id construction
@@ -294,7 +304,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         MtpSynChain(mtcp, cur_ts, remote_ip, remote_port, 
                     init_seq, rwnd_size, sack_permit,
                     mss_valid, mss, wscale_valid, wscale, 
-                    listen_ctx);
+                    ev_ts, listen_ctx);
         return 0;
     }
 
@@ -461,6 +471,8 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
         
         // printf("bp @ index %u:\n", i);
+        printf("---------------------------------\n");
+        printf("Sending MTP packet:\n");
         print_MTP_bp(bp);
 
         uint16_t optlen = MTP_CalculateOptionLength(bp);

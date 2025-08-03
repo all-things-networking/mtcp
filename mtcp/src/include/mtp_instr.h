@@ -22,10 +22,6 @@
 // pkt_gen_instr
 void AddtoGenList(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts);
 mtp_bp* GetFreeBP(struct tcp_stream *cur_stream);
-uint16_t CalculateOptionLength(uint8_t flags);
-int SendMTPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
-	uint32_t cur_ts, uint8_t flags, uint32_t seq, uint32_t ack, 
-    uint16_t window, uint8_t *payload, uint16_t payloadlen);
 
 // new_ctx_instr
 int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog);

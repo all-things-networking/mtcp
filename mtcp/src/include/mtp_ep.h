@@ -57,7 +57,8 @@ void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t remote_ip, uint16_t remote_port, 
 	uint32_t init_seq, uint16_t rwnd, bool sack_permit, bool mss_valid, uint16_t mss,
-    bool wscale_valid, uint8_t wscale, struct mtp_listen_ctx *ctx);
+    bool wscale_valid, uint8_t wscale, struct tcp_opt_timestamp *ev_ts, 
+	struct mtp_listen_ctx *ctx);
 
 void MtpSyNAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, 
 					uint32_t ev_init_seq, uint32_t ev_ack_seq, 

@@ -157,7 +157,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
     // MTP TODO: Timestamp
     MTP_set_opt_timestamp(&(bp->opts.timestamp),
                             htonl(cur_ts),
-                            htonl(cur_stream->rcvvar->ts_recent));
+                            htonl(ctx->ts_recent));
     
    
     // MTP TODO: would the MTP program do the length 
@@ -209,13 +209,33 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 static inline void timestamp_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
 		struct tcp_opt_timestamp* ev_ts, tcp_stream* cur_stream, scratchpad* scratch)
 {
+	struct mtp_ctx *ctx = cur_stream->mtp;
+	
 	if (ev_ts->valid) {
-		// printf("timestamp_ep: %u\n", ntohl(ev_ts->value1));
-		cur_stream->mtp->ts_recent = ev_ts->value1;
-		cur_stream->mtp->ts_lastack_rcvd = ev_ts->value2;
-		// MTP TODO: integrate with MTP
-		cur_stream->rcvvar->ts_lastack_rcvd = ev_ts->value2;
-		cur_stream->mtp->ts_last_ts_upd = cur_ts;
+		// MTP TODO: do we need MTP_SEQ_LT here?
+		if (ev_ts->value1 < ctx->ts_recent) {
+			/* TODO: ts_recent should be invalidated 
+					 before timestamp wraparound for long idle flow */
+			printf("PAWS Detect wrong timestamp. "
+					"ts_val: %u, prev: %u\n", 
+					ev_ts->value1, ctx->ts_recent);
+			// EnqueueACK(mtcp, cur_stream, cur_ts, ACK_OPT_NOW);
+			return;
+		} else {
+			/* valid timestamp */
+			if (ev_ts->value1 > ctx->ts_recent) {
+				TRACE_TSTAMP("Timestamp update. cur: %u, prior: %u "
+					"(time diff: %uus)\n", 
+					ev_ts->value1, ctx->ts_recent, 
+					TS_TO_USEC(cur_ts - ctx->ts_last_ts_upd));
+				ctx->ts_last_ts_upd = cur_ts;
+			}
+
+			ctx->ts_recent = ev_ts->value1;
+			ctx->ts_lastack_rcvd = ev_ts->value2;
+			// MTP TODO: integrate with MTP
+			cur_stream->rcvvar->ts_lastack_rcvd = ev_ts->value2;
+		}
 	}
 	else {
 		printf("timestamp_ep: no valid timestamp\n");
@@ -466,7 +486,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
         // MTP TODO: Timestamp
         MTP_set_opt_timestamp(&(bp->opts.timestamp),
                                 htonl(cur_ts),
-                                htonl(cur_stream->rcvvar->ts_recent));
+                                htonl(ctx->ts_recent));
         
        
         // MTP TODO: would the MTP program do the length 
@@ -551,7 +571,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		// MTP TODO: Timestamp
 		MTP_set_opt_timestamp(&(bp->opts.timestamp),
 								htonl(cur_ts),
-								htonl(cur_stream->rcvvar->ts_recent));
+								htonl(ctx->ts_recent));
 		
 	
 		// MTP TODO: would the MTP program do the length 
@@ -694,7 +714,7 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_st
 	// MTP TODO: Timestamp
 	MTP_set_opt_timestamp(&(bp->opts.timestamp),
 							htonl(cur_ts),
-							htonl(cur_stream->rcvvar->ts_recent));
+							htonl(ctx->ts_recent));
 	
 
 	// MTP TODO: would the MTP program do the length 
@@ -763,6 +783,7 @@ static inline struct accept_res* accept_ep(mctx_t mctx, mtcp_manager_t mtcp,
 static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t ev_remote_ip, uint16_t ev_remote_port, uint32_t ev_init_seq, uint16_t ev_rwnd_size,
     bool ev_sack_permit, bool ev_mss_valid, uint16_t ev_mss, bool ev_wscale_valid, uint8_t ev_wscale,
+	struct tcp_opt_timestamp *ev_ts,
 	struct mtp_listen_ctx *ctx)
 {
 	if (ctx->state != MTP_TCP_LISTEN_ST) return;
@@ -857,9 +878,13 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     MTP_set_opt_nop(&(bp->opts.nop2));
 
     // MTP TODO: Timestamp
+	uint32_t ts_value2 = 0;
+	if (ev_ts->valid){
+		ts_value2 = ev_ts->value1;
+	}
     MTP_set_opt_timestamp(&(bp->opts.timestamp),
                             htonl(cur_ts),
-                            htonl(cur_stream->rcvvar->ts_recent));
+                            htonl(ts_value2));
     
     // MTP TODO: Window scale
     MTP_set_opt_nop(&(bp->opts.nop3));
@@ -956,7 +981,7 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	// MTP TODO: Timestamp
 	MTP_set_opt_timestamp(&(bp->opts.timestamp),
 							htonl(cur_ts),
-							htonl(cur_stream->rcvvar->ts_recent));
+							htonl(ctx->ts_recent));
 	
 
 	// MTP TODO: would the MTP program do the length 
@@ -983,6 +1008,12 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 	struct mtp_ctx *ctx = cur_stream->mtp;
+	printf("Stream %d Timeout. cwnd: %u, ssthresh: %u\n", 
+			cur_stream->id, ctx->cwnd_size, ctx->ssthresh);
+	printf("Stream %d Timeout. rto: %u, tx_rto:%u, cur_ts: %u\n", 
+			cur_stream->id, cur_stream->sndvar->rto, 
+			cur_stream->sndvar->ts_rto, cur_ts);			
+
 	/* count number of retransmissions */
 	if (ctx->num_rtx < MTP_TCP_MAX_RTX) {
 		ctx->num_rtx = ctx->num_rtx + 1;
@@ -1024,9 +1055,7 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 		ctx->ssthresh = ctx->SMSS * 2;
 	}
 	ctx->cwnd_size = ctx->SMSS;
-	printf("Stream %d Timeout. cwnd: %u, ssthresh: %u\n", 
-			cur_stream->id, ctx->cwnd_size, ctx->ssthresh);
-
+	
 	/* Retransmission */
 	// MTP TODO: add cases for other states
 	
@@ -1083,7 +1112,7 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 		// MTP TODO: Timestamp
 		MTP_set_opt_timestamp(&(bp->opts.timestamp),
 								htonl(cur_ts),
-								htonl(cur_stream->rcvvar->ts_recent));
+								htonl(ctx->ts_recent));
 		
 	
 		// MTP TODO: would the MTP program do the length 
@@ -1286,7 +1315,7 @@ void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
     // MTP TODO: Timestamp
     MTP_set_opt_timestamp(&(bp->opts.timestamp),
                             htonl(cur_ts),
-                            htonl(cur_stream->rcvvar->ts_recent));
+                            htonl(ctx->ts_recent));
     
     // MTP TODO: Window scale
     MTP_set_opt_nop(&(bp->opts.nop3));
@@ -1312,10 +1341,10 @@ void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
 void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd_size,
     bool sack_permit, bool mss_valid, uint16_t mss, bool wscale_valid, uint8_t wscale,
-	struct mtp_listen_ctx *ctx) 
+	struct tcp_opt_timestamp *ev_ts, struct mtp_listen_ctx *ctx) 
 {
 	syn_ep(mtcp, cur_ts, remote_ip, remote_port, init_seq, rwnd_size, 
-           sack_permit, mss_valid, mss, wscale_valid, wscale, ctx);
+           sack_permit, mss_valid, mss, wscale_valid, wscale, ev_ts, ctx);
 }
 
 void MtpSyNAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, 
