@@ -208,10 +208,27 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 }
 
 static inline int receive_ep(mtcp_manager_t mtcp, socket_map_t socket, 
-								char *ev_buf, int ev_data_size, 
+								bool non_block, char *ev_buf, int ev_data_size, 
 								tcp_stream *cur_stream)
 {
 	struct mtp_ctx* ctx = cur_stream->mtp;
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+
+	if (ctx->state == MTP_TCP_CLOSE_WAIT_ST) {
+		if (!rcvvar->rcvbuf)
+			return 0;
+		
+		if (rcvvar->rcvbuf->merged_len == 0)
+			return 0;
+	}
+	
+	/* return EAGAIN if no receive buffer */
+	if (non_block) {
+		if (!rcvvar->rcvbuf || rcvvar->rcvbuf->merged_len == 0) {
+			errno = EAGAIN;
+			return -1;
+		}
+	}
 
 	printf("receive_ep: ev_data_sizse: %d, "
 			"cur_stream->mtp->recv_next: %u, "
@@ -770,6 +787,7 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 
 	// MTP TODO?: new ordered data
 
+
 	printf("data_net_ep: ev_seq: %u, ev_payloadlen: %d, last_rcvd_seq: %u\n", 
 			ev_seq, ev_payloadlen, last_rcvd_seq);
 	// if seq and segment length is lower than rcv_nxt or exceeds buffer, ignore and send ack
@@ -832,6 +850,18 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_st
 	struct mtp_ctx *ctx = cur_stream->mtp;
 
 	if (ctx->state == MTP_TCP_CLOSE_WAIT_ST) return;
+
+	if (ctx->state == MTP_TCP_ESTABLISHED_ST &&
+		ctx->fin_received &&
+	    ctx->final_seq_remote == ctx->recv_next) {
+		printf("data_net_ep: final_seq_remote: %u, recv_next: %u\n", 
+				ctx->final_seq_remote, ctx->recv_next);
+		ctx->state = MTP_TCP_CLOSE_WAIT_ST;
+		ctx->recv_next += 1;
+		printf("data_net_ep: raising read event for fin\n");
+		RaiseReadEvent(mtcp, cur_stream);
+	}
+
 
     struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 
@@ -1318,10 +1348,10 @@ void MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 }
 
 int MtpReceiveChainPart1(mtcp_manager_t mtcp, socket_map_t socket, 
-					char *ev_buf, int ev_data_size, 
+					bool non_block, char *ev_buf, int ev_data_size, 
 					tcp_stream *cur_stream)
 {
-	return receive_ep(mtcp, socket, ev_buf, ev_data_size, cur_stream);
+	return receive_ep(mtcp, socket, non_block, ev_buf, ev_data_size, cur_stream);
 }
 
 void MtpReceiveChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts, 
@@ -1664,17 +1694,20 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	bool send_ack = FALSE;
 
+	ctx->fin_received = TRUE;
+	ctx->final_seq_remote = ev_seq + ev_payloadlen;
+
 	if (ctx->state == MTP_TCP_ESTABLISHED_ST) send_ack = TRUE;
 
 	printf("ev_seq: %u, ev_payload_len: %u, recv_next: %u\n",
 			ev_seq, ev_payloadlen, ctx->recv_next);
 
-	if (ev_seq + ev_payloadlen == ctx->recv_next){
-
+	if (ctx->final_seq_remote == ctx->recv_next){
+		ctx->recv_next = ctx->recv_next + 1;
+		
 		if (ctx->state == MTP_TCP_ESTABLISHED_ST){
 				ctx->state = MTP_TCP_CLOSE_WAIT_ST;
 				printf("Stream %d: TCP_ST_CLOSE_WAIT\n", cur_stream->id);
-				ctx->recv_next = ctx->recv_next + 1;
 				/* notify FIN to application */
 				RaiseReadEvent(mtcp, cur_stream);
 		}

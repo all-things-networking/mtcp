@@ -6,6 +6,7 @@
 #include "tcp_util.h"
 #include "timer.h"
 #include "ip_out.h"
+#include "mtp_instr.h"
 
 #define TCP_CALCULATE_CHECKSUM      TRUE
 #define VERIFY_RX_CHECKSUM          TRUE
@@ -811,6 +812,15 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 				cur_stream->sndvar->on_gen_list = TRUE;
 				sender->gen_list_cnt++;
 			}
+            else {
+                /* successfully sent packets */
+                // MTP TODO: fix
+                if (cur_stream->mtp->state == MTP_TCP_TIME_WAIT_ST){
+                    cur_stream->mtp->state = MTP_TCP_CLOSED_ST;
+                    printf("Stream %d: MTP TCP closed.\n", cur_stream->id);
+                    DestroyCtx(mtcp, cur_stream, cur_stream->mtp->local_port);
+                }
+            }
 		} 
         else {
 			TRACE_ERROR("Stream %d: not on gen list.\n", cur_stream->id);

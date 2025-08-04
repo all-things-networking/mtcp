@@ -236,8 +236,12 @@ struct mtp_ctx {
 
 	// closing
 	bool closed;
-	uint32_t final_seq;
+	
 	bool fin_sent;
+	uint32_t final_seq;
+	
+	bool fin_received;
+	uint32_t final_seq_remote;
 };
 //#endif
 
