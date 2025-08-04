@@ -212,17 +212,26 @@ static inline int receive_ep(mtcp_manager_t mtcp, socket_map_t socket,
 {
 	struct mtp_ctx* ctx = cur_stream->mtp;
 
-	uint32_t data_avail = ctx->recv_next - 1 - ctx->last_flushed;
+	printf("receive_ep: ev_data_sizse: %d, "
+			"cur_stream->mtp->recv_next: %u, "
+			"cur_stream->mtp->last_flushed: %u\n", 
+			ev_data_size, ctx->recv_next, ctx->last_flushed);
+
+	uint32_t data_avail = MTP_SEQ_SUB(ctx->recv_next, 
+									 ctx->last_flushed, 
+									 ctx->last_flushed) - 1;
     if (data_avail > ev_data_size){
         data_avail = ev_data_size;
     }
+
+	printf("data_avail: %u\n", data_avail);
 
 	int ret = FlushAndNotify(mtcp, socket, cur_stream, ev_buf, data_avail);
     
     ctx->last_flushed += data_avail;
 	ctx->rwnd_size = cur_stream->rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->last_flushed, 
-														ctx->recv_next, 
-														ctx->recv_next);
+																	ctx->recv_next, 
+																	ctx->last_flushed);
 	
 	// MTP TODO: I think this has race conditions
 	
@@ -790,13 +799,17 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	ctx->recv_next = ctx->meta_rwnd->head_seq;
 
     RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, ev_payload, ev_payloadlen, ev_seq);
+	printf("recv buffer merged len: %u\n", rcvvar->rcvbuf->merged_len);
+	printf("my calculated merged len: %u, recv_next: %u, last_flushed: %u\n", 
+			MTP_SEQ_SUB(ctx->recv_next, ctx->last_flushed, ctx->last_flushed) - 1, 
+			ctx->recv_next, ctx->last_flushed);
 
 	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST || 
 		ctx->state == MTP_TCP_FIN_WAIT_2_ST) {
 			// MTP TODO: integrate with MTP. Do we even need to do this?
 		RBRemove(mtcp->rbm_rcv, 
 				rcvvar->rcvbuf, 
-				MTP_SEQ_SUB(ctx->recv_next - 1, ctx->last_flushed, ctx->last_flushed), 
+				MTP_SEQ_SUB(ctx->recv_next, ctx->last_flushed, ctx->last_flushed) - 1, 
 				AT_MTCP);
 	}
 
@@ -818,9 +831,9 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_st
 
     struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 
-	ctx->rwnd_size = rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->last_flushed, 
-														ctx->recv_next, 
-														ctx->recv_next);
+	ctx->rwnd_size = rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->recv_next,
+														ctx->last_flushed,
+														ctx->last_flushed);
 
 	mtp_bp* bp = GetFreeBP(cur_stream);
 

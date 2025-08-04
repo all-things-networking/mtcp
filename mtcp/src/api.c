@@ -1271,6 +1271,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	#ifdef USE_MTP
 		if (!cur_stream || 
 			!(cur_stream->mtp->state >= MTP_TCP_ESTABLISHED_ST)) {
+			printf("MTP not in correct state for read\n");
 			errno = ENOTCONN;
 			return -1;
 		}
