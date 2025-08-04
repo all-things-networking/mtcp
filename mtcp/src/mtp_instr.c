@@ -179,6 +179,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	mtp->closed = FALSE;
 	mtp->fin_sent = FALSE;
 	mtp->final_seq = 0;
+	mtp->adv_zero_wnd = FALSE;
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	if (!rcvvar->rcvbuf) {

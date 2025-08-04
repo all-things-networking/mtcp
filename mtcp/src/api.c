@@ -1309,7 +1309,14 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	if (flags == 0){
 		printf("MTP Receive Chain called: sockid %d, len %zu\n", sockid, len);
 		SBUF_LOCK(&rcvvar->read_lock);
-		ret = MtpReceiveChain(mtcp, socket, buf, len, cur_stream);
+		ret = MtpReceiveChainPart1(mtcp, socket, buf, len, cur_stream);
+
+		SQ_LOCK(&mtcp->ctx->ackq_lock);
+		cur_stream->sndvar->on_ackq = TRUE;
+		StreamEnqueue(mtcp->ackq, cur_stream); /* this always success */
+		SQ_UNLOCK(&mtcp->ctx->ackq_lock);
+		mtcp->wakeup_flag = TRUE;
+		
 		SBUF_UNLOCK(&rcvvar->read_lock);
 		printf("MTP Receive Chain returned: %d\n", ret);
 		(void)event_remaining;

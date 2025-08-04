@@ -218,6 +218,7 @@ struct mtp_ctx {
     uint32_t rwnd_size;
     uint32_t recv_next;
     uint32_t last_flushed;
+	bool adv_zero_wnd; 
     //bool first_data_rcvd = true;
 
     //timer_t ack_timeout;

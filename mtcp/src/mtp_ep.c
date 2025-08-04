@@ -171,6 +171,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	// MTP TODO: fix this
     uint16_t advertised_window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
     bp->hdr.window = htons(advertised_window);
+	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
 
     // Payload
     // MTP TODO: fix snbuf
@@ -503,6 +504,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
         if (rwindow_prev < MTP_SEQ_SUB(ctx->send_next, ctx->send_una, ctx->send_una) &&
             ctx->last_rwnd_remote >= MTP_SEQ_SUB(ctx->send_next, ctx->send_una, ctx->send_una)){
             // This is kinda "notify" in MTP
+			printf("rwnd opened up\n");
             RaiseWriteEvent(mtcp, cur_stream);
         }
     }
@@ -581,6 +583,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		// MTP TODO: fix this
     	uint16_t advertised_window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
         bp->hdr.window = htons(advertised_window);
+		if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
 
         // Payload
         // MTP TODO: fix snbuf
@@ -664,6 +667,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
 		uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 		bp->hdr.window = htons(advertised_window);
+		if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
 
 		// Payload
 		// MTP TODO: fix snbuf
@@ -876,6 +880,7 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_st
 	uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
+	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
 
 	// Payload
 	// MTP TODO: fix snbuf
@@ -1049,6 +1054,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
 
+
     // Payload
     bp->payload.data = NULL;
     bp->payload.len = 0;
@@ -1143,6 +1149,7 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
+	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
 
 	// Payload
 	// MTP TODO: fix snbuf
@@ -1274,6 +1281,7 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 		uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
 		uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 		bp->hdr.window = htons(advertised_window);
+		if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
 
 		// Payload
 		// MTP TODO: fix snbuf
@@ -1309,11 +1317,71 @@ void MtpSendChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
     send_ep(mtcp, cur_ts, cur_stream);
 }
 
-int MtpReceiveChain(mtcp_manager_t mtcp, socket_map_t socket, 
+int MtpReceiveChainPart1(mtcp_manager_t mtcp, socket_map_t socket, 
 					char *ev_buf, int ev_data_size, 
 					tcp_stream *cur_stream)
 {
 	return receive_ep(mtcp, socket, ev_buf, ev_data_size, cur_stream);
+}
+
+void MtpReceiveChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts, 
+						 tcp_stream *cur_stream)
+{
+	struct mtp_ctx* ctx = cur_stream->mtp;
+	if (ctx->adv_zero_wnd) {
+		// MTP TODO: integrate with MTP
+		ctx->adv_zero_wnd = FALSE;
+		mtp_bp* bp = GetFreeBP(cur_stream);
+
+		// printf("got bp\n");
+		// printf("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+		
+		memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+		bp->hdr.source = cur_stream->mtp->local_port;
+		bp->hdr.dest = cur_stream->mtp->remote_port;
+		bp->hdr.seq = htonl(ctx->send_next);
+		// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+		bp->hdr.ack_seq = htonl(ctx->recv_next);
+
+		bp->hdr.syn = FALSE;
+		bp->hdr.ack = TRUE;
+
+		// options to calculate data offset
+
+		// MTP TODO: SACK? 
+	#if TCP_OPT_SACK_ENABLED
+		printf("ERROR:SACK Not supported in MTP TCP\n");
+	#endif
+
+		MTP_set_opt_nop(&(bp->opts.nop1));
+		MTP_set_opt_nop(&(bp->opts.nop2));
+
+		// MTP TODO: Timestamp
+		MTP_set_opt_timestamp(&(bp->opts.timestamp),
+								htonl(cur_ts),
+								htonl(ctx->ts_recent));
+		
+
+		// MTP TODO: would the MTP program do the length 
+		//           calculation itself?
+		uint16_t optlen = MTP_CalculateOptionLength(bp);
+		bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+		// MTP TODO: wscale on local
+		uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
+		uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+		bp->hdr.window = htons(advertised_window);
+		if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
+
+		// Payload
+		// MTP TODO: fix snbuf
+		bp->payload.data = NULL;
+		bp->payload.len = 0;
+		bp->payload.needs_segmentation = FALSE;
+
+		AddtoGenList(mtcp, cur_stream, cur_ts);
+	}
 }
 
 void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
@@ -1454,6 +1522,7 @@ void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
+	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
 
     // Payload
     bp->payload.data = NULL;
@@ -1576,6 +1645,7 @@ void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream)
 	uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
+	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
 
 	// Payload
 	// MTP TODO: fix snbuf
@@ -1676,6 +1746,7 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 		uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
 		uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 		bp->hdr.window = htons(advertised_window);
+		if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
 
 		// Payload
 		// MTP TODO: fix snbuf

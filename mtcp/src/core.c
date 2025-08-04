@@ -527,7 +527,11 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 	/* ack queue handling */
 	while ((stream = StreamDequeue(mtcp->ackq))) {
 		stream->sndvar->on_ackq = FALSE;
+		#ifdef USE_MTP
+		MtpReceiveChainPart2(mtcp, cur_ts, stream);
+		#else
 		EnqueueACK(mtcp, stream, cur_ts, ACK_OPT_AGGREGATE);
+		#endif
 	}
 
 	/* close handling */
