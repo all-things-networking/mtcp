@@ -376,6 +376,22 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
                         ev_seq, ev_ts, cur_stream);
     } 
 
+    if (mtph->fin){
+        uint32_t ev_seq = mtph->seq;
+        uint32_t ev_payloadlen = payload.len;       
+ 
+        // Context lookup
+        tcp_stream *cur_stream = NULL;
+	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
+            printf("No context\n");
+            return -1;
+            // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
+        }
+
+        printf("going into MTP FIN\n");
+        MtpFinChain(mtcp, cur_ts, ev_seq, ev_payloadlen, cur_stream);
+    }
+
     // Context lookup
     /*
 	tcp_stream *cur_stream = NULL;

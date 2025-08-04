@@ -79,4 +79,8 @@ void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_strea
 
 void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream);
 
+void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
+				 uint32_t ev_seq, uint32_t ev_payloadlen, 
+				 tcp_stream* cur_stream);
+
 #endif

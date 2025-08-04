@@ -704,8 +704,15 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 static inline void fin_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
 		uint32_t ev_ack_seq, tcp_stream *cur_stream, scratchpad *scratch)
 {
+	printf("----------------------------- fin_ack_ep: %u\n", ev_ack_seq);
+	printf("cur_stream->mtp->state: %d\n", cur_stream->mtp->state);
 	struct mtp_ctx *ctx = cur_stream->mtp;
-	if (ctx->state != MTP_TCP_FIN_WAIT_1_ST) return;
+	if ((ctx->state != MTP_TCP_FIN_WAIT_1_ST) &&
+	    (ctx->state != MTP_TCP_CLOSING_ST) &&
+		(ctx->state != MTP_TCP_LAST_ACK_ST)) return;
+
+	printf("in fin_ack_ep: ev_ack_seq: %u, final_seq: %u, fin_sent:%d\n", 
+			ev_ack_seq, ctx->final_seq, ctx->fin_sent);
 	
 	if (ctx->fin_sent && 
 		ev_ack_seq == ctx->final_seq + 1) {
@@ -719,9 +726,24 @@ static inline void fin_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 		
 		ctx->num_rtx = 0;
 		TimerCancel(mtcp, cur_stream);
-		ctx->state = MTP_TCP_FIN_WAIT_2_ST;
-		TRACE_STATE("Stream %d: TCP_ST_FIN_WAIT_2\n", 
-					cur_stream->id);
+		if (ctx->state == MTP_TCP_FIN_WAIT_1_ST){
+			ctx->state = MTP_TCP_FIN_WAIT_2_ST;
+			printf("fin_ack_ep: state changed to FIN_WAIT_2\n");
+		}
+		else if (ctx->state == MTP_TCP_CLOSING_ST){
+			ctx->state = MTP_TCP_TIME_WAIT_ST;
+			// MTP TODO: do we need this?
+			// MTP TODO: fix
+			ctx->state = MTP_TCP_CLOSED_ST;
+			DestroyCtx(mtcp, cur_stream, ctx->local_port);
+			printf("fin_ack_ep: state changed to CLOSED\n");
+			//AddtoTimewaitList(mtcp, cur_stream, cur_ts);
+		}
+		else if (ctx->state == MTP_TCP_LAST_ACK_ST){
+			ctx->state = MTP_TCP_CLOSED_ST;
+			DestroyCtx(mtcp, cur_stream, ctx->local_port);
+			printf("fin_ack_ep: state changed to CLOSED\n");
+		}
 	}
 }
 
@@ -1315,11 +1337,11 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     scratchpad scratch;
 	timestamp_ep(mtcp, cur_ts, ev_ts, cur_stream, &scratch);
     conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, &scratch);
-	fin_ack_ep();
     rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     ack_net_ep(mtcp, cur_ts, ack_seq, window, seq, cur_stream, &scratch);
+	fin_ack_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
 }
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload, 
@@ -1557,11 +1579,18 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	
     struct mtp_ctx *ctx = cur_stream->mtp;
 
+	bool send_ack = FALSE;
+
+	if (ctx->state == MTP_TCP_ESTABLISHED_ST) send_ack = TRUE;
+
+	printf("ev_seq: %u, ev_payload_len: %u, recv_next: %u\n",
+			ev_seq, ev_payloadlen, ctx->recv_next);
+
 	if (ev_seq + ev_payloadlen == ctx->recv_next){
 
 		if (ctx->state == MTP_TCP_ESTABLISHED_ST){
 				ctx->state = MTP_TCP_CLOSE_WAIT_ST;
-				TRACE_STATE("Stream %d: TCP_ST_CLOSE_WAIT\n", cur_stream->id);
+				printf("Stream %d: TCP_ST_CLOSE_WAIT\n", cur_stream->id);
 				ctx->recv_next = ctx->recv_next + 1;
 				/* notify FIN to application */
 				RaiseReadEvent(mtcp, cur_stream);
@@ -1569,16 +1598,17 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 		else if (ctx->state == MTP_TCP_FIN_WAIT_1_ST) {
 			ctx->state = MTP_TCP_CLOSING_ST;
-				TRACE_STATE("Stream %d: TCP_ST_CLOSING\n", cur_stream->id);
+			send_ack = TRUE;
+			printf("Stream %d: TCP_ST_CLOSING\n", cur_stream->id);
 
 		} else if (ctx->state == MTP_TCP_FIN_WAIT_2_ST) {
+			send_ack = TRUE;
 			ctx->state = MTP_TCP_TIME_WAIT_ST;
-			TRACE_STATE("Stream %d: TCP_ST_TIME_WAIT\n", cur_stream->id);
+			printf("Stream %d: TCP_ST_TIME_WAIT\n", cur_stream->id);
 			//AddtoTimewaitList(mtcp, cur_stream, cur_ts);
 		}
 	}
-	if ((ev_seq + ev_payloadlen == ctx->recv_next) ||
-		(ctx->state == MTP_TCP_ESTABLISHED_ST))
+	if (send_ack)
 	{
 		mtp_bp* bp = GetFreeBP(cur_stream);
 
