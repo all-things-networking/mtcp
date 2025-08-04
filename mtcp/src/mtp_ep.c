@@ -713,6 +713,7 @@ static inline void fin_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 		if (MTP_SEQ_GT(ev_ack_seq, ctx->send_next, ctx->send_una)) {
 			TRACE_DBG("Stream %d: update snd_nxt to %u\n", 
 					cur_stream->id, ev_ack_seq);
+			printf("I think this is not supposed to happen\n");
 			ctx->send_next = ev_ack_seq;
 		}
 		
@@ -728,6 +729,7 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
     int ev_payloadlen, tcp_stream* cur_stream)
 {
 	struct mtp_ctx *ctx = cur_stream->mtp;
+	if (ctx->state == MTP_TCP_CLOSE_WAIT_ST) return;
     struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
     uint32_t last_rcvd_seq = ev_seq + ev_payloadlen;
 
@@ -767,6 +769,15 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 
     RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, ev_payload, ev_payloadlen, ev_seq);
 
+	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST || 
+		ctx->state == MTP_TCP_FIN_WAIT_2_ST) {
+			// MTP TODO: integrate with MTP. Do we even need to do this?
+		RBRemove(mtcp->rbm_rcv, 
+				rcvvar->rcvbuf, 
+				MTP_SEQ_SUB(ctx->recv_next - 1, ctx->last_flushed, ctx->last_flushed), 
+				AT_MTCP);
+	}
+
 	SBUF_UNLOCK(&rcvvar->read_lock);
 
 	if (ctx->state == MTP_TCP_ESTABLISHED_ST) {
@@ -778,7 +789,11 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 
 inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 {
+
 	struct mtp_ctx *ctx = cur_stream->mtp;
+
+	if (ctx->state == MTP_TCP_CLOSE_WAIT_ST) return;
+
     struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 
 	ctx->rwnd_size = rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->last_flushed, 
@@ -1542,8 +1557,9 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	
     struct mtp_ctx *ctx = cur_stream->mtp;
 
-	if (ctx->state == MTP_TCP_ESTABLISHED_ST){
-		if (ev_seq + ev_payloadlen == ctx->recv_next) {
+	if (ev_seq + ev_payloadlen == ctx->recv_next){
+
+		if (ctx->state == MTP_TCP_ESTABLISHED_ST){
 				ctx->state = MTP_TCP_CLOSE_WAIT_ST;
 				TRACE_STATE("Stream %d: TCP_ST_CLOSE_WAIT\n", cur_stream->id);
 				ctx->recv_next = ctx->recv_next + 1;
@@ -1551,6 +1567,19 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 				RaiseReadEvent(mtcp, cur_stream);
 		}
 
+		else if (ctx->state == MTP_TCP_FIN_WAIT_1_ST) {
+			ctx->state = MTP_TCP_CLOSING_ST;
+				TRACE_STATE("Stream %d: TCP_ST_CLOSING\n", cur_stream->id);
+
+		} else if (ctx->state == MTP_TCP_FIN_WAIT_2_ST) {
+			ctx->state = MTP_TCP_TIME_WAIT_ST;
+			TRACE_STATE("Stream %d: TCP_ST_TIME_WAIT\n", cur_stream->id);
+			//AddtoTimewaitList(mtcp, cur_stream, cur_ts);
+		}
+	}
+	if ((ev_seq + ev_payloadlen == ctx->recv_next) ||
+		(ctx->state == MTP_TCP_ESTABLISHED_ST))
+	{
 		mtp_bp* bp = GetFreeBP(cur_stream);
 
 		// printf("got bp\n");
@@ -1558,9 +1587,21 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 		
 		memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 
+		bp->hdr.fin = FALSE; 
+		if (ctx->state == MTP_TCP_CLOSING_ST){
+			if ((ctx->fin_sent && ctx->send_next == ctx->final_seq) ||
+				(!ctx->fin_sent)){
+					bp->hdr.fin = TRUE;
+					ctx->fin_sent = TRUE;
+			}
+		}
+
 		bp->hdr.source = cur_stream->mtp->local_port;
 		bp->hdr.dest = cur_stream->mtp->remote_port;
 		bp->hdr.seq = htonl(ctx->send_next);
+		if (bp->hdr.fin){
+			bp->hdr.seq = htonl(ctx->final_seq);
+		}
 		// printf("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
 		bp->hdr.ack_seq = htonl(ctx->recv_next);
 
