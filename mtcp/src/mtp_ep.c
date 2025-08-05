@@ -116,8 +116,12 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     int bytes_to_send = MIN(data_rest, window_avail);
 
-	// MTP_PRINT("send_ep bytes to send: %d, data_rest: %d, window_avail: %d\n", 
-	// 		bytes_to_send, data_rest, window_avail);
+	MTP_PRINT("send_ep cwnd_size: %u, last_rwnd_remote: %u, "
+			"send_next: %u, send_una: %u\n", 
+			ctx->cwnd_size, ctx->last_rwnd_remote, ctx->send_next, 
+			ctx->send_una);
+	MTP_PRINT("send_ep bytes to send: %d, data_rest: %d, window_avail: %d\n", 
+			bytes_to_send, data_rest, window_avail);
 
 	if (bytes_to_send <= 0) {
 		// MTP_PRINT("send_ep before releasing lock\n");
@@ -126,7 +130,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
         return;
 	}
 
-	// MTP_PRINT("send_ep bytes to send: %d\n", bytes_to_send);
+	MTP_PRINT("send_ep bytes to send: %d\n", bytes_to_send);
 	// MTP: maps to packet blueprint creation
 	
 	mtp_bp* bp = GetFreeBP(cur_stream);
@@ -247,9 +251,9 @@ static inline int receive_ep(mtcp_manager_t mtcp, socket_map_t socket,
 	int ret = FlushAndNotify(mtcp, socket, cur_stream, ev_buf, data_avail);
     
     ctx->last_flushed += data_avail;
-	ctx->rwnd_size = cur_stream->rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->last_flushed, 
-																	ctx->recv_next, 
-																	ctx->last_flushed);
+	ctx->rwnd_size = cur_stream->rcvvar->rcvbuf->size - (MTP_SEQ_SUB(ctx->recv_next, 
+																	ctx->last_flushed, 
+																	ctx->last_flushed) - 1);
 	
 	// MTP TODO: I think this has race conditions
 	
@@ -548,7 +552,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
         effective_window = ctx->last_rwnd_remote;
     }
 	
-	// MTP_PRINT("ack_net_ep: cwnd: %d, rwnd: %d\n", ctx->cwnd_size, ctx->last_rwnd_remote);
+	MTP_PRINT("ack_net_ep: cwnd: %d, rwnd: %d\n", ctx->cwnd_size, ctx->last_rwnd_remote);
     uint32_t bytes_to_send = 0;
 
 	if(ctx->duplicate_acks == 3) {
@@ -626,9 +630,11 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 	// Continue sending if window is available and there's remaining data in sending buffer
 	uint32_t window_avail = 0;
-	uint32_t window_end = ev_ack_seq + effective_window;
-	if (MTP_SEQ_GT(window_end, ctx->send_next, ctx->send_una)) 
-		window_avail = MTP_SEQ_SUB(window_end, ctx->send_next,
+	uint32_t window_end_exclusive = ev_ack_seq + effective_window;
+	printf("ack_net_ep: window_end_exclusive: %u, send_next: %u, send_una: %u\n", 
+			window_end_exclusive, ctx->send_next, ctx->send_una);
+	if (MTP_SEQ_GT(window_end_exclusive, ctx->send_next, ctx->send_una)) 
+		window_avail = MTP_SEQ_SUB(window_end_exclusive, ctx->send_next,
 								   ctx->send_una);
 
 	if (window_avail == 0)
@@ -639,7 +645,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
     }
 
 	// MTP TODO: check bytes to send is not zero
-	// MTP_PRINT("ack_net_ep: bytes to send: %d\n", bytes_to_send);
+	MTP_PRINT("ack_net_ep: window_avail: %u, bytes to send: %d\n", 
+						window_avail, bytes_to_send);
 
 	if (bytes_to_send > 0) {
 
@@ -788,8 +795,12 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	// MTP TODO?: new ordered data
 
 
-	MTP_PRINT("data_net_ep: ev_seq: %u, ev_payloadlen: %d, last_rcvd_seq: %u\n", 
-			ev_seq, ev_payloadlen, last_rcvd_seq);
+	MTP_PRINT("data_net_ep: ev_seq: %u, ev_payloadlen: %d, last_rcvd_seq: %u, ctx->rwnd_size: %u\n", 
+			ev_seq, ev_payloadlen, last_rcvd_seq, ctx->rwnd_size);
+	MTP_PRINT("MTP_SEQ_GT(last_rcvd_seq, ctx->recv_next + ctx->rwnd_size, ctx->recv_init_seq): %d\n", 
+			MTP_SEQ_GT(last_rcvd_seq, ctx->recv_next + ctx->rwnd_size, ctx->recv_init_seq));
+	MTP_PRINT("data_net_ep: MTP_SEQ_LT(last_rcvd_seq, ctx->recv_next, ctx->recv_init_seq): %d\n", 
+			MTP_SEQ_LT(last_rcvd_seq, ctx->recv_next, ctx->recv_init_seq));
 	// if seq and segment length is lower than rcv_nxt or exceeds buffer, ignore and send ack
 	if (MTP_SEQ_LT(last_rcvd_seq, ctx->recv_next, ctx->recv_init_seq) ||
 		MTP_SEQ_GT(last_rcvd_seq, ctx->recv_next + ctx->rwnd_size, ctx->recv_init_seq)) {
@@ -867,9 +878,9 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_st
 
     struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 
-	ctx->rwnd_size = rcvvar->rcvbuf->size - MTP_SEQ_SUB(ctx->recv_next,
+	ctx->rwnd_size = rcvvar->rcvbuf->size - (MTP_SEQ_SUB(ctx->recv_next,
 														ctx->last_flushed,
-														ctx->last_flushed);
+														ctx->last_flushed) - 1);
 
 	mtp_bp* bp = GetFreeBP(cur_stream);
 
