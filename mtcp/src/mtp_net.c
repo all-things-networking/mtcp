@@ -299,6 +299,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         struct mtp_listen_ctx *listen_ctx = 
 			(struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &(mtph->dest));
         if (listen_ctx == NULL) {
+            printf("Could not find listen context\n");
             HandleMissingCtx(mtcp, iph, mtph, payload.len, cur_ts);
         }           
 

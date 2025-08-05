@@ -796,19 +796,19 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 		return;
 	}
 
-	if (!rcvvar->rcvbuf) {
-		rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, ctx->recv_init_seq);
-		ctx->meta_rwnd = RBInit(mtcp->rbm_rcv, ctx->recv_init_seq);
-		if (!rcvvar->rcvbuf || !ctx->meta_rwnd) {
-			MTP_PRINT("Stream %d: Failed to allocate receive buffer.\n", 
-					cur_stream->id);
-			cur_stream->state = TCP_ST_CLOSED;
-			cur_stream->close_reason = TCP_NO_MEM;
-			RaiseErrorEvent(mtcp, cur_stream);
+	// if (!rcvvar->rcvbuf) {
+	// 	rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, ctx->recv_init_seq);
+	// 	ctx->meta_rwnd = RBInit(mtcp->rbm_rcv, ctx->recv_init_seq);
+	// 	if (!rcvvar->rcvbuf || !ctx->meta_rwnd) {
+	// 		MTP_PRINT("Stream %d: Failed to allocate receive buffer.\n", 
+	// 				cur_stream->id);
+	// 		cur_stream->state = TCP_ST_CLOSED;
+	// 		cur_stream->close_reason = TCP_NO_MEM;
+	// 		RaiseErrorEvent(mtcp, cur_stream);
 
-			return;
-		}
-	}
+	// 		return;
+	// 	}
+	// }
 
 	MTP_PRINT("Grabbing lock in data_net_ep\n");
 	if (SBUF_LOCK(&rcvvar->read_lock)) {
@@ -960,9 +960,6 @@ static inline struct accept_res* accept_ep(mctx_t mctx, mtcp_manager_t mtcp,
 	ctx->pending_len--;
 	pthread_mutex_unlock(&ctx->accept_lock);
 
-	if (ctx->state == 0)
-		ctx->state = 1;
-
 	// Return res, let target (api) do the following socket allocation
 	return res;
 }
@@ -973,7 +970,12 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	struct tcp_opt_timestamp *ev_ts,
 	struct mtp_listen_ctx *ctx)
 {
+	MTP_PRINT("syn_ep: received SYN from %u:%u to %u:%u\n", 
+			ev_remote_ip, ev_remote_port, ctx->local_ip, ctx->local_port);
+	MTP_PRINT("ctx->state: %d\n", ctx->state);
 	if (ctx->state != MTP_TCP_LISTEN_ST) return;
+	MTP_PRINT("syn_ep: in LISTEN state, proceeding\n");
+
     
     // MTP TODO: do rand init seq
     // uint32_t init_seq = rand_r(&next_seed) % TCP_MAX_SEQ;
@@ -985,6 +987,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint16_t mss = 1460;
     if (ev_mss_valid) mss = ev_mss;
 	// MTP new_ctx instruction
+	MTP_PRINT("Creating new context\n");
 	tcp_stream *cur_stream = CreateCtx(mtcp, cur_ts, 
                                       ev_remote_ip, ctx->local_ip, 
                                       ev_remote_port, ctx->local_port,
@@ -993,8 +996,8 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
                                       ev_init_seq, ev_init_seq + 1, ev_init_seq,
                                       ev_rwnd_size, wscale,
                                       MTP_TCP_SYNACK_SENT_ST);
-									  MTP_PRINT("local_ip: %u\n",
-											ctx->local_ip);
+	
+	MTP_PRINT("Created context, stream ptr: %p\n", cur_stream);
 	if (cur_stream == NULL) return;
 
 	cur_stream->sndvar->sndbuf = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);

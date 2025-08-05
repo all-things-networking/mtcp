@@ -1093,7 +1093,11 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 		return NULL;
 	}
 
+	#ifdef USE_MTP
+	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, 2 * CONFIG.max_num_buffers);
+	#else
 	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, CONFIG.max_num_buffers);
+	#endif
 	if (!mtcp->rbm_rcv) {
 		CTRACE_ERROR("Failed to create recv ring buffer.\n");
 		return NULL;
