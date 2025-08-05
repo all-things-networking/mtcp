@@ -150,14 +150,14 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 	ret = 1;
 	while (ret > 0) {
 		len = MIN(SNDBUF_SIZE, sv->fsize - sv->total_sent);
-		printf("Socket %d, sending %d bytes, fsize: %ld, total_sent: %ld\n", 
-				sockid, len, sv->fsize, sv->total_sent);
+		// printf("Socket %d, sending %d bytes, fsize: %ld, total_sent: %ld\n", 
+		// 		sockid, len, sv->fsize, sv->total_sent);
 		if (len <= 0) {
 			break;
 		}
 		ret = mtcp_write(ctx->mctx, sockid,  
 				fcache[sv->fidx].file + sv->total_sent, len);
-		printf("Socket %d, mtcp_write returned: %d\n", sockid, ret);
+		// printf("Socket %d, mtcp_write returned: %d\n", sockid, ret);
 		if (ret < 0) {
 			TRACE_APP("Connection closed with client.\n");
 			break;
@@ -173,7 +173,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 		finished++;
 
 		if (sv->keep_alive) {
-			printf("in keep-alive\n");
+			// printf("in keep-alive\n");
 			/* if keep-alive connection, wait for the incoming request */
 			ev.events = MTCP_EPOLLIN;
 			ev.data.sockid = sockid;
@@ -182,7 +182,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 			CleanServerVariable(sv);
 		} else {
 			/* else, close connection */
-			printf("Closing the connection\n");
+			// printf("Closing the connection\n");
 			CloseConnection(ctx, sockid, sv);
 		}
 	}
@@ -207,9 +207,9 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 	int sent;
 
 	/* HTTP request handling */
-	printf("starting to read HTTP request\n");
+	// printf("starting to read HTTP request\n");
 	rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN);
-	printf("finished reading HTTP request, bytes read: %d\n", rd);
+	// printf("finished reading HTTP request, bytes read: %d\n", rd);
 	if (rd <= 0) {
 		return rd;
 	}
@@ -295,9 +295,9 @@ AcceptConnection(struct thread_context *ctx, int listener)
 	struct mtcp_epoll_event ev;
 	int c;
 
-	printf("before accept call\n");
+	// printf("before accept call\n");
 	c = mtcp_accept(mctx, listener, NULL, NULL);
-	printf("after accept call\n");
+	// printf("after accept call\n");
 
 	if (c >= 0) {
 		if (c >= MAX_FLOW_NUM) {
@@ -460,9 +460,9 @@ RunServerThread(void *arg)
 	}
 
 	while (!done[core]) {
-		printf("before epoll wait\n");
+		// printf("before epoll wait\n");
 		nevents = mtcp_epoll_wait(mctx, ep, events, MAX_EVENTS, -1);
-		printf("after epoll wait, nevents: %d\n", nevents);
+		// printf("after epoll wait, nevents: %d\n", nevents);
 
 		fflush(stdout);
 		if (nevents < 0) {
@@ -477,7 +477,6 @@ RunServerThread(void *arg)
 			if (events[i].data.sockid == listener) {
 				/* if the event is for the listener, accept connection */
 				do_accept = TRUE;
-				printf("5\n");
 
 			} else if (events[i].events & MTCP_EPOLLERR) {
 				int err;
@@ -499,7 +498,7 @@ RunServerThread(void *arg)
 						&ctx->svars[events[i].data.sockid]);
 
 			} else if (events[i].events & MTCP_EPOLLIN) {
-				printf("in read event\n");
+				// printf("in read event\n");
 				ret = HandleReadEvent(ctx, events[i].data.sockid, 
 						&ctx->svars[events[i].data.sockid]);
 

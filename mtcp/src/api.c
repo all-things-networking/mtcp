@@ -408,7 +408,7 @@ mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
 
 	socket = AllocateSocket(mctx, type, FALSE);
 	if (!socket) {
-		printf("Error\n");
+		MTP_PRINT("Error\n");
 		errno = ENFILE;
 		return -1;
 	}
@@ -595,9 +595,9 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 #ifdef USE_MTP
 	mtp_listener = mtcp->smap[sockid].listen_ctx;
 	bool non_block = (mtp_listener->socket->opts & MTCP_NONBLOCK) ? TRUE : FALSE;
-	printf("before MtpAcceptChain\n");
+	MTP_PRINT("before MtpAcceptChain\n");
 	struct accept_res* res = MtpAcceptChain(mctx, mtcp, addr, addrlen, non_block, mtp_listener);
-	printf("after MtpAcceptChain: accepted:%p\n", accepted);
+	MTP_PRINT("after MtpAcceptChain: accepted:%p\n", accepted);
 	if (res == NULL) {
 		return -1;
 	}
@@ -1052,7 +1052,7 @@ mtcp_close(mctx_t mctx, int sockid)
 
 	TRACE_API("Socket %d: mtcp_close called.\n", sockid);
 
-	printf("socktype: %d\n", mtcp->smap[sockid].socktype);
+	MTP_PRINT("socktype: %d\n", mtcp->smap[sockid].socktype);
 	switch (mtcp->smap[sockid].socktype) {
 	case MTCP_SOCK_STREAM:
 		ret = CloseStreamSocket(mctx, sockid);
@@ -1237,7 +1237,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	int event_remaining;
 	int ret;
 	
-	printf("mtcp_recv called: sockid %d, len %zu, flags %d\n", sockid, len, flags);
+	MTP_PRINT("mtcp_recv called: sockid %d, len %zu, flags %d\n", sockid, len, flags);
 	mtcp = GetMTCPManager(mctx);
         if (!mtcp) {
 		return -1;
@@ -1271,7 +1271,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	#ifdef USE_MTP
 		if (!cur_stream || 
 			!(cur_stream->mtp->state >= MTP_TCP_ESTABLISHED_ST)) {
-			printf("MTP not in correct state for read\n");
+			MTP_PRINT("MTP not in correct state for read\n");
 			errno = ENOTCONN;
 			return -1;
 		}
@@ -1307,7 +1307,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	
 	#ifdef USE_MTP
 	if (flags == 0){
-		printf("MTP Receive Chain called: sockid %d, len %zu\n", sockid, len);
+		MTP_PRINT("MTP Receive Chain called: sockid %d, len %zu\n", sockid, len);
 		SBUF_LOCK(&rcvvar->read_lock);
 		ret = MtpReceiveChainPart1(mtcp, socket, socket->opts & MTCP_NONBLOCK, 
 								   buf, len, cur_stream);
@@ -1319,7 +1319,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 		mtcp->wakeup_flag = TRUE;
 
 		SBUF_UNLOCK(&rcvvar->read_lock);
-		printf("MTP Receive Chain returned: %d\n", ret);
+		MTP_PRINT("MTP Receive Chain returned: %d\n", ret);
 		(void)event_remaining;
 	}
 	#else
@@ -1562,7 +1562,7 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 	if (sndvar->snd_wnd <= 0) {
 		TRACE_SNDBUF("%u Sending buffer became full!! snd_wnd: %u\n", 
 				cur_stream->id, sndvar->snd_wnd);
-		// printf("%u Sending buffer became full!! snd_wnd: %u\n", 
+		// MTP_PRINT("%u Sending buffer became full!! snd_wnd: %u\n", 
 		// 		cur_stream->id, sndvar->snd_wnd);
 	}
 
@@ -1634,9 +1634,9 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 	sndvar = cur_stream->sndvar;
 
-	// printf("mtcp_write before grabbing lock\n");
+	// MTP_PRINT("mtcp_write before grabbing lock\n");
 	SBUF_LOCK(&sndvar->write_lock);
-	// printf("mtcp_write after grabbing lock\n");
+	// MTP_PRINT("mtcp_write after grabbing lock\n");
 
 	ret = CopyFromUser(mtcp, cur_stream, buf, len);
 
@@ -1658,9 +1658,9 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
 		}
 	}
-	// printf("mtcp_write before releasing lock\n");
+	// MTP_PRINT("mtcp_write before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
-	// printf("mtcp_write after releasing lock\n");
+	// MTP_PRINT("mtcp_write after releasing lock\n");
 
 	TRACE_API("Stream %d: mtcp_write() returning %d\n", cur_stream->id, ret);
 	return ret;
@@ -1732,9 +1732,9 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 	sndvar = cur_stream->sndvar;
 
-	// printf("mtcp_write before grabbing lock\n");
+	// MTP_PRINT("mtcp_write before grabbing lock\n");
 	SBUF_LOCK(&sndvar->write_lock);
-	// printf("mtcp_write after grabbing lock\n");
+	// MTP_PRINT("mtcp_write after grabbing lock\n");
 #if BLOCKING_SUPPORT
 	if (!(socket->opts & MTCP_NONBLOCK)) {
 		while (sndvar->snd_wnd <= 0) {
@@ -1754,14 +1754,14 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	// MTP TODO: add this to "application event parser"
 	ret = CopyFromUser(mtcp, cur_stream, buf, len);
 
-	// printf("mtcp_write before releasing lock\n");
+	// MTP_PRINT("mtcp_write before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
-	// printf("mtcp_write after releasing lock\n");
+	// MTP_PRINT("mtcp_write after releasing lock\n");
 
 	if (ret > 0 && !(sndvar->on_sendq || sndvar->on_send_list)) {
 		SQ_LOCK(&mtcp->ctx->sendq_lock);
 		sndvar->on_sendq = TRUE;
-		// printf("enqueue in send queue\n");
+		// MTP_PRINT("enqueue in send queue\n");
 		StreamEnqueue(mtcp->sendq, cur_stream);		/* this always success */
 		SQ_UNLOCK(&mtcp->ctx->sendq_lock);
 		mtcp->wakeup_flag = TRUE;

@@ -339,7 +339,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	rd = 1;
 	while (rd > 0) {
 		rd = mtcp_read(mctx, sockid, buf, BUF_SIZE);
-		printf("mtcp_read returned: %d\n", rd);
+		// printf("mtcp_read returned: %d\n", rd);
 		if (rd <= 0)
 			break;
 		ctx->stat.reads += rd;
@@ -349,10 +349,10 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 				"header_set: %d, header_len: %u, file_len: %lu\n",
 				ctx->stat.read_count, sockid, rd, wv->recv + rd,
 				wv->headerset, wv->header_len, wv->file_len);
-		printf("read[%lu]: Socket %d: mtcp_read ret: %d, total_recv: %lu, "
-				"header_set: %d, header_len: %u, file_len: %lu\n",
-				ctx->stat.read_count, sockid, rd, wv->recv + rd,
-				wv->headerset, wv->header_len, wv->file_len);
+		// printf("read[%lu]: Socket %d: mtcp_read ret: %d, total_recv: %lu, "
+		// 		"header_set: %d, header_len: %u, file_len: %lu\n",
+		// 		ctx->stat.read_count, sockid, rd, wv->recv + rd,
+		// 		wv->headerset, wv->header_len, wv->file_len);
 
 		pbuf = buf;
 		if (!wv->headerset) {
@@ -416,7 +416,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 				 if (_wr < 0) {
 					 perror("write");
 					 TRACE_ERROR("Failed to write.\n");
-					 printf("Failed to write.\n");
+					//  printf("Failed to write.\n");
 					 assert(0);
 					 break;
 				 }
@@ -425,7 +425,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 				 wr += _wr;	
 				 wv->write += _wr;
 				TRACE_APP("write[%lu]: +%d = %d / %d bytes (%lu / %lu) (file: %lu bytes)\n", ctx->stat.file_write_count, _wr, wr, rd, ctx->stat.file_writes, ctx->stat.reads, wv->file_len);
-				printf("write[%lu]: +%d = %d / %d bytes (%lu / %lu) (file: %lu bytes)\n", ctx->stat.file_write_count, _wr, wr, rd, ctx->stat.file_writes, ctx->stat.reads, wv->file_len);
+				// printf("write[%lu]: +%d = %d / %d bytes (%lu / %lu) (file: %lu bytes)\n", ctx->stat.file_write_count, _wr, wr, rd, ctx->stat.file_writes, ctx->stat.reads, wv->file_len);
 			}
 		}
 		
@@ -442,10 +442,10 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 					"header: %u file: %lu recv: %lu write: %lu\n", 
 					sockid, wv->header_len, wv->file_len, 
 					wv->recv - wv->header_len, wv->write);
-			printf("Socket %d Done Write: "
-					"header: %u file: %lu recv: %lu write: %lu\n", 
-					sockid, wv->header_len, wv->file_len, 
-					wv->recv - wv->header_len, wv->write);
+			// printf("Socket %d Done Write: "
+			// 		"header: %u file: %lu recv: %lu write: %lu\n", 
+			// 		sockid, wv->header_len, wv->file_len, 
+			// 		wv->recv - wv->header_len, wv->write);
 			DownloadComplete(ctx, sockid, wv);
 
 			return 0;
@@ -454,7 +454,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	} else if (rd == 0) {
 		/* connection closed by remote host */
 		TRACE_DBG("Socket %d connection closed with server.\n", sockid);
-		printf("Socket %d connection closed with server.\n", sockid);
+		// printf("Socket %d connection closed with server.\n", sockid);
 
 		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
 			DownloadComplete(ctx, sockid, wv);
@@ -651,10 +651,10 @@ RunWgetMain(void *arg)
 			}
 		}
 
-		usleep(1000);
-		printf("after creating connections\n");
+		usleep(100000);
+		// printf("after creating connections\n");
 		nevents = mtcp_epoll_wait(mctx, ep, events, maxevents, -1);
-		printf("mtcp_epoll_wait returned %d events\n", nevents);
+		// printf("mtcp_epoll_wait returned %d events\n", nevents);
 		ctx->stat.waits++;
 	
 		if (nevents < 0) {
@@ -689,7 +689,7 @@ RunWgetMain(void *arg)
 						events[i].data.sockid, &wvars[events[i].data.sockid]);
 
 			} else if (events[i].events == MTCP_EPOLLOUT) {
-				printf("READY TO WRITE\n");
+				// printf("READY TO WRITE\n");
 				struct wget_vars *wv = &wvars[events[i].data.sockid];
 
 				if (!wv->request_sent) {

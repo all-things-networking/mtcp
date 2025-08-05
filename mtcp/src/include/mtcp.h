@@ -27,6 +27,20 @@
 
 // TURN MTP ON/OFF BY COMMENTING OUT THIS LINE
 #define USE_MTP     1
+// #define ENABLE_MTP_PRINT  1
+
+#ifdef USE_MTP
+#ifdef ENABLE_MTP_PRINT
+#define MTP_PRINT(f, m...) fprintf(stdout, f, ##m)
+#else
+#define MTP_PRINT(f, m...) (void)0
+#endif
+#else
+#define MTP_PRINT(f, m...) (void)0
+#endif
+
+
+
 
 
 #ifdef ENABLE_ONVM

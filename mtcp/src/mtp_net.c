@@ -18,7 +18,7 @@ static inline void HandleMissingCtx(mtcp_manager_t mtcp,
     int payloadlen, uint32_t cur_ts) {
 	// TODO? This can be considered as processor for an "error" event
     TRACE_DBG("Refusing packet: context not found.\n");
-    printf("Refusing packet: listen context not found.\n");
+    MTP_PRINT("Refusing packet: listen context not found.\n");
     /*
 	SendTCPPacketStandalone(mtcp, 
 		iph->daddr, tcph->dest, iph->saddr, tcph->source, 
@@ -156,7 +156,7 @@ MTPExtractOptions(uint8_t *buff,
             i++;
         }
 
-        // printf("i: %u, opttype: %u\n", i, opttype);
+        // MTP_PRINT("i: %u, opttype: %u\n", i, opttype);
 
         if (opttype == MTP_TCP_OPT_MSS){
             i++; // for len
@@ -186,7 +186,7 @@ MTPExtractOptions(uint8_t *buff,
         else if (opttype == MTP_TCP_OPT_WSCALE){
             i++; // for len
             uint8_t wscale = *(buff + i);
-            printf("parsed wscale: %u\n", wscale);
+            MTP_PRINT("parsed wscale: %u\n", wscale);
             i++;
             MTP_set_opt_wscale(&(opts->wscale), wscale);
         } 
@@ -266,8 +266,8 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     tmp_bp.hdr = *mtph;
     tmp_bp.opts = mtp_opt;
     tmp_bp.payload = payload;
-    printf("---------------------------------\n");
-    printf("Received MTP packet:\n");
+    MTP_PRINT("---------------------------------\n");
+    MTP_PRINT("Received MTP packet:\n");
     print_MTP_bp(&tmp_bp);
 
     mtph->seq = ntohl(mtph->seq);
@@ -330,7 +330,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
         tcp_stream *cur_stream = NULL;
 	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-            printf("SYNACK: No context\n");
+            MTP_PRINT("SYNACK: No context\n");
             return -1;
             // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
         }
@@ -349,7 +349,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
         tcp_stream *cur_stream = NULL;
 	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-            printf("SYNACK: No context\n");
+            MTP_PRINT("SYNACK: No context\n");
             return -1;
             // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
         }
@@ -368,7 +368,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         // Context lookup
         tcp_stream *cur_stream = NULL;
 	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-            printf("No context\n");
+            MTP_PRINT("No context\n");
             return -1;
             // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
         }
@@ -384,12 +384,12 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         // Context lookup
         tcp_stream *cur_stream = NULL;
 	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-            printf("No context\n");
+            MTP_PRINT("No context\n");
             return -1;
             // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
         }
 
-        printf("going into MTP FIN\n");
+        MTP_PRINT("going into MTP FIN\n");
         MtpFinChain(mtcp, cur_ts, ev_seq, ev_payloadlen, cur_stream);
     }
 
@@ -431,7 +431,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 void MTP_ProcessSendEvents(mtcp_manager_t mtcp, struct mtcp_sender *sender, 
 	uint32_t cur_ts, int thresh) 
 {
-    printf("Inside MTP_ProcessSendEvents\n");
+    MTP_PRINT("Inside MTP_ProcessSendEvents\n");
 	tcp_stream *cur_stream, *next, *last;
 
 	// Loop through flows and send data
@@ -474,22 +474,22 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                tcp_stream *cur_stream, 
 		       uint32_t cur_ts){   
 
-    // printf("in SendMTPPackets\n");
+    // MTP_PRINT("in SendMTPPackets\n");
     unsigned int sent = 0;
     unsigned int err = 0;
-    // printf("bp list head: %u, bp list tail: %u\n", cur_stream->sndvar->mtp_bps_head,
+    // MTP_PRINT("bp list head: %u, bp list tail: %u\n", cur_stream->sndvar->mtp_bps_head,
     //                                                cur_stream->sndvar->mtp_bps_tail);
     for (unsigned int i = cur_stream->sndvar->mtp_bps_head;
          i != cur_stream->sndvar->mtp_bps_tail;
          i = (i + 1) % MTP_PER_FLOW_BP_CNT){
         
-        // printf("bp index: %d\n", i);
+        // MTP_PRINT("bp index: %d\n", i);
         
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
         
-        // printf("bp @ index %u:\n", i);
-        printf("---------------------------------\n");
-        printf("Sending MTP packet:\n");
+        // MTP_PRINT("bp @ index %u:\n", i);
+        MTP_PRINT("---------------------------------\n");
+        MTP_PRINT("Sending MTP packet:\n");
         print_MTP_bp(bp);
 
         uint16_t optlen = MTP_CalculateOptionLength(bp);
@@ -498,18 +498,18 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             uint32_t bytes_to_send = bp->payload.len;
             uint8_t *data_ptr = bp->payload.data;
 
-            // printf("1 sending, here\n");
+            // MTP_PRINT("1 sending, here\n");
 
             if (bp->payload.seg_rule_group_id == 1){
                 uint32_t seq = ntohl(bp->hdr.seq);
                 uint32_t seg_size = bp->payload.seg_size;
 
                 while (bytes_to_send > 0) {
-                    // printf("sending, here: %d\n", bytes_to_send);
+                    // MTP_PRINT("sending, here: %d\n", bytes_to_send);
 
                     int32_t pkt_len = MIN(seg_size, bytes_to_send);
 
-                    // printf("pkt_len: %d\n", pkt_len);
+                    // MTP_PRINT("pkt_len: %d\n", pkt_len);
 
                     // Send the next packet
                     struct mtp_bp_hdr *mtph;
@@ -522,23 +522,23 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                         
                         AdvanceBPListHead(cur_stream, sent + err);
                         
-                        // printf("ran out midway\n");
+                        // MTP_PRINT("ran out midway\n");
                         return -2;
                     }
 
-                    // printf("got packet memory\n");
+                    // MTP_PRINT("got packet memory\n");
 
                     memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
 
-                    // printf("copied the header\n");
+                    // MTP_PRINT("copied the header\n");
 
                     mtph->seq = htonl(seq);
-                    // printf("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
+                    // MTP_PRINT("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
 
                     // MTP TODO: this is TCP specific
                     mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
 
-                    // printf("setup some fields\n");
+                    // MTP_PRINT("setup some fields\n");
 
                     // options
                     // MTP TODO: this can be further generalized
@@ -585,21 +585,21 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                         buff_opts[i++] = bp_opts->wscale.value;
                     }
 
-                    // printf("setup options\n");
+                    // MTP_PRINT("setup options\n");
                     // MTP TODO: this is TCP specific?
                     assert (i % 4 == 0);
                     assert (i == optlen); 
 
                     // MTP TODO: do we need to lock here?
                     // copy payload if exist
-                    // printf("packet addr:%p\n", (uint8_t *)mtph + MTP_HEADER_LEN + optlen);
-                    // printf("data pointer: %p\n", data_ptr);
+                    // MTP_PRINT("packet addr:%p\n", (uint8_t *)mtph + MTP_HEADER_LEN + optlen);
+                    // MTP_PRINT("data pointer: %p\n", data_ptr);
                     memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, data_ptr, pkt_len);
                     #if defined(NETSTAT) && defined(ENABLELRO)
                     mtcp->nstat.tx_gdptbytes += payloadlen;
                     #endif // NETSTAT 
                      
-                    // printf("copied payload\n");
+                    // MTP_PRINT("copied payload\n");
 
                     // MTP TODO: checksum is TCP specific
                     int rc = -1;
@@ -610,7 +610,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                                     PKT_TX_TCPIP_CSUM, NULL);
                     }
                     #endif
-                    //printf("Test 6");
+                    //MTP_PRINT("Test 6");
 
                     if (rc == -1){
                         mtph->check = TCPCalcChecksum((uint16_t *)mtph,
@@ -619,13 +619,13 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     }
                     #endif
 
-                    // printf("setup checksum\n");
+                    // MTP_PRINT("setup checksum\n");
                     // update for next packet based on segementation rules
                     bytes_to_send -= pkt_len;
                     seq += pkt_len;
                     data_ptr += pkt_len;
 
-                    // printf("moving on\n");
+                    // MTP_PRINT("moving on\n");
                            
                 }
             }
@@ -654,7 +654,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
             memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
 
-            // printf("Sent Seq 2: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
+            // MTP_PRINT("Sent Seq 2: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
 
             // MTP TODO: this is TCP specific
             mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
@@ -726,7 +726,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                             PKT_TX_TCPIP_CSUM, NULL);
             }
             #endif
-            //printf("Test 6");
+            //MTP_PRINT("Test 6");
 
             if (rc == -1){
                 mtph->check = TCPCalcChecksum((uint16_t *)mtph,
@@ -775,7 +775,7 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 
 	thresh = MIN(thresh, sender->gen_list_cnt);
 
-    // printf("in packet gen list\n");
+    // MTP_PRINT("in packet gen list\n");
 	/* Send packets */
 	cnt = 0;
 	cur_stream = TAILQ_FIRST(&sender->gen_list);
@@ -783,7 +783,7 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 	while (cur_stream) {
 		if (++cnt > thresh) break;
 
-        // printf("Inside gen loop. cnt: %u, stream: %d\n", 
+        // MTP_PRINT("Inside gen loop. cnt: %u, stream: %d\n", 
 				// cnt, cur_stream->id);
 		TRACE_LOOP("Inside gen loop. cnt: %u, stream: %d\n", 
 				cnt, cur_stream->id);
@@ -795,7 +795,7 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 		if (cur_stream->sndvar->on_gen_list) {
 			cur_stream->sndvar->on_gen_list = FALSE;
 			TRACE_DBG("Stream %u: Sending packets\n", cur_stream->id);
-            // printf("Stream %u: Sending packets\n", cur_stream->id);
+            // MTP_PRINT("Stream %u: Sending packets\n", cur_stream->id);
 			ret = SendMTPPackets(mtcp, cur_stream, cur_ts);
 			if (ret == -2) {
 				TAILQ_INSERT_HEAD(&sender->gen_list, 
@@ -817,7 +817,7 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
                 // MTP TODO: fix
                 if (cur_stream->mtp->state == MTP_TCP_TIME_WAIT_ST){
                     cur_stream->mtp->state = MTP_TCP_CLOSED_ST;
-                    printf("Stream %d: MTP TCP closed.\n", cur_stream->id);
+                    MTP_PRINT("Stream %d: MTP TCP closed.\n", cur_stream->id);
                     DestroyCtx(mtcp, cur_stream, cur_stream->mtp->local_port);
                 }
             }

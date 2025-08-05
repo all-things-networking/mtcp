@@ -2,6 +2,13 @@
 #include <stdio.h>
 #include <netinet/in.h>
 
+// #define ENABLE_MTP_PRINT 1
+#ifdef ENABLE_MTP_PRINT
+#define MTP_PRINT(f, m...) fprintf(stdout, f, ##m)
+#else
+#define MTP_PRINT(f, m...) (void)0
+#endif
+
 void MTP_set_opt_mss(struct tcp_opt_mss *mss, uint16_t value){
     mss->valid = TRUE;
     mss->kind = 2;
@@ -80,44 +87,44 @@ void MTP_ntoh_bp(struct mtp_bp *bp) {
 }
 
 void print_MTP_bp(struct mtp_bp* bp){  
-    printf("*************** MTP BP Header ******************\n");
-    printf("Source: %u, Dest: %u, Seq: %u, Ack Seq: %u\n",
+    MTP_PRINT("*************** MTP BP Header ******************\n");
+    MTP_PRINT("Source: %u, Dest: %u, Seq: %u, Ack Seq: %u\n",
            ntohs(bp->hdr.source), ntohs(bp->hdr.dest), ntohl(bp->hdr.seq), ntohl(bp->hdr.ack_seq));
-    printf("Header Length: %u\n", bp->hdr.doff * 4);
-    printf("Flags: FIN=%d, SYN=%d, RST=%d, PSH=%d, ACK=%d, URG=%d\n",
+    MTP_PRINT("Header Length: %u\n", bp->hdr.doff * 4);
+    MTP_PRINT("Flags: FIN=%d, SYN=%d, RST=%d, PSH=%d, ACK=%d, URG=%d\n",
            bp->hdr.fin, bp->hdr.syn, bp->hdr.rst, bp->hdr.psh,
            bp->hdr.ack, bp->hdr.urg);
-    printf("Window: %u, Checksum: %u, Urg Ptr: %u\n",
+    MTP_PRINT("Window: %u, Checksum: %u, Urg Ptr: %u\n",
            ntohs(bp->hdr.window), bp->hdr.check, bp->hdr.urg_ptr);
     
-    printf("Options:\n");
+    MTP_PRINT("Options:\n");
     if (bp->opts.mss.valid) {
-        printf("MSS: %u\n", bp->opts.mss.value);
+        MTP_PRINT("MSS: %u\n", bp->opts.mss.value);
     }
     if (bp->opts.sack_permit.valid) {
-        printf("SACK Permitted\n");
+        MTP_PRINT("SACK Permitted\n");
     }
     if (bp->opts.timestamp.valid) {
-        printf("Timestamp: %u/%u\n", ntohl(bp->opts.timestamp.value1),
+        MTP_PRINT("Timestamp: %u/%u\n", ntohl(bp->opts.timestamp.value1),
                bp->opts.timestamp.value2);
     }
     if (bp->opts.wscale.valid) {
-        printf("Window Scale: %u\n", bp->opts.wscale.value);
+        MTP_PRINT("Window Scale: %u\n", bp->opts.wscale.value);
     }
     
-    printf("Payload Length: %u\n", bp->payload.len);
+    MTP_PRINT("Payload Length: %u\n", bp->payload.len);
     // if (bp->payload.data) {
-    //     printf("Payload Data: ");
+    //     MTP_PRINT("Payload Data: ");
     //     for (uint16_t i = 0; i < bp->payload.len; i++) {
-    //         printf("%02x ", bp->payload.data[i]);
+    //         MTP_PRINT("%02x ", bp->payload.data[i]);
     //     }
-    //     printf("\n");
+    //     MTP_PRINT("\n");
     // } else {
-    //     printf("No Payload Data\n");
+    //     MTP_PRINT("No Payload Data\n");
     // }
-    printf("Payload Data Pointer: %p\n", bp->payload.data);
-    printf("Needs Segmentation: %s, Seg Size: %u, Seg Rule Group ID: %u\n",
+    MTP_PRINT("Payload Data Pointer: %p\n", bp->payload.data);
+    MTP_PRINT("Needs Segmentation: %s, Seg Size: %u, Seg Rule Group ID: %u\n",
            bp->payload.needs_segmentation ? "Yes" : "No",
            bp->payload.seg_size, bp->payload.seg_rule_group_id);
-    printf("*********************************************\n");
+    MTP_PRINT("*********************************************\n");
 }

@@ -408,13 +408,11 @@ mtcp_epoll_wait(mctx_t mctx, int epid,
 	}
 #endif /* SPIN_BEFORE_SLEEP */
 
-	printf("before epoll_lock\n");
 	if (pthread_mutex_lock(&ep->epoll_lock)) {
 		if (errno == EDEADLK)
 			perror("mtcp_epoll_wait: epoll_lock blocked\n");
 		assert(0);
 	}
-	printf("after epoll_lock\n");
 wait:
 	eq = ep->usr_queue;
 	eq_shadow = ep->usr_shadow_queue;
@@ -558,11 +556,9 @@ wait:
 		}
 	}
 
-	printf("cnt: %d, maxevents: %d, timeout: %d\n", cnt, maxevents, timeout);
 	if (cnt == 0 && timeout != 0)
 		goto wait;
 
-	printf("before pthread_mutex_unlock\n");
 	pthread_mutex_unlock(&ep->epoll_lock);
 
 	return cnt;
