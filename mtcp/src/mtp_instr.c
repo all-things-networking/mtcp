@@ -268,6 +268,10 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf);
 		stream->rcvvar->rcvbuf = NULL;
 	}
+	if (stream->rcvvar->rcvbuf) {
+		RBFree(mtcp->rbm_rcv, stream->mtp->meta_rwnd);
+		stream->mtp->meta_rwnd = NULL;
+	}
 
 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
 
