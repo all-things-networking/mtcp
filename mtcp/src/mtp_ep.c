@@ -1251,7 +1251,9 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 	/* Retransmission */
 	// MTP TODO: add cases for other states
 	
-	if (ctx->state == MTP_TCP_ESTABLISHED_ST) {
+	if (ctx->state == MTP_TCP_ESTABLISHED_ST ||
+		ctx->state == MTP_TCP_FIN_WAIT_1_ST ||
+		ctx->state == MTP_TCP_CLOSING_ST) {
 		/* retransmit data at ESTABLISHED state */
 		
 		struct tcp_send_vars *sndvar = cur_stream->sndvar;
