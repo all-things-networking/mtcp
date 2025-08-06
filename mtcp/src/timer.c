@@ -420,12 +420,20 @@ CheckRtmTimeout(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh)
 				TAILQ_REMOVE(rto_list, walk, sndvar->timer_link);
 				mtcp->rto_list_cnt--;
 				walk->on_rto_idx = -1;
+				// printf("Stream %u: RTO, before: rto: %u\n", 
+				// 		walk->id, walk->sndvar->rto);
+				
+				// printf("srtt: %u, mdev: %u, mdev_max: %u, "
+				// 	"rttvar: %u, rtt_seq: %u\n", 
+				// 	walk->rcvvar->srtt, walk->rcvvar->mdev, 
+				// 	walk->rcvvar->mdev_max, walk->rcvvar->rttvar, walk->rcvvar->rtt_seq);
 				#ifdef USE_MTP
 				MtpTimeoutChain(mtcp, cur_ts, walk);
 				#else
-				printf("Stream %d: RTO.\n", walk->id);
 				HandleRTO(mtcp, cur_ts, walk);
 				#endif
+				// printf("Stream %u: RTO, after rto: %u\n", 
+				// 		walk->id, walk->sndvar->rto);
 			} else {
 				TRACE_ERROR("Stream %d: not on rto list.\n", walk->id);
 #ifdef DUMP_STREAM

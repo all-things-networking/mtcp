@@ -227,10 +227,10 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     AddtoGenList(mtcp, cur_stream, cur_ts);	
 
-	MTP_PRINT("prepared bp:\n");
-	print_MTP_bp(bp);
-	MTP_PRINT("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
-			sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
+	// MTP_PRINT("preprared bp:\n");
+	// print_MTP_bp(bp);
+	// MTP_PRINT("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
+	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 
 	// MTP TODO: implement + for MTP_SEQ
 	ctx->send_next += bytes_to_send;
@@ -412,8 +412,14 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
     uint32_t rtt = cur_ts - rcvvar->ts_lastack_rcvd;
+	// printf("Stream %u, rtt: %u, last_ack_ts:%u\n", 
+	// 		cur_stream->id, rtt, rcvvar->ts_lastack_rcvd);
 	EstimateRTT(mtcp, cur_stream, rtt);
+	#ifndef MTP_FIXED_RTO
 	sndvar->rto = (rcvvar->srtt >> 3) + rcvvar->rttvar;
+	#else
+	sndvar->rto = 3;
+	#endif
 }
 
 static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
@@ -667,6 +673,9 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
         if (bytes_to_send > effective_window){
             bytes_to_send = effective_window;
         }
+		if (bytes_to_send > data_rest){
+			bytes_to_send = data_rest;
+		}
 
         // MTP TODO: check that size + options is not more than MSS
         mtp_bp* bp = GetFreeBP(cur_stream);
@@ -1357,10 +1366,10 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 	struct mtp_ctx *ctx = cur_stream->mtp;
-	MTP_PRINT("Stream %d Timeout. cwnd: %u, ssthresh: %u\n", 
-			cur_stream->id, ctx->cwnd_size, ctx->ssthresh);
-	MTP_PRINT("Stream %d Timeout. rto: %u, tx_rto:%u, cur_ts: %u\n", 
-			cur_stream->id, cur_stream->sndvar->rto, 
+	// MTP_PRINT("Stream %d Timeout. cwnd: %u, ssthresh: %u\n", 
+	// 		cur_stream->id, ctx->cwnd_size, ctx->ssthresh);
+	MTP_PRINT("Stream %d, port:%u, Timeout. rto: %u, tx_rto:%u, cur_ts: %u\n", 
+			cur_stream->id, cur_stream->mtp->remote_port, cur_stream->sndvar->rto, 
 			cur_stream->sndvar->ts_rto, cur_ts);			
 
 	/* count number of retransmissions */
@@ -1368,7 +1377,7 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 		ctx->num_rtx = ctx->num_rtx + 1;
 	} else {
 		/* if it exceeds the threshold, destroy and notify to application */
-		MTP_PRINT("Stream %d: Exceed MAX_RTX\n", cur_stream->id);
+		// MTP_PRINT("Stream %d: Exceed MAX_RTX\n", cur_stream->id);
 		
 	}
 	if (ctx->num_rtx > ctx->max_num_rtx) {
@@ -1382,12 +1391,16 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 
 		uint32_t rto_prev;
 		rto_prev = cur_stream->sndvar->rto;
+		#ifndef MTP_FIXED_RTO
 		cur_stream->sndvar->rto = ((cur_stream->rcvvar->srtt >> 3) + 
 				cur_stream->rcvvar->rttvar) << backoff;
+		#else
+		cur_stream->sndvar->rto = rto_prev << backoff;
+		#endif
 		if (cur_stream->sndvar->rto <= 0) {
-			MTP_PRINT("Stream %d current rto: %u, prev: %u, state: %s\n", 
-					cur_stream->id, cur_stream->sndvar->rto, rto_prev, 
-					TCPStateToString(cur_stream));
+			// MTP_PRINT("Stream %d current rto: %u, prev: %u, state: %s\n", 
+					// cur_stream->id, cur_stream->sndvar->rto, rto_prev, 
+					// TCPStateToString(cur_stream));
 			cur_stream->sndvar->rto = rto_prev;
 		}
 	} else if (ctx->state >= MTP_TCP_SYN_SENT_ST) {
@@ -1433,11 +1446,9 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 
 		// assert(bytes_to_send > 0);
 		bool send_fin_again = FALSE;
-		if (bytes_to_send == 0) {
-			assert(ctx->fin_sent &&
-			       ctx->send_next == ctx->final_seq &&
-				   ctx->send_una == ctx->final_seq);
-			send_fin_again = TRUE;
+		if (bytes_to_send == 0 && ctx->fin_sent) {
+			if(ctx->send_next == ctx->final_seq &&
+				   ctx->send_una == ctx->final_seq) send_fin_again = TRUE;
 		}
 
 		mtp_bp* bp = GetFreeBP(cur_stream);

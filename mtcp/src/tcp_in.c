@@ -539,6 +539,9 @@ ProcessACK(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts,
 		if (cur_stream->saw_timestamp) {
 			EstimateRTT(mtcp, cur_stream, 
 					cur_ts - cur_stream->rcvvar->ts_lastack_rcvd);
+			// printf("Stream %u, rtt: %u, last_ack_ts:%u\n", 
+			// 		cur_stream->id, cur_ts - cur_stream->rcvvar->ts_lastack_rcvd, 
+			// 		cur_stream->rcvvar->ts_lastack_rcvd);
 			sndvar->rto = (cur_stream->rcvvar->srtt >> 3) + cur_stream->rcvvar->rttvar;
 			assert(sndvar->rto > 0);
 		} else {
