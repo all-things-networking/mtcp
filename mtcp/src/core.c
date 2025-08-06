@@ -542,7 +542,9 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 		sndvar->on_closeq = FALSE;
 
 		#ifdef USE_MTP
-		// printf("before MTP close chain\n");
+		MTP_PRINT("Stream %u, port: %u, Calling close\n", 
+				   stream->id,
+				   ntohs(stream->mtp->local_port));
 		MtpCloseChain(mtcp, cur_ts, stream);
 		// printf("after MTP close chain\n");
 		(void) control;

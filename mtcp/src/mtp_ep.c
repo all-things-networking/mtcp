@@ -539,10 +539,67 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	// 		data_rest, ev_ack_seq, ctx->send_next, sndvar->sndbuf->len, sndvar->sndbuf->head_seq);
 
 	if (data_rest == 0 && ev_ack_seq == ctx->send_next) {
-		TimerCancel(mtcp, cur_stream);
-		MTP_PRINT("THIS CASE\n");
-		// MTP_PRINT("ack_net_ep before releasing lock\n");
 		SBUF_UNLOCK(&sndvar->write_lock);
+		if (ctx->state != MTP_TCP_FIN_WAIT_1_ST &&
+		    ctx->state != MTP_TCP_CLOSING_ST) {
+			TimerCancel(mtcp, cur_stream);
+			MTP_PRINT("THIS CASE\n");
+			// MTP_PRINT("ack_net_ep before releasing lock\n");
+		}
+		else {
+			// Send FIN
+			mtp_bp* bp = GetFreeBP(cur_stream);
+
+			// MTP_PRINT("got bp\n");
+			// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+			
+			memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+			bp->hdr.source = cur_stream->mtp->local_port;
+			bp->hdr.dest = cur_stream->mtp->remote_port;
+			bp->hdr.seq = htonl(ctx->final_seq);
+			// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+			bp->hdr.ack_seq = htonl(ctx->recv_next);
+
+			bp->hdr.syn = FALSE;
+			bp->hdr.ack = TRUE;
+			bp->hdr.fin = TRUE;
+
+			// options to calculate data offset
+
+			// MTP TODO: SACK? 
+		#if TCP_OPT_SACK_ENABLED
+			MTP_PRINT("ERROR:SACK Not supported in MTP TCP\n");
+		#endif
+
+			MTP_set_opt_nop(&(bp->opts.nop1));
+			MTP_set_opt_nop(&(bp->opts.nop2));
+
+			// MTP TODO: Timestamp
+			MTP_set_opt_timestamp(&(bp->opts.timestamp),
+									htonl(cur_ts),
+									htonl(ctx->ts_recent));
+			
+
+			// MTP TODO: would the MTP program do the length 
+			//           calculation itself?
+			uint16_t optlen = MTP_CalculateOptionLength(bp);
+			bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+			// MTP TODO: wscale on local
+			uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
+			uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+			bp->hdr.window = htons(advertised_window);
+			if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
+
+			// Payload
+			// MTP TODO: fix snbuf
+			bp->payload.data = NULL;
+			bp->payload.len = 0;
+			bp->payload.needs_segmentation = FALSE;
+
+			AddtoGenList(mtcp, cur_stream, cur_ts);
+		} 	
 		// MTP_PRINT("ack_net_ep after releasing lock\n");
 		return;
 	}
@@ -1265,7 +1322,6 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 	if (ctx->state == MTP_TCP_ESTABLISHED_ST ||
 		ctx->state == MTP_TCP_FIN_WAIT_1_ST ||
 		ctx->state == MTP_TCP_CLOSING_ST) {
-		/* retransmit data at ESTABLISHED state */
 		
 		struct tcp_send_vars *sndvar = cur_stream->sndvar;
 
@@ -1286,7 +1342,14 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 		// MTP TODO: check bytes to send is not zero
 		// MTP_PRINT("ack_net_ep: bytes to send: %d\n", bytes_to_send);
 
-		assert(bytes_to_send > 0);
+		// assert(bytes_to_send > 0);
+		bool send_fin_again = FALSE;
+		if (bytes_to_send == 0) {
+			assert(ctx->fin_sent &&
+			       ctx->send_next == ctx->final_seq &&
+				   ctx->send_una == ctx->final_seq);
+			send_fin_again = TRUE;
+		}
 
 		mtp_bp* bp = GetFreeBP(cur_stream);
 
@@ -1303,6 +1366,7 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 
 		bp->hdr.syn = FALSE;
 		bp->hdr.ack = TRUE;
+		bp->hdr.fin = send_fin_again;
 
 		// options to calculate data offset
 	
@@ -1333,7 +1397,7 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 
 		// Payload
 		// MTP TODO: fix snbuf
-		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_una,
 														sndvar->sndbuf->head_seq,
 														sndvar->sndbuf->head_seq);
 		bp->payload.data = data;
@@ -1640,8 +1704,8 @@ void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream)
 		ctx->final_seq = ctx->send_next;
 	}
 
-	if (CONFIG.tcp_timeout > 0)
-		RemoveFromTimeoutList(mtcp, cur_stream);
+	// if (CONFIG.tcp_timeout > 0)
+	// 	RemoveFromTimeoutList(mtcp, cur_stream);
 
 	if (ctx->state == MTP_TCP_ESTABLISHED_ST) {
 		ctx->state = MTP_TCP_FIN_WAIT_1_ST;

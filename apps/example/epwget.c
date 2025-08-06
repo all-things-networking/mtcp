@@ -293,7 +293,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	uint64_t tdiff;
 
 	TRACE_APP("Socket %d File download complete!\n", sockid);
-	// printf("Socket %d File download complete!\n", sockid);
+	printf("Socket %d File download complete!\n", sockid);
 	gettimeofday(&wv->t_end, NULL);
 	CloseConnection(ctx, sockid);
 	ctx->stat.completes++;
@@ -365,6 +365,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 						CONTENT_LENGTH_HDR, sizeof(CONTENT_LENGTH_HDR) - 1);
 				if (wv->file_len < 0) {
 					/* failed to find the Content-Length field */
+					printf("ERROR socket %d: Failed to find Content-Length in response header.\n",
+							sockid);
 					wv->recv += rd;
 					rd = 0;
 					CloseConnection(ctx, sockid);
@@ -397,6 +399,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 #endif
 				// wv->recv += rd;
 				rd = 0;
+				printf("ERROR: Socket %u, Failed to parse response header.\n",
+				       sockid);
 				ctx->stat.errors++;
 				ctx->errors++;
 				CloseConnection(ctx, sockid);
@@ -446,6 +450,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 			// 		"header: %u file: %lu recv: %lu write: %lu\n", 
 			// 		sockid, wv->header_len, wv->file_len, 
 			// 		wv->recv - wv->header_len, wv->write);
+			printf("Socket %d: Download complete.\n", sockid);
 			DownloadComplete(ctx, sockid, wv);
 
 			return 0;
@@ -459,6 +464,10 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
 			DownloadComplete(ctx, sockid, wv);
 		} else {
+			printf("ERROR: Incomplete file read. "
+					"header: %u file: %lu recv: %lu write: %lu\n", 
+					wv->header_len, wv->file_len, 
+					wv->recv - wv->header_len, wv->write);
 			ctx->stat.errors++;
 			ctx->incompletes++;
 			CloseConnection(ctx, sockid);
@@ -467,6 +476,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	} else if (rd < 0) {
 		if (errno != EAGAIN) {
 			TRACE_DBG("Socket %d: mtcp_read() error %s\n", 
+					sockid, strerror(errno));
+			printf("ERROR: Socket %d: mtcp_read() error %s\n", 
 					sockid, strerror(errno));
 			ctx->stat.errors++;
 			ctx->errors++;
@@ -675,6 +686,7 @@ RunWgetMain(void *arg)
 
 				TRACE_APP("[CPU %d] Error on socket %d\n", 
 						core, events[i].data.sockid);
+				printf("ERROR: MTPC_EPOLLERR on socket %d\n", events[i].data.sockid);
 				ctx->stat.errors++;
 				ctx->errors++;
 				if (mtcp_getsockopt(mctx, events[i].data.sockid, 
