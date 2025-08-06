@@ -1708,7 +1708,9 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	#ifdef USE_MTP
 	if (!cur_stream || 
 			!(cur_stream->mtp->state == MTP_TCP_ESTABLISHED_ST || 
-			  cur_stream->state == TCP_ST_CLOSE_WAIT)) {
+			  cur_stream->mtp->state == TCP_ST_CLOSE_WAIT)) {
+		MTP_PRINT("MTP not in correct state for write, state: %u\n",
+				cur_stream->mtp->state);
 		errno = ENOTCONN;
 		return -1;
 	}

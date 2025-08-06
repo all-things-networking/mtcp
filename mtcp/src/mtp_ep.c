@@ -631,7 +631,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	// Continue sending if window is available and there's remaining data in sending buffer
 	uint32_t window_avail = 0;
 	uint32_t window_end_exclusive = ev_ack_seq + effective_window;
-	printf("ack_net_ep: window_end_exclusive: %u, send_next: %u, send_una: %u\n", 
+	MTP_PRINT("ack_net_ep: window_end_exclusive: %u, send_next: %u, send_una: %u\n", 
 			window_end_exclusive, ctx->send_next, ctx->send_una);
 	if (MTP_SEQ_GT(window_end_exclusive, ctx->send_next, ctx->send_una)) 
 		window_avail = MTP_SEQ_SUB(window_end_exclusive, ctx->send_next,

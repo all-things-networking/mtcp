@@ -164,6 +164,7 @@ MTPExtractOptions(uint8_t *buff,
             i++;
             mss += *(buff + i);
             i++;
+            MTP_PRINT("parsed mss: %u\n", mss);
             MTP_set_opt_mss(&(opts->mss), mss); 
         }
 

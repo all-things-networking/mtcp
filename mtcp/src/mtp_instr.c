@@ -180,32 +180,31 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	mtp->fin_sent = FALSE;
 	mtp->final_seq = 0;
 	mtp->adv_zero_wnd = FALSE;
+	mtp->final_seq_remote = 0;
+	mtp->fin_received = FALSE;
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	
+	rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
+	// MTP TODO: this should raise an error event that comes back
+	//           to be processed according to the MTP program
 	if (!rcvvar->rcvbuf) {
-		rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
-		// MTP TODO: this should raise an error event that comes back
-		//           to be processed according to the MTP program
-		if (!rcvvar->rcvbuf) {
-			cur_stream->state = TCP_ST_CLOSED;
-			cur_stream->close_reason = TCP_NO_MEM;
-			RaiseErrorEvent(mtcp, cur_stream);
-			return NULL;
-		}
+		mtp->state = MTP_TCP_CLOSED_ST;
+		// cur_stream->close_reason = TCP_NO_MEM;
+		RaiseErrorEvent(mtcp, cur_stream);
+		return NULL;
 	}
-
-	struct mtp_ctx *ctx = cur_stream->mtp;
-	if (!ctx->meta_rwnd) {
-		ctx->meta_rwnd = RBInit(mtcp->rbm_rcv, rcvvar->irs + 1);
-		// MTP TODO: this should raise an error event that comes back
-		//           to be processed according to the MTP program
-		if (!ctx->meta_rwnd) {
-			cur_stream->state = TCP_ST_CLOSED;
-			cur_stream->close_reason = TCP_NO_MEM;
-			RaiseErrorEvent(mtcp, cur_stream);
-			return NULL;
-		}
+	
+	mtp->meta_rwnd = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
+	// MTP TODO: this should raise an error event that comes back
+	//           to be processed according to the MTP program
+	if (!mtp->meta_rwnd) {
+		mtp->state = MTP_TCP_CLOSED_ST;
+		// cur_stream->close_reason = TCP_NO_MEM;
+		RaiseErrorEvent(mtcp, cur_stream);
+		return NULL;
 	}
+	
 
 	return cur_stream;
 }
@@ -268,7 +267,7 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf);
 		stream->rcvvar->rcvbuf = NULL;
 	}
-	if (stream->rcvvar->rcvbuf) {
+	if (stream->mtp->meta_rwnd) {
 		RBFree(mtcp->rbm_rcv, stream->mtp->meta_rwnd);
 		stream->mtp->meta_rwnd = NULL;
 	}

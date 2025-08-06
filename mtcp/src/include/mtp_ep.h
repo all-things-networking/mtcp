@@ -10,22 +10,6 @@
 #define MTP_NO_EVENT -1
 #define MTP_SYN 0
 
-#define MTP_TCP_LISTEN_ST 0
-#define MTP_TCP_ACCEPT_ST 1
-#define MTP_TCP_SYNACK_SENT_ST 2
-#define MTP_TCP_SYN_SENT_ST 3
-#define MTP_TCP_ESTABLISHED_ST 5
-#define MTP_TCP_CLOSE_WAIT_ST 6
-#define MTP_TCP_FIN_WAIT_1_ST 7
-#define MTP_TCP_FIN_WAIT_2_ST 8
-#define MTP_TCP_CLOSING_ST 9
-#define MTP_TCP_LAST_ACK_ST 10
-#define MTP_TCP_TIME_WAIT_ST 11
-#define MTP_TCP_CLOSED_ST 12
-
-#define MTP_TCP_MAX_RTX 16
-#define MTP_TCP_MAX_BACKOFF	7
-
 /********************** MTP EPs & EP Chains **********************
  * This module implements MTP Event Processors(EP), and EP chains
  * Each EP chain is one line in the dispatcher.

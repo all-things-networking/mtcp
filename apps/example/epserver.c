@@ -150,14 +150,14 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 	ret = 1;
 	while (ret > 0) {
 		len = MIN(SNDBUF_SIZE, sv->fsize - sv->total_sent);
-		// printf("Socket %d, sending %d bytes, fsize: %ld, total_sent: %ld\n", 
-		// 		sockid, len, sv->fsize, sv->total_sent);
+		printf("Socket %d, sending %d bytes, fsize: %ld, total_sent: %ld\n", 
+				sockid, len, sv->fsize, sv->total_sent);
 		if (len <= 0) {
 			break;
 		}
 		ret = mtcp_write(ctx->mctx, sockid,  
 				fcache[sv->fidx].file + sv->total_sent, len);
-		// printf("Socket %d, mtcp_write returned: %d\n", sockid, ret);
+		printf("Socket %d, mtcp_write returned: %d\n", sockid, ret);
 		if (ret < 0) {
 			TRACE_APP("Connection closed with client.\n");
 			break;
@@ -166,6 +166,9 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 		sent += ret;
 		sv->total_sent += ret;
 	}
+
+	printf("Socket %d: Sent %d bytes, total_sent: %ld, fcache[sv->fidx].size: %lu\n", 
+			sockid, sent, sv->total_sent, fcache[sv->fidx].size);
 
 	if (sv->total_sent >= fcache[sv->fidx].size) {
 		struct mtcp_epoll_event ev;
@@ -182,7 +185,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 			CleanServerVariable(sv);
 		} else {
 			/* else, close connection */
-			// printf("Closing the connection\n");
+			printf("Closing the connection\n");
 			CloseConnection(ctx, sockid, sv);
 		}
 	}
@@ -255,6 +258,8 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 	}
 	TRACE_APP("Socket %d File size: %ld (%ldMB)\n", 
 			sockid, sv->fsize, sv->fsize / 1024 / 1024);
+	printf("Socket %d File size: %ld (%ldMB)\n", 
+			sockid, sv->fsize, sv->fsize / 1024 / 1024);
 
 	/* Response header handling */
 	time(&t_now);
@@ -274,6 +279,8 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 	TRACE_APP("Socket %d HTTP Response: \n%s", sockid, response);
 	sent = mtcp_write(ctx->mctx, sockid, response, len);
 	TRACE_APP("Socket %d Sent response header: try: %d, sent: %d\n", 
+			sockid, len, sent);
+	printf("Socket %d Sent response header: try: %d, sent: %d\n", 
 			sockid, len, sent);
 	assert(sent == len);
 	sv->rspheader_sent = TRUE;

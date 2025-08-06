@@ -349,10 +349,9 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 				"header_set: %d, header_len: %u, file_len: %lu\n",
 				ctx->stat.read_count, sockid, rd, wv->recv + rd,
 				wv->headerset, wv->header_len, wv->file_len);
-		// printf("read[%lu]: Socket %d: mtcp_read ret: %d, total_recv: %lu, "
-		// 		"header_set: %d, header_len: %u, file_len: %lu\n",
-		// 		ctx->stat.read_count, sockid, rd, wv->recv + rd,
-		// 		wv->headerset, wv->header_len, wv->file_len);
+		
+		printf("read[%lu]: Socket %d: mtcp_read ret: %d, total_recv: %lu\n",
+				ctx->stat.read_count, sockid, rd, wv->recv + rd);
 
 		pbuf = buf;
 		if (!wv->headerset) {
@@ -381,10 +380,11 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 				// 		sockid, wv->header_len, 
 				// 		wv->file_len, wv->file_len / 1024 / 1024);
 				wv->headerset = TRUE;
-				wv->recv += (rd - (wv->resp_len - wv->header_len));
+				// wv->recv += (rd - (wv->resp_len - wv->header_len));
 				
 				pbuf += wv->header_len;
-				rd -= wv->header_len;
+				// rd -= wv->header_len;
+				
 				//printf("Successfully parse header.\n");
 				//fflush(stdout);
 
@@ -395,7 +395,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 						" Data: \n%s\n", ctx->core, sockid, wv->response);
 				fflush(stdout);
 #endif
-				wv->recv += rd;
+				// wv->recv += rd;
 				rd = 0;
 				ctx->stat.errors++;
 				ctx->errors++;
@@ -454,7 +454,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	} else if (rd == 0) {
 		/* connection closed by remote host */
 		TRACE_DBG("Socket %d connection closed with server.\n", sockid);
-		// printf("Socket %d connection closed with server.\n", sockid);
+		printf("Socket %d: connection closed with server.\n", sockid);
 
 		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
 			DownloadComplete(ctx, sockid, wv);
