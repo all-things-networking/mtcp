@@ -524,7 +524,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                         
                         AdvanceBPListHead(cur_stream, sent + err);
                         
-                        // MTP_PRINT("ran out midway\n");
+                        MTP_PRINT("ran out midway\n");
                         return -2;
                     }
 

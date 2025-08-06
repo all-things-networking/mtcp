@@ -23,6 +23,7 @@
 typedef struct scratchpad_decl {
 	uint8_t change_cwnd;
 	bool skip_ack_eps;
+	bool expecting_ack;
 } scratchpad;
 
 
@@ -399,6 +400,19 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 		}
 	}
 
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	SBUF_LOCK(&sndvar->write_lock);
+	uint32_t data_rest =  sndvar->sndbuf->len - 
+					      MTP_SEQ_SUB(ctx->send_next, sndvar->sndbuf->head_seq,
+									  sndvar->sndbuf->head_seq);
+	SBUF_UNLOCK(&sndvar->write_lock);
+
+	scratch->expecting_ack = TRUE;
+	if (data_rest == 0 && ctx->send_una == ctx->send_next) {
+		scratch->expecting_ack = FALSE;
+		return;
+	}
+
 	scratch->change_cwnd = 1;
 
 	// MTP_PRINT("fast_retr BEFORE: cwnd:%u, ssthresh:%u\n", ctx->cwnd_size, ctx->ssthresh);
@@ -453,6 +467,8 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 		}
 	}
 
+	if (!scratch->expecting_ack) return;
+	
 	// MTP_PRINT("before DIV\n");
 	// MTP_PRINT("slows_cong BEFORE: cwnd:%u\n", ctx->cwnd_size);
 	if(scratch->change_cwnd) {
@@ -807,6 +823,10 @@ static inline void fin_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	MTP_PRINT("in fin_ack_ep: ev_ack_seq: %u, final_seq: %u, fin_sent:%d\n", 
 			ev_ack_seq, ctx->final_seq, ctx->fin_sent);
+
+	if (cur_stream->socket){
+		MTP_PRINT("socket id: %d\n", cur_stream->socket->id);
+	}
 	
 	if (ctx->fin_sent && 
 		ev_ack_seq == ctx->final_seq + 1) {

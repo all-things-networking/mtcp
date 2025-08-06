@@ -423,6 +423,7 @@ CheckRtmTimeout(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh)
 				#ifdef USE_MTP
 				MtpTimeoutChain(mtcp, cur_ts, walk);
 				#else
+				printf("Stream %d: RTO.\n", walk->id);
 				HandleRTO(mtcp, cur_ts, walk);
 				#endif
 			} else {

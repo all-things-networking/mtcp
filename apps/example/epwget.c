@@ -313,7 +313,9 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	TRACE_APP("Socket %d Total spent time: %lu us\n", sockid, tdiff);
 	// printf("Socket %d Total received bytes: %lu (%luMB)\n", 
 	// 		sockid, wv->recv, wv->recv / 1000000);
-	// printf("Socket %d Total spent time: %lu us\n", sockid, tdiff);
+	if (tdiff > 210000){
+		printf("Socket %d Total spent time: %lu us\n", sockid, tdiff);
+	}
 	if (tdiff > 0) {
 		TRACE_APP("Socket %d Average bandwidth: %lf[MB/s]\n", 
 				sockid, (double)wv->recv / tdiff);
