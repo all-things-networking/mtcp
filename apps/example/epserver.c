@@ -315,7 +315,7 @@ AcceptConnection(struct thread_context *ctx, int listener)
 		sv = &ctx->svars[c];
 		CleanServerVariable(sv);
 		TRACE_APP("New connection %d accepted.\n", c);
-		printf("New connection %d accepted.\n", c);
+		// printf("New connection %d accepted.\n", c);
 		ev.events = MTCP_EPOLLIN;
 		ev.data.sockid = c;
 		mtcp_setsock_nonblock(ctx->mctx, c);

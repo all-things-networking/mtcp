@@ -64,6 +64,34 @@ BPBuffer_isfull(tcp_stream *cur_stream){
     return (next_tail == head);
 }
 
+bool
+BPBuffer_isempty(tcp_stream *cur_stream){
+    uint32_t head = cur_stream->sndvar->mtp_bps_head;
+    uint32_t tail = cur_stream->sndvar->mtp_bps_tail;
+     
+	return (head == tail);
+}
+
+/*----------------------------------------------------------------------------*/
+mtp_bp* GetLastBP(struct tcp_stream *cur_stream){
+    if (BPBuffer_isempty(cur_stream)){
+        printf("BP buffer is empty!\n");
+        return NULL;
+    }
+
+    uint32_t bp_tail = cur_stream->sndvar->mtp_bps_tail;
+	uint32_t last_ind = bp_tail;
+	if (last_ind == 0){
+		last_ind = MTP_PER_FLOW_BP_CNT - 1;
+	}
+	else {
+		last_ind = last_ind - 1;
+	}
+
+    mtp_bp* last_bp = cur_stream->sndvar->mtp_bps + last_ind;
+    return last_bp;
+}
+
 /*----------------------------------------------------------------------------*/
 mtp_bp* GetFreeBP(struct tcp_stream *cur_stream){
     if (BPBuffer_isfull(cur_stream)){

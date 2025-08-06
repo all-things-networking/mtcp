@@ -22,6 +22,8 @@
 // pkt_gen_instr
 void AddtoGenList(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts);
 mtp_bp* GetFreeBP(struct tcp_stream *cur_stream);
+mtp_bp* GetLastBP(struct tcp_stream *cur_stream);
+bool BPBuffer_isempty(tcp_stream *cur_stream);
 
 // new_ctx_instr
 int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog);

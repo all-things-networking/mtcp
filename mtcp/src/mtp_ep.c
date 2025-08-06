@@ -117,6 +117,8 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     int bytes_to_send = MIN(data_rest, window_avail);
 
+	MTP_PRINT("****************************\n");
+	MTP_PRINT("Stream %u in send ep\n", cur_stream->id);
 	MTP_PRINT("send_ep cwnd_size: %u, last_rwnd_remote: %u, "
 			"send_next: %u, send_una: %u\n", 
 			ctx->cwnd_size, ctx->last_rwnd_remote, ctx->send_next, 
@@ -134,16 +136,39 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	MTP_PRINT("send_ep bytes to send: %d\n", bytes_to_send);
 	// MTP: maps to packet blueprint creation
 	
-	mtp_bp* bp = GetFreeBP(cur_stream);
-	// MTP_PRINT("got bp\n");
-	// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+	mtp_bp* bp;
+	bool merging = FALSE;
+
+	if (!BPBuffer_isempty(cur_stream)){
+		mtp_bp* last_bp = GetLastBP(cur_stream);
+		uint32_t next_sched_byte = ntohl(last_bp->hdr.seq) + last_bp->payload.len;
+		if (last_bp->payload.len > 0 && 
+			ctx->send_next == next_sched_byte){
+			MTP_PRINT("merging, prev blueprint is:");
+			print_MTP_bp(last_bp);
+			bp = last_bp;
+			merging = TRUE;
+		}
+	}
+
+	if (!merging){
+		bp = GetFreeBP(cur_stream);	
+	} 
+	MTP_PRINT("got bp\n");
+	MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
     
-    memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+	if (!merging){
+    	memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+	}
 
     bp->hdr.source = cur_stream->mtp->local_port;
     bp->hdr.dest = cur_stream->mtp->remote_port;
-    bp->hdr.seq = htonl(ctx->send_next);
-	// MTP_PRINT("Seq in send_ep: %u\n", ntohl(bp->hdr.seq));
+
+	if (!merging){
+    	bp->hdr.seq = htonl(ctx->send_next);
+	}
+
+	MTP_PRINT("Seq in send_ep: %u\n", ntohl(bp->hdr.seq));
     bp->hdr.ack_seq = htonl(ctx->recv_next);
 
     bp->hdr.syn = FALSE;
@@ -180,12 +205,21 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     // Payload
     // MTP TODO: fix snbuf
-    uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
-													   sndvar->sndbuf->head_seq,
-													   sndvar->sndbuf->head_seq);
-    bp->payload.data = data;
-    bp->payload.len = bytes_to_send;
-	if (bytes_to_send > ctx->eff_SMSS){
+	if (!merging){
+		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+														sndvar->sndbuf->head_seq,
+														sndvar->sndbuf->head_seq);
+		bp->payload.data = data;
+	}
+
+	if (merging){
+    	bp->payload.len += bytes_to_send;
+	}
+	else {
+		bp->payload.len = bytes_to_send;
+	}
+
+	if (bp->payload.len > ctx->eff_SMSS){
 		bp->payload.needs_segmentation = TRUE;
 		bp->payload.seg_size = ctx->eff_SMSS;
 		bp->payload.seg_rule_group_id = 1; 
@@ -193,15 +227,15 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     AddtoGenList(mtcp, cur_stream, cur_ts);	
 
-	// MTP_PRINT("prepared bp:\n");
-	// print_MTP_bp(bp);
-	// MTP_PRINT("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
-	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
+	MTP_PRINT("prepared bp:\n");
+	print_MTP_bp(bp);
+	MTP_PRINT("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
+			sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 
 	// MTP TODO: implement + for MTP_SEQ
 	ctx->send_next += bytes_to_send;
 
-	// MTP_PRINT("send next: %u\n", ctx->send_next);
+	MTP_PRINT("send next: %u\n", ctx->send_next);
 
 	// MTP TODO: map to timer event with event input
 	TimerStart(mtcp, cur_stream, cur_ts);
@@ -468,7 +502,7 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 	}
 
 	if (!scratch->expecting_ack) return;
-	
+
 	// MTP_PRINT("before DIV\n");
 	// MTP_PRINT("slows_cong BEFORE: cwnd:%u\n", ctx->cwnd_size);
 	if(scratch->change_cwnd) {
@@ -723,16 +757,39 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 	if (bytes_to_send > 0) {
 
-		mtp_bp* bp = GetFreeBP(cur_stream);
+		mtp_bp* bp;
+		bool merging = FALSE;
 
-		// MTP_PRINT("got bp\n");
-		// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+		if (!BPBuffer_isempty(cur_stream)){
+			mtp_bp* last_bp = GetLastBP(cur_stream);
+			uint32_t next_sched_byte = ntohl(last_bp->hdr.seq) + last_bp->payload.len;
+			if (last_bp->payload.len > 0 && 
+				ctx->send_next == next_sched_byte){
+				MTP_PRINT("merging, prev blueprint is:\n");
+				print_MTP_bp(last_bp);
+				bp = last_bp;
+				merging = TRUE;
+			}
+		}
+
+		if (!merging){
+			bp = GetFreeBP(cur_stream);	
+		}
+		MTP_PRINT("got bp\n");
+		MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
 		
-		memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+		if (!merging){
+			memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+		}
 
 		bp->hdr.source = cur_stream->mtp->local_port;
 		bp->hdr.dest = cur_stream->mtp->remote_port;
-		bp->hdr.seq = htonl(ctx->send_next);
+
+		if (!merging){
+			bp->hdr.seq = htonl(ctx->send_next);
+		}
+		MTP_PRINT("Seq: %u\n", ntohl(bp->hdr.seq));
+
 		// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
 		bp->hdr.ack_seq = htonl(ctx->recv_next);
 
@@ -768,14 +825,26 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 		// Payload
 		// MTP TODO: fix snbuf
-		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
-														sndvar->sndbuf->head_seq,
-														sndvar->sndbuf->head_seq);
-		bp->payload.data = data;
-		bp->payload.len = bytes_to_send;
-		bp->payload.needs_segmentation = TRUE;
-		bp->payload.seg_size = ctx->eff_SMSS;
-		bp->payload.seg_rule_group_id = 1; 
+		if (!merging){
+			uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+															sndvar->sndbuf->head_seq,
+															sndvar->sndbuf->head_seq);
+			bp->payload.data = data;
+		}
+
+		if (merging){
+			bp->payload.len += bytes_to_send;
+		}
+		else {
+			bp->payload.len = bytes_to_send;
+		}
+
+
+		if (bp->payload.len > ctx->eff_SMSS){
+			bp->payload.needs_segmentation = TRUE;
+			bp->payload.seg_size = ctx->eff_SMSS;
+			bp->payload.seg_rule_group_id = 1; 
+		} 
 
 		AddtoGenList(mtcp, cur_stream, cur_ts);	
 
