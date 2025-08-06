@@ -293,7 +293,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	uint64_t tdiff;
 
 	TRACE_APP("Socket %d File download complete!\n", sockid);
-	printf("Socket %d File download complete!\n", sockid);
+	// printf("Socket %d File download complete!\n", sockid);
 	gettimeofday(&wv->t_end, NULL);
 	CloseConnection(ctx, sockid);
 	ctx->stat.completes++;
@@ -350,8 +350,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 				ctx->stat.read_count, sockid, rd, wv->recv + rd,
 				wv->headerset, wv->header_len, wv->file_len);
 		
-		printf("read[%lu]: Socket %d: mtcp_read ret: %d, total_recv: %lu\n",
-				ctx->stat.read_count, sockid, rd, wv->recv + rd);
+		// printf("read[%lu]: Socket %d: mtcp_read ret: %d, total_recv: %lu\n",
+		// 		ctx->stat.read_count, sockid, rd, wv->recv + rd);
 
 		pbuf = buf;
 		if (!wv->headerset) {
@@ -450,7 +450,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 			// 		"header: %u file: %lu recv: %lu write: %lu\n", 
 			// 		sockid, wv->header_len, wv->file_len, 
 			// 		wv->recv - wv->header_len, wv->write);
-			printf("Socket %d: Download complete.\n", sockid);
+			// printf("Socket %d: Download complete.\n", sockid);
 			DownloadComplete(ctx, sockid, wv);
 
 			return 0;
@@ -459,7 +459,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	} else if (rd == 0) {
 		/* connection closed by remote host */
 		TRACE_DBG("Socket %d connection closed with server.\n", sockid);
-		printf("Socket %d: connection closed with server.\n", sockid);
+		// printf("Socket %d: connection closed with server.\n", sockid);
 
 		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
 			DownloadComplete(ctx, sockid, wv);
