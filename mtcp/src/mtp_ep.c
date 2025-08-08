@@ -409,17 +409,20 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_
     
 	// MTP TODO: make consistent with MTP
     // Set RTO, using RTT calculation logic from mTCP
-	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
-    uint32_t rtt = cur_ts - rcvvar->ts_lastack_rcvd;
-	// printf("Stream %u, rtt: %u, last_ack_ts:%u\n", 
-	// 		cur_stream->id, rtt, rcvvar->ts_lastack_rcvd);
-	EstimateRTT(mtcp, cur_stream, rtt);
-	#ifndef MTP_FIXED_RTO
-	sndvar->rto = (rcvvar->srtt >> 3) + rcvvar->rttvar;
-	#else
-	sndvar->rto = 3;
-	#endif
+	uint32_t rmlen = MTP_SEQ_SUB(ev_ack_seq, ctx->send_una, ctx->send_una);
+	if (rmlen > 0){
+		struct tcp_send_vars *sndvar = cur_stream->sndvar;
+		struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+		uint32_t rtt = cur_ts - rcvvar->ts_lastack_rcvd;
+		// printf("Stream %u, rtt: %u, last_ack_ts:%u\n", 
+		// 		cur_stream->id, rtt, rcvvar->ts_lastack_rcvd);
+		EstimateRTT(mtcp, cur_stream, rtt);
+		#ifndef MTP_FIXED_RTO
+		sndvar->rto = (rcvvar->srtt >> 3) + rcvvar->rttvar;
+		#else
+		sndvar->rto = 3;
+		#endif
+	}
 }
 
 static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
