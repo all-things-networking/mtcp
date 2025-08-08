@@ -281,8 +281,11 @@ SetNetEnv(char *dev_name_list, char *port_stat_list)
 				mpz_setbit(_cpumask, ret);
 			
 			gmp_sprintf(cpumaskbuf, "%ZX", _cpumask);
-		} else
+			printf("here1: %s", cpumaskbuf);
+		} else {
 			gmp_sprintf(cpumaskbuf, "%ZX", CONFIG._cpumask);
+			printf("here2: %s", cpumaskbuf);
+		}
 		
 		mpz_clear(_cpumask);
 

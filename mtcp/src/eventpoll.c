@@ -232,17 +232,28 @@ RaisePendingStreamEvents(mtcp_manager_t mtcp,
 
 	if (!stream)
 		return -1;
+	
+	#ifdef USE_MTP
+	if (stream->mtp->state < MTP_TCP_ESTABLISHED_ST){
+		return -1;
+	}
+	#else
 	if (stream->state < TCP_ST_ESTABLISHED)
 		return -1;
+	#endif
 
 	TRACE_EPOLL("Stream %d at state %s\n", 
 			stream->id, TCPStateToString(stream));
+	// printf("Stream %d at state %s\n", 
+	// 		stream->id, TCPStateToString(stream));
 	/* if there are payloads already read before epoll registration */
 	/* generate read event */
 	if (socket->epoll & MTCP_EPOLLIN) {
 		struct tcp_recv_vars *rcvvar = stream->rcvvar;
+		// printf("In EPOLLIN\n");
 		if (rcvvar->rcvbuf && rcvvar->rcvbuf->merged_len > 0) {
 			TRACE_EPOLL("Socket %d: Has existing payloads\n", socket->id);
+			// printf("Socket %d: Has existing payloads\n", socket->id);
 			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
 		} else if (stream->state == TCP_ST_CLOSE_WAIT) {
 			TRACE_EPOLL("Socket %d: Waiting for close\n", socket->id);

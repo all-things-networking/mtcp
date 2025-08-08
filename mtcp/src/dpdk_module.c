@@ -767,6 +767,9 @@ dpdk_load_module(void)
 					 ret, (unsigned) portid);
 
 			printf("done: \n");
+			rte_eth_dev_info_get(portid, &dev_info[portid]);
+			printf("nb_rx_queues: %u, nb_tx_queues: %u\n", 
+				 dev_info[portid].nb_rx_queues, dev_info[portid].nb_tx_queues);
 			rte_eth_promiscuous_enable(portid);
 
                         /* retrieve current flow control settings per port */

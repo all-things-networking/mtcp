@@ -238,6 +238,7 @@ CloseConnection(thread_context_t ctx, int sockid)
 static inline int 
 SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 {
+	// usleep(100000);
 	char request[HTTP_HEADER_LEN];
 	struct mtcp_epoll_event ev;
 	int wr;
@@ -383,13 +384,14 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 				// 		"Header length: %u, File length: %lu (%luMB)\n", 
 				// 		sockid, wv->header_len, 
 				// 		wv->file_len, wv->file_len / 1024 / 1024);
+
 				wv->headerset = TRUE;
 				// wv->recv += (rd - (wv->resp_len - wv->header_len));
 				
 				pbuf += wv->header_len;
 				// rd -= wv->header_len;
 				
-				//printf("Successfully parse header.\n");
+				// printf("Successfully parse header.\n");
 				//fflush(stdout);
 
 			} else {
@@ -664,10 +666,10 @@ RunWgetMain(void *arg)
 			}
 		}
 
-		usleep(100000);
-		// printf("after creating connections\n");
+		// usleep(100000);
+		// printf("core: %u, before epoll_wait\n", core);
 		nevents = mtcp_epoll_wait(mctx, ep, events, maxevents, -1);
-		// printf("mtcp_epoll_wait returned %d events\n", nevents);
+		// printf("core: %u, mtcp_epoll_wait returned %d events\n", nevents, core);
 		ctx->stat.waits++;
 	
 		if (nevents < 0) {
