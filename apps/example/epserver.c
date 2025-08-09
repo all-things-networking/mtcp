@@ -93,6 +93,7 @@ static pthread_t app_thread[MAX_CPUS];
 static int done[MAX_CPUS];
 static char *conf_file = NULL;
 static int backlog = -1;
+static char* server_ip = NULL;
 /*----------------------------------------------------------------------------*/
 const char *www_main;
 static struct file_cache fcache[MAX_FILES];
@@ -406,7 +407,7 @@ CreateListeningSocket(struct thread_context *ctx)
 	saddr.sin_family = AF_INET;
 	// saddr.sin_addr.s_addr = INADDR_ANY;
 	// TODO: change to command line argument
-	saddr.sin_addr.s_addr = inet_addr("10.7.0.5");
+	saddr.sin_addr.s_addr = inet_addr(server_ip);
 	saddr.sin_port = htons(80);
 	ret = mtcp_bind(ctx->mctx, listener, 
 			(struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
@@ -602,7 +603,7 @@ main(int argc, char **argv)
 		return FALSE;
 	}
 
-	while (-1 != (o = getopt(argc, argv, "N:f:p:c:b:h"))) {
+	while (-1 != (o = getopt(argc, argv, "s:N:f:p:c:b:h"))) {
 		switch (o) {
 		case 'p':
 			/* open the directory to serve */
@@ -645,6 +646,10 @@ main(int argc, char **argv)
 			break;
 		case 'h':
 			printHelp(argv[0]);
+			break;
+		case 's':
+			server_ip = optarg;
+			printf("server_ip is: %s, optarg:%s\n", server_ip, optarg);
 			break;
 		}
 	}
