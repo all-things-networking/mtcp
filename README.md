@@ -11,11 +11,57 @@ cd scripts
 dpdk-hugepages.py -p 1G --setup 24G
 ```
 
-Setup the NIC:
+## Setup and test the NIC:
 
 Figure out the kind of NIC and driver using ```ethtool -i <interface_name>```
 
-For Mellanox, ConnectX-4 (```mlx5_core```) driver:
+- For Mellanox, ConnectX-4 (```mlx5_core```) driver:
+
+   - SETUP: Nothing for setup. SHOULD NOT be unbinding the driver and binding it to something else -- mlx5 takes care of it itself. Just make sure the proper kernel modules are there (should be there by default)
+	```
+	sudo modprobe mlx5_core
+	sudo modprobe mlx5_ib
+	sudo modprobe ib_uverbs
+	```
+
+   - TEST: use ``dpdk-devbind`` to find the PCI address of the PROPER interface (make sure you stay away from the management interface). Need to provide that to testpmd as input: ```sudo dpdk-testpmd -l 0-3 -n 4 -a <PCI address of the interface> -- -i```
+     
+- For Mellanox, ConnectX-3 (```mlx4_core```) driver:
+
+- For Intel NICs:
+
+
+## Building mTCP and apps:
+
+```
+   apt install automake libgmp-dev
+   aclocal && autoheader && automake -a -c && autoconf && ./configure
+```
+
+For each app (perf, example, etc.) go into Makefile and 
+
+- add the following on top: ```RTE_SDK=/opt/dpdk-23.11```
+- make sure ``TARGET`` is the proper file (client for perf, and epserver and epwget for example)
+- modify the following to these:
+```
+DPDK_MACHINE_LINKER_FLAGS=$(shell pkg-config --libs libdpdk)
+DPDK_MACHINE_LDFLAGS=$(DPDK_MACHINE_LINKER_FLAGS)
+LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lmtcp -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
+```
+
+Then clean and compile:
+``` make clean && make ```
+
+Make sure you add their own kernel module:
+```
+cd dpdk-iface-kmod && make clean && make V=1 && sudo insmod dpdk_iface.ko && sudo ./dpdk_iface_main
+```
+
+## Running apps:
+
+Make sure you modify the ```.conf``` files with proper interfaces, and route and arp configurations before running.
+
+
 
 
 
