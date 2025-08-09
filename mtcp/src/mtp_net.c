@@ -276,8 +276,8 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     mtph->window = ntohs(mtph->window);
 
     if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
-    int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
-    if (ret != 0) return MTP_ERROR;
+    // int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
+    // if (ret != 0) return MTP_ERROR;
 
     // MTP - Combining dispatcher, context look up, and event chain
 

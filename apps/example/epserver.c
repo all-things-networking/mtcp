@@ -406,7 +406,7 @@ CreateListeningSocket(struct thread_context *ctx)
 	saddr.sin_family = AF_INET;
 	// saddr.sin_addr.s_addr = INADDR_ANY;
 	// TODO: change to command line argument
-	saddr.sin_addr.s_addr = inet_addr("10.7.0.5");
+	saddr.sin_addr.s_addr = inet_addr("10.10.1.2");
 	saddr.sin_port = htons(80);
 	ret = mtcp_bind(ctx->mctx, listener, 
 			(struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
