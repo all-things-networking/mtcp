@@ -10,6 +10,7 @@ cd mtcp
 git checkout mina-mtp
 cd scripts
 chmod +x install_dpdk.sh && ./install_dpdk.sh
+cd ..
 sudo dpdk-hugepages.py -p 1G --setup 24G
 ```
 
@@ -36,12 +37,13 @@ Figure out the kind of NIC and driver using ```ethtool -i <interface_name>```
 ## Building mTCP and apps:
 
 ```
-   apt install automake libgmp-dev
+   sudo apt install automake libgmp-dev
    aclocal && autoheader && automake -a -c && autoconf && ./configure
 ```
 
 For each app (perf, example, etc.) go into Makefile and 
 
+- make sure the app is listed in ``SUBDIRS`` in the top-level Makefile.in (in the ``mtcp`` folder)
 - add the following on top: ```RTE_SDK=/opt/dpdk-23.11```
 - make sure ``TARGET`` is the proper file (client for perf, and epserver and epwget for example)
 - modify the following to these:
