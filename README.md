@@ -1,6 +1,27 @@
 # README
 
-This is a fork from the following fork of MTCP:
+This is a fork from the following fork of MTCP. Here is our setup instructions (also provided in a google DOC. Ask for access)
+
+Install DPDK and setup hugepages:
+
+```
+apt update
+cd scripts
+./install_dpdk.sh
+dpdk-hugepages.py -p 1G --setup 24G
+```
+
+Setup the NIC:
+
+Figure out the kind of NIC and driver using ```ethtool -i <interface_name>```
+
+For Mellanox, ConnectX-4 (```mlx5_core```) driver:
+
+
+
+
+
+# Below is the Fork's README
 
 This repository is a fork from [mTCP](https://github.com/mtcp-stack/mtcp).
 The development on mTCP seemed to stop for several years,
