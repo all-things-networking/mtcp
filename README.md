@@ -5,10 +5,12 @@ This is a fork from the following fork of MTCP. Here is our setup instructions (
 Install DPDK and setup hugepages:
 
 ```
-apt update
+sudo apt update
+cd mtcp
+git checkout mina-mtp
 cd scripts
-./install_dpdk.sh
-dpdk-hugepages.py -p 1G --setup 24G
+chmod +x install_dpdk.sh && ./install_dpdk.sh
+sudo dpdk-hugepages.py -p 1G --setup 24G
 ```
 
 ## Setup and test the NIC:
