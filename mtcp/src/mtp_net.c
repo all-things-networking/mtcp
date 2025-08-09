@@ -275,9 +275,12 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	mtph->ack_seq = ntohl(mtph->ack_seq);
     mtph->window = ntohs(mtph->window);
 
+    MTP_PRINT("here1\n");
     if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
-    int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
-    if (ret != 0) return MTP_ERROR;
+    // int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
+    // MTP_PRINT("here2\n");
+    // if (ret != 0) return MTP_ERROR;
+    MTP_PRINT("here3\n");
 
     // MTP - Combining dispatcher, context look up, and event chain
 
@@ -304,6 +307,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
             HandleMissingCtx(mtcp, iph, mtph, payload.len, cur_ts);
         }           
 
+        MTP_PRINT("calling syn chain\n");
         MtpSynChain(mtcp, cur_ts, remote_ip, remote_port, 
                     init_seq, rwnd_size, sack_permit,
                     mss_valid, mss, wscale_valid, wscale, 
