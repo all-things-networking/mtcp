@@ -42,9 +42,8 @@ endif
 #
 
 GCC_OPT += -Wall -fPIC -fgnu89-inline -Werror
-#DBG_OPT += -DDBGMSG
 #DBG_OPT = -DDBGMSG -DDBGFUNC -DSTREAM -DSTATE -DTSTAT -DAPP -DEPOLL
-#DBG_OPT = -DDBGMSG -DDBGFUNC -DSTREAM -DSTATE
+#DBG_OPT = -DDBGMSG -DDBGFUNC -DSTREAM -DSTATE -DAPP -DDBGERR -DINFO
 #DBG_OPT += -DPKTDUMP
 #DBG_OPT += -DDUMP_STREAM
 #GCC_OPT += -g -DNETSTAT -DINFO -DDBGERR -DDBGCERR
@@ -122,7 +121,8 @@ SRCS = core.c tcp_stream.c config.c api.c eventpoll.c socket.c pipe.c \
 	   arp.c timer.c cpu.c rss.c addr_pool.c fhash.c memory_mgt.c logger.c debug.c \
 	   tcp_rb_frag_queue.c tcp_ring_buffer.c tcp_send_buffer.c tcp_sb_queue.c tcp_stream_queue.c \
 	   psio_module.c io_module.c dpdk_module.c netmap_module.c onvm_module.c icmp.c \
-	   mtp_ep.c mtp_instr.c mtp_net.c mtp_bp.c mtp_seq.c
+		 mtp_net.c mtp_instr.c mtp_ep.c mtp_seq.c mtp_bp.c
+
 ifeq ($(CCP), 1)
 SRCS += ccp.c clock.c pacing.c
 endif
