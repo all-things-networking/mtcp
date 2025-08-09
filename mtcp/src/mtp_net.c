@@ -278,7 +278,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
     // int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
     // if (ret != 0) return MTP_ERROR;
-
+    
     // MTP - Combining dispatcher, context look up, and event chain
 
     // MTP: maps to SYN event
@@ -304,6 +304,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
             HandleMissingCtx(mtcp, iph, mtph, payload.len, cur_ts);
         }           
 
+        MTP_PRINT("calling syn chain\n");
         MtpSynChain(mtcp, cur_ts, remote_ip, remote_port, 
                     init_seq, rwnd_size, sack_permit,
                     mss_valid, mss, wscale_valid, wscale, 

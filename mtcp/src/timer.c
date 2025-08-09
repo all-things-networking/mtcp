@@ -215,6 +215,8 @@ HandleRTO(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 			cur_stream->state = TCP_ST_CLOSED;
 			cur_stream->close_reason = TCP_CONN_LOST;
 			if (cur_stream->socket) {
+				printf("Stream %u: error event in timer\n",
+						cur_stream->id);
 				RaiseErrorEvent(mtcp, cur_stream);
 			} else {
 				DestroyTCPStream(mtcp, cur_stream);
@@ -273,6 +275,8 @@ HandleRTO(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 			TRACE_RTO("Stream %d: SYN retries exceed maximum retries.\n", 
 					cur_stream->id);
 			if (cur_stream->socket) {
+				printf("Stream %u: error event in timer 2\n",
+						cur_stream->id);
 				RaiseErrorEvent(mtcp, cur_stream);
 			} else {
 				DestroyTCPStream(mtcp, cur_stream);
@@ -527,6 +531,8 @@ CheckConnectionTimeout(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh)
 			walk->state = TCP_ST_CLOSED;
 			walk->close_reason = TCP_TIMEDOUT;
 			if (walk->socket) {
+				printf("Stream %u: error event in connection timeout\n",
+						walk->id);
 				RaiseErrorEvent(mtcp, walk);
 			} else {
 				DestroyTCPStream(mtcp, walk);

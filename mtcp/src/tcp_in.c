@@ -625,6 +625,8 @@ ProcessTCPPayload(mtcp_manager_t mtcp, tcp_stream *cur_stream,
 		if (!rcvvar->rcvbuf) {
 			TRACE_ERROR("Stream %d: Failed to allocate receive buffer.\n", 
 					cur_stream->id);
+			printf("Stream %d: Failed to allocate receive buffer.\n", 
+			cur_stream->id);
 			cur_stream->state = TCP_ST_CLOSED;
 			cur_stream->close_reason = TCP_NO_MEM;
 			RaiseErrorEvent(mtcp, cur_stream);
@@ -793,6 +795,7 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
 			cur_stream->state = TCP_ST_CLOSE_WAIT;
 			cur_stream->close_reason = TCP_RESET;
 			if (cur_stream->socket) {
+				printf("Stream %u: error because of reset\n", cur_stream->id);
 				RaiseErrorEvent(mtcp, cur_stream);
 			} else {
 				DestroyTCPStream(mtcp, cur_stream);

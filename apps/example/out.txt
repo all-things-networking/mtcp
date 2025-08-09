@@ -1,0 +1,26 @@
+Application configuration:
+URL: /8k.txt
+# of total_flows: 1
+# of cores: 1
+Concurrency: 1
+start of dpdk config
+new dpdk
+RTE_MAX_ETHPORTS = 32
+here1: 1new dpdk num devices 4
+byte1:156
+byte1:156
+byte1:152
+byte1:152
+passed the check: ens1f1np1
+Initializing port 1... setting rss key len to 40 for driver_name: mlx5_pci
+rss key len is 40 for driver_name: mlx5_pci
+done: 
+nb_rx_queues: 1, nb_tx_queues: 1
+Port 1, MAC address: 9C:DC:71:5D:51:21
+
+
+Checking link statusdone
+Port 0 Link Up - speed 25000 Mbps - full-duplex
+iomodule: dev_ioctl(DEV_NAME): mlx5_pci
+main loop
+CONFIG.eth_nums = 1
