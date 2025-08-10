@@ -26,7 +26,7 @@
 //#include "mtp_bp.h"
 
 // TURN MTP ON/OFF BY COMMENTING OUT THIS LINE
-#define USE_MTP     1
+// #define USE_MTP     1
 // #define ENABLE_MTP_PRINT  1
 // #define MTP_FIXED_RTO 1
 
