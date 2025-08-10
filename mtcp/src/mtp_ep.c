@@ -137,7 +137,8 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	// MTP: maps to packet blueprint creation
 	
 	mtp_bp* bp;
-	bool merging = FALSE;
+	bool data_merging = FALSE;
+	bool ack_merging = FALSE;
 
 	if (!BPBuffer_isempty(cur_stream)){
 		mtp_bp* last_bp = GetLastBP(cur_stream);
@@ -147,24 +148,33 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 			MTP_PRINT("merging, prev blueprint is:");
 			print_MTP_bp(last_bp);
 			bp = last_bp;
-			merging = TRUE;
+			data_merging = TRUE;
+		}
+		else if (last_bp->payload.len == 0 &&
+				 last_bp->hdr.ack == TRUE &&
+				 last_bp->hdr.fin == FALSE &&
+				 last_bp->hdr.syn == FALSE) {
+		    MTP_PRINT("merging, prev blueprint is:");
+			print_MTP_bp(last_bp);
+			bp = last_bp;
+			ack_merging = TRUE;
 		}
 	}
 
-	if (!merging){
+	if (!data_merging && !ack_merging){
 		bp = GetFreeBP(cur_stream);	
 	} 
 	MTP_PRINT("got bp\n");
 	MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
     
-	if (!merging){
+	if (!data_merging && !ack_merging){
     	memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 	}
 
     bp->hdr.source = cur_stream->mtp->local_port;
     bp->hdr.dest = cur_stream->mtp->remote_port;
 
-	if (!merging){
+	if (!data_merging){
     	bp->hdr.seq = htonl(ctx->send_next);
 	}
 
@@ -205,14 +215,14 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     // Payload
     // MTP TODO: fix snbuf
-	if (!merging){
+	if (!data_merging){
 		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
 														sndvar->sndbuf->head_seq,
 														sndvar->sndbuf->head_seq);
 		bp->payload.data = data;
 	}
 
-	if (merging){
+	if (data_merging){
     	bp->payload.len += bytes_to_send;
 	}
 	else {
@@ -1308,14 +1318,14 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	ctx->last_flushed = ev_init_seq;
 
 	// sender related variables
-    ctx->last_rwnd_remote = ev_rwnd_size;
+	if (ev_wscale_valid) ctx->wscale_remote = ev_wscale;
+    ctx->last_rwnd_remote = ev_rwnd_size << ctx->wscale_remote;
 	ctx->send_una = ev_ack_seq;
 	ctx->send_next = ev_ack_seq;
 	ctx->lwu_seq = ev_init_seq - 1;
 	ctx->last_ack = ev_ack_seq;
 
 	// options
-	if (ev_wscale_valid) ctx->wscale_remote = ev_wscale;
 	if (ev_mss_valid) ctx->SMSS = ev_mss;
 	ctx->sack_permit_remote = ev_sack_permit;
 	ctx->ts_recent = ev_ts->value1;
