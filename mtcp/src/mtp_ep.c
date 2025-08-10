@@ -137,7 +137,8 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	// MTP: maps to packet blueprint creation
 	
 	mtp_bp* bp;
-	bool merging = FALSE;
+	bool data_merging = FALSE;
+	bool ack_merging = FALSE;
 
 	if (!BPBuffer_isempty(cur_stream)){
 		mtp_bp* last_bp = GetLastBP(cur_stream);
@@ -147,24 +148,33 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 			MTP_PRINT("merging, prev blueprint is:");
 			print_MTP_bp(last_bp);
 			bp = last_bp;
-			merging = TRUE;
+			data_merging = TRUE;
+		}
+		else if (last_bp->payload.len == 0 &&
+				 last_bp->hdr.ack == TRUE &&
+				 last_bp->hdr.fin == FALSE &&
+				 last_bp->hdr.syn == FALSE) {
+		    MTP_PRINT("merging, prev blueprint is:");
+			print_MTP_bp(last_bp);
+			bp = last_bp;
+			ack_merging = TRUE;
 		}
 	}
 
-	if (!merging){
+	if (!data_merging && !ack_merging){
 		bp = GetFreeBP(cur_stream);	
 	} 
 	MTP_PRINT("got bp\n");
 	MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
     
-	if (!merging){
+	if (!data_merging && !ack_merging){
     	memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
 	}
 
     bp->hdr.source = cur_stream->mtp->local_port;
     bp->hdr.dest = cur_stream->mtp->remote_port;
 
-	if (!merging){
+	if (!data_merging){
     	bp->hdr.seq = htonl(ctx->send_next);
 	}
 
@@ -205,14 +215,14 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 
     // Payload
     // MTP TODO: fix snbuf
-	if (!merging){
+	if (!data_merging){
 		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
 														sndvar->sndbuf->head_seq,
 														sndvar->sndbuf->head_seq);
 		bp->payload.data = data;
 	}
 
-	if (merging){
+	if (data_merging){
     	bp->payload.len += bytes_to_send;
 	}
 	else {

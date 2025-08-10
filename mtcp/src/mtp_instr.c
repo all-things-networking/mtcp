@@ -188,10 +188,10 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     mtp->init_seq = init_seq;
     mtp->send_una = send_una;
     mtp->send_next = send_next;
-    mtp->last_rwnd_remote = last_rwnd_remote;
+	mtp->wscale_remote = wscale;
+    mtp->last_rwnd_remote = last_rwnd_remote << wscale;
     mtp->recv_init_seq = recv_init_seq;
     mtp->recv_next = recv_next;
-    mtp->wscale_remote = wscale;
     mtp->last_flushed = last_flushed; 
 
     // Setting defaults
