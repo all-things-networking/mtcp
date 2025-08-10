@@ -39,22 +39,8 @@ Figure out the kind of NIC and driver using ```ethtool -i <interface_name>```
 ```
    sudo apt install automake libgmp-dev
    aclocal && autoheader && automake -a -c && autoconf && ./configure
+   make clean && make
 ```
-
-For each app (perf, example, etc.) go into Makefile and 
-
-- make sure the app is listed in ``SUBDIRS`` in the top-level Makefile.in (in the ``mtcp`` folder)
-- add the following on top: ```RTE_SDK=/opt/dpdk-23.11```
-- make sure ``TARGET`` is the proper file (client for perf, and epserver and epwget for example)
-- modify the following to these:
-```
-DPDK_MACHINE_LINKER_FLAGS=$(shell pkg-config --libs libdpdk)
-DPDK_MACHINE_LDFLAGS=$(DPDK_MACHINE_LINKER_FLAGS)
-LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lmtcp -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
-```
-
-Then clean and compile:
-``` make clean && make ```
 
 Make sure you add their own kernel module:
 ```
