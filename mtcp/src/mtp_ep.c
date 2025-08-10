@@ -1318,14 +1318,14 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	ctx->last_flushed = ev_init_seq;
 
 	// sender related variables
-    ctx->last_rwnd_remote = ev_rwnd_size;
+	if (ev_wscale_valid) ctx->wscale_remote = ev_wscale;
+    ctx->last_rwnd_remote = ev_rwnd_size << ctx->wscale_remote;
 	ctx->send_una = ev_ack_seq;
 	ctx->send_next = ev_ack_seq;
 	ctx->lwu_seq = ev_init_seq - 1;
 	ctx->last_ack = ev_ack_seq;
 
 	// options
-	if (ev_wscale_valid) ctx->wscale_remote = ev_wscale;
 	if (ev_mss_valid) ctx->SMSS = ev_mss;
 	ctx->sack_permit_remote = ev_sack_permit;
 	ctx->ts_recent = ev_ts->value1;
