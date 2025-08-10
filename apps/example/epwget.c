@@ -260,14 +260,18 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 			"Connection: Close\r\n\r\n", 
 			url, host);
 	len = strlen(request);
+	// printf("sent_len: %u\n", len);
 
 	wr = mtcp_write(ctx->mctx, sockid, request, len);
 	if (wr < len) {
 		TRACE_ERROR("Socket %d: Sending HTTP request failed. "
 				"try: %d, sent: %d\n", sockid, len, wr);
+		// printf("Socket %d: Sending HTTP request failed. "
+		// 		"try: %d, sent: %d\n", sockid, len, wr);		
 	}
 	ctx->stat.writes += wr;
 	TRACE_APP("Socket %d HTTP Request of %d bytes. sent.\n", sockid, wr);
+	// printf("Socket %d HTTP Request of %d bytes. sent.\n", sockid, wr);
 	wv->request_sent = TRUE;
 
 	ev.events = MTCP_EPOLLIN;
