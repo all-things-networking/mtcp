@@ -986,16 +986,16 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	}
 
 	// MTP TODO: this needs to be optimized
-	MtpWndPut(mtcp->rbm_rcv, ctx->meta_rwnd, ev_payload, ev_payloadlen, ev_seq);
-	MtpWndSlide(mtcp->rbm_rcv, ctx->meta_rwnd, AT_MTCP);
-	ctx->recv_next = ctx->meta_rwnd->head_seq;
+	// MtpWndPut(mtcp->rbm_rcv, ctx->meta_rwnd, ev_payload, ev_payloadlen, ev_seq);
+	// MtpWndSlide(mtcp->rbm_rcv, ctx->meta_rwnd, AT_MTCP);
+	// ctx->recv_next = ctx->meta_rwnd->head_seq;
 
     RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, ev_payload, ev_payloadlen, ev_seq);
 	MTP_PRINT("recv buffer merged len: %u\n", rcvvar->rcvbuf->merged_len);
 	MTP_PRINT("my calculated merged len: %u, recv_next: %u, last_flushed: %u\n", 
 			MTP_SEQ_SUB(ctx->recv_next, ctx->last_flushed, ctx->last_flushed) - 1, 
 			ctx->recv_next, ctx->last_flushed);
-	// ctx->recv_next = rcvvar->rcvbuf->head_seq + rcvvar->rcvbuf->merged_len;
+	ctx->recv_next = rcvvar->rcvbuf->head_seq + rcvvar->rcvbuf->merged_len;
 
 	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST || 
 		ctx->state == MTP_TCP_FIN_WAIT_2_ST) {
@@ -1040,7 +1040,24 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_st
 														ctx->last_flushed,
 														ctx->last_flushed) - 1);
 
-	mtp_bp* bp = GetFreeBP(cur_stream);
+	mtp_bp* bp;													
+	bool merging = FALSE;
+
+	if (!BPBuffer_isempty(cur_stream)){
+		mtp_bp* last_bp = GetLastBP(cur_stream);
+		if (last_bp->payload.len == 0 &&
+			last_bp->hdr.ack == TRUE &&
+			last_bp->hdr.fin == FALSE) {
+			MTP_PRINT("merging, prev blueprint is:\n");
+			print_MTP_bp(last_bp);
+			bp = last_bp;
+			merging = TRUE;
+		}
+	}	
+	
+	if (!merging){
+		bp = GetFreeBP(cur_stream);
+	}
 
 	// MTP_PRINT("got bp\n");
 	// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
