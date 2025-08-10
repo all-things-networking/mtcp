@@ -1040,7 +1040,24 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_st
 														ctx->last_flushed,
 														ctx->last_flushed) - 1);
 
-	mtp_bp* bp = GetFreeBP(cur_stream);
+	mtp_bp* bp;													
+	bool merging = FALSE;
+
+	if (!BPBuffer_isempty(cur_stream)){
+		mtp_bp* last_bp = GetLastBP(cur_stream);
+		if (last_bp->payload.len == 0 &&
+			last_bp->hdr.ack == TRUE &&
+			last_bp->hdr.fin == FALSE) {
+			MTP_PRINT("merging, prev blueprint is:\n");
+			print_MTP_bp(last_bp);
+			bp = last_bp;
+			merging = TRUE;
+		}
+	}	
+	
+	if (!merging){
+		bp = GetFreeBP(cur_stream);
+	}
 
 	// MTP_PRINT("got bp\n");
 	// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
