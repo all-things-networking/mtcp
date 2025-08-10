@@ -1,6 +1,7 @@
 # TODO: Make this Makefile.in pretty
 
-TARGETS = epserver epwget
+RTE_SDK=/opt/dpdk-23.11
+TARGETS = client
 CC=@CC@ -g -O3 -Wall -Werror -fgnu89-inline
 DPDK=@DPDK@
 PS=@PSIO@
