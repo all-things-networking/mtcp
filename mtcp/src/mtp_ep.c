@@ -986,16 +986,16 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	}
 
 	// MTP TODO: this needs to be optimized
-	MtpWndPut(mtcp->rbm_rcv, ctx->meta_rwnd, ev_payload, ev_payloadlen, ev_seq);
-	MtpWndSlide(mtcp->rbm_rcv, ctx->meta_rwnd, AT_MTCP);
-	ctx->recv_next = ctx->meta_rwnd->head_seq;
+	// MtpWndPut(mtcp->rbm_rcv, ctx->meta_rwnd, ev_payload, ev_payloadlen, ev_seq);
+	// MtpWndSlide(mtcp->rbm_rcv, ctx->meta_rwnd, AT_MTCP);
+	// ctx->recv_next = ctx->meta_rwnd->head_seq;
 
     RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, ev_payload, ev_payloadlen, ev_seq);
 	MTP_PRINT("recv buffer merged len: %u\n", rcvvar->rcvbuf->merged_len);
 	MTP_PRINT("my calculated merged len: %u, recv_next: %u, last_flushed: %u\n", 
 			MTP_SEQ_SUB(ctx->recv_next, ctx->last_flushed, ctx->last_flushed) - 1, 
 			ctx->recv_next, ctx->last_flushed);
-	// ctx->recv_next = rcvvar->rcvbuf->head_seq + rcvvar->rcvbuf->merged_len;
+	ctx->recv_next = rcvvar->rcvbuf->head_seq + rcvvar->rcvbuf->merged_len;
 
 	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST || 
 		ctx->state == MTP_TCP_FIN_WAIT_2_ST) {
