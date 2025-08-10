@@ -80,6 +80,10 @@ static int flowcnt = 0;
 static int concurrency;
 static int max_fds;
 static uint64_t response_size = 0;
+
+static int record_res = FALSE;
+static int res_fd;
+char res_buf[32];
 /*----------------------------------------------------------------------------*/
 struct wget_stat
 {
@@ -312,6 +316,13 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	TRACE_APP("Socket %d Total received bytes: %lu (%luMB)\n", 
 			sockid, wv->recv, wv->recv / 1000000);
 	TRACE_APP("Socket %d Total spent time: %lu us\n", sockid, tdiff);
+	if (record_res){
+		int len = sprintf(res_buf, "%lu\n", tdiff);
+		int ret = write(res_fd, res_buf, len);
+		if (ret != len){
+			printf("couldn't write res\n");
+		}
+	}
 	// printf("Socket %d Total received bytes: %lu (%luMB)\n", 
 	// 		sockid, wv->recv, wv->recv / 1000000);
 	// if (tdiff > 210000){
@@ -797,7 +808,7 @@ main(int argc, char **argv)
 	core_limit = num_cores;
 	concurrency = 100;
 
-	while (-1 != (o = getopt(argc, argv, "N:c:o:n:f:"))) {
+	while (-1 != (o = getopt(argc, argv, "N:c:o:n:f:r:"))) {
 		switch(o) {
 		case 'N':
 			core_limit = mystrtol(optarg, 10);
@@ -840,8 +851,14 @@ main(int argc, char **argv)
 		case 'f':
 			conf_file = optarg;
 			break;
+		case 'r':
+			printf("here\n");
+			record_res = TRUE;
+			res_fd = open(optarg, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 		}
 	}
+
+	if (core_limit > 1) record_res = FALSE;
 
 	if (total_flows < core_limit) {
 		core_limit = total_flows;
