@@ -40,6 +40,13 @@ struct mtcp_conf
 	int tcp_timeout;
 };
 
+// TODO: need to use AllocateChunk from memory_mgt.h
+// need to at least have two pools, one for 1MB chunks, and one for smaller chunks
+struct req_wrapper {
+	char* buff;
+	size_t len;
+};
+
 typedef struct mtcp_context *mctx_t;
 
 int 
@@ -144,5 +151,14 @@ mtcp_writev(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV);
 #ifdef __cplusplus
 };
 #endif
+
+
+int 
+mtcp_rpc_socket(mctx_t mctx, int domain, int protocol,
+				const struct sockaddr *addr, socklen_t addrlen);
+
+inline ssize_t
+mtcp_rpc_read(mctx_t mctx, int sockid, struct req_wrapper *req);
+
 
 #endif /* MTCP_API_H */

@@ -415,6 +415,70 @@ mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
 
 	return socket->id;
 }
+
+/*----------------------------------------------------------------------------*/
+int 
+mtcp_rpc_socket(mctx_t mctx, int domain, int protocol, 
+				const struct sockaddr *addr, socklen_t addrlen)
+{
+	mtcp_manager_t mtcp;
+	socket_map_t socket;
+
+	mtcp = GetMTCPManager(mctx);
+	if (!mtcp) {
+		return -1;
+	}
+
+	if (domain != AF_INET) {
+		errno = EAFNOSUPPORT;
+		return -1;
+	}
+
+	socket = AllocateSocket(mctx, SOCK_DGRAM, FALSE);
+	if (!socket) {
+		MTP_PRINT("Error\n");
+		errno = ENFILE;
+		return -1;
+	}
+
+
+	int sockid = socket->id;
+	if (mtcp->smap[sockid].socktype == MTCP_SOCK_UNUSED) {
+		TRACE_API("Invalid socket id: %d\n", sockid);
+		errno = EBADF;
+		return -1;
+	}
+
+	mtcp->smap[sockid].opts |= MTCP_NONBLOCK;
+
+	if (!addr) {
+		TRACE_API("Socket %d: empty address!\n", sockid);
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (mtcp->smap[sockid].opts & MTCP_ADDR_BIND) {
+		TRACE_API("Socket %d: address already bind for this socket.\n", sockid);
+		errno = EINVAL;
+		return -1;
+	}
+
+	/* we only allow bind() for AF_INET address */
+	if (addr->sa_family != AF_INET || addrlen < sizeof(struct sockaddr_in)) {
+		TRACE_API("Socket %d: invalid argument!\n", sockid);
+		errno = EINVAL;
+		return -1;
+	}
+
+	/* TODO: validate whether the address is already being used */
+
+	struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
+	mtcp->smap[sockid].saddr = *addr_in;
+	mtcp->smap[sockid].opts |= MTCP_ADDR_BIND;
+
+	return sockid;
+}
+
 /*----------------------------------------------------------------------------*/
 int 
 mtcp_bind(mctx_t mctx, int sockid, 
