@@ -436,7 +436,7 @@ mtcp_rpc_socket(mctx_t mctx, int domain, int protocol,
 
 	socket = AllocateSocket(mctx, MTCP_SOCK_RPC, FALSE);
 	if (!socket) {
-		MTP_PRINT("Error\n");
+		printf("Error\n");
 		errno = ENFILE;
 		return -1;
 	}
@@ -444,7 +444,7 @@ mtcp_rpc_socket(mctx_t mctx, int domain, int protocol,
 
 	int sockid = socket->id;
 	if (mtcp->smap[sockid].socktype == MTCP_SOCK_UNUSED) {
-		TRACE_API("Invalid socket id: %d\n", sockid);
+		printf("Invalid socket id: %d\n", sockid);
 		errno = EBADF;
 		return -1;
 	}
@@ -452,20 +452,21 @@ mtcp_rpc_socket(mctx_t mctx, int domain, int protocol,
 	mtcp->smap[sockid].opts |= MTCP_NONBLOCK;
 
 	if (!addr) {
-		TRACE_API("Socket %d: empty address!\n", sockid);
+		printf("Socket %d: empty address!\n", sockid);
 		errno = EINVAL;
 		return -1;
 	}
 
 	if (mtcp->smap[sockid].opts & MTCP_ADDR_BIND) {
-		TRACE_API("Socket %d: address already bind for this socket.\n", sockid);
+		printf("Socket %d: address already bind for this socket.\n", sockid);
 		errno = EINVAL;
 		return -1;
 	}
 
 	/* we only allow bind() for AF_INET address */
 	if (addr->sa_family != AF_INET || addrlen < sizeof(struct sockaddr_in)) {
-		TRACE_API("Socket %d: invalid argument!\n", sockid);
+		printf("Socket %d: invalid argument! socket_family is AF_INT: %d, addr_len: %d, sizeof(struct): %ld\n", 
+				sockid, (addr->sa_family == AF_INET), addrlen, sizeof(struct sockaddr_in));
 		errno = EINVAL;
 		return -1;
 	}
@@ -2028,3 +2029,27 @@ mtcp_writev(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
 	return to_write;
 }
 /*----------------------------------------------------------------------------*/
+
+int mtcp_find_saddr(mctx_t mctx, struct sockaddr_in *saddr,
+			    struct sockaddr_in *addr_in){
+
+	mtcp_manager_t mtcp = GetMTCPManager(mctx);
+	int nif, ret;
+	in_addr_t dip = addr_in->sin_addr.s_addr;
+
+	if (mtcp->ap) {
+		ret = FetchAddressPerCore(mtcp->ap, 
+						mctx->cpu, num_queues, addr_in, saddr);
+	} else {
+		uint8_t is_external;
+		nif = GetOutputInterface(dip, &is_external);
+		if (nif < 0) {
+			errno = EINVAL;
+			return -1;
+		}
+		ret = FetchAddress(ap[nif], 
+					mctx->cpu, num_queues, addr_in, saddr);
+		UNUSED(is_external);
+	}	
+	return ret;
+}

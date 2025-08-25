@@ -162,5 +162,8 @@ mtcp_rpc_socket(mctx_t mctx, int domain, int protocol,
 int
 mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct req_wrapper *req);
 
+int mtcp_find_saddr(mctx_t mctx, struct sockaddr_in *saddr,
+			    struct sockaddr_in *addr_in);
+
 
 #endif /* MTCP_API_H */

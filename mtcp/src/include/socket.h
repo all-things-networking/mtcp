@@ -30,6 +30,7 @@ struct socket_map
 	// MTP specific
 	#define MTP_HOMA_MAX_RPC 500
 	struct tcp_stream* rpcs[MTP_HOMA_MAX_RPC];
+	uint32_t max_oustanding_rpc;
 
 	uint32_t epoll;			/* registered events */
 	uint32_t events;		/* available events */
