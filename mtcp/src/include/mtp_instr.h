@@ -27,9 +27,14 @@ bool BPBuffer_isempty(tcp_stream *cur_stream);
 
 // new_ctx_instr
 // HOMA
-tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, char* buf,
-                      size_t msg_len, uint16_t srcport, uint16_t dest_port,
-                      uint32_t dest_ip, socket_map_t socket);
+tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind,
+							uint32_t local_ip, uint16_t local_port, 
+							uint32_t remote_ip, uint16_t remote_port,
+                            uint64_t rpc_id, uint32_t init_seq, uint32_t last_seq, 
+                            uint8_t state, uint32_t msg_len, uint32_t cur_offset,
+                            uint32_t granted, uint32_t birth,
+							bool rpc_is_client, uint16_t expected_segment_cnt,
+							uint32_t incoming, uint32_t bytes_remaining);
 
 // TCP
 int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog);

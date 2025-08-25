@@ -162,7 +162,7 @@ mtcp_rpc_socket(mctx_t mctx, int domain, int protocol,
 int
 mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct incoming_req_wrapper *req);
 
-int mtcp_rpc_send_req(mctx_t mctx, char* buf, size_t len,
+int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 					  const struct sockaddr_in *addr_in);
 					  
 int mtcp_find_saddr(mctx_t mctx, struct sockaddr_in *saddr,

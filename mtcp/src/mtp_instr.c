@@ -112,6 +112,58 @@ mtp_bp* GetFreeBP(struct tcp_stream *cur_stream){
  Funcion & helper functions for new context
  instruction
  ***********************************************/
+
+tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind,
+							uint32_t local_ip, uint16_t local_port, 
+							uint32_t remote_ip, uint16_t remote_port,
+                            uint64_t rpc_id, uint32_t init_seq, uint32_t last_seq, 
+                            uint8_t state, uint32_t msg_len, uint32_t cur_offset,
+                            uint32_t granted, uint32_t birth,
+							bool rpc_is_client, uint16_t expected_segment_cnt,
+							uint32_t incoming, uint32_t bytes_remaining){
+
+	tcp_stream *cur_stream = CreateTCPStream(mtcp, NULL, MTCP_SOCK_RPC, 
+					local_ip, local_port, remote_ip, remote_port);
+
+	cur_stream->sndvar->on_gen_list = FALSE;
+	cur_stream->rpc_ind = rpc_ind;
+    
+    struct mtp_ctx* mtp = cur_stream->mtp;
+	mtp->local_ip = local_ip;
+	mtp->local_port = local_port;
+	mtp->remote_ip = remote_ip;
+	mtp->remote_port = remote_port;
+	mtp->rpcid = rpc_id;
+	mtp->init_seq = init_seq;
+	mtp->last_seq = last_seq;
+	mtp->state = state;
+	mtp->message_length = msg_len;
+	mtp->curr_offset = cur_offset;
+	mtp->cc_granted = granted;
+	mtp->birth = birth;
+	mtp->rpc_is_client = rpc_is_client;
+	mtp->expected_segment_cnt = expected_segment_cnt;
+	mtp->cc_incoming = incoming;
+	mtp->cc_bytes_remaining = bytes_remaining;
+
+	// Defaults
+	mtp->resend_count = 0;
+
+	/*
+	mtp->meta_rwnd = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
+	// MTP TODO: this should raise an error event that comes back
+	//           to be processed according to the MTP program
+	if (!mtp->meta_rwnd) {
+		mtp->state = MTP_TCP_CLOSED_ST;
+		// cur_stream->close_reason = TCP_NO_MEM;
+		RaiseErrorEvent(mtcp, cur_stream);
+		return NULL;
+	}*/
+	
+
+	return cur_stream;
+}
+
 int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog) 
 {
 	// Check for existing listen context
@@ -176,6 +228,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	cur_stream->state = TCP_ST_SYN_RCVD;
     **/
 
+	/*
     struct mtp_ctx* mtp = cur_stream->mtp;
     // Setting according to input
     mtp->remote_ip = remote_ip;
@@ -210,19 +263,21 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	mtp->adv_zero_wnd = FALSE;
 	mtp->final_seq_remote = 0;
 	mtp->fin_received = FALSE;
+	*/
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	
-	rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
+	// rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
 	// MTP TODO: this should raise an error event that comes back
 	//           to be processed according to the MTP program
 	if (!rcvvar->rcvbuf) {
-		mtp->state = MTP_TCP_CLOSED_ST;
+		// mtp->state = MTP_TCP_CLOSED_ST;
 		// cur_stream->close_reason = TCP_NO_MEM;
 		RaiseErrorEvent(mtcp, cur_stream);
 		return NULL;
 	}
 	
+	/*
 	mtp->meta_rwnd = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
 	// MTP TODO: this should raise an error event that comes back
 	//           to be processed according to the MTP program
@@ -232,6 +287,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 		RaiseErrorEvent(mtcp, cur_stream);
 		return NULL;
 	}
+		*/
 	
 
 	return cur_stream;
@@ -295,10 +351,10 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf);
 		stream->rcvvar->rcvbuf = NULL;
 	}
-	if (stream->mtp->meta_rwnd) {
-		RBFree(mtcp->rbm_rcv, stream->mtp->meta_rwnd);
-		stream->mtp->meta_rwnd = NULL;
-	}
+	// if (stream->mtp->meta_rwnd) {
+	// 	RBFree(mtcp->rbm_rcv, stream->mtp->meta_rwnd);
+	// 	stream->mtp->meta_rwnd = NULL;
+	// }
 
 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
 

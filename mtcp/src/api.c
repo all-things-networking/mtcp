@@ -1456,7 +1456,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 }
 /*----------------------------------------------------------------------------*/
 int 
-mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct req_wrapper *req){
+mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct incoming_req_wrapper *req){
 	mtcp_manager_t mtcp;
 	socket_map_t socket;
 	tcp_stream *cur_stream;
@@ -1925,7 +1925,6 @@ int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 	
 	mtcp_manager_t mtcp;
 	socket_map_t socket;
-	int ret;
 
 	mtcp = GetMTCPManager(mctx);
 	if (!mtcp) {
@@ -1951,7 +1950,21 @@ int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 		return -1;
 	}
 
-	if (ret > 0 && !(sndvar->on_sendq || sndvar->on_send_list)) {
+	tcp_stream* cur_stream = MtpHomaSendReqChainPart1(mctx, mtcp, mtcp->cur_ts, buf, len,
+							  socket->saddr.sin_port, addr_in->sin_port,
+							  addr_in->sin_addr.s_addr, socket);
+
+	if (cur_stream == NULL){
+		TRACE_API("MtpHomaSendReqChainPart1 failed\n");
+		errno = EAGAIN;
+		return -1;
+	}
+
+	socket->rpcs[cur_stream->rpc_ind] = cur_stream;
+
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+
+	if (!(sndvar->on_sendq || sndvar->on_send_list)) {
 		SQ_LOCK(&mtcp->ctx->sendq_lock);
 		sndvar->on_sendq = TRUE;
 		// MTP_PRINT("enqueue in send queue\n");
@@ -1961,7 +1974,7 @@ int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 	}
 
 	// TODO: check that we are not exceeding max outstanding rpc
-	return ret;
+	return 0;
 }
 /*----------------------------------------------------------------------------*/
 int

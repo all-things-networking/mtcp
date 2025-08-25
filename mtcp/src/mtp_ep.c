@@ -17,15 +17,86 @@
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
-#define TCP_MAX_WINDOW 65535
 
+tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t cur_ts, char* buf,
+		                      size_t msg_len, uint16_t srcport, uint16_t dest_port,
+							  uint32_t dest_ip, socket_map_t socket){
+	
+	if (socket->cur_rpcs == socket->max_oustanding_rpc){
+        // TODO: raise error
+        return NULL;
+    }
+
+    int64_t rpc_id = GetNextRPCID(mctx, socket->id);
+	if (rpc_id < 0){
+		printf("Error getting RPC ID\n");
+		return NULL;
+	}
+	// Successfully got an rpc_id
+	// Increment the count of current outstanding RPCs
+	socket->cur_rpcs += 1;
+
+    uint16_t init_seq = 0;
+    
+	// TODO: Have to adjust send buff size based on message size
+	struct tcp_send_buffer* sndbuf = SBInit(mtcp->rbm_snd, init_seq);
+	if (!sndbuf) {
+		/* notification may not required due to -1 return */
+		errno = ENOMEM;
+		printf("Error creating send buffer\n");
+		return NULL;
+	}
+
+	int ret = SBPut(mtcp->rbm_snd, sndbuf, buf, msg_len);
+	assert(ret == msg_len);
+	if (ret <= 0) {
+		TRACE_ERROR("SBPut failed. reason: %d (sndlen: %lu, len: %u\n", 
+				ret, msg_len, sndbuf->len);
+		errno = EAGAIN;
+		return NULL;
+	}
+    
+    uint64_t granted = MTP_HOMA_UNSCHED_BYTES;
+    if (msg_len < granted) granted = msg_len;
+
+    uint64_t birth = cur_ts;
+
+	uint32_t last_seq = granted/MTP_HOMA_MSS;
+	if (granted % MTP_HOMA_MSS) last_seq++;
+
+	tcp_stream *cur_stream = CreateHomaCtx(mtcp, cur_ts, rpc_id,
+									        socket->saddr.sin_addr.s_addr, srcport,
+									        dest_ip, dest_port,
+											rpc_id,
+											init_seq,
+											last_seq,
+											MTP_HOMA_RPC_OUTGOING,
+											msg_len,
+											granted,
+											granted,
+											birth,
+											true, 0, 0,
+											msg_len - granted);
+	if (cur_stream){
+		cur_stream->sndvar->sndbuf = sndbuf;
+	}
+	else{
+		printf("Error creating Homa context\n");
+		SBFree(mtcp->rbm_snd, sndbuf);
+		errno = ENOMEM;
+	}
+
+	return cur_stream;
+
+ }
+/********************************************************************* */
+#define TCP_MAX_WINDOW 65535
 // Intermediate output
 typedef struct scratchpad_decl {
 	uint8_t change_cwnd;
 	bool skip_ack_eps;
 	bool expecting_ack;
 } scratchpad;
-
 
 // Helper functions
 /*----------------------------------------------------------------------------*/
@@ -92,7 +163,7 @@ static inline void EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint
  ***********************************************/
 static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 {
-	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	// struct tcp_send_vars *sndvar = cur_stream->sndvar;
 
 	/*
     if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;

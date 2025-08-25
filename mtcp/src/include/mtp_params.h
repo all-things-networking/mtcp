@@ -8,7 +8,12 @@
 // Protocol-specific parameters: Homa
 #define MTP_HOMA_MAX_RPC 500
 #define MTP_HOMA_UNSCHED_BYTES 60000
-#define MTP_HOMA_MSS (1514 - 14 - 20 - 60); // Last is DATA_HDR size
+#define MTP_HOMA_MSS (1514 - 14 - 20 - 60) // Last is DATA_HDR size
+
+#define MTP_HOMA_RPC_IN_SERVICE 8
+#define MTP_HOMA_RPC_INCOMING  6
+#define MTP_HOMA_RPC_OUTGOING  5
+#define MTP_HOMA_RPC_DEAD  0
 
 // Protocol-specific parameters: TCP
 

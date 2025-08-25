@@ -182,11 +182,13 @@ struct mtp_ctx {
 	uint16_t remote_port;
     uint16_t local_port;
     uint32_t remote_ip;
+	uint32_t local_ip;
 	uint64_t rpcid;
 	bool rpc_is_client;
 
     uint32_t curr_offset;
-    uint32_t seq;
+    uint32_t init_seq;
+	uint32_t last_seq;
 	uint16_t expected_segment_cnt;
 	//sliding_wnd rcvd_seqs;
 
@@ -268,6 +270,12 @@ HashFlow(const void *flow);
 
 int
 EqualFlow(const void *flow1, const void *flow2);
+
+unsigned int
+RPCHashFlow(const void *flow);
+
+int
+RPCEqualFlow(const void *flow1, const void *flow2);
 
 #if USE_CCP 
 /*----------------------------------------------------------------------------*/

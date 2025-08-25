@@ -107,6 +107,65 @@ EqualFlow(const void *f1, const void *f2)
 			flow1->dport == flow2->dport);
 }
 
+/*---------------------------------------------------------------------------*/
+unsigned int
+RPCHashFlow(const void *f)
+{
+	tcp_stream *flow = (tcp_stream *)f;
+#if 0
+	unsigned long hash = 5381;
+	int c;
+	int index;
+
+	char *str = (char *)&flow->saddr;
+	index = 0;
+
+	while ((c = *str++) && index++ < 12) {
+		if (index == 8) {
+			str = (char *)&flow->sport;
+		}
+		hash = ((hash << 5) + hash) + c;
+	}
+
+	return hash & (NUM_BINS_FLOWS - 1);
+#else
+	unsigned int hash, i;
+	char *key = (char *)&flow->saddr;
+
+	for (hash = i = 0; i < 12; ++i) {
+		hash += key[i];
+		hash += (hash << 10);
+		hash ^= (hash >> 6);
+	}
+
+	key = (char *)&flow->mtp->rpcid;
+	for (i = 0; i < 8; ++i) {
+		hash += key[i];
+		hash += (hash << 10);
+		hash ^= (hash >> 6);
+	}
+	
+	hash += (hash << 3);
+	hash ^= (hash >> 11);
+	hash += (hash << 15);
+
+	return hash & (NUM_BINS_FLOWS - 1);
+#endif
+}
+/*---------------------------------------------------------------------------*/
+int
+RPCEqualFlow(const void *f1, const void *f2)
+{
+	tcp_stream *flow1 = (tcp_stream *)f1;
+	tcp_stream *flow2 = (tcp_stream *)f2;
+
+	return (flow1->saddr == flow2->saddr && 
+			flow1->sport == flow2->sport &&
+			flow1->daddr == flow2->daddr &&
+			flow1->dport == flow2->dport &&
+			flow1->mtp->rpcid == flow2->mtp->rpcid);
+}
+
 #if USE_CCP
 /*---------------------------------------------------------------------------*/
 unsigned int HashSID(const void *f) {

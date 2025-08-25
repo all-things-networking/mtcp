@@ -1003,11 +1003,19 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 	}
 	g_mtcp[ctx->cpu] = mtcp;
 
+	#ifdef USE_MTP
+	mtcp->tcp_flow_table = CreateHashtable(RPCHashFlow, RPCEqualFlow, NUM_BINS_FLOWS);
+	if (!mtcp->tcp_flow_table) {
+		CTRACE_ERROR("Falied to allocate tcp flow table.\n");
+		return NULL;
+	}
+	#else
 	mtcp->tcp_flow_table = CreateHashtable(HashFlow, EqualFlow, NUM_BINS_FLOWS);
 	if (!mtcp->tcp_flow_table) {
 		CTRACE_ERROR("Falied to allocate tcp flow table.\n");
 		return NULL;
 	}
+	#endif
 
 #if USE_CCP
 	mtcp->tcp_sid_table = CreateHashtable(HashSID, EqualSID, NUM_BINS_FLOWS);
