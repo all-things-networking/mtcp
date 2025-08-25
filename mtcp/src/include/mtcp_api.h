@@ -43,7 +43,7 @@ struct mtcp_conf
 
 // TODO: need to use AllocateChunk from memory_mgt.h
 // need to at least have two pools, one for 1MB chunks, and one for smaller chunks
-struct req_wrapper {
+struct incoming_req_wrapper {
 	uint64_t rpc_id;
 	char* buff;
 	size_t len;
@@ -160,8 +160,11 @@ mtcp_rpc_socket(mctx_t mctx, int domain, int protocol,
 				const struct sockaddr *addr, socklen_t addrlen);
 
 int
-mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct req_wrapper *req);
+mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct incoming_req_wrapper *req);
 
+int mtcp_rpc_send_req(mctx_t mctx, char* buf, size_t len,
+					  const struct sockaddr_in *addr_in);
+					  
 int mtcp_find_saddr(mctx_t mctx, struct sockaddr_in *saddr,
 			    struct sockaddr_in *addr_in);
 

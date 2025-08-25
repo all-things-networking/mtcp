@@ -177,71 +177,26 @@ struct tcp_send_vars
 
 //#ifdef USE_MTP
 struct mtp_ctx {
-    uint32_t remote_ip;
-    uint32_t local_ip;
-    uint16_t remote_port;
+    uint8_t  state;
+	uint32_t message_length;
+	uint16_t remote_port;
     uint16_t local_port;
-    bool sack_permit_remote;
-    //addr_t buf_addr;
+    uint32_t remote_ip;
+	uint64_t rpcid;
+	bool rpc_is_client;
 
-    uint8_t state;
-    uint32_t SMSS;
-    uint32_t eff_SMSS;
+    uint32_t curr_offset;
+    uint32_t seq;
+	uint16_t expected_segment_cnt;
+	//sliding_wnd rcvd_seqs;
 
-    // sender vars
-    uint32_t init_seq;
-    uint32_t last_ack;
-    uint8_t duplicate_acks;
-    uint32_t flightsize_dupl;
-    uint32_t ssthresh;
-    uint32_t cwnd_size;
+	uint64_t cc_granted;
+    uint32_t cc_incoming;
+    uint32_t cc_bytes_remaining;
 
-    //uint32 RTO = ONE_SEC;
-    //int64 SRTT = 0;
-    //uint32 RTTVAR = 0;
-    //bool first_rto = 1;
+    uint64_t birth;
 
-    uint32_t send_una;
-    uint32_t send_next;
-    //uint32_t data_end = 0;
-    uint32_t wscale_remote;
-    uint32_t last_rwnd_remote;
-	uint8_t wscale;
-    uint32_t lwu_seq;
-    uint32_t lwu_ack;
-
-	uint32_t num_rtx;
-	uint32_t max_num_rtx;
-    
-    // receiver vars
-    uint32_t recv_init_seq;
-    uint32_t rwnd_size;
-    uint32_t recv_next;
-    uint32_t last_flushed;
-	bool adv_zero_wnd; 
-    //bool first_data_rcvd = true;
-
-    //timer_t ack_timeout;
-
-    //addr_t read_from_addr;
-    //addr_t write_to_addr;
-
-    struct tcp_ring_buffer *meta_rwnd;
-    //buffer_id_t bid;
-
-	// timestamps
-	uint32_t ts_recent;			/* recent peer timestamp */
-	uint32_t ts_lastack_rcvd;	/* last ack rcvd time */
-	uint32_t ts_last_ts_upd;	/* last peer ts update time */
-
-	// closing
-	bool closed;
-	
-	bool fin_sent;
-	uint32_t final_seq;
-	
-	bool fin_received;
-	uint32_t final_seq_remote;
+    uint32_t resend_count;
 };
 //#endif
 

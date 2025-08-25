@@ -88,3 +88,22 @@ GetSocket(mctx_t mctx, int sockid)
 
 	return &g_mtcp[mctx->cpu]->smap[sockid];
 }
+
+/*---------------------------------------------------------------------------*/
+int64_t 
+GetNextRPCID(mctx_t mctx, int sockid){
+	if (sockid < 0 || sockid >= CONFIG.max_concurrency) {
+		errno = EBADF;
+		return -1;
+	}
+	
+	socket_map_t socket = &g_mtcp[mctx->cpu]->smap[sockid];
+	for (int64_t i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (socket->rpcs[i] == NULL){
+			// found an empty slot
+			return i;
+		}
+	}
+
+	return -1; // all slots are full
+}

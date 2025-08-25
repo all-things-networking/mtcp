@@ -26,6 +26,12 @@ mtp_bp* GetLastBP(struct tcp_stream *cur_stream);
 bool BPBuffer_isempty(tcp_stream *cur_stream);
 
 // new_ctx_instr
+// HOMA
+tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, char* buf,
+                      size_t msg_len, uint16_t srcport, uint16_t dest_port,
+                      uint32_t dest_ip, socket_map_t socket);
+
+// TCP
 int CreateListenCtx(mtcp_manager_t mtcp, int sockid, int backlog);
 tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint32_t remote_ip, uint32_t local_ip,
@@ -34,6 +40,8 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint32_t init_seq, uint32_t send_una, uint32_t send_next, 
     uint32_t recv_init_seq, uint32_t recv_next, uint32_t last_flushed,
     uint16_t last_rwnd_remote, uint8_t wscale, uint8_t state);
+
+// Cleanup the context and free the memory
 void DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport);
 
 // "buffer" instructions

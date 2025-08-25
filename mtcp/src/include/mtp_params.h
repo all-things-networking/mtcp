@@ -5,8 +5,12 @@
 
 #define MTP_PER_FLOW_BP_CNT 1000
 
+// Protocol-specific parameters: Homa
+#define MTP_HOMA_MAX_RPC 500
+#define MTP_HOMA_UNSCHED_BYTES 60000
+#define MTP_HOMA_MSS (1514 - 14 - 20 - 60); // Last is DATA_HDR size
 
-// Protocol-specific parameters
+// Protocol-specific parameters: TCP
 
 #define MTP_TCP_LISTEN_ST 0
 #define MTP_TCP_ACCEPT_ST 1

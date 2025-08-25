@@ -818,11 +818,11 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
             else {
                 /* successfully sent packets */
                 // MTP TODO: fix
-                if (cur_stream->mtp->state == MTP_TCP_TIME_WAIT_ST){
-                    cur_stream->mtp->state = MTP_TCP_CLOSED_ST;
-                    MTP_PRINT("Stream %d: MTP TCP closed.\n", cur_stream->id);
-                    DestroyCtx(mtcp, cur_stream, cur_stream->mtp->local_port);
-                }
+                // if (cur_stream->mtp->state == MTP_TCP_TIME_WAIT_ST){
+                //     cur_stream->mtp->state = MTP_TCP_CLOSED_ST;
+                //     MTP_PRINT("Stream %d: MTP TCP closed.\n", cur_stream->id);
+                //     DestroyCtx(mtcp, cur_stream, cur_stream->mtp->local_port);
+                // }
             }
 		} 
         else {

@@ -4,6 +4,8 @@
 #include "mtcp_api.h"
 #include "mtcp_epoll.h"
 
+#include "mtp_params.h"
+
 /*----------------------------------------------------------------------------*/
 enum socket_opts
 {
@@ -28,9 +30,9 @@ struct socket_map
 	};
 
 	// MTP specific
-	#define MTP_HOMA_MAX_RPC 500
 	struct tcp_stream* rpcs[MTP_HOMA_MAX_RPC];
-	uint32_t max_oustanding_rpc;
+	uint32_t max_oustanding_rpc; //TODO: implement
+	uint32_t cur_rpcs;
 
 	uint32_t epoll;			/* registered events */
 	uint32_t events;		/* available events */
@@ -50,6 +52,9 @@ FreeSocket(mctx_t mctx, int sockid, int need_lock);
 /*----------------------------------------------------------------------------*/
 socket_map_t 
 GetSocket(mctx_t mctx, int sockid);
+/*----------------------------------------------------------------------------*/
+uint64_t 
+GetNextRPCID(mctx_t mctx, int sockid);
 /*----------------------------------------------------------------------------*/
 struct tcp_listener
 {

@@ -440,6 +440,8 @@ mtcp_rpc_socket(mctx_t mctx, int domain, int protocol,
 		errno = ENFILE;
 		return -1;
 	}
+	socket->cur_rpcs = 0;
+	socket->max_oustanding_rpc = MTP_HOMA_MAX_RPC;
 
 
 	int sockid = socket->id;
@@ -1917,6 +1919,50 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	return ret;
 }
 
+/*----------------------------------------------------------------------------*/
+int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
+					  const struct sockaddr_in *addr_in){
+	
+	mtcp_manager_t mtcp;
+	socket_map_t socket;
+	int ret;
+
+	mtcp = GetMTCPManager(mctx);
+	if (!mtcp) {
+		return -1;
+	}
+
+	if (sockid < 0 || sockid >= CONFIG.max_concurrency) {
+		TRACE_API("Socket id %d out of range.\n", sockid);
+		errno = EBADF;
+		return -1;
+	}
+
+	socket = &mtcp->smap[sockid];
+	if (socket->socktype == MTCP_SOCK_UNUSED) {
+		TRACE_API("Invalid socket id: %d\n", sockid);
+		errno = EBADF;
+		return -1;
+	}
+
+	if (socket->socktype != MTCP_SOCK_RPC) {
+		TRACE_API("Not an RPC socket. id: %d\n", sockid);
+		errno = ENOTSOCK;
+		return -1;
+	}
+
+	if (ret > 0 && !(sndvar->on_sendq || sndvar->on_send_list)) {
+		SQ_LOCK(&mtcp->ctx->sendq_lock);
+		sndvar->on_sendq = TRUE;
+		// MTP_PRINT("enqueue in send queue\n");
+		StreamEnqueue(mtcp->sendq, cur_stream);		/* this always success */
+		SQ_UNLOCK(&mtcp->ctx->sendq_lock);
+		mtcp->wakeup_flag = TRUE;
+	}
+
+	// TODO: check that we are not exceeding max outstanding rpc
+	return ret;
+}
 /*----------------------------------------------------------------------------*/
 int
 mtcp_writev(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
