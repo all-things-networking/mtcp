@@ -27,6 +27,10 @@ struct socket_map
 		struct pipe *pp;
 	};
 
+	// MTP specific
+	#define MTP_HOMA_MAX_RPC 500
+	struct tcp_stream* rpcs[MTP_HOMA_MAX_RPC];
+
 	uint32_t epoll;			/* registered events */
 	uint32_t events;		/* available events */
 	mtcp_epoll_data_t ep_data;

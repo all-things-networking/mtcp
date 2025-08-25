@@ -434,7 +434,7 @@ mtcp_rpc_socket(mctx_t mctx, int domain, int protocol,
 		return -1;
 	}
 
-	socket = AllocateSocket(mctx, SOCK_DGRAM, FALSE);
+	socket = AllocateSocket(mctx, MTCP_SOCK_RPC, FALSE);
 	if (!socket) {
 		MTP_PRINT("Error\n");
 		errno = ENFILE;
@@ -1450,6 +1450,63 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 
 	TRACE_API("Stream %d: mtcp_recv() returning %d\n", cur_stream->id, ret);
         return ret;
+}
+/*----------------------------------------------------------------------------*/
+int 
+mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct req_wrapper *req){
+	mtcp_manager_t mtcp;
+	socket_map_t socket;
+	tcp_stream *cur_stream;
+	struct tcp_recv_vars *rcvvar;
+	
+	MTP_PRINT("mtcp_recv called: sockid %d, len %zu, flags %d\n", sockid, len, flags);
+	mtcp = GetMTCPManager(mctx);
+        if (!mtcp) {
+		return -1;
+	}
+	
+	if (sockid < 0 || sockid >= CONFIG.max_concurrency) {
+		TRACE_API("Socket id %d out of range.\n", sockid);
+		errno = EBADF;
+		return -1;
+	}
+	
+	socket = &mtcp->smap[sockid];
+    if (socket->socktype == MTCP_SOCK_UNUSED) {
+		TRACE_API("Invalid socket id: %d\n", sockid);
+		errno = EBADF;
+		return -1;
+	}
+	
+	
+	if (socket->socktype != MTCP_SOCK_RPC) {
+		TRACE_API("Not an RPC socket. id: %d\n", sockid);
+		errno = ENOTSOCK;
+		return -1;
+	}
+	
+	/* stream should be in ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT */
+	cur_stream = socket->rpcs[rpc_ind];
+	(void) cur_stream;
+	// TODO: check state?
+
+	rcvvar = cur_stream->rcvvar;
+	(void) rcvvar;
+	
+	MTP_PRINT("MTP rpc read called: sockid %d, len %zu\n", sockid, len);
+	// TODO: because we are not going to use the recv buffer anymore, 
+	// we just pass the pointer instead of copy?
+	// SBUF_LOCK(&rcvvar->read_lock);
+	// ret = MtpReceiveChainPart1(mtcp, socket, socket->opts & MTCP_NONBLOCK, 
+	// 							buf, len, cur_stream);
+
+	// TODO: do we need to do this on write?
+	mtcp->wakeup_flag = TRUE;
+
+	// SBUF_UNLOCK(&rcvvar->read_lock);
+	
+	TRACE_API("Stream %d: mtcp_rpc_read() returning %d\n", cur_stream->id, ret);
+    return 0;	
 }
 /*----------------------------------------------------------------------------*/
 inline ssize_t

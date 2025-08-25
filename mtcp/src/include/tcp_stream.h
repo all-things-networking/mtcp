@@ -288,6 +288,7 @@ typedef struct tcp_stream
 
 //#ifdef USE_MTP
     struct mtp_ctx *mtp;
+	uint32_t rpc_ind;
 //#endif
 
 #if RATE_LIMIT_ENABLED
