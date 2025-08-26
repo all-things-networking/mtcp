@@ -10,7 +10,7 @@
 #include "debug.h"
 #include "fhash.h"
 
-#define IS_FLOW_TABLE(x)	(x == HashFlow)
+#define IS_FLOW_TABLE(x)	(x == RPCHashFlow)
 #define IS_LISTEN_TABLE(x)	(x == HashListener)
 #if USE_CCP
 #define IS_SID_TABLE(x)     (x == HashSID)

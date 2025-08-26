@@ -307,6 +307,11 @@ tcp_stream *
 CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
 		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport);
 
+tcp_stream *
+CreateRPCStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
+		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport,
+		uint64_t rpc_id);
+
 void
 DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream);
 

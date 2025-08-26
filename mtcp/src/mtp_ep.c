@@ -22,11 +22,14 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 		                      size_t msg_len, uint16_t srcport, uint16_t dest_port,
 							  uint32_t dest_ip, socket_map_t socket){
 	
+	printf("MtpHomaSendReqChainPart1 called\n");
+	// Check if we can send more RPCs
 	if (socket->cur_rpcs == socket->max_oustanding_rpc){
         // TODO: raise error
         return NULL;
     }
 
+	printf("1\n");
     int64_t rpc_id = GetNextRPCID(mctx, socket->id);
 	if (rpc_id < 0){
 		printf("Error getting RPC ID\n");
@@ -37,9 +40,13 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 	socket->cur_rpcs += 1;
 
     uint16_t init_seq = 0;
+
+	printf("2\n");
     
 	// TODO: Have to adjust send buff size based on message size
 	struct tcp_send_buffer* sndbuf = SBInit(mtcp->rbm_snd, init_seq);
+
+	printf("3\n");
 	if (!sndbuf) {
 		/* notification may not required due to -1 return */
 		errno = ENOMEM;
@@ -47,7 +54,10 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 		return NULL;
 	}
 
+	printf("4\n");
 	int ret = SBPut(mtcp->rbm_snd, sndbuf, buf, msg_len);
+
+	printf("5\n");
 	assert(ret == msg_len);
 	if (ret <= 0) {
 		TRACE_ERROR("SBPut failed. reason: %d (sndlen: %lu, len: %u\n", 
@@ -56,6 +66,7 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 		return NULL;
 	}
     
+	printf("6\n");
     uint64_t granted = MTP_HOMA_UNSCHED_BYTES;
     if (msg_len < granted) granted = msg_len;
 
@@ -63,6 +74,8 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 
 	uint32_t last_seq = granted/MTP_HOMA_MSS;
 	if (granted % MTP_HOMA_MSS) last_seq++;
+
+	printf("7\n");
 
 	tcp_stream *cur_stream = CreateHomaCtx(mtcp, cur_ts, rpc_id,
 									        socket->saddr.sin_addr.s_addr, srcport,
@@ -77,6 +90,8 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 											birth,
 											true, 0, 0,
 											msg_len - granted);
+
+	printf("8\n");
 	if (cur_stream){
 		cur_stream->sndvar->sndbuf = sndbuf;
 	}
@@ -86,6 +101,7 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 		errno = ENOMEM;
 	}
 
+	printf("END MtpHomaSendReqChainPart1\n");
 	return cur_stream;
 
  }

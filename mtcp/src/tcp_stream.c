@@ -163,7 +163,8 @@ RPCEqualFlow(const void *f1, const void *f2)
 			flow1->sport == flow2->sport &&
 			flow1->daddr == flow2->daddr &&
 			flow1->dport == flow2->dport &&
-			flow1->mtp->rpcid == flow2->mtp->rpcid);
+			flow1->mtp->rpcid == flow2->mtp->rpcid
+		);
 }
 
 #if USE_CCP
@@ -332,7 +333,7 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	memset(stream->sndvar, 0, sizeof(struct tcp_send_vars));
 
     #ifdef USE_MTP
-	memset(stream->sndvar, 0, sizeof(struct mtp_ctx));
+	memset(stream->mtp, 0, sizeof(struct mtp_ctx));
     #endif
 
 	stream->id = mtcp->g_id++;
@@ -341,7 +342,9 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	stream->daddr = daddr;
 	stream->dport = dport;
 
+	printf("before StreamHTInsert\n");
 	ret = StreamHTInsert(mtcp->tcp_flow_table, stream);
+	printf("after StreamHTInsert\n");
 	if (ret < 0) {
 		TRACE_ERROR("Stream %d: "
 				"Failed to insert the stream into hash table.\n", stream->id);
@@ -464,6 +467,199 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	UNUSED(sa);
 	return stream;
 }
+
+/*---------------------------------------------------------------------------*/
+tcp_stream *
+CreateRPCStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
+		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport,
+		uint64_t rpc_id)
+{
+	tcp_stream *stream = NULL;
+	int ret;
+
+	uint8_t is_external;
+	uint8_t *sa;
+	uint8_t *da;
+	
+	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
+
+	stream = (tcp_stream *)MPAllocateChunk(mtcp->flow_pool);
+	if (!stream) {
+		TRACE_ERROR("Cannot allocate memory for the stream. "
+				"CONFIG.max_concurrency: %d, concurrent: %u\n", 
+				CONFIG.max_concurrency, mtcp->flow_cnt);
+		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+		return NULL;
+	}
+	memset(stream, 0, sizeof(tcp_stream));
+
+	stream->rcvvar = (struct tcp_recv_vars *)MPAllocateChunk(mtcp->rv_pool);
+	if (!stream->rcvvar) {
+		MPFreeChunk(mtcp->flow_pool, stream);
+		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+		return NULL;
+	}
+	stream->sndvar = (struct tcp_send_vars *)MPAllocateChunk(mtcp->sv_pool);
+	if (!stream->sndvar) {
+		MPFreeChunk(mtcp->rv_pool, stream->rcvvar);
+		MPFreeChunk(mtcp->flow_pool, stream);
+		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+		return NULL;
+	}
+
+    #ifdef USE_MTP
+    stream->mtp = (struct mtp_ctx *)MPAllocateChunk(mtcp->mtp_pool);
+	if (!stream->mtp) {
+		MPFreeChunk(mtcp->sv_pool, stream->sndvar);
+		MPFreeChunk(mtcp->rv_pool, stream->rcvvar);
+		MPFreeChunk(mtcp->flow_pool, stream);
+		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+		return NULL;
+	}
+    #endif
+
+	memset(stream->rcvvar, 0, sizeof(struct tcp_recv_vars));
+	memset(stream->sndvar, 0, sizeof(struct tcp_send_vars));
+
+    #ifdef USE_MTP
+	memset(stream->mtp, 0, sizeof(struct mtp_ctx));
+    #endif
+
+	stream->id = mtcp->g_id++;
+	stream->saddr = saddr;
+	stream->sport = sport;
+	stream->daddr = daddr;
+	stream->dport = dport;
+	#ifdef USE_MTP
+	stream->mtp->rpcid = rpc_id;
+	#endif	
+
+	printf("before StreamHTInsert\n");
+	ret = StreamHTInsert(mtcp->tcp_flow_table, stream);
+	printf("after StreamHTInsert\n");
+	if (ret < 0) {
+		TRACE_ERROR("Stream %d: "
+				"Failed to insert the stream into hash table.\n", stream->id);
+		MPFreeChunk(mtcp->flow_pool, stream);
+		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+		return NULL;
+	}
+
+#if USE_CCP
+	ret = StreamHTInsert(mtcp->tcp_sid_table, stream);
+	if (ret < 0) {
+		TRACE_ERROR("Stream %d: "
+				"Failed to insert the stream into SID lookup table.\n", stream->id);
+		MPFreeChunk(mtcp->flow_pool, stream);
+		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+		return NULL;
+	}
+#endif
+
+	stream->on_hash_table = TRUE;
+	mtcp->flow_cnt++;
+
+	pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+
+	if (socket) {
+		stream->socket = socket;
+		socket->stream = stream;
+	}
+
+	stream->stream_type = type;
+	stream->state = TCP_ST_LISTEN;
+
+	stream->on_rto_idx = -1;
+	
+	stream->sndvar->ip_id = 0;
+	stream->sndvar->mss = TCP_DEFAULT_MSS;
+	stream->sndvar->wscale_mine = TCP_DEFAULT_WSCALE;
+	stream->sndvar->wscale_peer = 0;
+	stream->sndvar->nif_out = GetOutputInterface(stream->daddr, &is_external);
+	stream->is_external = is_external;
+
+	//stream->sndvar->iss = rand_r(&next_seed) % TCP_MAX_SEQ;
+	stream->sndvar->iss = 0;
+	stream->rcvvar->irs = 0;
+
+	stream->snd_nxt = stream->sndvar->iss;
+	stream->sndvar->snd_una = stream->sndvar->iss;
+#if USE_CCP
+	stream->sndvar->missing_seq = 0;
+#endif
+	stream->sndvar->snd_wnd = CONFIG.sndbuf_size;
+	stream->rcv_nxt = 0;
+	stream->rcvvar->rcv_wnd = TCP_INITIAL_WINDOW;
+
+	stream->rcvvar->snd_wl1 = stream->rcvvar->irs - 1;
+
+	stream->sndvar->rto = TCP_INITIAL_RTO;
+
+    stream->sndvar->mtp_bps_head = 0;
+    stream->sndvar->mtp_bps_tail = 0;
+
+#if BLOCKING_SUPPORT
+	if (pthread_cond_init(&stream->rcvvar->read_cond, NULL)) {
+		perror("pthread_cond_init of read_cond");
+		return NULL;
+	}
+	if (pthread_cond_init(&stream->sndvar->write_cond, NULL)) {
+		perror("pthread_cond_init of write_cond");
+		return NULL;
+	}
+#endif
+
+#if USE_SPIN_LOCK
+	if (pthread_spin_init(&stream->rcvvar->read_lock, PTHREAD_PROCESS_PRIVATE)) {
+#else
+	if (pthread_mutex_init(&stream->rcvvar->read_lock, NULL)) {
+#endif
+		perror("pthread_mutex_init of read_lock");
+#if BLOCKING_SUPPORT
+		pthread_cond_destroy(&stream->rcvvar->read_cond);
+		pthread_cond_destroy(&stream->sndvar->write_cond);
+#endif
+		return NULL;
+	}
+#if USE_SPIN_LOCK
+	if (pthread_spin_init(&stream->sndvar->write_lock, PTHREAD_PROCESS_PRIVATE)) {
+		perror("pthread_spin_init of write_lock");
+		pthread_spin_destroy(&stream->rcvvar->read_lock);
+#else
+	if (pthread_mutex_init(&stream->sndvar->write_lock, NULL)) {
+		perror("pthread_mutex_init of write_lock");
+		pthread_mutex_destroy(&stream->rcvvar->read_lock);
+#endif
+#if BLOCKING_SUPPORT
+		pthread_cond_destroy(&stream->rcvvar->read_cond);
+		pthread_cond_destroy(&stream->sndvar->write_cond);
+#endif
+		return NULL;
+	}
+
+	sa = (uint8_t *)&stream->saddr;
+	da = (uint8_t *)&stream->daddr;
+	TRACE_STREAM("CREATED NEW TCP STREAM %d: "
+			"%u.%u.%u.%u(%d) -> %u.%u.%u.%u(%d) (ISS: %u)\n", stream->id, 
+			sa[0], sa[1], sa[2], sa[3], ntohs(stream->sport), 
+			da[0], da[1], da[2], da[3], ntohs(stream->dport), 
+			stream->sndvar->iss);
+
+#if RATE_LIMIT_ENABLED
+	stream->bucket = NewTokenBucket();
+#endif
+#if PACING_ENABLED
+	stream->pacer = NewPacketPacer();
+#endif
+#if USE_CCP
+	ccp_create(mtcp, stream);
+#endif
+
+	UNUSED(da);
+	UNUSED(sa);
+	return stream;
+}
+
 /*---------------------------------------------------------------------------*/
 void
 DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream)

@@ -122,8 +122,10 @@ tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind
 							bool rpc_is_client, uint16_t expected_segment_cnt,
 							uint32_t incoming, uint32_t bytes_remaining){
 
-	tcp_stream *cur_stream = CreateTCPStream(mtcp, NULL, MTCP_SOCK_RPC, 
-					local_ip, local_port, remote_ip, remote_port);
+	printf("START CreateHomaCtx\n");
+	tcp_stream *cur_stream = CreateRPCStream(mtcp, NULL, MTCP_SOCK_RPC, 
+					local_ip, local_port, remote_ip, remote_port, rpc_id);
+	printf("After CreateTCPStream\n");
 
 	cur_stream->sndvar->on_gen_list = FALSE;
 	cur_stream->rpc_ind = rpc_ind;
