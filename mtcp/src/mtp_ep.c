@@ -22,14 +22,12 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 		                      size_t msg_len, uint16_t srcport, uint16_t dest_port,
 							  uint32_t dest_ip, socket_map_t socket){
 	
-	printf("MtpHomaSendReqChainPart1 called\n");
 	// Check if we can send more RPCs
 	if (socket->cur_rpcs == socket->max_oustanding_rpc){
         // TODO: raise error
         return NULL;
     }
 
-	printf("1\n");
     int64_t rpc_id = GetNextRPCID(mctx, socket->id);
 	if (rpc_id < 0){
 		printf("Error getting RPC ID\n");
@@ -40,13 +38,10 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 	socket->cur_rpcs += 1;
 
     uint16_t init_seq = 0;
-
-	printf("2\n");
     
 	// TODO: Have to adjust send buff size based on message size
 	struct tcp_send_buffer* sndbuf = SBInit(mtcp->rbm_snd, init_seq);
 
-	printf("3\n");
 	if (!sndbuf) {
 		/* notification may not required due to -1 return */
 		errno = ENOMEM;
@@ -54,10 +49,8 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 		return NULL;
 	}
 
-	printf("4\n");
 	int ret = SBPut(mtcp->rbm_snd, sndbuf, buf, msg_len);
 
-	printf("5\n");
 	assert(ret == msg_len);
 	if (ret <= 0) {
 		TRACE_ERROR("SBPut failed. reason: %d (sndlen: %lu, len: %u\n", 
@@ -66,7 +59,6 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 		return NULL;
 	}
     
-	printf("6\n");
     uint64_t granted = MTP_HOMA_UNSCHED_BYTES;
     if (msg_len < granted) granted = msg_len;
 
@@ -75,7 +67,6 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 	uint32_t last_seq = granted/MTP_HOMA_MSS;
 	if (granted % MTP_HOMA_MSS) last_seq++;
 
-	printf("7\n");
 
 	tcp_stream *cur_stream = CreateHomaCtx(mtcp, cur_ts, rpc_id,
 									        socket->saddr.sin_addr.s_addr, srcport,
@@ -91,7 +82,6 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 											true, 0, 0,
 											msg_len - granted);
 
-	printf("8\n");
 	if (cur_stream){
 		cur_stream->sndvar->sndbuf = sndbuf;
 	}
@@ -100,10 +90,12 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 		SBFree(mtcp->rbm_snd, sndbuf);
 		errno = ENOMEM;
 	}
-
-	printf("END MtpHomaSendReqChainPart1\n");
 	return cur_stream;
 
+ }
+
+ void MtpHomaSendReqChainPart2(){
+	
  }
 /********************************************************************* */
 #define TCP_MAX_WINDOW 65535
@@ -406,43 +398,7 @@ static inline int receive_ep(mtcp_manager_t mtcp, socket_map_t socket,
 	return 0;
 }
 
-static inline void timestamp_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
-		struct tcp_opt_timestamp* ev_ts, tcp_stream* cur_stream, scratchpad* scratch)
-{
-	/*
-	struct mtp_ctx *ctx = cur_stream->mtp;
-	
-	if (ev_ts->valid) {
-		// MTP TODO: do we need MTP_SEQ_LT here?
-		if (ev_ts->value1 < ctx->ts_recent) {
-			// TODO: ts_recent should be invalidated 
-			//		 before timestamp wraparound for long idle flow 
-			MTP_PRINT("PAWS Detect wrong timestamp. "
-					"ts_val: %u, prev: %u\n", 
-					ev_ts->value1, ctx->ts_recent);
-			// EnqueueACK(mtcp, cur_stream, cur_ts, ACK_OPT_NOW);
-			return;
-		} else {
-			// valid timestamp
-			if (ev_ts->value1 > ctx->ts_recent) {
-				TRACE_TSTAMP("Timestamp update. cur: %u, prior: %u "
-					"(time diff: %uus)\n", 
-					ev_ts->value1, ctx->ts_recent, 
-					TS_TO_USEC(cur_ts - ctx->ts_last_ts_upd));
-				ctx->ts_last_ts_upd = cur_ts;
-			}
 
-			ctx->ts_recent = ev_ts->value1;
-			ctx->ts_lastack_rcvd = ev_ts->value2;
-			// MTP TODO: integrate with MTP
-			cur_stream->rcvvar->ts_lastack_rcvd = ev_ts->value2;
-		}
-	}
-	else {
-		MTP_PRINT("timestamp_ep: no valid timestamp\n");
-	}
-		*/
-}
 static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq, 
         uint32_t ev_seq, tcp_stream* cur_stream, scratchpad* scratch){
 
@@ -1267,242 +1223,6 @@ static inline struct accept_res* accept_ep(mctx_t mctx, mtcp_manager_t mtcp,
 	return res;
 }
 
-static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
-	uint32_t ev_remote_ip, uint16_t ev_remote_port, uint32_t ev_init_seq, uint16_t ev_rwnd_size,
-    bool ev_sack_permit, bool ev_mss_valid, uint16_t ev_mss, bool ev_wscale_valid, uint8_t ev_wscale,
-	struct tcp_opt_timestamp *ev_ts,
-	struct mtp_listen_ctx *ctx)
-{
-	MTP_PRINT("syn_ep: received SYN from %u:%u to %u:%u\n", 
-			ev_remote_ip, ev_remote_port, ctx->local_ip, ctx->local_port);
-	MTP_PRINT("ctx->state: %d\n", ctx->state);
-	if (ctx->state != MTP_TCP_LISTEN_ST) return;
-	MTP_PRINT("syn_ep: in LISTEN state, proceeding\n");
-
-    
-    // MTP TODO: do rand init seq
-    // uint32_t init_seq = rand_r(&next_seed) % TCP_MAX_SEQ;
-    uint32_t init_seq = 0;
-
-    uint8_t wscale = 0;
-    if (ev_wscale_valid) wscale = ev_wscale;
-
-    uint16_t mss = 1460;
-    if (ev_mss_valid) mss = ev_mss;
-	// MTP new_ctx instruction
-	MTP_PRINT("Creating new context\n");
-	tcp_stream *cur_stream = CreateCtx(mtcp, cur_ts, 
-                                      ev_remote_ip, ctx->local_ip, 
-                                      ev_remote_port, ctx->local_port,
-                                      ev_sack_permit, mss, 
-                                      init_seq, init_seq, init_seq + 1,
-                                      ev_init_seq, ev_init_seq + 1, ev_init_seq,
-                                      ev_rwnd_size, wscale,
-                                      MTP_TCP_SYNACK_SENT_ST);
-	
-	MTP_PRINT("Created context, stream ptr: %p\n", cur_stream);
-	if (cur_stream == NULL) return;
-
-	
-	// cur_stream->sndvar->sndbuf = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);
-	if (!cur_stream->sndvar->sndbuf) {
-		cur_stream->close_reason = TCP_NO_MEM;
-		/* notification may not required due to -1 return */
-		errno = ENOMEM;
-		return;
-	}
-
-	// Add stream to the listen context
-	// Note: since mTCP's accept_res struct includes flow context, we insert
-	//		new accept_res after context creation
-	pthread_mutex_lock(&ctx->accept_lock);
-	if (ctx->pending_len < ctx->pending_cap) {
-		struct accept_res *acc = malloc(sizeof(*acc));
-		acc->stream = cur_stream;
-		TAILQ_INSERT_TAIL(&ctx->pending, acc, link);
-		ctx->pending_len++;
-	} else {
-		// Error handling
-		cur_stream->state = TCP_ST_CLOSED;
-		cur_stream->close_reason = TCP_NOT_ACCEPTED;
-		pthread_mutex_unlock(&ctx->accept_lock);
-		return;
-	}
-	pthread_mutex_unlock(&ctx->accept_lock);
-
-	// MTP pkt gen
-	/*uint32_t window32 = cur_stream->rcvvar->rcv_wnd;
-	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
-
-	SendMTPPacket(mtcp, cur_stream, cur_ts,
-		TCP_FLAG_SYN | TCP_FLAG_ACK, 
-		cur_stream->sndvar->iss, //seq
-		init_seq + 1, //ack
-		advertised_window, //window
-		NULL, 0);
-    */
-    // MTP TODO: check that size + options is not more than MSS
-   
-    mtp_bp* bp = GetFreeBP(cur_stream);
-
-	// MTP_PRINT("got bp\n");
-	// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
-    
-    memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
-
-	// bp->hdr.source = cur_stream->mtp->local_port;
-	// bp->hdr.dest = cur_stream->mtp->remote_port;
-    // bp->hdr.seq = htonl(cur_stream->mtp->init_seq);
-	// MTP_PRINT("Seq: %u\n", ntohl(bp->hdr.seq));
-    bp->hdr.ack_seq = htonl(ev_init_seq + 1);
-
-    bp->hdr.syn = TRUE;
-    bp->hdr.ack = TRUE;
-
-    // options to calculate data offset
-    // MSS
-    // MTP_set_opt_mss(&(bp->opts.mss), cur_stream->mtp->SMSS);
-   
-    // MTP TODO: SACK? 
-#if TCP_OPT_SACK_ENABLED
-    MTP_PRINT("ERROR:SACK Not supported in MTP TCP\n");
-#endif
-
-    MTP_set_opt_nop(&(bp->opts.nop1));
-    MTP_set_opt_nop(&(bp->opts.nop2));
-
-    // MTP TODO: Timestamp
-	uint32_t ts_value2 = 0;
-	if (ev_ts->valid){
-		ts_value2 = ev_ts->value1;
-	}
-    MTP_set_opt_timestamp(&(bp->opts.timestamp),
-                            htonl(cur_ts),
-                            htonl(ts_value2));
-    
-    // MTP TODO: Window scale
-    MTP_set_opt_nop(&(bp->opts.nop3));
-    // MTP_set_opt_wscale(&(bp->opts.wscale), cur_stream->mtp->wscale);
-   
-    // MTP TODO: would the MTP program do the length 
-    //           calculation itself?
-    uint16_t optlen = MTP_CalculateOptionLength(bp);
-    bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
-
-    // uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
-	// uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
-	// bp->hdr.window = htons(advertised_window);
-
-
-    // Payload
-    bp->payload.data = NULL;
-    bp->payload.len = 0;
-    bp->payload.needs_segmentation = FALSE;
-
-    AddtoGenList(mtcp, cur_stream, cur_ts);
-}
-
-void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
-				uint32_t ev_init_seq, uint32_t ev_ack_seq, 
-				uint16_t ev_rwnd_size, bool ev_sack_permit, 
-				bool ev_mss_valid, uint16_t ev_mss, 
-				bool ev_wscale_valid, uint8_t ev_wscale,
-				struct tcp_opt_timestamp* ev_ts, 
-				tcp_stream* cur_stream)
-{
-	/*
-	struct mtp_ctx *ctx = cur_stream->mtp;
-
-	if (ctx->state != MTP_TCP_SYN_SENT_ST) {
-		MTP_PRINT("MtpSyNAckChain: Invalid state %d for SYN-ACK\n", ctx->state);
-		return;
-	}
-
-	
-	ctx->state = MTP_TCP_ESTABLISHED_ST; //ESTABLISHED_ST
-
-	// receiver related variables
-    ctx->recv_init_seq = ev_init_seq;
-    ctx->recv_next = ev_init_seq + 1;
-	ctx->last_flushed = ev_init_seq;
-
-	// sender related variables
-	if (ev_wscale_valid) ctx->wscale_remote = ev_wscale;
-    ctx->last_rwnd_remote = ev_rwnd_size << ctx->wscale_remote;
-	ctx->send_una = ev_ack_seq;
-	ctx->send_next = ev_ack_seq;
-	ctx->lwu_seq = ev_init_seq - 1;
-	ctx->last_ack = ev_ack_seq;
-
-	// options
-	if (ev_mss_valid) ctx->SMSS = ev_mss;
-	ctx->sack_permit_remote = ev_sack_permit;
-	ctx->ts_recent = ev_ts->value1;
-	ctx->ts_lastack_rcvd = ev_ts->value2;
-	// MTP TODO: integrate with MTP
-	cur_stream->rcvvar->ts_lastack_rcvd = ev_ts->value2;
-	ctx->ts_last_ts_upd = cur_ts;
-
-	// Other sender size variables
-	if (ctx->cwnd_size == 1) ctx->cwnd_size = 2 * ctx->SMSS;
-	else ctx->cwnd_size = ctx->SMSS;
-	ctx->ssthresh = ctx->SMSS * 10;
-
-	mtp_bp* bp = GetFreeBP(cur_stream);
-
-	// MTP_PRINT("got bp\n");
-	// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
-	
-	memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
-
-	bp->hdr.source = cur_stream->mtp->local_port;
-	bp->hdr.dest = cur_stream->mtp->remote_port;
-	bp->hdr.seq = htonl(ctx->send_next);
-	// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
-	bp->hdr.ack_seq = htonl(ctx->recv_next);
-
-	bp->hdr.syn = FALSE;
-	bp->hdr.ack = TRUE;
-
-	// options to calculate data offset
-
-	// MTP TODO: SACK? 
-#if TCP_OPT_SACK_ENABLED
-	MTP_PRINT("ERROR:SACK Not supported in MTP TCP\n");
-#endif
-
-	MTP_set_opt_nop(&(bp->opts.nop1));
-	MTP_set_opt_nop(&(bp->opts.nop2));
-
-	// MTP TODO: Timestamp
-	MTP_set_opt_timestamp(&(bp->opts.timestamp),
-							htonl(cur_ts),
-							htonl(ctx->ts_recent));
-	
-
-	// MTP TODO: would the MTP program do the length 
-	//           calculation itself?
-	uint16_t optlen = MTP_CalculateOptionLength(bp);
-	bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
-
-	// MTP TODO: wscale on local
-	uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
-	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
-	bp->hdr.window = htons(advertised_window);
-	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
-
-	// Payload
-	// MTP TODO: fix snbuf
-	bp->payload.data = NULL;
-	bp->payload.len = 0;
-	bp->payload.needs_segmentation = FALSE;
-
-	AddtoGenList(mtcp, cur_stream, cur_ts);
-	
-	// MTP TODO: integrate into MTP
-	RaiseWriteEvent(mtcp, cur_stream);
-	*/
-}
 
 void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 	/*
@@ -1740,46 +1460,6 @@ void MtpReceiveChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
 	*/
 }
 
-void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq, 
-    uint32_t window, uint32_t seq, struct tcp_opt_timestamp* ev_ts, tcp_stream* cur_stream)
-{
-    /*
-    struct tcp_send_vars *sndvar = cur_stream->sndvar;
-
-    if (cur_stream->state == TCP_ST_SYN_RCVD){
-		// check if we're processing an acknowledgement of a SYN-ACK
-		if (ack_seq != sndvar->iss + 1) {
-			CTRACE_ERROR("Stream %d (TCP_ST_SYN_RCVD): "
-					"weird ack_seq: %u, iss: %u\n", 
-					cur_stream->id, ack_seq, sndvar->iss);
-			return;
-		}
-
-		TimerCancel(mtcp, cur_stream);
-	
-		uint32_t prior_cwnd = sndvar->cwnd;
-		sndvar->snd_una++;
-		cur_stream->snd_nxt = ack_seq;
-		sndvar->cwnd = ((prior_cwnd == 1) ? (sndvar->mss * TCP_INIT_CWND): sndvar->mss);
-		cur_stream->state = TCP_ST_ESTABLISHED;
-
-		// Raise an event to the listening socket
-		struct mtp_listen_ctx *listen_ctx = 
-			(struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &cur_stream->sport);
-		if (listen_ctx->socket && (listen_ctx->socket->epoll & MTCP_EPOLLIN)) {
-			AddEpollEvent(mtcp->ep, MTCP_EVENT_QUEUE, listen_ctx->socket, MTCP_EPOLLIN);
-		}
-    } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
-    */
-    scratchpad scratch;
-	timestamp_ep(mtcp, cur_ts, ev_ts, cur_stream, &scratch);
-    conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, &scratch);
-    rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-    fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-    slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-    ack_net_ep(mtcp, cur_ts, ack_seq, window, seq, cur_stream, &scratch);
-	fin_ack_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-}
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload, 
 	int payloadlen, tcp_stream *cur_stream)
@@ -1839,7 +1519,7 @@ void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
 	// MTP_PRINT("got bp\n");
 	// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
     
-    memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+    memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr));
 
 	/*
 	struct mtp_ctx *ctx = cur_stream->mtp;
@@ -1888,30 +1568,6 @@ void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
 
     AddtoGenList(mtcp, cur_stream, cur_ts);
 	*/
-}
-
-void MtpSynChain(mtcp_manager_t mtcp, uint32_t cur_ts,
-	uint32_t remote_ip, uint16_t remote_port, uint32_t init_seq, uint16_t rwnd_size,
-    bool sack_permit, bool mss_valid, uint16_t mss, bool wscale_valid, uint8_t wscale,
-	struct tcp_opt_timestamp *ev_ts, struct mtp_listen_ctx *ctx) 
-{
-	syn_ep(mtcp, cur_ts, remote_ip, remote_port, init_seq, rwnd_size, 
-           sack_permit, mss_valid, mss, wscale_valid, wscale, ev_ts, ctx);
-}
-
-void MtpSyNAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, 
-					uint32_t ev_init_seq, uint32_t ev_ack_seq, 
-					uint16_t ev_rwnd_size, bool ev_sack_permit, 
-					bool ev_mss_valid, uint16_t ev_mss, 
-                    bool ev_wscale_valid, uint8_t ev_wscale,
-					struct tcp_opt_timestamp* ev_ts, 
-					tcp_stream* cur_stream){
-	synack_ep(mtcp, cur_ts, ev_init_seq, ev_ack_seq,	
-				ev_rwnd_size, ev_sack_permit, 
-				ev_mss_valid, ev_mss, 
-				ev_wscale_valid, ev_wscale,
-				ev_ts, cur_stream);
-
 }
 
 void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){

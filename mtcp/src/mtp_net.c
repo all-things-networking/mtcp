@@ -28,33 +28,6 @@ static inline void HandleMissingCtx(mtcp_manager_t mtcp,
     */
 }
 
-/*----------------------------------------------------------------------------*/
-// MTP TODO: make protocol independent, like P4
-static inline int MTP_ValidateChecksum(mtcp_manager_t mtcp, const int ifidx,  
-	const struct iphdr *iph, int ip_len, struct mtp_bp_hdr* mtph, uint16_t payloadlen) {
-	
-    // Checksum validation
-#if VERIFY_RX_CHECKSUM
-	int rc = 0;
-#ifndef DISABLE_HWCSUM
-	if (mtcp->iom->dev_ioctl != NULL)
-		rc = mtcp->iom->dev_ioctl(mtcp->ctx, ifidx, PKT_RX_TCP_CSUM, NULL);
-#endif
-	if (rc == -1) {
-		uint16_t check = TCPCalcChecksum((uint16_t *)mtph, 
-			             (mtph->doff << 2) + payloadlen, iph->saddr, iph->daddr);
-		if (check) {
-			TRACE_DBG("Checksum Error: Original: 0x%04x, calculated: 0x%04x\n", 
-				mtph->check, TCPCalcChecksum((uint16_t *)mtph, 
-				(mtph->doff << 2) + payloadlen, iph->saddr, iph->daddr));
-			mtph->check = 0;
-			return MTP_ERROR;
-		}
-	}
-#endif
-
-	return 0;
-}
 
 /*----------------------------------------------------------------------------*/
 // Copied from tcp_in.c
@@ -138,106 +111,6 @@ static inline int ValidateSequence(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
  MTP net interface
  ***********************************************/
 
-void 
-MTPExtractOptions(uint8_t *buff,
-                  struct mtp_bp_options *opts,
-                  int sel_len,
-                  int len)
-{
-	int i;
-
-	for (i = 0; i < len; ) {
-        // MTP TODO: need to generalize for sel_len > 1
-        uint8_t opttype = *(buff + i);
-        
-        i++;
-        for (int j = 0; j < sel_len - 1; j++){
-            opttype = (opttype << 8) + *(buff + i);
-            i++;
-        }
-
-        // MTP_PRINT("i: %u, opttype: %u\n", i, opttype);
-
-        if (opttype == MTP_TCP_OPT_MSS){
-            i++; // for len
-            uint16_t mss = *(buff + i) << 8;
-            i++;
-            mss += *(buff + i);
-            i++;
-            MTP_PRINT("parsed mss: %u\n", mss);
-            MTP_set_opt_mss(&(opts->mss), mss); 
-        }
-
-        else if (opttype == MTP_TCP_OPT_SACK_PERMIT){
-            i++; // for len
-            MTP_set_opt_sack_permit(&(opts->sack_permit));
-        }      
-
-        else if (opttype == MTP_TCP_OPT_NOP) continue;
-
-        else if (opttype == MTP_TCP_OPT_TIMESTAMP){
-            i++; // for len
-            uint32_t t1 = ntohl(*(uint32_t *)(buff + i));
-            i += 4;
-            uint32_t t2 = ntohl(*(uint32_t *)(buff + i));
-            i += 4;
-            MTP_set_opt_timestamp(&(opts->timestamp), t1, t2); 
-        }
-
-        else if (opttype == MTP_TCP_OPT_WSCALE){
-            i++; // for len
-            uint8_t wscale = *(buff + i);
-            MTP_PRINT("parsed wscale: %u\n", wscale);
-            i++;
-            MTP_set_opt_wscale(&(opts->wscale), wscale);
-        } 
-
-        else {
-            // MTP TODO: parse option default;
-            uint8_t len = *(buff + i);
-            i++;
-            i += len - 2;
-        }
-/* 
-		opt = *(tcpopt + i++);
-		
-		if (opt == TCP_OPT_END) {	// end of option field
-			break;
-		} else if (opt == TCP_OPT_NOP) {	// no option
-			continue;
-		} else {
-
-			optlen = *(tcpopt + i++);
-			if (i + optlen - 2 > len) {
-				break;
-			}
-
-			if (opt == TCP_OPT_MSS) {
-				cur_stream->sndvar->mss = *(tcpopt + i++) << 8;
-				cur_stream->sndvar->mss += *(tcpopt + i++);
-				cur_stream->sndvar->eff_mss = cur_stream->sndvar->mss;
-#if TCP_OPT_TIMESTAMP_ENABLED
-				cur_stream->sndvar->eff_mss -= (TCP_OPT_TIMESTAMP_LEN + 2);
-#endif
-			} else if (opt == TCP_OPT_WSCALE) {
-				cur_stream->sndvar->wscale_peer = *(tcpopt + i++);
-			} else if (opt == TCP_OPT_SACK_PERMIT) {
-				cur_stream->sack_permit = TRUE;
-				TRACE_SACK("Remote SACK permited.\n");
-			} else if (opt == TCP_OPT_TIMESTAMP) {
-				TRACE_TSTAMP("Saw peer timestamp!\n");
-				cur_stream->saw_timestamp = TRUE;
-				cur_stream->rcvvar->ts_recent = ntohl(*(uint32_t *)(tcpopt + i));
-				cur_stream->rcvvar->ts_last_ts_upd = cur_ts;
-				i += 8;
-			} else {
-				// not handle
-				i += optlen - 2;
-			}
-		} */
-	}
-}
-
 // Net RX 
 int MTP_ProcessTransportPacket(mtcp_manager_t mtcp, 
 	uint32_t cur_ts, const int ifidx, const struct iphdr *iph, int ip_len) 
@@ -253,10 +126,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     //mtph->dest = ntohs(mtph->dest);
 	//mtph->source = ntohs(mtph->source);
     // MTP TODO: parse options
-    struct mtp_bp_options mtp_opt;
-    uint8_t *opt_buff = (uint8_t*) mtph + 20;
-    int opt_len = (mtph->doff - 5) * 4; 
-    MTPExtractOptions(opt_buff, &mtp_opt, 1, opt_len); 
+    
 	//struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
     struct mtp_bp_payload payload;
 	payload.data = (uint8_t *)mtph + (mtph->doff << 2);
@@ -265,15 +135,11 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
     struct mtp_bp tmp_bp;
     tmp_bp.hdr = *mtph;
-    tmp_bp.opts = mtp_opt;
     tmp_bp.payload = payload;
     MTP_PRINT("---------------------------------\n");
     MTP_PRINT("Received MTP packet:\n");
     print_MTP_bp(&tmp_bp);
 
-    mtph->seq = ntohl(mtph->seq);
-	mtph->ack_seq = ntohl(mtph->ack_seq);
-    mtph->window = ntohs(mtph->window);
 
     if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
     // int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
@@ -282,119 +148,39 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     // MTP - Combining dispatcher, context look up, and event chain
 
     // MTP: maps to SYN event
-    if (mtph->syn && !mtph->ack){
-        uint32_t remote_ip = iph->saddr;
-        uint16_t remote_port = mtph->source;
-        uint32_t init_seq = mtph->seq;
-        uint16_t rwnd_size = mtph->window;
-        bool sack_permit = mtp_opt.sack_permit.valid;
-        bool mss_valid = mtp_opt.mss.valid;
-        uint16_t mss = mtp_opt.mss.value;
-        bool wscale_valid = mtp_opt.wscale.valid;
-        uint8_t wscale = mtp_opt.wscale.value;
-        struct tcp_opt_timestamp *ev_ts = &(mtp_opt.timestamp);
-        
-        // MTP TODO: change key to include IP
-        // MTP TODO: separate out  flow id construction
-		// Listen context lookup
-        struct mtp_listen_ctx *listen_ctx = 
-			(struct mtp_listen_ctx *)ListenerHTSearch(mtcp->listeners, &(mtph->dest));
-        if (listen_ctx == NULL) {
-            printf("Could not find listen context\n");
-            HandleMissingCtx(mtcp, iph, mtph, payload.len, cur_ts);
-        }           
-
-        MTP_PRINT("calling syn chain\n");
-        MtpSynChain(mtcp, cur_ts, remote_ip, remote_port, 
-                    init_seq, rwnd_size, sack_permit,
-                    mss_valid, mss, wscale_valid, wscale, 
-                    ev_ts, listen_ctx);
-        return 0;
-    }
-
-    	
+    
+	
 	// MTP: maps to flow id generation in parser
-	tcp_stream s_stream;
-    s_stream.saddr = iph->daddr;
-	s_stream.sport = mtph->dest;
-	s_stream.daddr = iph->saddr;
-	s_stream.dport = mtph->source;
+	// tcp_stream s_stream;
+    // s_stream.saddr = iph->daddr;
+	// s_stream.sport = mtph->dest;
+	// s_stream.daddr = iph->saddr;
+	// s_stream.dport = mtph->source;
 
-    if (mtph->syn && mtph->ack){
-        uint32_t ev_init_seq = mtph->seq;
-        uint32_t ev_ack_seq = mtph->ack_seq;
-        uint16_t ev_rwnd_size = mtph->window;
-        bool ev_sack_permit = mtp_opt.sack_permit.valid;
-        bool ev_wscale_valid = mtp_opt.wscale.valid;
-        uint8_t ev_wscale = mtp_opt.wscale.value;
-        bool ev_mss_valid = mtp_opt.mss.valid;
-        uint16_t ev_mss = mtp_opt.mss.value;
-        struct tcp_opt_timestamp* ev_ts = &(mtp_opt.timestamp);
+    // if (mtph->syn && mtph->ack){
+    //     uint32_t ev_init_seq = mtph->seq;
+    //     uint32_t ev_ack_seq = mtph->ack_seq;
+    //     uint16_t ev_rwnd_size = mtph->window;
+    //     bool ev_sack_permit = mtp_opt.sack_permit.valid;
+    //     bool ev_wscale_valid = mtp_opt.wscale.valid;
+    //     uint8_t ev_wscale = mtp_opt.wscale.value;
+    //     bool ev_mss_valid = mtp_opt.mss.valid;
+    //     uint16_t ev_mss = mtp_opt.mss.value;
+    //     struct tcp_opt_timestamp* ev_ts = &(mtp_opt.timestamp);
 
-        tcp_stream *cur_stream = NULL;
-	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-            MTP_PRINT("SYNACK: No context\n");
-            return -1;
-            // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
-        }
+    //     tcp_stream *cur_stream = NULL;
+	//     if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
+    //         MTP_PRINT("SYNACK: No context\n");
+    //         return -1;
+    //         // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
+    //     }
 
-        MtpSyNAckChain(mtcp, cur_ts, 
-                       ev_init_seq, ev_ack_seq,
-                       ev_rwnd_size, ev_sack_permit, ev_mss_valid, ev_mss, 
-                       ev_wscale_valid, ev_wscale, ev_ts, cur_stream);
-        return 0;
-    }
-
-    if (mtph->ack){
-
-        uint32_t ev_ack_seq = mtph->ack_seq;
-        uint16_t ev_rwnd_size = mtph->window;
-        uint32_t ev_seq = mtph->seq;
-        struct tcp_opt_timestamp* ev_ts = &(mtp_opt.timestamp);
- 
-        // Context lookup
-        tcp_stream *cur_stream = NULL;
-	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-            MTP_PRINT("No context\n");
-            return -1;
-            // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
-        }
-        
-        MtpAckChain(mtcp, cur_ts, ev_ack_seq, ev_rwnd_size, 
-                        ev_seq, ev_ts, cur_stream);
-    }
-
-    if (payload.len > 0){
-        uint32_t ev_seq = mtph->seq;
-        uint32_t ev_payload_len = payload.len;
-        uint8_t* ev_data_ptr = payload.data;
-
-        tcp_stream *cur_stream = NULL;
-	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-            MTP_PRINT("SYNACK: No context\n");
-            return -1;
-            // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
-        }
-
-        MtpDataChain(mtcp, cur_ts, ev_seq, ev_data_ptr, 
-                     ev_payload_len, cur_stream);
-    } 
-
-    if (mtph->fin){
-        uint32_t ev_seq = mtph->seq;
-        uint32_t ev_payloadlen = payload.len;       
- 
-        // Context lookup
-        tcp_stream *cur_stream = NULL;
-	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
-            MTP_PRINT("No context\n");
-            return -1;
-            // MTP TODO: return HandleMissingCtx(mtcp, iph, tcph, seq, payload.len, cur_ts);
-        }
-
-        MTP_PRINT("going into MTP FIN\n");
-        MtpFinChain(mtcp, cur_ts, ev_seq, ev_payloadlen, cur_stream);
-    }
+    //     MtpSyNAckChain(mtcp, cur_ts, 
+    //                    ev_init_seq, ev_ack_seq,
+    //                    ev_rwnd_size, ev_sack_permit, ev_mss_valid, ev_mss, 
+    //                    ev_wscale_valid, ev_wscale, ev_ts, cur_stream);
+    //     return 0;
+    // }
 
     // Context lookup
     /*
@@ -495,7 +281,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         MTP_PRINT("Sending MTP packet:\n");
         print_MTP_bp(bp);
 
-        uint16_t optlen = MTP_CalculateOptionLength(bp);
+        uint16_t optlen = 0;
 
         if (bp->payload.needs_segmentation){
             uint32_t bytes_to_send = bp->payload.len;
@@ -543,56 +329,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
                     // MTP_PRINT("setup some fields\n");
 
-                    // options
-                    // MTP TODO: this can be further generalized
-                    int i = 0;
-                    uint8_t *buff_opts = (uint8_t*)mtph + MTP_HEADER_LEN;
-                    struct mtp_bp_options *bp_opts = &(bp->opts);
-
-                    if (bp_opts->mss.valid){
-                        buff_opts[i++] = bp_opts->mss.kind;
-                        buff_opts[i++] = bp_opts->mss.len;
-                        buff_opts[i++] = bp_opts->mss.value >> 8;
-                        buff_opts[i++] = bp_opts->mss.value % 256;
-                    }
                     
-                    if (bp_opts->sack_permit.valid){
-                        buff_opts[i++] = bp_opts->sack_permit.kind;
-                        buff_opts[i++] = bp_opts->sack_permit.len;
-                    }    
-            
-                    if (bp_opts->nop1.valid){
-                        buff_opts[i++] = bp_opts->nop1.kind;
-                    }
-                    if (bp_opts->nop2.valid){
-                        buff_opts[i++] = bp_opts->nop2.kind;
-                    }
-
-                    if (bp_opts->timestamp.valid){
-                        buff_opts[i++] = bp_opts->timestamp.kind;
-                        buff_opts[i++] = bp_opts->timestamp.len;
-                        uint8_t* val_start = &buff_opts[i];
-                        uint32_t *tmp = (uint32_t *)(val_start);
-                        tmp[0] = bp_opts->timestamp.value1;
-                        tmp[1] = bp_opts->timestamp.value2;
-                        i += 8;
-                    }
-                    
-                    if (bp_opts->nop3.valid){
-                        buff_opts[i++] = bp_opts->nop3.kind;
-                    }
-            
-                    if (bp_opts->wscale.valid){
-                        buff_opts[i++] = bp_opts->wscale.kind;
-                        buff_opts[i++] = bp_opts->wscale.len;
-                        buff_opts[i++] = bp_opts->wscale.value;
-                    }
-
-                    // MTP_PRINT("setup options\n");
-                    // MTP TODO: this is TCP specific?
-                    assert (i % 4 == 0);
-                    assert (i == optlen); 
-
                     // MTP TODO: do we need to lock here?
                     // copy payload if exist
                     // MTP_PRINT("packet addr:%p\n", (uint8_t *)mtph + MTP_HEADER_LEN + optlen);
@@ -605,22 +342,6 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     // MTP_PRINT("copied payload\n");
 
                     // MTP TODO: checksum is TCP specific
-                    int rc = -1;
-                    #if TCP_CALCULATE_CHECKSUM
-                    #ifndef DISABLE_HWCSUM
-                    if (mtcp->iom->dev_ioctl != NULL){
-                        rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
-                                    PKT_TX_TCPIP_CSUM, NULL);
-                    }
-                    #endif
-                    //MTP_PRINT("Test 6");
-
-                    if (rc == -1){
-                        mtph->check = TCPCalcChecksum((uint16_t *)mtph,
-                                        MTP_HEADER_LEN + optlen + pkt_len,
-                                        cur_stream->saddr, cur_stream->daddr);
-                    }
-                    #endif
 
                     // MTP_PRINT("setup checksum\n");
                     // update for next packet based on segementation rules
@@ -662,55 +383,6 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             // MTP TODO: this is TCP specific
             mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
 
-            // options
-            // MTP TODO: this can be further generalized
-            int i = 0;
-            uint8_t *buff_opts = (uint8_t*)mtph + MTP_HEADER_LEN;
-            struct mtp_bp_options *bp_opts = &(bp->opts);
-
-            if (bp_opts->mss.valid){
-                buff_opts[i++] = bp_opts->mss.kind;
-                buff_opts[i++] = bp_opts->mss.len;
-                buff_opts[i++] = bp_opts->mss.value >> 8;
-                buff_opts[i++] = bp_opts->mss.value % 256;
-            }
-            
-            if (bp_opts->sack_permit.valid){
-                buff_opts[i++] = bp_opts->sack_permit.kind;
-                buff_opts[i++] = bp_opts->sack_permit.len;
-            }    
-    
-            if (bp_opts->nop1.valid){
-                buff_opts[i++] = bp_opts->nop1.kind;
-            }
-            if (bp_opts->nop2.valid){
-                buff_opts[i++] = bp_opts->nop2.kind;
-            }
-
-            if (bp_opts->timestamp.valid){
-                buff_opts[i++] = bp_opts->timestamp.kind;
-                buff_opts[i++] = bp_opts->timestamp.len;
-                uint8_t* val_start = &buff_opts[i];
-                uint32_t *tmp = (uint32_t *)(val_start);
-                tmp[0] = bp_opts->timestamp.value1;
-                tmp[1] = bp_opts->timestamp.value2;
-                i += 8;
-            }
-            
-            if (bp_opts->nop3.valid){
-                buff_opts[i++] = bp_opts->nop3.kind;
-            }
-    
-            if (bp_opts->wscale.valid){
-                buff_opts[i++] = bp_opts->wscale.kind;
-                buff_opts[i++] = bp_opts->wscale.len;
-                buff_opts[i++] = bp_opts->wscale.value;
-            }
-
-            // MTP TODO: this is TCP specific?
-            assert (i % 4 == 0);
-            assert (i == optlen); 
-
             // MTP TODO: do we need to lock here?
             // copy payload if exist
             if (bp->payload.data != NULL) {
@@ -719,24 +391,6 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                 mtcp->nstat.tx_gdptbytes += payloadlen;
                 #endif // NETSTAT 
             } 
-
-            // MTP TODO: checksum is TCP specific
-            int rc = -1;
-            #if TCP_CALCULATE_CHECKSUM
-            #ifndef DISABLE_HWCSUM
-            if (mtcp->iom->dev_ioctl != NULL){
-                rc = mtcp->iom->dev_ioctl(mtcp->ctx, cur_stream->sndvar->nif_out,
-                            PKT_TX_TCPIP_CSUM, NULL);
-            }
-            #endif
-            //MTP_PRINT("Test 6");
-
-            if (rc == -1){
-                mtph->check = TCPCalcChecksum((uint16_t *)mtph,
-                                MTP_HEADER_LEN + optlen + payloadLen,
-                                cur_stream->saddr, cur_stream->daddr);
-            }
-            #endif
 
             sent += 1;
         }

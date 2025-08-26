@@ -517,7 +517,7 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 		
 		#ifdef USE_MTP
 		stream->sndvar->on_sendq = FALSE;
-		MtpSendChain(mtcp, cur_ts, stream);
+		MtpHomaSendReqChainPart2();
 		#else
 		stream->sndvar->on_sendq = FALSE;
 		AddtoSendList(mtcp, stream);

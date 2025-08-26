@@ -342,9 +342,8 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	stream->daddr = daddr;
 	stream->dport = dport;
 
-	printf("before StreamHTInsert\n");
 	ret = StreamHTInsert(mtcp->tcp_flow_table, stream);
-	printf("after StreamHTInsert\n");
+	
 	if (ret < 0) {
 		TRACE_ERROR("Stream %d: "
 				"Failed to insert the stream into hash table.\n", stream->id);
@@ -534,9 +533,8 @@ CreateRPCStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	stream->mtp->rpcid = rpc_id;
 	#endif	
 
-	printf("before StreamHTInsert\n");
 	ret = StreamHTInsert(mtcp->tcp_flow_table, stream);
-	printf("after StreamHTInsert\n");
+
 	if (ret < 0) {
 		TRACE_ERROR("Stream %d: "
 				"Failed to insert the stream into hash table.\n", stream->id);

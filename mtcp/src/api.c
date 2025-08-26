@@ -1926,20 +1926,17 @@ int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 	mtcp_manager_t mtcp;
 	socket_map_t socket;
 
-	printf("1\n");
 	mtcp = GetMTCPManager(mctx);
 	if (!mtcp) {
 		return -1;
 	}
 
-	printf("2\n");
 	if (sockid < 0 || sockid >= CONFIG.max_concurrency) {
 		TRACE_API("Socket id %d out of range.\n", sockid);
 		errno = EBADF;
 		return -1;
 	}
 
-	printf("3\n");
 	socket = &mtcp->smap[sockid];
 	if (socket->socktype == MTCP_SOCK_UNUSED) {
 		TRACE_API("Invalid socket id: %d\n", sockid);
@@ -1947,34 +1944,27 @@ int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 		return -1;
 	}
 
-	printf("4\n");
 	if (socket->socktype != MTCP_SOCK_RPC) {
 		TRACE_API("Not an RPC socket. id: %d\n", sockid);
 		errno = ENOTSOCK;
 		return -1;
 	}
 
-	printf("5\n");
 	tcp_stream* cur_stream = MtpHomaSendReqChainPart1(mctx, mtcp, mtcp->cur_ts, buf, len,
 							  socket->saddr.sin_port, addr_in->sin_port,
 							  addr_in->sin_addr.s_addr, socket);
 
-	printf("6\n");
 	if (cur_stream == NULL){
 		TRACE_API("MtpHomaSendReqChainPart1 failed\n");
 		errno = EAGAIN;
 		return -1;
 	}
 
-	printf("7\n");
 	socket->rpcs[cur_stream->rpc_ind] = cur_stream;
 	cur_stream->socket = socket;
 
-	printf("8\n");
-
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 
-	printf("9\n");
 
 	if (!(sndvar->on_sendq || sndvar->on_send_list)) {
 		SQ_LOCK(&mtcp->ctx->sendq_lock);
@@ -1984,8 +1974,6 @@ int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 		SQ_UNLOCK(&mtcp->ctx->sendq_lock);
 		mtcp->wakeup_flag = TRUE;
 	}
-
-	printf("10\n");
 
 	// TODO: check that we are not exceeding max outstanding rpc
 	return 0;
