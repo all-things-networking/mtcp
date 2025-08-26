@@ -1,6 +1,8 @@
 #ifndef MTP_PARAMS_H
 #define MTP_PARAMS_H
 
+#include <stdint.h>
+
 #define MTP_BP_BUFFER_FULL_ERROR  -2
 
 #define MTP_PER_FLOW_BP_CNT 1000
@@ -33,6 +35,9 @@
     // NEED_ACK = 0x17,
     // ACK = 0x18,
     // BOGUS = 0x19,
+
+extern uint32_t MTP_total_incoming; // MTP specific
+
 
 // Protocol-specific parameters: TCP
 

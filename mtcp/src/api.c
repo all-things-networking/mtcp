@@ -1950,7 +1950,7 @@ int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 		return -1;
 	}
 
-	tcp_stream* cur_stream = MtpHomaSendReqChainPart1(mctx, mtcp, mtcp->cur_ts, buf, len,
+	tcp_stream* cur_stream = MtpHomaSendReqChainPart1(mtcp, mtcp->cur_ts, buf, len,
 							  socket->saddr.sin_port, addr_in->sin_port,
 							  addr_in->sin_addr.s_addr, socket);
 

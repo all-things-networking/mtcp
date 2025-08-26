@@ -53,8 +53,8 @@ FreeSocket(mctx_t mctx, int sockid, int need_lock);
 socket_map_t 
 GetSocket(mctx_t mctx, int sockid);
 /*----------------------------------------------------------------------------*/
-int64_t 
-GetNextRPCID(mctx_t mctx, int sockid);
+int32_t 
+GetNextRPCInd(mtcp_manager_t mtcp, int sockid);
 /*----------------------------------------------------------------------------*/
 struct tcp_listener
 {

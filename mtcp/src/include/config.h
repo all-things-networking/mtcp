@@ -10,6 +10,7 @@ extern int num_devices;
 extern int num_devices_attached;
 extern int devices_attached[MAX_DEVICES];
 
+
 int 
 LoadConfiguration(const char *fname);
 

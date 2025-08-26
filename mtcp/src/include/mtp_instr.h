@@ -33,7 +33,8 @@ tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind
                             uint32_t rpc_id, uint32_t init_seq, uint32_t last_seq, 
                             uint8_t state, uint32_t msg_len, uint32_t cur_offset,
                             uint32_t granted, uint32_t birth,
-							bool rpc_is_client, uint16_t expected_segment_cnt,
+							bool rpc_is_client, uint32_t recv_init_seq,
+                            uint16_t expected_segment_cnt,
 							uint32_t incoming, uint32_t bytes_remaining);
 
 // TCP

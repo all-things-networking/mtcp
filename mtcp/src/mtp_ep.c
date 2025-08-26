@@ -18,7 +18,19 @@
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
 
-tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t cur_ts, char* buf,
+// Intermediate output
+typedef struct scratchpad_decl {
+	uint8_t type_pkt;
+    bool complete;
+    bool new_state;
+    bool needs_schedule;
+    bool dup_data_pkt;
+    uint32_t last_bytes_remaining;
+    bool last_grant;
+    bool send_fifo_rpc;
+} scratchpad;
+
+tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char* buf,
 		                      size_t msg_len, uint16_t srcport, uint16_t dest_port,
 							  uint32_t dest_ip, socket_map_t socket){
 	
@@ -28,14 +40,15 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
         return NULL;
     }
 
-    int64_t rpc_id = GetNextRPCID(mctx, socket->id);
-	if (rpc_id < 0){
+    int32_t rpc_ind = GetNextRPCInd(mtcp, socket->id);
+	if (rpc_ind < 0){
 		printf("Error getting RPC ID\n");
 		return NULL;
 	}
 	// Successfully got an rpc_id
 	// Increment the count of current outstanding RPCs
 	socket->cur_rpcs += 1;
+	uint32_t rpc_id = rpc_ind;
 
     uint16_t init_seq = 0;
     
@@ -79,11 +92,12 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 											granted,
 											granted,
 											birth,
-											true, 0, 0,
+											true, 0, 0, 0,
 											msg_len - granted);
 
 	if (cur_stream){
 		cur_stream->sndvar->sndbuf = sndbuf;
+		cur_stream->socket = socket;
 	}
 	else{
 		printf("Error creating Homa context\n");
@@ -153,14 +167,92 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 	cur_stream->homa_tx_prio_birth = birth;
 
  }
+
+void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
+							uint32_t ev_seq,
+							uint32_t ev_message_length,
+    						uint32_t ev_incoming,
+    						uint8_t ev_retransmit,
+							uint32_t ev_offset,
+							uint32_t ev_segment_length,
+							uint32_t ev_rpcid,
+							uint16_t ev_sport,
+							uint16_t ev_dport,
+							bool ev_single_packet,
+							uint32_t ev_local_ip,
+							uint32_t ev_remote_ip,
+							uint8_t* hold_addr,
+							socket_map_t socket){
+
+	scratchpad scratch;
+	// first_req_pkt_ep
+
+    uint8_t state = MTP_HOMA_RPC_INCOMING;
+    if (ev_single_packet) state = MTP_HOMA_RPC_IN_SERVICE;
+
+    uint16_t expected_segment_cnt = ev_message_length/MTP_HOMA_MSS;
+	if (ev_message_length % MTP_HOMA_MSS) expected_segment_cnt++;
+
+    // sliding_wnd rcvd_seqs(0, expected_segment_cnt);
+    // rcvd_seqs.set(ev.seq);
+
+	int32_t rpc_ind = GetNextRPCInd(mtcp, socket->id);
+	if (rpc_ind < 0){
+		printf("Error getting RPC ID\n");
+		return;
+	}
+
+	tcp_stream *cur_stream = CreateHomaCtx(mtcp, cur_ts, rpc_ind,
+										     ev_local_ip, 
+											 ev_dport,
+										     ev_remote_ip, 
+											 ev_sport,
+											 ev_rpcid, 
+											 0, //init_seq
+											 0, // last_seq
+											 state, 
+											 ev_message_length,
+											 0, // cur_offset
+											 0, //cc_granted 
+											 cur_ts,
+											 FALSE,  //is_client
+											 ev_seq, //recv_init_seq
+											 expected_segment_cnt, 
+											 ev_incoming,
+											 (ev_message_length - ev_segment_length) // cc_bytes_remaining
+											);
+
+	if (cur_stream == NULL){
+		printf("Error creating Homa context in first_req_pkt_ep\n");
+		return;
+	}
+	socket->rpcs[rpc_ind] = cur_stream;
+	cur_stream->socket = socket;
+
+    scratch.complete = ev_single_packet;
+    scratch.new_state = true;
+    scratch.needs_schedule = ev_message_length > ev_incoming;
+    scratch.last_bytes_remaining = (ev_message_length - ev_segment_length);
+    MTP_total_incoming += ev_incoming - ev_segment_length;
+
+	// TODO: figure out size...
+	struct tcp_ring_buffer *rcv_buff = RBInit(mtcp->rbm_rcv, ev_offset);
+	if (!rcv_buff) {
+		printf("Error creating ring buffer\n");
+		return;
+	}
+
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	rcvvar->rcvbuf = rcv_buff;
+
+	RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+
+    if (scratch.complete) {
+		RaiseReadEvent(mtcp, cur_stream);
+    }
+}
 /********************************************************************* */
 #define TCP_MAX_WINDOW 65535
-// Intermediate output
-typedef struct scratchpad_decl {
-	uint8_t change_cwnd;
-	bool skip_ack_eps;
-	bool expecting_ack;
-} scratchpad;
 
 // Helper functions
 /*----------------------------------------------------------------------------*/
@@ -503,7 +595,7 @@ static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t e
 static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq, 
     tcp_stream* cur_stream, scratchpad* scratch)
 {
-    if (scratch->skip_ack_eps) return;
+    // if (scratch->skip_ack_eps) return;
 
 	// if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
 	/*
@@ -547,7 +639,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 								    uint32_t ev_ack_seq, tcp_stream* cur_stream, 
 									scratchpad* scratch)
 {
-	if(scratch->skip_ack_eps) return;
+	// if(scratch->skip_ack_eps) return;
 	// if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
 
 	/*
@@ -616,7 +708,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_ack_seq, 
 	tcp_stream* cur_stream, scratchpad* scratch)
 {
-	if(scratch->skip_ack_eps) return;
+	// if(scratch->skip_ack_eps) return;
 	/*
 	// if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
     struct mtp_ctx *ctx = cur_stream->mtp;
@@ -662,7 +754,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	uint32_t ev_window, uint32_t ev_seq, tcp_stream* cur_stream, scratchpad* scratch)
 {
 	// MTP TODO: do wscale properly?
-	if(scratch->skip_ack_eps) return;
+	// if(scratch->skip_ack_eps) return;
 
 	/*
 	struct mtp_ctx *ctx = cur_stream->mtp;

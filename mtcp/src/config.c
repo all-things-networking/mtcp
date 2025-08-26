@@ -57,6 +57,7 @@ int num_devices;
 
 int num_devices_attached;
 int devices_attached[MAX_DEVICES];
+
 /*----------------------------------------------------------------------------*/
 static inline int
 mystrtol(const char *nptr, int base)

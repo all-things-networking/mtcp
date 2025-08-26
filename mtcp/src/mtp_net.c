@@ -139,11 +139,6 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     }
     // MTP - Compiler-End: extract
 
-    printf("ack.rpcid: %x, ack.srcport: %x, ack.destport: %x\n",
-                           mtph->data.seg.ack.rpcid,
-                           mtph->data.seg.ack.sport,
-                           mtph->data.seg.ack.dport);
-
     struct mtp_bp tmp_bp;
     tmp_bp.hdr = *mtph;
     tmp_bp.payload = payload;
@@ -153,8 +148,6 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
 
     // if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
-    // int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
-    // if (ret != 0) return MTP_ERROR;
     
     // MTP - Combining dispatcher, context look up, and event chain
 
@@ -162,11 +155,60 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     
 	
 	// MTP: maps to flow id generation in parser
-	// tcp_stream s_stream;
-    // s_stream.saddr = iph->daddr;
-	// s_stream.sport = mtph->dest;
-	// s_stream.daddr = iph->saddr;
-	// s_stream.dport = mtph->source;
+	tcp_stream s_stream;
+    s_stream.saddr = iph->daddr;
+	s_stream.sport = mtph->dest_port;
+	s_stream.daddr = iph->saddr;
+	s_stream.dport = mtph->src_port;
+    s_stream.rpc_id = mtph->sender_id;
+
+    tcp_stream *cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream);
+
+    if (!cur_stream && mtph->type == MTP_HOMA_DATA) {
+        uint32_t ev_seq = mtph->seq;
+        uint32_t ev_message_length = mtph->data.message_length;
+        uint32_t ev_incoming = mtph->data.incoming;
+        uint8_t ev_retransmit = mtph->data.retransmit;
+        uint32_t ev_offset = mtph->data.seg.offset;
+        uint32_t ev_segment_length = mtph->data.seg.segment_length;
+        uint32_t ev_rpcid = mtph->sender_id;
+        uint16_t ev_sport = mtph->src_port;
+        uint16_t ev_dport = mtph->dest_port;
+        bool single_packet = ev_message_length == ev_segment_length;
+        uint32_t ev_remote_ip = iph->saddr;
+        uint32_t ev_local_ip = iph->daddr;
+        uint8_t* ev_hold_addr = payload.data;
+
+        // TODO: iterate over smap (CONFIG.max_concurrency)
+        //       to find the right socket to associate with this packet
+        //       for server, it is only going to be one socket
+        socket_map_t socket = NULL;
+        for (int i = 0; i < CONFIG.max_concurrency; i++){
+            if (mtcp->smap[i].saddr.sin_addr.s_addr == iph->daddr &&
+                mtcp->smap[i].saddr.sin_port == mtph->dest_port){
+                // found the right socket
+                socket = &mtcp->smap[i];
+                break;
+            }
+        }
+
+        MtpHomaNoHomaCtxChain(mtcp, cur_ts, 
+                            ev_seq,
+                            ev_message_length,
+                            ev_incoming,
+                            ev_retransmit,
+                            ev_offset,
+                            ev_segment_length,
+                            ev_rpcid,
+                            ev_sport,
+                            ev_dport,
+                            single_packet,
+                            ev_local_ip,
+                            ev_remote_ip,
+                            ev_hold_addr,
+                            socket);
+    }
+    
 
     // if (mtph->syn && mtph->ack){
     //     uint32_t ev_init_seq = mtph->seq;

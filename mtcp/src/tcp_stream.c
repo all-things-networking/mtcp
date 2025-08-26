@@ -138,7 +138,7 @@ RPCHashFlow(const void *f)
 		hash ^= (hash >> 6);
 	}
 
-	key = (char *)&flow->mtp->rpcid;
+	key = (char *)&flow->rpc_id;
 	for (i = 0; i < 4; ++i) {
 		hash += key[i];
 		hash += (hash << 10);
@@ -163,7 +163,7 @@ RPCEqualFlow(const void *f1, const void *f2)
 			flow1->sport == flow2->sport &&
 			flow1->daddr == flow2->daddr &&
 			flow1->dport == flow2->dport &&
-			flow1->mtp->rpcid == flow2->mtp->rpcid
+			flow1->rpc_id == flow2->rpc_id
 		);
 }
 

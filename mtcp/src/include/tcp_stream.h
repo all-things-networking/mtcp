@@ -189,12 +189,14 @@ struct mtp_ctx {
     uint32_t curr_offset;
     uint32_t init_seq;
 	uint32_t last_seq;
-	uint16_t expected_segment_cnt;
 	//sliding_wnd rcvd_seqs;
 
 	uint32_t cc_granted;
     uint32_t cc_incoming;
     uint32_t cc_bytes_remaining;
+
+	uint16_t expected_segment_cnt;
+	uint32_t recv_init_seq;
 
     uint32_t birth;
 
@@ -246,6 +248,7 @@ typedef struct tcp_stream
 //#ifdef USE_MTP
     struct mtp_ctx *mtp;
 	uint32_t rpc_ind;
+	uint32_t rpc_id;
 	uint32_t homa_tx_prio_bytes_remaining;
 	uint32_t homa_tx_prio_rpcid;
 	uint16_t homa_tx_prio_local_port;

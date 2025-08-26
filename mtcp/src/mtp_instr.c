@@ -119,7 +119,8 @@ tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind
                             uint32_t rpc_id, uint32_t init_seq, uint32_t last_seq, 
                             uint8_t state, uint32_t msg_len, uint32_t cur_offset,
                             uint32_t granted, uint32_t birth,
-							bool rpc_is_client, uint16_t expected_segment_cnt,
+							bool rpc_is_client, uint32_t recv_init_seq,
+							uint16_t expected_segment_cnt,
 							uint32_t incoming, uint32_t bytes_remaining){
 
 	tcp_stream *cur_stream = CreateRPCStream(mtcp, NULL, MTCP_SOCK_RPC, 
@@ -127,6 +128,7 @@ tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind
 
 	cur_stream->sndvar->on_gen_list = FALSE;
 	cur_stream->rpc_ind = rpc_ind;
+	cur_stream->rpc_id = rpc_id;
     
     struct mtp_ctx* mtp = cur_stream->mtp;
 	mtp->local_ip = local_ip;
@@ -142,6 +144,7 @@ tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind
 	mtp->cc_granted = granted;
 	mtp->birth = birth;
 	mtp->rpc_is_client = rpc_is_client;
+	mtp->recv_init_seq = recv_init_seq;
 	mtp->expected_segment_cnt = expected_segment_cnt;
 	mtp->cc_incoming = incoming;
 	mtp->cc_bytes_remaining = bytes_remaining;
