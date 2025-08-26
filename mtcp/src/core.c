@@ -517,7 +517,20 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 		
 		#ifdef USE_MTP
 		stream->sndvar->on_sendq = FALSE;
-		MtpHomaSendReqChainPart2();
+		// MTP TODO: save parameters in cur_stream when enqueued in api.c
+		// and use them here
+		struct mtp_ctx *ctx = stream->mtp;
+		uint16_t ev_src_port = ctx->local_port;
+		uint16_t ev_dest_port = ctx->remote_port;
+		uint32_t ev_msg_len = ctx->message_length;	
+		uint32_t ev_init_seq = ctx->init_seq;
+		uint32_t rpc_id = ctx->rpcid;
+		uint32_t granted = ctx->cc_granted;
+		uint32_t birth = ctx->birth;
+		MtpHomaSendReqChainPart2(mtcp, cur_ts,
+							     ev_src_port, ev_dest_port, ev_msg_len,
+							     ev_init_seq, rpc_id, granted, 
+							     birth, stream);
 		#else
 		stream->sndvar->on_sendq = FALSE;
 		AddtoSendList(mtcp, stream);

@@ -183,7 +183,7 @@ struct mtp_ctx {
     uint16_t local_port;
     uint32_t remote_ip;
 	uint32_t local_ip;
-	uint64_t rpcid;
+	uint32_t rpcid;
 	bool rpc_is_client;
 
     uint32_t curr_offset;
@@ -192,11 +192,11 @@ struct mtp_ctx {
 	uint16_t expected_segment_cnt;
 	//sliding_wnd rcvd_seqs;
 
-	uint64_t cc_granted;
+	uint32_t cc_granted;
     uint32_t cc_incoming;
     uint32_t cc_bytes_remaining;
 
-    uint64_t birth;
+    uint32_t birth;
 
     uint32_t resend_count;
 };
@@ -246,6 +246,10 @@ typedef struct tcp_stream
 //#ifdef USE_MTP
     struct mtp_ctx *mtp;
 	uint32_t rpc_ind;
+	uint32_t homa_tx_prio_bytes_remaining;
+	uint32_t homa_tx_prio_rpcid;
+	uint16_t homa_tx_prio_local_port;
+	uint32_t homa_tx_prio_birth;
 //#endif
 
 #if RATE_LIMIT_ENABLED
@@ -310,7 +314,7 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 tcp_stream *
 CreateRPCStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
 		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport,
-		uint64_t rpc_id);
+		uint32_t rpc_id);
 
 void
 DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream);

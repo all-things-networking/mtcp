@@ -17,4 +17,9 @@ IPOutputStandalone(struct mtcp_manager *mtcp, uint8_t protocol,
 uint8_t *
 IPOutput(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen);
 
+
+uint8_t *
+IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
+			 uint8_t tos);
+
 #endif /* IP_OUT_H */

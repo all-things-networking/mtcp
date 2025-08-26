@@ -22,7 +22,10 @@
 		                      size_t msg_len, uint16_t srcport, uint16_t dest_port,
 							  uint32_t dest_ip, socket_map_t socket);
 
-void MtpHomaSendReqChainPart2();
+void MtpHomaSendReqChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts, 
+							   uint32_t ev_src_port, uint16_t ev_dest_port, uint32_t ev_msg_len,
+							   uint32_t ev_init_seq, uint32_t rpc_id, uint32_t granted, 
+							   uint32_t birth, tcp_stream *cur_stream);
 
 /********************** MTP EPs & EP Chains for TCP **********************
  * This module implements MTP Event Processors(EP), and EP chains

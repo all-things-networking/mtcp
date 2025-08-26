@@ -15,6 +15,25 @@
 #define MTP_HOMA_RPC_OUTGOING  5
 #define MTP_HOMA_RPC_DEAD  0
 
+#define HOMA_MAX_PRIORITIES 8
+
+// #define MTP_HOMA_COMMON_HSIZE 28
+// #define MTP_HOMA_DATA_HSIZE 32
+
+#define MTP_HOMA_COMMON_HSIZE 24
+#define MTP_HOMA_DATA_HSIZE 28
+
+#define MTP_HOMA_DATA  0x10
+#define MTP_HOMA_GRANT  0x11
+#define MTP_HOMA_RESEND 0x12
+#define MTP_HOMA_UNKNOWN 0x13
+#define MTP_HOMA_BUSY 0x14
+    // CUTOFFS = 0x15,
+    // FREEZE = 0x16,
+    // NEED_ACK = 0x17,
+    // ACK = 0x18,
+    // BOGUS = 0x19,
+
 // Protocol-specific parameters: TCP
 
 #define MTP_TCP_LISTEN_ST 0

@@ -44,7 +44,7 @@ struct mtcp_conf
 // TODO: need to use AllocateChunk from memory_mgt.h
 // need to at least have two pools, one for 1MB chunks, and one for smaller chunks
 struct incoming_req_wrapper {
-	uint64_t rpc_id;
+	uint32_t rpc_id;
 	char* buff;
 	size_t len;
 };

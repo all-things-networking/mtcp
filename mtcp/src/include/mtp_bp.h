@@ -17,17 +17,22 @@
 #define MTP_HEADER_LEN 20
 
 struct homa_ack {
-    uint64_t rpcid;
+    uint32_t rpcid;
     uint16_t sport;
     uint16_t dport;
 };
 
+// 8 + 4 + 8
 struct data_segment {
     uint32_t offset;
     uint32_t segment_length;
     struct homa_ack ack;
+    // uint32_t ack_rpcid;
+    // uint16_t ack_sport;
+    // uint16_t ack_dport;
 };
 
+// 12
 struct homa_data_hdr {
     uint32_t message_length;
     uint32_t incoming;
@@ -37,12 +42,14 @@ struct homa_data_hdr {
     struct data_segment seg;
 };
 
+// 9
 struct homa_resend_hdr {
     uint32_t offset;
     uint32_t length;
     uint8_t priority;
 };
 
+// 6
 struct homa_grant_hdr {
     uint32_t offset;
     uint8_t priority;
@@ -59,7 +66,7 @@ struct mtp_bp_hdr {
     uint16_t seq;
     uint16_t checksum;
     uint16_t unused4;
-    uint64_t sender_id; 
+    uint32_t sender_id; 
 
     union {
         struct homa_data_hdr data;

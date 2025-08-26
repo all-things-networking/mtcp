@@ -121,17 +121,28 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
 	// MTP - Compiler-Start: extract
     // maps to extract in the parser
+    printf("ip_len: %d\n", ip_len);
     struct mtp_bp_hdr *mtph = (struct mtp_bp_hdr *) ((u_char *)iph + (iph->ihl << 2));
     // MTP TODO: add this after changing tcp_stream because that one keeps it in network order
     //mtph->dest = ntohs(mtph->dest);
 	//mtph->source = ntohs(mtph->source);
     // MTP TODO: parse options
     
-	//struct tcphdr* tcph = (struct tcphdr *) ((u_char *)iph + (iph->ihl << 2));
     struct mtp_bp_payload payload;
-	payload.data = (uint8_t *)mtph + (mtph->doff << 2);
-    payload.len = ip_len - (payload.data - (u_char *)iph); 
+    if (mtph->type == MTP_HOMA_DATA){
+	    payload.data = (uint8_t *)mtph + (MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE);
+        payload.len = ip_len - (payload.data - (u_char *)iph);
+    }
+    else {
+        payload.data = NULL;
+        payload.len = 0;
+    }
     // MTP - Compiler-End: extract
+
+    printf("ack.rpcid: %x, ack.srcport: %x, ack.destport: %x\n",
+                           mtph->data.seg.ack.rpcid,
+                           mtph->data.seg.ack.sport,
+                           mtph->data.seg.ack.dport);
 
     struct mtp_bp tmp_bp;
     tmp_bp.hdr = *mtph;
@@ -141,7 +152,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
     print_MTP_bp(&tmp_bp);
 
 
-    if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
+    // if (ip_len < ((iph->ihl + mtph->doff) << 2)) return MTP_ERROR;
     // int ret = MTP_ValidateChecksum(mtcp, ifidx, iph, ip_len, mtph, payload.len);
     // if (ret != 0) return MTP_ERROR;
     
@@ -281,16 +292,16 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         MTP_PRINT("Sending MTP packet:\n");
         print_MTP_bp(bp);
 
-        uint16_t optlen = 0;
-
         if (bp->payload.needs_segmentation){
+            assert(bp->payload.data != NULL);
             uint32_t bytes_to_send = bp->payload.len;
             uint8_t *data_ptr = bp->payload.data;
 
             // MTP_PRINT("1 sending, here\n");
 
             if (bp->payload.seg_rule_group_id == 1){
-                uint32_t seq = ntohl(bp->hdr.seq);
+                uint32_t seq = bp->hdr.seq;
+                uint32_t seg_offset = bp->hdr.data.seg.offset;
                 uint32_t seg_size = bp->payload.seg_size;
 
                 while (bytes_to_send > 0) {
@@ -302,10 +313,15 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
                     // Send the next packet
                     struct mtp_bp_hdr *mtph;
-                    mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
-                            MTP_HEADER_LEN + optlen + pkt_len);
+                    // TODO: technically, we should check the 
+                    //.       packet type.
+                    uint32_t hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE;
+                    // TODO: add UDP header
+                    mtph = (struct mtp_bp_hdr *)IPOutputWTos(mtcp, cur_stream,
+                            hdr_len + pkt_len, bp->prio);
                     if (mtph == NULL) {
-                        bp->hdr.seq = htonl(seq);
+                        bp->hdr.seq = seq;
+                        bp->hdr.data.seg.offset = seg_offset;
                         bp->payload.len = bytes_to_send;
                         bp->payload.data = data_ptr;
                         
@@ -317,15 +333,20 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
                     // MTP_PRINT("got packet memory\n");
 
-                    memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
+                    memcpy((uint8_t *)mtph, &(bp->hdr), hdr_len);
+                    printf("ack.rpcid: %u, ack.srcport: %u, ack.destport: %u\n",
+                           mtph->data.seg.ack.rpcid,
+                           mtph->data.seg.ack.sport,
+                           mtph->data.seg.ack.dport);
 
                     // MTP_PRINT("copied the header\n");
 
-                    mtph->seq = htonl(seq);
+                    mtph->seq = seq;
+                    mtph->data.seg.offset = seg_offset;
+                    mtph->data.seg.segment_length = pkt_len;
+                    printf("mtph->seq: %u, mtph->data.seg.offset: %u, mtph->data.seg.segment_length: %u\n",
+                           mtph->seq, mtph->data.seg.offset, mtph->data.seg.segment_length);
                     // MTP_PRINT("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
-
-                    // MTP TODO: this is TCP specific
-                    mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
 
                     // MTP_PRINT("setup some fields\n");
 
@@ -334,7 +355,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     // copy payload if exist
                     // MTP_PRINT("packet addr:%p\n", (uint8_t *)mtph + MTP_HEADER_LEN + optlen);
                     // MTP_PRINT("data pointer: %p\n", data_ptr);
-                    memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, data_ptr, pkt_len);
+                    memcpy((uint8_t *)mtph + hdr_len, data_ptr, pkt_len);
                     #if defined(NETSTAT) && defined(ENABLELRO)
                     mtcp->nstat.tx_gdptbytes += payloadlen;
                     #endif // NETSTAT 
@@ -346,7 +367,8 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     // MTP_PRINT("setup checksum\n");
                     // update for next packet based on segementation rules
                     bytes_to_send -= pkt_len;
-                    seq += pkt_len;
+                    seq += 1;
+                    seg_offset += pkt_len;
                     data_ptr += pkt_len;
 
                     // MTP_PRINT("moving on\n");
@@ -356,6 +378,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             sent += 1;
         }
         else {
+            /*
             uint16_t payloadLen = 0;
             if (bp->payload.data != NULL){
                 payloadLen = bp->payload.len;
@@ -393,6 +416,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             } 
 
             sent += 1;
+            */
         }
     }
     

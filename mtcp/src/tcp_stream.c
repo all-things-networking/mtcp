@@ -139,7 +139,7 @@ RPCHashFlow(const void *f)
 	}
 
 	key = (char *)&flow->mtp->rpcid;
-	for (i = 0; i < 8; ++i) {
+	for (i = 0; i < 4; ++i) {
 		hash += key[i];
 		hash += (hash << 10);
 		hash ^= (hash >> 6);
@@ -471,7 +471,7 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 tcp_stream *
 CreateRPCStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
 		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport,
-		uint64_t rpc_id)
+		uint32_t rpc_id)
 {
 	tcp_stream *stream = NULL;
 	int ret;

@@ -59,10 +59,10 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 		return NULL;
 	}
     
-    uint64_t granted = MTP_HOMA_UNSCHED_BYTES;
+    uint32_t granted = MTP_HOMA_UNSCHED_BYTES;
     if (msg_len < granted) granted = msg_len;
 
-    uint64_t birth = cur_ts;
+    uint32_t birth = cur_ts;
 
 	uint32_t last_seq = granted/MTP_HOMA_MSS;
 	if (granted % MTP_HOMA_MSS) last_seq++;
@@ -94,8 +94,64 @@ tcp_stream* MtpHomaSendReqChainPart1(mctx_t mctx, mtcp_manager_t mtcp, uint32_t 
 
  }
 
- void MtpHomaSendReqChainPart2(){
+ void MtpHomaSendReqChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts, 
+							   uint32_t ev_src_port, uint16_t ev_dest_port, uint32_t ev_msg_len,
+							   uint32_t ev_init_seq, uint32_t rpc_id, uint32_t granted, 
+							   uint32_t birth, tcp_stream *cur_stream){
+	bool single_packet = ev_msg_len <= MTP_HOMA_MSS;
+    uint8_t prio;
+
+    if (single_packet){
+        prio = (HOMA_MAX_PRIORITIES - 1) << 5;
+    }
+    else {
+        // TODO: read the get_prio function in homa.h, called from XDP_EGRESS
+    }
+
+    mtp_bp *bp = GetFreeBP(cur_stream);	
+	memset(&(bp->hdr), 0, MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE);
+
+    bp->hdr.src_port = htons(ev_src_port);
+    bp->hdr.dest_port = htons(ev_dest_port);
+    // bp->hdr.doff = (MTP_HOMA_COMMON_HSIZE + sizeof(struct homa_data_hdr) - sizeof(struct data_segment)) >> 2;
+	bp->hdr.doff = (MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE) >> 2;
+    bp->hdr.type = MTP_HOMA_DATA;
+    bp->hdr.seq = ev_init_seq;
+    bp->hdr.sender_id = rpc_id;
+
+	bp->hdr.data.message_length = ev_msg_len;
+    bp->hdr.data.incoming = ev_msg_len;
+    if (!single_packet) {
+        bp->hdr.data.incoming = granted;
+    }
+    bp->hdr.data.cutoff_version = 0;
+	bp->hdr.data.seg.offset = 0;
+
+    bp->hdr.data.seg.ack.rpcid = 0;
+    bp->hdr.data.seg.ack.sport = 0;
+    bp->hdr.data.seg.ack.dport = 0;
+
+    bp->prio = prio;
+    
+	struct tcp_send_vars *sndvar = cur_stream->sndvar;
+	uint8_t *data = sndvar->sndbuf->head + ev_init_seq - sndvar->sndbuf->head_seq;
+	bp->payload.data = data;
+	bp->payload.len = granted;
+	bp->payload.needs_segmentation = TRUE;
+	bp->payload.seg_size = MTP_HOMA_MSS;
+	bp->payload.seg_rule_group_id = 1; 
+
+	AddtoGenList(mtcp, cur_stream, cur_ts);	
 	
+    // set queue priority (see pacing.h)
+    // the scheduling policy should be setup once at the beginning
+
+    uint32_t bytes_remaining = ev_msg_len - granted;
+	cur_stream->homa_tx_prio_bytes_remaining = bytes_remaining;
+	cur_stream->homa_tx_prio_rpcid = rpc_id;
+	cur_stream->homa_tx_prio_local_port = ev_src_port;
+	cur_stream->homa_tx_prio_birth = birth;
+
  }
 /********************************************************************* */
 #define TCP_MAX_WINDOW 65535
