@@ -233,9 +233,9 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 
 int add_to_sorted_list_1(rpc_info_1* ri){
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
-		if (!all_rpcs[i].valid){
-			all_rpcs[i] = *ri;
-			all_rpcs[i].valid = true;
+		if (!MTP_all_rpcs[i].valid){
+			MTP_all_rpcs[i] = *ri;
+			MTP_all_rpcs[i].valid = true;
 			return i;
 		}
 	}
@@ -265,14 +265,14 @@ int find_ge_sorted_list_1(rpc_info_1* ri){
 	rpc_info_1* best = NULL;
 
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
-		if (all_rpcs[i].valid) {
-			if (equal_sorted_list_1(ri, &all_rpcs[i])){
+		if (MTP_all_rpcs[i].valid) {
+			if (equal_sorted_list_1(ri, &MTP_all_rpcs[i])){
 				return i;
 			}
 
-			if (less_then_sorted_list_1(ri, &all_rpcs[i])){
-				if (best == NULL || less_then_sorted_list_1(&all_rpcs[i], best)){
-					best = &all_rpcs[i];
+			if (less_then_sorted_list_1(ri, &MTP_all_rpcs[i])){
+				if (best == NULL || less_then_sorted_list_1(&MTP_all_rpcs[i], best)){
+					best = &MTP_all_rpcs[i];
 					best_ind = i;
 				}
 			}
@@ -284,10 +284,10 @@ int find_ge_sorted_list_1(rpc_info_1* ri){
 void print_sorted_list_1(){
 	printf("------- All RPCs list:---------\n");
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
-		if (all_rpcs[i].valid){
+		if (MTP_all_rpcs[i].valid){
 			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d\n",
-					all_rpcs[i].peer_id, all_rpcs[i].rpcid,
-					all_rpcs[i].bytes_remaining);
+					MTP_all_rpcs[i].peer_id, MTP_all_rpcs[i].rpcid,
+					MTP_all_rpcs[i].bytes_remaining);
 		}
 	}
 	printf("------------------------\n");
@@ -295,9 +295,9 @@ void print_sorted_list_1(){
 
 int add_to_sorted_list_2(rpc_info_2* ri){
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
-		if (!highest_prio_rpcs[i].valid){
-			highest_prio_rpcs[i] = *ri;
-			highest_prio_rpcs[i].valid = true;
+		if (!MTP_highest_prio_rpcs[i].valid){
+			MTP_highest_prio_rpcs[i] = *ri;
+			MTP_highest_prio_rpcs[i].valid = true;
 			return i;
 		}
 	}
@@ -306,26 +306,61 @@ int add_to_sorted_list_2(rpc_info_2* ri){
 
 bool remove_from_sorted_list_2(rpc_info_2* ri){
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
-		if (highest_prio_rpcs[i].valid &&
-			highest_prio_rpcs[i].peer_id == ri->peer_id &&
-			highest_prio_rpcs[i].rpcid == ri->rpcid &&
-			highest_prio_rpcs[i].local_port == ri->local_port &&
-			highest_prio_rpcs[i].remote_port == ri->remote_port &&
-			highest_prio_rpcs[i].remote_ip == ri->remote_ip){
-				highest_prio_rpcs[i].valid = false;
+		if (MTP_highest_prio_rpcs[i].valid &&
+			MTP_highest_prio_rpcs[i].peer_id == ri->peer_id &&
+			MTP_highest_prio_rpcs[i].rpcid == ri->rpcid &&
+			MTP_highest_prio_rpcs[i].local_port == ri->local_port &&
+			MTP_highest_prio_rpcs[i].remote_port == ri->remote_port &&
+			MTP_highest_prio_rpcs[i].remote_ip == ri->remote_ip){
+				MTP_highest_prio_rpcs[i].valid = false;
 				return true;
 			}
 	}
 	return false;
 }
 
+bool less_then_sorted_list_2(rpc_info_2* a, rpc_info_2* b){
+	if (a->bytes_remaining != b->bytes_remaining) return a->bytes_remaining < b->bytes_remaining;
+	return a->peer_id < b->peer_id
+}
+
+// TODO: add bytes_remaining?
+bool equal_sorted_list_2(rpc_info_2* a, rpc_info_2* b){
+	return a->peer_id == b->peer_id &&
+			a->rpcid == b->rpcid &&
+			a->local_port == b->local_port &&
+			a->remote_port == b->remote_port &&
+			a->remote_ip == b->remote_ip;
+}
+
+int find_ge_sorted_list_2(rpc_info_2* ri){
+	int best_ind = -1;
+	rpc_info_1* best = NULL;
+
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (MTP_highest_prio_rpcs[i].valid) {
+			if (equal_sorted_list_2(ri, &MTP_highest_prio_rpcs[i])){
+				return i;
+			}
+
+			if (less_then_sorted_list_2(ri, &MTP_highest_prio_rpcs[i])){
+				if (best == NULL || less_then_sorted_list_2(&MTP_highest_prio_rpcs[i], best)){
+					best = &MTP_highest_prio_rpcs[i];
+					best_ind = i;
+				}
+			}
+		}
+	}
+	return best_ind;
+}
+
 void print_sorted_list_2(){
 	printf("------- Highest Prio RPCs list:---------\n");
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
-		if (highest_prio_rpcs[i].valid){
+		if (MTP_highest_prio_rpcs[i].valid){
 			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d\n",
-					highest_prio_rpcs[i].peer_id, highest_prio_rpcs[i].rpcid,
-					highest_prio_rpcs[i].bytes_remaining);
+					MTP_highest_prio_rpcs[i].peer_id, MTP_highest_prio_rpcs[i].rpcid,
+					MTP_highest_prio_rpcs[i].bytes_remaining);
 		}
 	}
 	printf("------------------------\n");
@@ -377,10 +412,10 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     else {
         int ind = find_ge_sorted_list_1(&elem);
 		assert(ind >= 0);
-        all_rpcs[ind].bytes_remaining -= ev_segment_length;
-		if (all_rpcs[ind].in_prio_list){
-            int prio_ind = all_rpcs[ind].prio_list_ind;
-            highest_prio_rpcs[prio_ind].bytes_remaining -= ev_segment_length;
+        MTP_all_rpcs[ind].bytes_remaining -= ev_segment_length;
+		if (MTP_all_rpcs[ind].in_prio_list){
+            int prio_ind = MTP_all_rpcs[ind].prio_list_ind;
+            MTP_highest_prio_rpcs[prio_ind].bytes_remaining -= ev_segment_length;
         }
         elem.bytes_remaining -= ev_segment_length;
     }
@@ -390,7 +425,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     rpc_info_1 search_elem = {0};
     search_elem.peer_id = elem.peer_id;
     int sind = find_ge_sorted_list_1(&search_elem);
-	rpc_info_1 highest_prio = all_rpcs[sind];
+	rpc_info_1 highest_prio = MTP_all_rpcs[sind];
 
 	// print_rpc_info_1("elem", &elem);
 	// print_rpc_info_1("search_elem", &search_elem);
@@ -402,7 +437,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
         next_elem.remote_ip += 1;
         int old_ind = find_ge_sorted_list_1(&next_elem);
         
-        if (old_ind < 0 || all_rpcs[old_ind].peer_id != elem.peer_id){
+        if (old_ind < 0 || MTP_all_rpcs[old_ind].peer_id != elem.peer_id){
             // This is the only rpc from this peer
             if (scratch->new_state ||
                 !highest_prio.in_prio_list) {
@@ -418,15 +453,15 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
                 prio_elem.incoming = ev_incoming;
 
 				int prio_ind = add_to_sorted_list_2(&prio_elem);
-                all_rpcs[my_ind].in_prio_list = true;
-				all_rpcs[my_ind].prio_list_ind = prio_ind;
+                MTP_all_rpcs[my_ind].in_prio_list = true;
+				MTP_all_rpcs[my_ind].prio_list_ind = prio_ind;
             }
         }
         else {
 
             //remove previous highest priority
             rpc_info_2 old_prio_elem;
-            rpc_info_1 old_elem = all_rpcs[old_ind];
+            rpc_info_1 old_elem = MTP_all_rpcs[old_ind];
             old_prio_elem.bytes_remaining = old_elem.bytes_remaining;
             old_prio_elem.peer_id = peer_id;
 			old_prio_elem.rpcid = old_elem.rpcid;
@@ -434,7 +469,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 			old_prio_elem.remote_port = old_elem.remote_port;
 			old_prio_elem.remote_ip = old_elem.remote_ip;
 			remove_from_sorted_list_2(&old_prio_elem);
-            all_rpcs[old_ind].in_prio_list = false;
+            MTP_all_rpcs[old_ind].in_prio_list = false;
 
             // add the new one
             rpc_info_2 prio_elem;
@@ -448,8 +483,110 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
             prio_elem.incoming = ev_incoming;
 
 			int prio_ind = add_to_sorted_list_2(&prio_elem);
-            all_rpcs[my_ind].in_prio_list = true;
-			all_rpcs[my_ind].prio_list_ind = prio_ind;
+            MTP_all_rpcs[my_ind].in_prio_list = true;
+			MTP_all_rpcs[my_ind].prio_list_ind = prio_ind;
+        }
+    }
+}
+
+void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
+	if (MTP_finish_grant_choose) return;
+
+    uint16_t next_peer_id = 0;
+    uint32_t min_last_bytes_remaining = 0;
+    uint16_t nr_rpc = 0;
+
+	rpc_info_2 elem;
+	elem.bytes_remaining = min_last_bytes_remaining;
+	elem.peer_id = 0;
+    for (int i = 0; i < 8; i++){
+        int ind = find_ge_sorted_list_2(&elem);
+        if (ind < 0) break;
+
+        rpc_info_2 grant_elem = MTP_highest_prio_rpcs[ind];
+        min_last_bytes_remaining = grant_elem.bytes_remaining;
+        next_peer_id = grant_elem.peer_id;
+
+        MTP_ri[i].rpcid = grant_elem.rpcid;
+        MTP_ri[i].local_port = grant_elem.local_port;
+        MTP_ri[i].remote_port = grant_elem.remote_port;
+        MTP_ri[i].remote_ip = grant_elem.remote_ip;         
+
+        uint32_t new_grant = grant_elem.message_length - 
+                           	 grant_elem.bytes_remaining + MTP_HOMA_GRANT_WND;
+        if (new_grant > grant_elem.message_length){
+            new_grant = grant_elem.message_length;
+        }
+        
+        int available = MTP_HOMA_MAX_INCOMING - MTP_total_incoming;
+        uint32_t increment = new_grant - grant_elem.incoming;
+
+        if (increment > 0 && available > 0){
+            if (increment > available){
+                increment = available;
+                new_grant = grant_elem.incoming + increment;
+            }
+
+            grant_elem.incoming = new_grant;
+            ctx.remove[i] = grant_elem.incoming >= grant_elem.message_length;
+            if (remove[i]){
+                //TODO: is this ok?
+                ctx.MTP_highest_prio_rpcs.remove(grant_elem);
+
+                rpc_info_1 rm_elem;
+                rm_elem.peer_id = grant_elem.peer_id;
+                rm_elem.bytes_remaining = grant_elem.bytes_remaining;
+                rm_elem.rpcid = grant_elem.rpcid;
+                rm_elem.local_port = grant_elem.local_port;
+                rm_elem.remote_port = grant_elem.remote_port;
+                rm_elem.remote_ip = grant_elem.remote_ip;
+    
+                ctx.MTP_MTP_all_rpcs.remove(rm_elem);
+            }
+            else {
+                ctx.MTP_highest_prio_rpcs[ind] = grant_elem;    
+            }
+            total_increment += increment;
+            ri[i].newgrant = new_grant;
+        }
+        nr_rpc += 1;
+    }
+    
+    ctx.total_incoming += total_increment;
+    ctx.grant_nonfifo_left -= total_increment;
+    if (ctx.grant_nonfifo_left <= 0){
+        ctx.grant_nonfifo_left += GRANT_NONFIFO;
+        ctx.need_grant_fifo = 1;
+    }
+
+    ctx.nr_grant_candidate = nr_rpc;
+
+    int actual_rpc = 0;
+    int priority = 0;
+    int prio_idx = 0;
+
+    for (int i = 0; i < nr_rpc; i+= 1){
+        if (ctx.ri[i].newgrant > 0){
+            actual_rpc += 1;
+            priority = HOMA_MAX_SCHED_PRIO - prio_idx;
+            prio_idx += 1;
+            if (priority < 0)
+                priority = 0;
+            ctx.ri[i].priority = priority;
+        }
+    }
+
+    ctx.nr_grant_ready = actual_rpc;
+
+    extra_levels = HOMA_MAX_SCHED_PRIO + 1 - actual_rpc;
+    if (extra_levels >= 0){
+        for (int i = 0; i < nr_rpc; i += 1){
+            if (ctx.ri[i].newgrant > 0){
+                priority = ctx.ri[i].priority;
+                priority -= extra_levels;
+                if (priority)
+                    ctx.ri[i].priority = priority;
+            }
         }
     }
 }

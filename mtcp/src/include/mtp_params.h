@@ -20,6 +20,9 @@
 #define MTP_HOMA_RPC_DEAD  0
 
 #define HOMA_MAX_PRIORITIES 8
+#define MTP_HOMA_OVERCOMMITMENT 8
+#define MTP_HOMA_GRANT_WND 100000
+#define MTP_HOMA_MAX_INCOMING 480000
 
 // #define MTP_HOMA_COMMON_HSIZE 28
 // #define MTP_HOMA_DATA_HSIZE 32
@@ -38,6 +41,7 @@
     // ACK = 0x18,
     // BOGUS = 0x19,
 
+// Global Context
 extern uint32_t MTP_total_incoming; // MTP specific
 
 typedef struct rpc_info_1 {
@@ -53,7 +57,7 @@ typedef struct rpc_info_1 {
     int prio_list_ind;
 } rpc_info_1;
 
-extern rpc_info_1 all_rpcs[MTP_HOMA_MAX_RPC];
+extern rpc_info_1 MTP_all_rpcs[MTP_HOMA_MAX_RPC];
 
 
 typedef struct rpc_info_2 {
@@ -68,7 +72,22 @@ typedef struct rpc_info_2 {
     uint32_t incoming;
 } rpc_info_2;
 
-extern rpc_info_2 highest_prio_rpcs[MTP_HOMA_MAX_RPC];
+extern rpc_info_2 MTP_highest_prio_rpcs[MTP_HOMA_MAX_RPC];
+
+extern bool MTP_finish_grant_choose;
+
+typedef struct rinfo {
+    uint32_t rpcid;
+    uint16_t local_port;
+    uint16_t remote_port;
+    uint32_t remote_ip;
+    uint32_t newgrant;
+    uint8_t priority;
+} rinfo;
+
+extern rinfo MTP_ri[MTP_HOMA_OVERCOMMITMENT];
+
+
 
 // Protocol-specific parameters: TCP
 
