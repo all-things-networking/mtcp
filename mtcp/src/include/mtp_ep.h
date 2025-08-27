@@ -47,6 +47,23 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 							uint8_t* hold_addr,
 							socket_map_t socket);
 
+
+void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
+							uint32_t ev_seq,
+							uint32_t ev_message_length,
+    						uint32_t ev_incoming,
+    						uint8_t ev_retransmit,
+							uint32_t ev_offset,
+							uint32_t ev_segment_length,
+							uint32_t ev_rpcid,
+							uint16_t ev_sport,
+							uint16_t ev_dport,
+							bool single_packet,
+							uint32_t local_ip,
+							uint32_t remote_ip,
+							uint8_t* hold_addr,
+							tcp_stream* cur_stream);
+
 /********************** MTP EPs & EP Chains for TCP **********************
  * This module implements MTP Event Processors(EP), and EP chains
  * Each EP chain is one line in the dispatcher.

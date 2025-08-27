@@ -342,6 +342,127 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 						ev_dport, ev_single_packet, ev_local_ip,
 						ev_remote_ip, hold_addr, socket, &scratch);
 }
+
+void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
+							uint32_t ev_seq,
+							uint32_t ev_message_length,
+    						uint32_t ev_incoming,
+    						uint8_t ev_retransmit,
+							uint32_t ev_offset,
+							uint32_t ev_segment_length,
+							uint32_t ev_rpcid,
+							uint16_t ev_sport,
+							uint16_t ev_dport,
+							bool ev_single_packet,
+							uint32_t local_ip,
+							uint32_t remote_ip,
+							uint8_t* hold_addr,
+							tcp_stream* cur_stream){
+
+	scratchpad scratch;
+
+	struct mtp_ctx *ctx = cur_stream->mtp;
+
+	// Intermediate output
+	bool new_state = ctx->state == MTP_HOMA_RPC_OUTGOING;
+    scratch.new_state = new_state;
+
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+    
+    // First packet
+    if(new_state) {
+		// TODO: figure out size...
+		struct tcp_ring_buffer *rcv_buff = RBInit(mtcp->rbm_rcv, ev_offset);
+		if (!rcv_buff) {
+			printf("Error creating ring buffer\n");
+			return;
+		}
+		rcvvar->rcvbuf = rcv_buff;
+
+        if(ev_single_packet) {
+            ctx->state = MTP_HOMA_RPC_DEAD;
+			
+			int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+			assert(ret == ev_segment_length);
+
+			RaiseReadEvent(mtcp, cur_stream);
+
+            // TODO: in eTran's implementation this part of the code
+            // calls enqueue_dead_crpc, which is to enqueue RPCs that are finished.
+            // Later, when the client sends a request, it calls dequeue_dead_crpc,
+            // which retrieves the dead client to send an ACK to the server, specicfing
+            // that RPC is dead. Maybe the translation could always calls this function,
+            // but have a condition to only run if it's the client.
+
+            // TODO: cleanup state
+            scratch.complete = true;
+            return;
+        }
+
+        ctx->state = MTP_HOMA_RPC_INCOMING;
+
+        uint16_t expected_segment_cnt = ev_message_length/MTP_HOMA_MSS;
+		if (ev_message_length % MTP_HOMA_MSS) expected_segment_cnt++;
+
+        // sliding_wnd rcvd_seqs(0, expected_segment_cnt);
+        // rcvd_seqs.set(ev.seq);
+        // ctx.rcvd_seqs = rcvd_seqs;
+        ctx->expected_segment_cnt = expected_segment_cnt;
+
+		// I think the request going out uses this too, is this ok?
+        ctx->message_length = ev_message_length;
+        ctx->cc_incoming = ev_incoming;
+        
+        ctx->cc_bytes_remaining = ev_message_length - ev_segment_length;
+		scratch.last_bytes_remaining = ctx->cc_bytes_remaining;
+
+        MTP_total_incoming += ev_incoming - ev_segment_length;
+
+        int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+		assert(ret == ev_segment_length);
+
+    } else {
+        // TODO: double check if this is the case.
+        // this is for complete == -1
+
+        // if (rcvd_seqs.is_set(ev.seq)){
+        //     int_out.dup_data_pkt = true;
+        //     return out;
+        // }
+
+        // ctx.rcvd_seqs.set(ev.seq);
+        // ctx.rcvd_seqs.slide();
+        // bool complete = ctx.rcvd_seqs.head() == ctx.expected_segment_cnt;
+		int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+		assert(ret == ev_segment_length);
+        
+		printf("After RBPut, merged_len: %u, message_length: %u\n",
+				rcvvar->rcvbuf->merged_len, ctx->message_length);
+
+		scratch.complete = rcvvar->rcvbuf->merged_len == ctx->message_length;
+
+		printf("is complete? %d\n", scratch.complete);
+
+        if(ev_incoming > ctx->cc_incoming)
+            ctx->cc_incoming = ev_incoming;
+
+        // I had last_bytes_remaining in req, do I need it here?
+        scratch.last_bytes_remaining = ctx->cc_bytes_remaining;
+        ctx->cc_bytes_remaining -= ev_segment_length;
+
+        if(scratch.complete) {
+            ctx->state = MTP_HOMA_RPC_DEAD;
+
+            //TODO: dead rpc queue thing
+			RaiseReadEvent(mtcp, cur_stream);
+        }
+
+        // TODO: maybe decrease total_incoming (or not, if we abstract it)
+        MTP_total_incoming -= ev_segment_length;
+    }
+
+    scratch.needs_schedule = ev_message_length > ctx->cc_incoming;
+}
 /********************************************************************* */
 #define TCP_MAX_WINDOW 65535
 

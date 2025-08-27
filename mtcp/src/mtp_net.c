@@ -216,6 +216,42 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
                             ev_hold_addr,
                             socket);
     }
+
+    else if (mtph->type == MTP_HOMA_DATA){
+        uint32_t ev_seq = mtph->seq;
+        uint32_t ev_message_length = mtph->data.message_length;
+        uint32_t ev_incoming = mtph->data.incoming;
+        uint8_t ev_retransmit = mtph->data.retransmit;
+        uint32_t ev_offset = mtph->data.seg.offset;
+        uint32_t ev_segment_length = mtph->data.seg.segment_length;
+        uint32_t ev_rpcid = mtph->sender_id;
+        uint16_t ev_sport = mtph->src_port;
+        uint16_t ev_dport = mtph->dest_port;
+        bool single_packet = ev_message_length == ev_segment_length;
+        uint32_t ev_remote_ip = iph->saddr;
+        uint32_t ev_local_ip = iph->daddr;
+        uint8_t* ev_hold_addr = payload.data;
+
+        if (cur_stream->mtp->rpc_is_client){
+            // this is a client stream, so this is a response packet
+            MtpHomaRecvdRespChain(mtcp, cur_ts, 
+                            ev_seq,
+                            ev_message_length,
+                            ev_incoming,
+                            ev_retransmit,
+                            ev_offset,
+                            ev_segment_length,
+                            ev_rpcid,
+                            ev_sport,
+                            ev_dport,
+                            single_packet,
+                            ev_local_ip,
+                            ev_remote_ip,
+                            ev_hold_addr,
+                            cur_stream);
+        }
+        //else {}
+    }
     
 
     // if (mtph->syn && mtph->ack){
