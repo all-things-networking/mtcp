@@ -164,6 +164,9 @@ mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct incoming_req_wra
 
 int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 					  const struct sockaddr_in *addr_in);
+
+int mtcp_rpc_send_resp(mctx_t mctx, int sockid, uint32_t rpc_ind, char* msg_hdr, 
+					   size_t msg_hdr_len, char* buf, size_t len);
 					  
 int mtcp_find_saddr(mctx_t mctx, struct sockaddr_in *saddr,
 			    struct sockaddr_in *addr_in);

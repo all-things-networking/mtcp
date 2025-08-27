@@ -186,7 +186,7 @@ struct mtp_ctx {
 	uint32_t rpcid;
 	bool rpc_is_client;
 
-    uint32_t curr_offset;
+    uint32_t cur_offset;
     uint32_t init_seq;
 	uint32_t last_seq;
 	//sliding_wnd rcvd_seqs;

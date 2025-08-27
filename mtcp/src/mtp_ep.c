@@ -260,6 +260,65 @@ tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char*
 
  }
 
+int MtpHomaSendRespChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, 
+							   char* msg_hdr, size_t msg_hdr_len, 
+							   char* buf, size_t len, tcp_stream* cur_stream){
+    
+	struct mtp_ctx *ctx = cur_stream->mtp;
+	uint16_t init_seq = 0;
+
+	struct tcp_send_buffer* sndbuf = SBInit(mtcp->rbm_snd, init_seq);
+
+	if (!sndbuf) {
+		/* notification may not required due to -1 return */
+		errno = ENOMEM;
+		printf("SendResp: Error creating send buffer\n");
+		return -1;
+	}
+
+	cur_stream->sndvar->sndbuf = sndbuf;
+
+	int ret = SBPut(mtcp->rbm_snd, sndbuf, msg_hdr, msg_hdr_len);
+
+	assert(ret == msg_hdr_len);
+	if (ret <= 0) {
+		TRACE_ERROR("SBPut failed for msg_hdr. reason: %d (sndlen: %lu, len: %u\n", 
+				ret, msg_hdr_len, sndbuf->len);
+		errno = EAGAIN;
+		return -1;
+	}
+
+	ret = SBPut(mtcp->rbm_snd, sndbuf, buf, len);
+
+	assert(ret == len);
+	if (ret <= 0) {
+		TRACE_ERROR("SBPut failed for response msg. reason: %d (sndlen: %lu, len: %u\n", 
+				ret, len, sndbuf->len);
+		errno = EAGAIN;
+		return -1;
+	}
+
+
+	// Update mtp_ctx
+     
+	uint32_t message_length = msg_hdr_len + len;
+    uint32_t granted = MTP_HOMA_UNSCHED_BYTES;
+    if (message_length < granted) granted = message_length;
+
+    uint32_t birth = cur_ts;
+
+    ctx->init_seq = init_seq;
+    ctx->last_seq = granted / MTP_HOMA_MSS;
+	if (granted % MTP_HOMA_MSS) ctx->last_seq++;
+    ctx->state = MTP_HOMA_RPC_OUTGOING;
+    ctx->message_length = message_length;
+    ctx->cur_offset = granted;
+    ctx->cc_granted = granted;
+    ctx->birth = birth;
+
+	return message_length;
+}
+
 void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 							uint32_t ev_seq,
 							uint32_t ev_message_length,

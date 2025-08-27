@@ -27,6 +27,10 @@ void MtpHomaSendReqChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
 							   uint32_t ev_init_seq, uint32_t rpc_id, uint32_t granted, 
 							   uint32_t birth, tcp_stream *cur_stream);
 
+int MtpHomaSendRespChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, 
+							   char* msg_hdr, size_t msg_hdr_len, 
+							   char* buf, size_t len, tcp_stream* cur_stream);
+
 void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 							uint32_t ev_seq,
 							uint32_t ev_message_length,

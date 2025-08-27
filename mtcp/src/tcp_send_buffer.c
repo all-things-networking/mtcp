@@ -129,6 +129,7 @@ SBPut(sb_manager_t sbm, struct tcp_send_buffer *buf, const void *data, size_t le
 
 	/* if no space, return -2 */
 	to_put = MIN(len, buf->size - buf->len);
+	printf("to_put: %lu\n", to_put);
 	if (to_put <= 0) {
 		return -2;
 	}

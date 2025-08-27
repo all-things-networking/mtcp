@@ -140,7 +140,7 @@ tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind
 	mtp->last_seq = last_seq;
 	mtp->state = state;
 	mtp->message_length = msg_len;
-	mtp->curr_offset = cur_offset;
+	mtp->cur_offset = cur_offset;
 	mtp->cc_granted = granted;
 	mtp->birth = birth;
 	mtp->rpc_is_client = rpc_is_client;
