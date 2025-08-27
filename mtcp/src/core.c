@@ -520,8 +520,8 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 		// MTP TODO: save parameters in cur_stream when enqueued in api.c
 		// and use them here
 		struct mtp_ctx *ctx = stream->mtp;
-		uint16_t ev_src_port = ctx->local_port;
-		uint16_t ev_dest_port = ctx->remote_port;
+		uint16_t ev_src_port = ntohs(ctx->local_port);
+		uint16_t ev_dest_port = ntohs(ctx->remote_port);
 		uint32_t ev_msg_len = ctx->message_length;	
 		uint32_t ev_init_seq = ctx->init_seq;
 		uint32_t rpc_id = ctx->rpcid;

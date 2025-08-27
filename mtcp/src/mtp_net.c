@@ -183,6 +183,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         //       to find the right socket to associate with this packet
         //       for server, it is only going to be one socket
         socket_map_t socket = NULL;
+
         for (int i = 0; i < CONFIG.max_concurrency; i++){
             if (mtcp->smap[i].saddr.sin_addr.s_addr == iph->daddr &&
                 mtcp->smap[i].saddr.sin_port == mtph->dest_port){
@@ -190,6 +191,13 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
                 socket = &mtcp->smap[i];
                 break;
             }
+        }
+
+        if (socket == NULL){
+            printf("Error: no socket found for incoming packet\n");
+        }
+        else {
+            printf("Found socket for incoming packet: id %d\n", socket->id);
         }
 
         MtpHomaNoHomaCtxChain(mtcp, cur_ts, 

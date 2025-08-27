@@ -80,6 +80,10 @@ tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char*
 	uint32_t last_seq = granted/MTP_HOMA_MSS;
 	if (granted % MTP_HOMA_MSS) last_seq++;
 
+	printf("Creating stream with srcip %u, sport %u, destip %u, destport %u, rpcid %u\n",
+			socket->saddr.sin_addr.s_addr, srcport,
+			dest_ip, dest_port,
+			rpc_id);
 
 	tcp_stream *cur_stream = CreateHomaCtx(mtcp, cur_ts, rpc_id,
 									        socket->saddr.sin_addr.s_addr, srcport,
@@ -195,12 +199,15 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 
     // sliding_wnd rcvd_seqs(0, expected_segment_cnt);
     // rcvd_seqs.set(ev.seq);
-
+	
+	printf("Entering first_req_pkt_ep\n");
 	int32_t rpc_ind = GetNextRPCInd(mtcp, socket->id);
 	if (rpc_ind < 0){
 		printf("Error getting RPC ID\n");
 		return;
 	}
+
+	printf("Got rpc_ind: %d\n", rpc_ind);
 
 	tcp_stream *cur_stream = CreateHomaCtx(mtcp, cur_ts, rpc_ind,
 										     ev_local_ip, 
@@ -226,6 +233,9 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 		printf("Error creating Homa context in first_req_pkt_ep\n");
 		return;
 	}
+
+	printf("Created Homa context in first_req_pkt_ep\n");
+
 	socket->rpcs[rpc_ind] = cur_stream;
 	cur_stream->socket = socket;
 
@@ -235,6 +245,7 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
     scratch.last_bytes_remaining = (ev_message_length - ev_segment_length);
     MTP_total_incoming += ev_incoming - ev_segment_length;
 
+	printf("Allocating ring buffer in first_req_pkt_ep\n");
 	// TODO: figure out size...
 	struct tcp_ring_buffer *rcv_buff = RBInit(mtcp->rbm_rcv, ev_offset);
 	if (!rcv_buff) {
@@ -242,12 +253,16 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 		return;
 	}
 
+	printf("Putting data in ring buffer in first_req_pkt_ep\n");
+
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	rcvvar->rcvbuf = rcv_buff;
 
 	RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
 
+	printf("Done with first_req_pkt_ep\n");
     if (scratch.complete) {
+		printf("Raising read event in first_req_pkt_ep\n");
 		RaiseReadEvent(mtcp, cur_stream);
     }
 }

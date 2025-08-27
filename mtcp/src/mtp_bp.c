@@ -33,7 +33,7 @@ void MTP_ntoh_bp(struct mtp_bp *bp) {
 void print_MTP_bp(struct mtp_bp* bp){ 
     MTP_PRINT("*************** MTP BP Header ******************\n");
     MTP_PRINT("Source: %u, Dest: %u, Seq: %u\n",
-           ntohs(bp->hdr.src_port), ntohs(bp->hdr.dest_port), bp->hdr.seq);
+           bp->hdr.src_port, bp->hdr.dest_port, bp->hdr.seq);
     MTP_PRINT("Sender ID: %u\n", bp->hdr.sender_id);
     MTP_PRINT("Type: %u\n", bp->hdr.type);
     
