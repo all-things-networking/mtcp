@@ -420,18 +420,14 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     // MTP_PRINT("got packet memory\n");
 
                     memcpy((uint8_t *)mtph, &(bp->hdr), hdr_len);
-                    printf("ack.rpcid: %u, ack.srcport: %u, ack.destport: %u\n",
-                           mtph->data.seg.ack.rpcid,
-                           mtph->data.seg.ack.sport,
-                           mtph->data.seg.ack.dport);
 
                     // MTP_PRINT("copied the header\n");
 
                     mtph->seq = seq;
                     mtph->data.seg.offset = seg_offset;
                     mtph->data.seg.segment_length = pkt_len;
-                    printf("mtph->seq: %u, mtph->data.seg.offset: %u, mtph->data.seg.segment_length: %u\n",
-                           mtph->seq, mtph->data.seg.offset, mtph->data.seg.segment_length);
+                    // printf("mtph->seq: %u, mtph->data.seg.offset: %u, mtph->data.seg.segment_length: %u\n",
+                    //        mtph->seq, mtph->data.seg.offset, mtph->data.seg.segment_length);
                     // MTP_PRINT("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
 
                     // MTP_PRINT("setup some fields\n");

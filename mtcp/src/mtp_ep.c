@@ -116,7 +116,343 @@ void first_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     }
 }
 
+void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
+							uint32_t ev_seq,
+							uint32_t ev_message_length,
+    						uint32_t ev_incoming,
+    						uint8_t ev_retransmit,
+							uint32_t ev_offset,
+							uint32_t ev_segment_length,
+							uint32_t ev_rpcid,
+							uint16_t ev_sport,
+							uint16_t ev_dport,
+							bool ev_single_packet,
+							uint32_t local_ip,
+							uint32_t remote_ip,
+							uint8_t* hold_addr,
+							tcp_stream* cur_stream,
+							scratchpad *scratch){
+	struct mtp_ctx *ctx = cur_stream->mtp;
 
+	// Intermediate output
+	bool new_state = ctx->state == MTP_HOMA_RPC_OUTGOING;
+    scratch->new_state = new_state;
+
+	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+    
+    // First packet
+    if(new_state) {
+		// TODO: figure out size...
+		struct tcp_ring_buffer *rcv_buff = RBInit(mtcp->rbm_rcv, ev_offset);
+		if (!rcv_buff) {
+			printf("Error creating ring buffer\n");
+			return;
+		}
+		rcvvar->rcvbuf = rcv_buff;
+
+        if(ev_single_packet) {
+            ctx->state = MTP_HOMA_RPC_DEAD;
+			
+			int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+			assert(ret == ev_segment_length);
+
+			RaiseReadEvent(mtcp, cur_stream);
+
+            // TODO: in eTran's implementation this part of the code
+            // calls enqueue_dead_crpc, which is to enqueue RPCs that are finished.
+            // Later, when the client sends a request, it calls dequeue_dead_crpc,
+            // which retrieves the dead client to send an ACK to the server, specicfing
+            // that RPC is dead. Maybe the translation could always calls this function,
+            // but have a condition to only run if it's the client.
+
+            // TODO: cleanup state
+            scratch->complete = true;
+            return;
+        }
+
+        ctx->state = MTP_HOMA_RPC_INCOMING;
+
+        uint16_t expected_segment_cnt = ev_message_length/MTP_HOMA_MSS;
+		if (ev_message_length % MTP_HOMA_MSS) expected_segment_cnt++;
+
+        // sliding_wnd rcvd_seqs(0, expected_segment_cnt);
+        // rcvd_seqs.set(ev.seq);
+        // ctx.rcvd_seqs = rcvd_seqs;
+        ctx->expected_segment_cnt = expected_segment_cnt;
+
+		// I think the request going out uses this too, is this ok?
+        ctx->message_length = ev_message_length;
+        ctx->cc_incoming = ev_incoming;
+        
+        ctx->cc_bytes_remaining = ev_message_length - ev_segment_length;
+		scratch->last_bytes_remaining = ctx->cc_bytes_remaining;
+
+        MTP_total_incoming += ev_incoming - ev_segment_length;
+
+        int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+		assert(ret == ev_segment_length);
+
+    } else {
+        // TODO: double check if this is the case.
+        // this is for complete == -1
+
+        // if (rcvd_seqs.is_set(ev.seq)){
+        //     int_out.dup_data_pkt = true;
+        //     return out;
+        // }
+
+        // ctx.rcvd_seqs.set(ev.seq);
+        // ctx.rcvd_seqs.slide();
+        // bool complete = ctx.rcvd_seqs.head() == ctx.expected_segment_cnt;
+		int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+		assert(ret == ev_segment_length);
+
+		scratch->complete = rcvvar->rcvbuf->merged_len == ctx->message_length;
+
+	
+
+        if(ev_incoming > ctx->cc_incoming)
+            ctx->cc_incoming = ev_incoming;
+
+        // I had last_bytes_remaining in req, do I need it here?
+        scratch->last_bytes_remaining = ctx->cc_bytes_remaining;
+        ctx->cc_bytes_remaining -= ev_segment_length;
+
+        if(scratch->complete) {
+            ctx->state = MTP_HOMA_RPC_DEAD;
+
+            //TODO: dead rpc queue thing
+			RaiseReadEvent(mtcp, cur_stream);
+        }
+
+        // TODO: maybe decrease total_incoming (or not, if we abstract it)
+        MTP_total_incoming -= ev_segment_length;
+    }
+    scratch->needs_schedule = ev_message_length > ctx->cc_incoming;
+}
+
+int add_to_sorted_list_1(rpc_info_1* ri){
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (!all_rpcs[i].valid){
+			all_rpcs[i] = *ri;
+			all_rpcs[i].valid = true;
+			return i;
+		}
+	}
+	return -1;
+}
+
+bool less_then_sorted_list_1(rpc_info_1* a, rpc_info_1* b){
+	if (a->peer_id != b->peer_id) return a->peer_id < b->peer_id;
+	if (a->bytes_remaining != b->bytes_remaining) return a->bytes_remaining < b->bytes_remaining;
+	if (a->rpcid != b->rpcid) return a->rpcid < b->rpcid;
+	if (a->local_port != b->local_port) return a->local_port < b->local_port;
+	if (a->remote_port != b->remote_port) return a->remote_port < b->remote_port;
+	return a->remote_ip < b->remote_ip;
+}
+
+// TODO: add bytes_remaining?
+bool equal_sorted_list_1(rpc_info_1* a, rpc_info_1* b){
+	return a->peer_id == b->peer_id &&
+			a->rpcid == b->rpcid &&
+			a->local_port == b->local_port &&
+			a->remote_port == b->remote_port &&
+			a->remote_ip == b->remote_ip;
+}
+
+int find_ge_sorted_list_1(rpc_info_1* ri){
+	int best_ind = -1;
+	rpc_info_1* best = NULL;
+
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (all_rpcs[i].valid) {
+			if (equal_sorted_list_1(ri, &all_rpcs[i])){
+				return i;
+			}
+
+			if (less_then_sorted_list_1(ri, &all_rpcs[i])){
+				if (best == NULL || less_then_sorted_list_1(&all_rpcs[i], best)){
+					best = &all_rpcs[i];
+					best_ind = i;
+				}
+			}
+		}
+	}
+	return best_ind;
+}
+
+void print_sorted_list_1(){
+	printf("------- All RPCs list:---------\n");
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (all_rpcs[i].valid){
+			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d\n",
+					all_rpcs[i].peer_id, all_rpcs[i].rpcid,
+					all_rpcs[i].bytes_remaining);
+		}
+	}
+	printf("------------------------\n");
+}
+
+int add_to_sorted_list_2(rpc_info_2* ri){
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (!highest_prio_rpcs[i].valid){
+			highest_prio_rpcs[i] = *ri;
+			highest_prio_rpcs[i].valid = true;
+			return i;
+		}
+	}
+	return -1;
+}
+
+bool remove_from_sorted_list_2(rpc_info_2* ri){
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (highest_prio_rpcs[i].valid &&
+			highest_prio_rpcs[i].peer_id == ri->peer_id &&
+			highest_prio_rpcs[i].rpcid == ri->rpcid &&
+			highest_prio_rpcs[i].local_port == ri->local_port &&
+			highest_prio_rpcs[i].remote_port == ri->remote_port &&
+			highest_prio_rpcs[i].remote_ip == ri->remote_ip){
+				highest_prio_rpcs[i].valid = false;
+				return true;
+			}
+	}
+	return false;
+}
+
+void print_sorted_list_2(){
+	printf("------- Highest Prio RPCs list:---------\n");
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (highest_prio_rpcs[i].valid){
+			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d\n",
+					highest_prio_rpcs[i].peer_id, highest_prio_rpcs[i].rpcid,
+					highest_prio_rpcs[i].bytes_remaining);
+		}
+	}
+	printf("------------------------\n");
+}
+
+void print_rpc_info_1(char* name, rpc_info_1 *ri){
+	printf("%s: peer_id: %d, rpc_id: %d, bytes_remaining: %d\n",
+			name, ri->peer_id, ri->rpcid, ri->bytes_remaining);
+}
+
+void print_rpc_info_2(char* name, rpc_info_2 *ri){
+	printf("%s: peer_id: %d, rpc_id: %d, bytes_remaining: %d\n",
+			name, ri->peer_id, ri->rpcid, ri->bytes_remaining);
+}
+
+void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
+				uint32_t ev_seq,
+				uint32_t ev_message_length,
+				uint32_t ev_incoming,
+				uint8_t ev_retransmit,
+				uint32_t ev_offset,
+				uint32_t ev_segment_length,
+				uint32_t ev_rpcid,
+				uint16_t ev_sport,
+				uint16_t ev_dport,
+				bool ev_single_packet,
+				uint32_t ev_local_ip,
+				uint32_t ev_remote_ip,
+				scratchpad *scratch){
+
+	if (scratch->complete) return;
+
+    if (!scratch->needs_schedule) return;
+
+    uint16_t peer_id = ev_remote_ip & (MTP_HOMA_MAX_PEER - 1);
+    struct rpc_info_1 elem;
+    elem.peer_id = peer_id;
+    elem.bytes_remaining = scratch->last_bytes_remaining;
+    elem.rpcid = ev_rpcid;
+    elem.local_port = ev_dport;
+    elem.remote_port = ev_sport;
+    elem.remote_ip = ev_remote_ip;
+
+    if (scratch->new_state) { 
+        elem.birth = cur_ts;   
+		add_to_sorted_list_1(&elem);
+        // TODO: add message length and incoming
+    }
+    else {
+        int ind = find_ge_sorted_list_1(&elem);
+		assert(ind >= 0);
+        all_rpcs[ind].bytes_remaining -= ev_segment_length;
+		if (all_rpcs[ind].in_prio_list){
+            int prio_ind = all_rpcs[ind].prio_list_ind;
+            highest_prio_rpcs[prio_ind].bytes_remaining -= ev_segment_length;
+        }
+        elem.bytes_remaining -= ev_segment_length;
+    }
+
+    int my_ind = find_ge_sorted_list_1(&elem);
+
+    rpc_info_1 search_elem = {0};
+    search_elem.peer_id = elem.peer_id;
+    int sind = find_ge_sorted_list_1(&search_elem);
+	rpc_info_1 highest_prio = all_rpcs[sind];
+
+	// print_rpc_info_1("elem", &elem);
+	// print_rpc_info_1("search_elem", &search_elem);
+	// printf("%d\n", less_then_sorted_list_1(&search_elem, &elem));
+	// print_rpc_info_1("highest_prio", &highest_prio);
+
+    if (equal_sorted_list_1(&elem, &highest_prio)) {
+        rpc_info_1 next_elem = elem;
+        next_elem.remote_ip += 1;
+        int old_ind = find_ge_sorted_list_1(&next_elem);
+        
+        if (old_ind < 0 || all_rpcs[old_ind].peer_id != elem.peer_id){
+            // This is the only rpc from this peer
+            if (scratch->new_state ||
+                !highest_prio.in_prio_list) {
+                
+                rpc_info_2 prio_elem;
+                prio_elem.bytes_remaining = elem.bytes_remaining;
+                prio_elem.peer_id = peer_id;
+                prio_elem.rpcid = ev_rpcid;
+                prio_elem.local_port = ev_dport;
+                prio_elem.remote_port = ev_sport;
+                prio_elem.remote_ip = ev_remote_ip;
+                prio_elem.message_length = ev_message_length;
+                prio_elem.incoming = ev_incoming;
+
+				int prio_ind = add_to_sorted_list_2(&prio_elem);
+                all_rpcs[my_ind].in_prio_list = true;
+				all_rpcs[my_ind].prio_list_ind = prio_ind;
+            }
+        }
+        else {
+
+            //remove previous highest priority
+            rpc_info_2 old_prio_elem;
+            rpc_info_1 old_elem = all_rpcs[old_ind];
+            old_prio_elem.bytes_remaining = old_elem.bytes_remaining;
+            old_prio_elem.peer_id = peer_id;
+			old_prio_elem.rpcid = old_elem.rpcid;
+			old_prio_elem.local_port = old_elem.local_port;	
+			old_prio_elem.remote_port = old_elem.remote_port;
+			old_prio_elem.remote_ip = old_elem.remote_ip;
+			remove_from_sorted_list_2(&old_prio_elem);
+            all_rpcs[old_ind].in_prio_list = false;
+
+            // add the new one
+            rpc_info_2 prio_elem;
+            prio_elem.bytes_remaining = elem.bytes_remaining;
+            prio_elem.peer_id = peer_id;
+            prio_elem.rpcid = ev_rpcid;
+            prio_elem.local_port = ev_dport;
+            prio_elem.remote_port = ev_sport;
+            prio_elem.remote_ip = ev_remote_ip;
+            prio_elem.message_length = ev_message_length;
+            prio_elem.incoming = ev_incoming;
+
+			int prio_ind = add_to_sorted_list_2(&prio_elem);
+            all_rpcs[my_ind].in_prio_list = true;
+			all_rpcs[my_ind].prio_list_ind = prio_ind;
+        }
+    }
+}
 /* ***************** Chains ***********************/
 tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char* buf,
 		                      size_t msg_len, uint16_t srcport, uint16_t dest_port,
@@ -341,6 +677,15 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 						ev_segment_length, ev_rpcid, ev_sport,
 						ev_dport, ev_single_packet, ev_local_ip,
 						ev_remote_ip, hold_addr, socket, &scratch);
+
+	sched_ep(mtcp, cur_ts, ev_seq, ev_message_length,
+			ev_incoming, ev_retransmit, ev_offset, 
+			ev_segment_length, ev_rpcid, ev_sport, 
+			ev_dport, ev_single_packet, ev_local_ip, 
+			ev_remote_ip, &scratch);
+
+	print_sorted_list_1();
+	print_sorted_list_2();
 }
 
 void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
@@ -354,114 +699,27 @@ void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 							uint16_t ev_sport,
 							uint16_t ev_dport,
 							bool ev_single_packet,
-							uint32_t local_ip,
-							uint32_t remote_ip,
+							uint32_t ev_local_ip,
+							uint32_t ev_remote_ip,
 							uint8_t* hold_addr,
 							tcp_stream* cur_stream){
 
 	scratchpad scratch;
 
-	struct mtp_ctx *ctx = cur_stream->mtp;
+	recv_resp_ep(mtcp, cur_ts, ev_seq, ev_message_length,
+					ev_incoming, ev_retransmit, ev_offset,
+					ev_segment_length, ev_rpcid, ev_sport,
+					ev_dport, ev_single_packet, ev_local_ip,
+					ev_remote_ip, hold_addr, cur_stream, &scratch);
 
-	// Intermediate output
-	bool new_state = ctx->state == MTP_HOMA_RPC_OUTGOING;
-    scratch.new_state = new_state;
+	sched_ep(mtcp, cur_ts, ev_seq, ev_message_length,
+			ev_incoming, ev_retransmit, ev_offset, 
+			ev_segment_length, ev_rpcid, ev_sport, 
+			ev_dport, ev_single_packet, ev_local_ip, 
+			ev_remote_ip, &scratch);
 
-	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
-    
-    // First packet
-    if(new_state) {
-		// TODO: figure out size...
-		struct tcp_ring_buffer *rcv_buff = RBInit(mtcp->rbm_rcv, ev_offset);
-		if (!rcv_buff) {
-			printf("Error creating ring buffer\n");
-			return;
-		}
-		rcvvar->rcvbuf = rcv_buff;
-
-        if(ev_single_packet) {
-            ctx->state = MTP_HOMA_RPC_DEAD;
-			
-			int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
-			assert(ret == ev_segment_length);
-
-			RaiseReadEvent(mtcp, cur_stream);
-
-            // TODO: in eTran's implementation this part of the code
-            // calls enqueue_dead_crpc, which is to enqueue RPCs that are finished.
-            // Later, when the client sends a request, it calls dequeue_dead_crpc,
-            // which retrieves the dead client to send an ACK to the server, specicfing
-            // that RPC is dead. Maybe the translation could always calls this function,
-            // but have a condition to only run if it's the client.
-
-            // TODO: cleanup state
-            scratch.complete = true;
-            return;
-        }
-
-        ctx->state = MTP_HOMA_RPC_INCOMING;
-
-        uint16_t expected_segment_cnt = ev_message_length/MTP_HOMA_MSS;
-		if (ev_message_length % MTP_HOMA_MSS) expected_segment_cnt++;
-
-        // sliding_wnd rcvd_seqs(0, expected_segment_cnt);
-        // rcvd_seqs.set(ev.seq);
-        // ctx.rcvd_seqs = rcvd_seqs;
-        ctx->expected_segment_cnt = expected_segment_cnt;
-
-		// I think the request going out uses this too, is this ok?
-        ctx->message_length = ev_message_length;
-        ctx->cc_incoming = ev_incoming;
-        
-        ctx->cc_bytes_remaining = ev_message_length - ev_segment_length;
-		scratch.last_bytes_remaining = ctx->cc_bytes_remaining;
-
-        MTP_total_incoming += ev_incoming - ev_segment_length;
-
-        int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
-		assert(ret == ev_segment_length);
-
-    } else {
-        // TODO: double check if this is the case.
-        // this is for complete == -1
-
-        // if (rcvd_seqs.is_set(ev.seq)){
-        //     int_out.dup_data_pkt = true;
-        //     return out;
-        // }
-
-        // ctx.rcvd_seqs.set(ev.seq);
-        // ctx.rcvd_seqs.slide();
-        // bool complete = ctx.rcvd_seqs.head() == ctx.expected_segment_cnt;
-		int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
-		assert(ret == ev_segment_length);
-        
-		printf("After RBPut, merged_len: %u, message_length: %u\n",
-				rcvvar->rcvbuf->merged_len, ctx->message_length);
-
-		scratch.complete = rcvvar->rcvbuf->merged_len == ctx->message_length;
-
-		printf("is complete? %d\n", scratch.complete);
-
-        if(ev_incoming > ctx->cc_incoming)
-            ctx->cc_incoming = ev_incoming;
-
-        // I had last_bytes_remaining in req, do I need it here?
-        scratch.last_bytes_remaining = ctx->cc_bytes_remaining;
-        ctx->cc_bytes_remaining -= ev_segment_length;
-
-        if(scratch.complete) {
-            ctx->state = MTP_HOMA_RPC_DEAD;
-
-            //TODO: dead rpc queue thing
-			RaiseReadEvent(mtcp, cur_stream);
-        }
-
-        // TODO: maybe decrease total_incoming (or not, if we abstract it)
-        MTP_total_incoming -= ev_segment_length;
-    }
-
-    scratch.needs_schedule = ev_message_length > ctx->cc_incoming;
+	print_sorted_list_1();
+	print_sorted_list_2();
 }
 /********************************************************************* */
 #define TCP_MAX_WINDOW 65535

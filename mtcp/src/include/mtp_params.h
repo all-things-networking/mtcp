@@ -2,6 +2,7 @@
 #define MTP_PARAMS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define MTP_BP_BUFFER_FULL_ERROR  -2
 
@@ -11,6 +12,7 @@
 #define MTP_HOMA_MAX_RPC 500
 #define MTP_HOMA_UNSCHED_BYTES 60000
 #define MTP_HOMA_MSS (1514 - 14 - 20 - 60) // Last is DATA_HDR size
+#define MTP_HOMA_MAX_PEER 32
 
 #define MTP_HOMA_RPC_IN_SERVICE 8
 #define MTP_HOMA_RPC_INCOMING  6
@@ -38,6 +40,35 @@
 
 extern uint32_t MTP_total_incoming; // MTP specific
 
+typedef struct rpc_info_1 {
+    bool valid;
+    uint16_t peer_id;
+    uint32_t bytes_remaining;
+    uint32_t rpcid;
+    uint16_t local_port;
+    uint16_t remote_port;
+    uint32_t remote_ip;
+    uint32_t birth;
+    bool in_prio_list;
+    int prio_list_ind;
+} rpc_info_1;
+
+extern rpc_info_1 all_rpcs[MTP_HOMA_MAX_RPC];
+
+
+typedef struct rpc_info_2 {
+    bool valid;
+    uint32_t bytes_remaining;
+    uint16_t peer_id;
+    uint32_t rpcid;
+    uint16_t local_port;
+    uint16_t remote_port;
+    uint32_t remote_ip;
+    uint32_t message_length;
+    uint32_t incoming;
+} rpc_info_2;
+
+extern rpc_info_2 highest_prio_rpcs[MTP_HOMA_MAX_RPC];
 
 // Protocol-specific parameters: TCP
 
