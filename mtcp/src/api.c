@@ -1490,26 +1490,24 @@ mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct incoming_req_wra
 	
 	/* stream should be in ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT */
 	cur_stream = socket->rpcs[rpc_ind];
-	(void) cur_stream;
+	if (!cur_stream->mtp->rpc_is_client) assert(cur_stream->mtp->state == MTP_HOMA_RPC_IN_SERVICE);
+	
 	// TODO: check state?
 
-	rcvvar = cur_stream->rcvvar;
-	(void) rcvvar;
-	
-	MTP_PRINT("MTP rpc read called: sockid %d, len %zu\n", sockid, len);
 	// TODO: because we are not going to use the recv buffer anymore, 
 	// we just pass the pointer instead of copy?
 	// SBUF_LOCK(&rcvvar->read_lock);
-	// ret = MtpReceiveChainPart1(mtcp, socket, socket->opts & MTCP_NONBLOCK, 
-	// 							buf, len, cur_stream);
+	rcvvar = cur_stream->rcvvar;
+	req->buff = rcvvar->rcvbuf->head;
+	req->len = rcvvar->rcvbuf->merged_len;
 
 	// TODO: do we need to do this on write?
-	mtcp->wakeup_flag = TRUE;
+	//mtcp->wakeup_flag = TRUE;
 
 	// SBUF_UNLOCK(&rcvvar->read_lock);
 	
 	TRACE_API("Stream %d: mtcp_rpc_read() returning %d\n", cur_stream->id, ret);
-    return 0;	
+    return req->len;	
 }
 /*----------------------------------------------------------------------------*/
 inline ssize_t

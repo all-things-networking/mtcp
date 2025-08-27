@@ -45,7 +45,7 @@ struct mtcp_conf
 // need to at least have two pools, one for 1MB chunks, and one for smaller chunks
 struct incoming_req_wrapper {
 	uint32_t rpc_id;
-	char* buff;
+	u_char* buff;
 	size_t len;
 };
 
