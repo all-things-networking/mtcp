@@ -940,6 +940,8 @@ void gen_grants_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch) {
 	printf("granting to %ld: %d\n", gi.rpcid, gi.newgrant);
 
 	mtp_bp *bp = GetFreeGBP(mtcp);
+	memset(&(bp->hdr), 0, MTP_HOMA_COMMON_HSIZE + MTP_HOMA_GRANT_HSIZE);
+
 	bp->cur_stream = gi.cur_stream;
 	struct mtp_bp_hdr *hdr = &bp->hdr;
     hdr->type = MTP_HOMA_GRANT;
@@ -965,6 +967,67 @@ void reset_grant_state (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratc
         MTP_need_grant_fifo = 0;
 
     return;
+}
+
+
+void recv_grant_ep (mtcp_manager_t mtcp, uint32_t cur_ts, 
+					uint32_t ev_offset, uint32_t ev_priority, 
+					tcp_stream* cur_stream) {
+
+	struct mtp_ctx *ctx = cur_stream->mtp;
+
+    if (ctx->state != MTP_HOMA_RPC_OUTGOING) return;
+
+    ctx->cc_sched_prio = ev_priority;
+
+    if (ctx->cc_granted < ev_offset){
+		ctx->cc_granted = ev_offset;
+        uint32_t new_bytes = ev_offset - ctx->cur_offset;
+
+		mtp_bp *bp = GetFreeBP(cur_stream);	
+		memset(&(bp->hdr), 0, MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE);
+        
+        bp->hdr.src_port = ctx->local_port;
+        bp->hdr.dest_port = ctx->remote_port;
+        bp->hdr.doff = (MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE) >> 2;
+        bp->hdr.type = MTP_HOMA_DATA;
+        bp->hdr.seq = ctx->last_seq;
+        bp->hdr.sender_id = ctx->rpcid;
+
+		bp->hdr.data.message_length = ctx->message_length;
+        bp->hdr.data.incoming = ctx->cc_granted;
+        bp->hdr.data.cutoff_version = 0;
+		bp->hdr.data.seg.offset = ctx->cur_offset;
+
+        bp->hdr.data.seg.ack.rpcid = 0;
+        bp->hdr.data.seg.ack.sport = 0;
+        bp->hdr.data.seg.ack.dport = 0;
+
+        bp->prio = ctx->cc_sched_prio;
+        
+        struct tcp_send_vars *sndvar = cur_stream->sndvar;
+		uint8_t *data = sndvar->sndbuf->head + ctx->cur_offset - sndvar->sndbuf->head_seq;
+		bp->payload.data = data;
+		bp->payload.len = (ev_offset - ctx->cur_offset);
+		bp->payload.needs_segmentation = TRUE;
+		bp->payload.seg_size = MTP_HOMA_MSS;
+		bp->payload.seg_rule_group_id = 1; 
+
+		AddtoGenList(mtcp, cur_stream, cur_ts);	
+        
+		uint32_t new_seqs = new_bytes / MTP_HOMA_MSS;
+		if (new_bytes % MTP_HOMA_MSS) new_seqs += 1;
+		ctx->last_seq += new_seqs;
+        ctx->cur_offset += new_bytes;
+
+        // set queue priority (see pacing.h)
+        // the scheduling policy should be setup once at the beginning
+        uint32_t bytes_remaining = ctx->message_length - ctx->cur_offset;
+        cur_stream->homa_tx_prio_bytes_remaining = bytes_remaining;
+		cur_stream->homa_tx_prio_rpcid = ctx->rpcid;
+		cur_stream->homa_tx_prio_local_port = ctx->local_port;
+		cur_stream->homa_tx_prio_birth = ctx->birth;            
+    }
 }
 
 /* ***************** Chains ***********************/
@@ -1090,14 +1153,14 @@ tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char*
     bp->prio = prio;
     
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	uint8_t *data = sndvar->sndbuf->head + ev_init_seq - sndvar->sndbuf->head_seq;
+	uint8_t *data = sndvar->sndbuf->head - sndvar->sndbuf->head_seq;
 	bp->payload.data = data;
 	bp->payload.len = granted;
 	bp->payload.needs_segmentation = TRUE;
 	bp->payload.seg_size = MTP_HOMA_MSS;
 	bp->payload.seg_rule_group_id = 1; 
 
-	AddtoGenList(mtcp, cur_stream, cur_ts);	
+	AddtoGenList(mtcp, cur_stream, cur_ts);	 
 	
     // set queue priority (see pacing.h)
     // the scheduling policy should be setup once at the beginning
@@ -1162,7 +1225,7 @@ int MtpHomaSendRespChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts,
 	if (granted % MTP_HOMA_MSS) ctx->last_seq++;
     ctx->state = MTP_HOMA_RPC_OUTGOING;
     ctx->message_length = message_length;
-    ctx->cur_offset = granted;
+    ctx->cur_offset = granted; // pre-updating
     ctx->cc_granted = granted;
     ctx->birth = birth;
 
@@ -1244,6 +1307,13 @@ void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 	update_prios_ep(mtcp, cur_ts, &scratch);
 	gen_grants_ep(mtcp, cur_ts, &scratch);
 	reset_grant_state(mtcp, cur_ts, &scratch);
+}
+
+void MtpHomaRecvdGrantChain(mtcp_manager_t mtcp, uint32_t cur_ts, 
+					uint32_t ev_offset, uint32_t ev_priority, 
+					tcp_stream* cur_stream){
+	recv_grant_ep(mtcp, cur_ts, ev_offset, ev_priority, 
+			      cur_stream);
 }
 /********************************************************************* */
 #define TCP_MAX_WINDOW 65535

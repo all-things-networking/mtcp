@@ -194,6 +194,7 @@ struct mtp_ctx {
 	uint32_t cc_granted;
     uint32_t cc_incoming;
     uint32_t cc_bytes_remaining;
+	uint32_t cc_sched_prio;
 
 	uint16_t expected_segment_cnt;
 	uint32_t recv_init_seq;

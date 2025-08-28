@@ -252,6 +252,13 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         }
         //else {}
     }
+
+    else if (mtph->type == MTP_HOMA_GRANT){
+        uint32_t ev_offset = mtph->grant.offset;
+        uint32_t ev_priority = mtph->grant.priority;
+        MtpHomaRecvdGrantChain(mtcp, cur_ts, ev_offset, ev_priority, 
+			                    cur_stream);
+    }
     
 
     // if (mtph->syn && mtph->ack){
