@@ -28,6 +28,7 @@ typedef struct scratchpad_decl {
     uint32_t last_bytes_remaining;
     bool last_grant;
     bool send_fifo_rpc;
+	uint32_t rpc_birth;
 } scratchpad;
 
 /******************* EPs ************************* */
@@ -96,6 +97,7 @@ void first_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     scratch->new_state = true;
     scratch->needs_schedule = ev_message_length > ev_incoming;
     scratch->last_bytes_remaining = (ev_message_length - ev_segment_length);
+	scratch->rpc_birth = cur_ts;
     MTP_total_incoming += ev_incoming - ev_segment_length;
 
 	// TODO: figure out size...
@@ -137,6 +139,7 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 	// Intermediate output
 	bool new_state = ctx->state == MTP_HOMA_RPC_OUTGOING;
     scratch->new_state = new_state;
+	scratch->rpc_birth = ctx->birth;
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
     
@@ -242,6 +245,21 @@ int add_to_sorted_list_1(rpc_info_1* ri){
 	return -1;
 }
 
+bool remove_from_sorted_list_1(rpc_info_1* ri){
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (MTP_all_rpcs[i].valid &&
+			MTP_all_rpcs[i].peer_id == ri->peer_id &&
+			MTP_all_rpcs[i].rpcid == ri->rpcid &&
+			MTP_all_rpcs[i].local_port == ri->local_port &&
+			MTP_all_rpcs[i].remote_port == ri->remote_port &&
+			MTP_all_rpcs[i].remote_ip == ri->remote_ip){
+				MTP_all_rpcs[i].valid = false;
+				return true;
+			}
+	}
+	return false;
+}
+
 bool less_then_sorted_list_1(rpc_info_1* a, rpc_info_1* b){
 	if (a->peer_id != b->peer_id) return a->peer_id < b->peer_id;
 	if (a->bytes_remaining != b->bytes_remaining) return a->bytes_remaining < b->bytes_remaining;
@@ -285,9 +303,9 @@ void print_sorted_list_1(){
 	printf("------- All RPCs list:---------\n");
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
 		if (MTP_all_rpcs[i].valid){
-			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d\n",
+			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d\n",
 					MTP_all_rpcs[i].peer_id, MTP_all_rpcs[i].rpcid,
-					MTP_all_rpcs[i].bytes_remaining);
+					MTP_all_rpcs[i].bytes_remaining, MTP_all_rpcs[i].incoming);
 		}
 	}
 	printf("------------------------\n");
@@ -304,7 +322,8 @@ int add_to_sorted_list_2(rpc_info_2* ri){
 	return -1;
 }
 
-bool remove_from_sorted_list_2(rpc_info_2* ri){
+rpc_info_2 remove_from_sorted_list_2(rpc_info_2* ri){
+	rpc_info_2 res = {0};
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
 		if (MTP_highest_prio_rpcs[i].valid &&
 			MTP_highest_prio_rpcs[i].peer_id == ri->peer_id &&
@@ -313,15 +332,16 @@ bool remove_from_sorted_list_2(rpc_info_2* ri){
 			MTP_highest_prio_rpcs[i].remote_port == ri->remote_port &&
 			MTP_highest_prio_rpcs[i].remote_ip == ri->remote_ip){
 				MTP_highest_prio_rpcs[i].valid = false;
-				return true;
+				res = MTP_highest_prio_rpcs[i];
+				return res;
 			}
 	}
-	return false;
+	return res;
 }
 
 bool less_then_sorted_list_2(rpc_info_2* a, rpc_info_2* b){
 	if (a->bytes_remaining != b->bytes_remaining) return a->bytes_remaining < b->bytes_remaining;
-	return a->peer_id < b->peer_id
+	return a->peer_id < b->peer_id;
 }
 
 // TODO: add bytes_remaining?
@@ -335,7 +355,7 @@ bool equal_sorted_list_2(rpc_info_2* a, rpc_info_2* b){
 
 int find_ge_sorted_list_2(rpc_info_2* ri){
 	int best_ind = -1;
-	rpc_info_1* best = NULL;
+	rpc_info_2* best = NULL;
 
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
 		if (MTP_highest_prio_rpcs[i].valid) {
@@ -358,10 +378,22 @@ void print_sorted_list_2(){
 	printf("------- Highest Prio RPCs list:---------\n");
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
 		if (MTP_highest_prio_rpcs[i].valid){
-			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d\n",
+			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d\n",
 					MTP_highest_prio_rpcs[i].peer_id, MTP_highest_prio_rpcs[i].rpcid,
-					MTP_highest_prio_rpcs[i].bytes_remaining);
+					MTP_highest_prio_rpcs[i].bytes_remaining,
+				    MTP_highest_prio_rpcs[i].incoming);
 		}
+	}
+	printf("------------------------\n");
+}
+
+void print_ri_list(){
+	printf("------- MTP_ri list:---------\n");
+	for (int i = 0; i < MTP_HOMA_OVERCOMMITMENT; i++){
+		printf("rpc_id: %d, newgrant: %d, priority: %d\n",
+				MTP_ri[i].rpcid, MTP_ri[i].newgrant,
+				MTP_ri[i].priority);
+		
 	}
 	printf("------------------------\n");
 }
@@ -376,20 +408,20 @@ void print_rpc_info_2(char* name, rpc_info_2 *ri){
 			name, ri->peer_id, ri->rpcid, ri->bytes_remaining);
 }
 
-void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
-				uint32_t ev_seq,
-				uint32_t ev_message_length,
-				uint32_t ev_incoming,
-				uint8_t ev_retransmit,
-				uint32_t ev_offset,
-				uint32_t ev_segment_length,
-				uint32_t ev_rpcid,
-				uint16_t ev_sport,
-				uint16_t ev_dport,
-				bool ev_single_packet,
-				uint32_t ev_local_ip,
-				uint32_t ev_remote_ip,
-				scratchpad *scratch){
+void no_ctx_sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
+					uint32_t ev_seq,
+					uint32_t ev_message_length,
+					uint32_t ev_incoming,
+					uint8_t ev_retransmit,
+					uint32_t ev_offset,
+					uint32_t ev_segment_length,
+					uint32_t ev_rpcid,
+					uint16_t ev_sport,
+					uint16_t ev_dport,
+					bool ev_single_packet,
+					uint32_t ev_local_ip,
+					uint32_t ev_remote_ip,
+					scratchpad *scratch){
 
 	if (scratch->complete) return;
 
@@ -403,23 +435,12 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     elem.local_port = ev_dport;
     elem.remote_port = ev_sport;
     elem.remote_ip = ev_remote_ip;
-
-    if (scratch->new_state) { 
-        elem.birth = cur_ts;   
-		add_to_sorted_list_1(&elem);
-        // TODO: add message length and incoming
-    }
-    else {
-        int ind = find_ge_sorted_list_1(&elem);
-		assert(ind >= 0);
-        MTP_all_rpcs[ind].bytes_remaining -= ev_segment_length;
-		if (MTP_all_rpcs[ind].in_prio_list){
-            int prio_ind = MTP_all_rpcs[ind].prio_list_ind;
-            MTP_highest_prio_rpcs[prio_ind].bytes_remaining -= ev_segment_length;
-        }
-        elem.bytes_remaining -= ev_segment_length;
-    }
-
+	elem.incoming = ev_incoming;
+	elem.birth = scratch->rpc_birth;
+	
+	assert(scratch->new_state);
+        
+	add_to_sorted_list_1(&elem);
     int my_ind = find_ge_sorted_list_1(&elem);
 
     rpc_info_1 search_elem = {0};
@@ -468,8 +489,9 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 			old_prio_elem.local_port = old_elem.local_port;	
 			old_prio_elem.remote_port = old_elem.remote_port;
 			old_prio_elem.remote_ip = old_elem.remote_ip;
-			remove_from_sorted_list_2(&old_prio_elem);
+			rpc_info_2 rmvd = remove_from_sorted_list_2(&old_prio_elem);
             MTP_all_rpcs[old_ind].in_prio_list = false;
+			MTP_all_rpcs[old_ind].incoming = rmvd.incoming;
 
             // add the new one
             rpc_info_2 prio_elem;
@@ -489,12 +511,140 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     }
 }
 
+void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
+				uint32_t ev_seq,
+				uint32_t ev_message_length,
+				uint32_t ev_incoming,
+				uint8_t ev_retransmit,
+				uint32_t ev_offset,
+				uint32_t ev_segment_length,
+				uint32_t ev_rpcid,
+				uint16_t ev_sport,
+				uint16_t ev_dport,
+				bool ev_single_packet,
+				uint32_t ev_local_ip,
+				uint32_t ev_remote_ip,
+				tcp_stream* cur_stream,
+				scratchpad *scratch){
+
+	if (scratch->complete) return;
+
+    if (!scratch->needs_schedule) return;
+
+	struct mtp_ctx *ctx = cur_stream->mtp;
+
+    uint16_t peer_id = ev_remote_ip & (MTP_HOMA_MAX_PEER - 1);
+    struct rpc_info_1 elem;
+    elem.peer_id = peer_id;
+    elem.bytes_remaining = scratch->last_bytes_remaining;
+    elem.rpcid = ev_rpcid;
+    elem.local_port = ev_dport;
+    elem.remote_port = ev_sport;
+    elem.remote_ip = ev_remote_ip;
+	elem.incoming = ctx->cc_incoming;
+	elem.birth = ctx->birth;
+	
+    if (scratch->new_state) {    
+		add_to_sorted_list_1(&elem);
+        // TODO: add message length and incoming
+    }
+    else {
+		// see if we are still in the lists. We may have
+        int ind = find_ge_sorted_list_1(&elem);
+		if (ind < 0){
+			// we have already received all our grants
+			ctx->cc_incoming = ctx->message_length;	
+			scratch->needs_schedule = FALSE;
+			return;
+		}
+        MTP_all_rpcs[ind].bytes_remaining -= ev_segment_length;
+		//if (smaller) ctx->cc_incoming = MTP_all_rpcs[ind].incoming;
+
+		if (MTP_all_rpcs[ind].in_prio_list){
+            int prio_ind = MTP_all_rpcs[ind].prio_list_ind;
+            MTP_highest_prio_rpcs[prio_ind].bytes_remaining -= ev_segment_length;
+        }
+		// so that we find it right after
+        elem.bytes_remaining -= ev_segment_length;
+    }
+
+    int my_ind = find_ge_sorted_list_1(&elem);
+
+    rpc_info_1 search_elem = {0};
+    search_elem.peer_id = elem.peer_id;
+    int sind = find_ge_sorted_list_1(&search_elem);
+	rpc_info_1 highest_prio = MTP_all_rpcs[sind];
+
+	// print_rpc_info_1("elem", &elem);
+	// print_rpc_info_1("search_elem", &search_elem);
+	// printf("%d\n", less_then_sorted_list_1(&search_elem, &elem));
+	// print_rpc_info_1("highest_prio", &highest_prio);
+
+    if (equal_sorted_list_1(&elem, &highest_prio)) {
+        rpc_info_1 next_elem = elem;
+        next_elem.remote_ip += 1;
+        int old_ind = find_ge_sorted_list_1(&next_elem);
+        
+        if (old_ind < 0 || MTP_all_rpcs[old_ind].peer_id != elem.peer_id){
+            // This is the only rpc from this peer
+            if (scratch->new_state ||
+                !highest_prio.in_prio_list) {
+                
+                rpc_info_2 prio_elem;
+                prio_elem.bytes_remaining = elem.bytes_remaining;
+                prio_elem.peer_id = peer_id;
+                prio_elem.rpcid = ev_rpcid;
+                prio_elem.local_port = ev_dport;
+                prio_elem.remote_port = ev_sport;
+                prio_elem.remote_ip = ev_remote_ip;
+                prio_elem.message_length = ev_message_length;
+                prio_elem.incoming = elem.incoming;
+
+				int prio_ind = add_to_sorted_list_2(&prio_elem);
+                MTP_all_rpcs[my_ind].in_prio_list = true;
+				MTP_all_rpcs[my_ind].prio_list_ind = prio_ind;
+            }
+        }
+        else {
+
+            //remove previous highest priority
+            rpc_info_2 old_prio_elem;
+            rpc_info_1 old_elem = MTP_all_rpcs[old_ind];
+            old_prio_elem.bytes_remaining = old_elem.bytes_remaining;
+            old_prio_elem.peer_id = peer_id;
+			old_prio_elem.rpcid = old_elem.rpcid;
+			old_prio_elem.local_port = old_elem.local_port;	
+			old_prio_elem.remote_port = old_elem.remote_port;
+			old_prio_elem.remote_ip = old_elem.remote_ip;
+			rpc_info_2 rmvd = remove_from_sorted_list_2(&old_prio_elem);
+            MTP_all_rpcs[old_ind].in_prio_list = false;
+			MTP_all_rpcs[old_ind].incoming = rmvd.incoming;
+
+            // add the new one
+            rpc_info_2 prio_elem;
+            prio_elem.bytes_remaining = elem.bytes_remaining;
+            prio_elem.peer_id = peer_id;
+            prio_elem.rpcid = ev_rpcid;
+            prio_elem.local_port = ev_dport;
+            prio_elem.remote_port = ev_sport;
+            prio_elem.remote_ip = ev_remote_ip;
+            prio_elem.message_length = ev_message_length;
+            prio_elem.incoming = elem.incoming;
+
+			int prio_ind = add_to_sorted_list_2(&prio_elem);
+            MTP_all_rpcs[my_ind].in_prio_list = true;
+			MTP_all_rpcs[my_ind].prio_list_ind = prio_ind;
+        }
+    }
+}
+
 void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
 	if (MTP_finish_grant_choose) return;
 
     uint16_t next_peer_id = 0;
     uint32_t min_last_bytes_remaining = 0;
     uint16_t nr_rpc = 0;
+	uint32_t total_increment;
 
 	rpc_info_2 elem;
 	elem.bytes_remaining = min_last_bytes_remaining;
@@ -505,7 +655,7 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
 
         rpc_info_2 grant_elem = MTP_highest_prio_rpcs[ind];
         min_last_bytes_remaining = grant_elem.bytes_remaining;
-        next_peer_id = grant_elem.peer_id;
+        next_peer_id = grant_elem.peer_id + 1;
 
         MTP_ri[i].rpcid = grant_elem.rpcid;
         MTP_ri[i].local_port = grant_elem.local_port;
@@ -522,16 +672,18 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
         uint32_t increment = new_grant - grant_elem.incoming;
 
         if (increment > 0 && available > 0){
+			// We are giving the grant
+
             if (increment > available){
                 increment = available;
                 new_grant = grant_elem.incoming + increment;
             }
 
             grant_elem.incoming = new_grant;
-            ctx.remove[i] = grant_elem.incoming >= grant_elem.message_length;
-            if (remove[i]){
+            MTP_remove[i] = grant_elem.incoming >= grant_elem.message_length;
+            if (MTP_remove[i]){
                 //TODO: is this ok?
-                ctx.MTP_highest_prio_rpcs.remove(grant_elem);
+				remove_from_sorted_list_2(&grant_elem);
 
                 rpc_info_1 rm_elem;
                 rm_elem.peer_id = grant_elem.peer_id;
@@ -541,54 +693,65 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
                 rm_elem.remote_port = grant_elem.remote_port;
                 rm_elem.remote_ip = grant_elem.remote_ip;
     
-                ctx.MTP_MTP_all_rpcs.remove(rm_elem);
+				remove_from_sorted_list_1(&rm_elem);
             }
             else {
-                ctx.MTP_highest_prio_rpcs[ind] = grant_elem;    
+                MTP_highest_prio_rpcs[ind] = grant_elem;    
             }
             total_increment += increment;
-            ri[i].newgrant = new_grant;
+            MTP_ri[i].newgrant = new_grant;
         }
+		// should this increment here on inside the if?
         nr_rpc += 1;
+
+		elem.peer_id = next_peer_id;
+		elem.bytes_remaining = min_last_bytes_remaining;
     }
     
-    ctx.total_incoming += total_increment;
-    ctx.grant_nonfifo_left -= total_increment;
-    if (ctx.grant_nonfifo_left <= 0){
-        ctx.grant_nonfifo_left += GRANT_NONFIFO;
-        ctx.need_grant_fifo = 1;
+	// We increase total_incoming by "ev_incoming" on first
+	// data packet and by grant increments as we increment here.
+	// then we decrease on data packets.
+    MTP_total_incoming += total_increment;
+    MTP_grant_nonfifo_left -= total_increment;
+    if (MTP_grant_nonfifo_left <= 0){
+        MTP_grant_nonfifo_left += MTP_HOMA_GRANT_NONFIFO;
+		// TODO: some of these have per-cpu
+		//.      indexes, pay attention if we run multi-threaded
+        MTP_need_grant_fifo = true;
     }
 
-    ctx.nr_grant_candidate = nr_rpc;
+    MTP_nr_grant_candidate = nr_rpc;
 
     int actual_rpc = 0;
     int priority = 0;
     int prio_idx = 0;
 
     for (int i = 0; i < nr_rpc; i+= 1){
-        if (ctx.ri[i].newgrant > 0){
+        if (MTP_ri[i].newgrant > 0){
             actual_rpc += 1;
-            priority = HOMA_MAX_SCHED_PRIO - prio_idx;
+            priority = MTP_HOMA_MAX_SCHED_PRIO - prio_idx;
             prio_idx += 1;
             if (priority < 0)
                 priority = 0;
-            ctx.ri[i].priority = priority;
+            MTP_ri[i].priority = priority;
         }
     }
 
-    ctx.nr_grant_ready = actual_rpc;
+    MTP_nr_grant_ready = actual_rpc;
 
-    extra_levels = HOMA_MAX_SCHED_PRIO + 1 - actual_rpc;
+    int extra_levels = MTP_HOMA_MAX_SCHED_PRIO + 1 - actual_rpc;
     if (extra_levels >= 0){
         for (int i = 0; i < nr_rpc; i += 1){
-            if (ctx.ri[i].newgrant > 0){
-                priority = ctx.ri[i].priority;
+            if (MTP_ri[i].newgrant > 0){
+                priority = MTP_ri[i].priority;
                 priority -= extra_levels;
                 if (priority)
-                    ctx.ri[i].priority = priority;
+                    MTP_ri[i].priority = priority;
             }
         }
     }
+
+	print_ri_list();
 }
 /* ***************** Chains ***********************/
 tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char* buf,
@@ -681,7 +844,7 @@ tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char*
     uint8_t prio;
 
     if (single_packet){
-        prio = (HOMA_MAX_PRIORITIES - 1) << 5;
+        prio = (MTP_HOMA_MAX_PRIORITIES - 1) << 5;
     }
     else {
         // TODO: read the get_prio function in homa.h, called from XDP_EGRESS
@@ -815,14 +978,16 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 						ev_dport, ev_single_packet, ev_local_ip,
 						ev_remote_ip, hold_addr, socket, &scratch);
 
-	sched_ep(mtcp, cur_ts, ev_seq, ev_message_length,
-			ev_incoming, ev_retransmit, ev_offset, 
-			ev_segment_length, ev_rpcid, ev_sport, 
-			ev_dport, ev_single_packet, ev_local_ip, 
-			ev_remote_ip, &scratch);
+	no_ctx_sched_ep(mtcp, cur_ts, ev_seq, ev_message_length,
+					ev_incoming, ev_retransmit, ev_offset, 
+					ev_segment_length, ev_rpcid, ev_sport, 
+					ev_dport, ev_single_packet, ev_local_ip, 
+					ev_remote_ip, &scratch);
 
 	print_sorted_list_1();
 	print_sorted_list_2();
+
+	choose_grant_ep(mtcp, cur_ts, &scratch);
 }
 
 void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
@@ -853,10 +1018,12 @@ void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 			ev_incoming, ev_retransmit, ev_offset, 
 			ev_segment_length, ev_rpcid, ev_sport, 
 			ev_dport, ev_single_packet, ev_local_ip, 
-			ev_remote_ip, &scratch);
+			ev_remote_ip, cur_stream, &scratch);
 
 	print_sorted_list_1();
 	print_sorted_list_2();
+
+	choose_grant_ep(mtcp, cur_ts, &scratch);
 }
 /********************************************************************* */
 #define TCP_MAX_WINDOW 65535

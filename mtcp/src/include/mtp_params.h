@@ -19,10 +19,17 @@
 #define MTP_HOMA_RPC_OUTGOING  5
 #define MTP_HOMA_RPC_DEAD  0
 
-#define HOMA_MAX_PRIORITIES 8
+#define MTP_HOMA_MAX_PRIORITIES 8
+#define MTP_HOMA_MAX_SCHED_PRIO 3
 #define MTP_HOMA_OVERCOMMITMENT 8
 #define MTP_HOMA_GRANT_WND 100000
 #define MTP_HOMA_MAX_INCOMING 480000
+#define MTP_HOMA_GRANT_FIFO_FRACTION 100 // unit: thousand
+#define MTP_HOMA_GRANT_FIFO_INCREMENT 10000
+#define MTP_HOMA_PACER_FIFO_FRACTION 50 // unit: thousand
+#define MTP_HOMA_PACER_FIFO_INCREMENT 1000
+
+#define MTP_HOMA_GRANT_NONFIFO ((1000 * MTP_HOMA_GRANT_FIFO_INCREMENT) / MTP_HOMA_GRANT_FIFO_FRACTION - MTP_HOMA_GRANT_FIFO_INCREMENT)
 
 // #define MTP_HOMA_COMMON_HSIZE 28
 // #define MTP_HOMA_DATA_HSIZE 32
@@ -42,7 +49,8 @@
     // BOGUS = 0x19,
 
 // Global Context
-extern uint32_t MTP_total_incoming; // MTP specific
+extern uint32_t MTP_total_incoming;
+extern int32_t MTP_grant_nonfifo_left;
 
 typedef struct rpc_info_1 {
     bool valid;
@@ -53,6 +61,7 @@ typedef struct rpc_info_1 {
     uint16_t remote_port;
     uint32_t remote_ip;
     uint32_t birth;
+    uint32_t incoming;
     bool in_prio_list;
     int prio_list_ind;
 } rpc_info_1;
@@ -86,6 +95,13 @@ typedef struct rinfo {
 } rinfo;
 
 extern rinfo MTP_ri[MTP_HOMA_OVERCOMMITMENT];
+
+extern bool MTP_remove[MTP_HOMA_OVERCOMMITMENT];
+
+extern bool MTP_need_grant_fifo;
+
+extern uint32_t MTP_nr_grant_candidate;
+extern uint32_t MTP_nr_grant_ready;
 
 
 
