@@ -436,12 +436,14 @@ void no_ctx_sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     elem.remote_port = ev_sport;
     elem.remote_ip = ev_remote_ip;
 	elem.incoming = ev_incoming;
+	elem.message_length = ev_message_length;
 	elem.birth = scratch->rpc_birth;
 	
 	assert(scratch->new_state);
         
 	add_to_sorted_list_1(&elem);
     int my_ind = find_ge_sorted_list_1(&elem);
+	elem = MTP_all_rpcs[my_ind];
 
     rpc_info_1 search_elem = {0};
     search_elem.peer_id = elem.peer_id;
@@ -542,6 +544,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     elem.remote_port = ev_sport;
     elem.remote_ip = ev_remote_ip;
 	elem.incoming = ctx->cc_incoming;
+	elem.message_length = ctx->message_length;
 	elem.birth = ctx->birth;
 	
     if (scratch->new_state) {    
@@ -569,6 +572,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     }
 
     int my_ind = find_ge_sorted_list_1(&elem);
+	elem = MTP_all_rpcs[my_ind];
 
     rpc_info_1 search_elem = {0};
     search_elem.peer_id = elem.peer_id;
@@ -597,7 +601,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
                 prio_elem.local_port = ev_dport;
                 prio_elem.remote_port = ev_sport;
                 prio_elem.remote_ip = ev_remote_ip;
-                prio_elem.message_length = ev_message_length;
+                prio_elem.message_length = elem.message_length;
                 prio_elem.incoming = elem.incoming;
 
 				int prio_ind = add_to_sorted_list_2(&prio_elem);
@@ -628,7 +632,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
             prio_elem.local_port = ev_dport;
             prio_elem.remote_port = ev_sport;
             prio_elem.remote_ip = ev_remote_ip;
-            prio_elem.message_length = ev_message_length;
+            prio_elem.message_length = elem.message_length;
             prio_elem.incoming = elem.incoming;
 
 			int prio_ind = add_to_sorted_list_2(&prio_elem);
@@ -657,6 +661,7 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
         min_last_bytes_remaining = grant_elem.bytes_remaining;
         next_peer_id = grant_elem.peer_id + 1;
 
+		MTP_ri[i].peer_id = grant_elem.peer_id;
         MTP_ri[i].rpcid = grant_elem.rpcid;
         MTP_ri[i].local_port = grant_elem.local_port;
         MTP_ri[i].remote_port = grant_elem.remote_port;
@@ -752,6 +757,44 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
     }
 
 	print_ri_list();
+}
+
+void update_prios_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch) {
+    if (MTP_finish_grant_choose) return;
+
+    for (int i = 0; i < MTP_nr_grant_candidate; i++){
+        if (MTP_remove[i]){
+            // TODO: replace with a check on length
+            uint16_t peer_id = MTP_ri[i].peer_id;
+            rpc_info_1 elem = {0};
+            elem.peer_id = peer_id;
+            int ind = find_ge_sorted_list_1(&elem);
+
+            if (ind >= 0 && MTP_all_rpcs[ind].peer_id == elem.peer_id){
+                // There is another element, which is the 
+                // highest priority  
+                elem = MTP_all_rpcs[ind];
+                rpc_info_2 prio_elem;
+                prio_elem.bytes_remaining = elem.bytes_remaining;
+                prio_elem.peer_id = peer_id;
+                prio_elem.rpcid = elem.rpcid;
+                prio_elem.local_port = elem.local_port;
+                prio_elem.remote_port = elem.remote_port;
+                prio_elem.remote_ip = elem.remote_ip;
+                prio_elem.message_length = elem.message_length;
+                prio_elem.incoming = elem.incoming;
+
+				int prio_ind = add_to_sorted_list_2(&prio_elem);
+                MTP_all_rpcs[ind].in_prio_list = true;
+				MTP_all_rpcs[ind].prio_list_ind = prio_ind;
+            }
+        }
+
+    }
+
+    if (MTP_nr_grant_candidate) {
+        MTP_finish_grant_choose = true;
+    }
 }
 /* ***************** Chains ***********************/
 tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char* buf,
@@ -988,6 +1031,7 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 	print_sorted_list_2();
 
 	choose_grant_ep(mtcp, cur_ts, &scratch);
+	update_prios_ep(mtcp, cur_ts, &scratch);
 }
 
 void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
@@ -1024,6 +1068,7 @@ void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 	print_sorted_list_2();
 
 	choose_grant_ep(mtcp, cur_ts, &scratch);
+	update_prios_ep(mtcp, cur_ts, &scratch);
 }
 /********************************************************************* */
 #define TCP_MAX_WINDOW 65535

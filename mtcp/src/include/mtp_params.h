@@ -62,6 +62,7 @@ typedef struct rpc_info_1 {
     uint32_t remote_ip;
     uint32_t birth;
     uint32_t incoming;
+    uint32_t message_length;
     bool in_prio_list;
     int prio_list_ind;
 } rpc_info_1;
@@ -86,6 +87,7 @@ extern rpc_info_2 MTP_highest_prio_rpcs[MTP_HOMA_MAX_RPC];
 extern bool MTP_finish_grant_choose;
 
 typedef struct rinfo {
+    uint16_t peer_id;
     uint32_t rpcid;
     uint16_t local_port;
     uint16_t remote_port;
