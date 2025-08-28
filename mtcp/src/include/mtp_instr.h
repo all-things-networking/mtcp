@@ -25,6 +25,11 @@ mtp_bp* GetFreeBP(struct tcp_stream *cur_stream);
 mtp_bp* GetLastBP(struct tcp_stream *cur_stream);
 bool BPBuffer_isempty(tcp_stream *cur_stream);
 
+mtp_bp* GetFreeGBP(mtcp_manager_t mtcp);
+mtp_bp* GetLastGBP(mtcp_manager_t mtcp);
+bool GBPBuffer_isempty(mtcp_manager_t mtcp);
+
+
 // new_ctx_instr
 // HOMA
 tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind,

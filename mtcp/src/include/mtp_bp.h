@@ -13,6 +13,7 @@
 #endif
 
 // Should get compiler generated
+struct tcp_stream_t;
 
 #define MTP_HEADER_LEN 20
 
@@ -88,6 +89,9 @@ struct mtp_bp {
     struct mtp_bp_hdr hdr;
     struct mtp_bp_payload payload;
     uint8_t prio;
+
+    // TODO: make this more elegant
+    struct tcp_stream* cur_stream;
     // MTP TODO: add segmentation instructions
 };
 

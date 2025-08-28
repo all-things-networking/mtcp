@@ -40,9 +40,9 @@
 #define MTP_PRINT(f, m...) (void)0
 #endif
 
-
-
-
+#ifdef USE_MTP
+#include "mtp_bp.h"
+#endif
 
 #ifdef ENABLE_ONVM
 #include "onvm_nflib.h"
@@ -300,6 +300,13 @@ struct mtcp_manager
 	int rto_list_cnt;
 	int timewait_list_cnt;
 	int timeout_list_cnt;
+
+	#ifdef USE_MTP
+	// global bp list
+	mtp_bp g_mtp_bps[MTP_PER_FLOW_BP_CNT];
+    uint32_t g_mtp_bps_head;
+    uint32_t g_mtp_bps_tail;
+	#endif
 
 #if BLOCKING_SUPPORT
 	TAILQ_HEAD (rcv_br_head, tcp_stream) rcv_br_list;

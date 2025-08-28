@@ -52,10 +52,10 @@ void print_MTP_bp(struct mtp_bp* bp){
     //     MTP_PRINT("Resend Offset: %u, Length: %u, Priority: %u\n",
     //            bp->hdr.resend.offset, bp->hdr.resend.length, bp->hdr.resend.priority);
     // } 
-    // else if (bp->hdr.type == MTP_HOMA_GRANT) { // Grant Packet
-    //     MTP_PRINT("Grant Offset: %u, Priority: %u, Resend All: %u\n",
-    //            bp->hdr.grant.offset, bp->hdr.grant.priority, bp->hdr.grant.resend_all);
-    // } 
+    else if (bp->hdr.type == MTP_HOMA_GRANT) { // Grant Packet
+        MTP_PRINT("Grant Offset: %u, Priority: %u, Resend All: %u\n",
+               bp->hdr.grant.offset, bp->hdr.grant.priority, bp->hdr.grant.resend_all);
+    } 
     else {
         MTP_PRINT("Unknown packet type\n");
     }

@@ -36,6 +36,7 @@
 
 #define MTP_HOMA_COMMON_HSIZE 24
 #define MTP_HOMA_DATA_HSIZE 28
+#define MTP_HOMA_GRANT_HSIZE 6
 
 #define MTP_HOMA_DATA  0x10
 #define MTP_HOMA_GRANT  0x11
@@ -47,65 +48,6 @@
     // NEED_ACK = 0x17,
     // ACK = 0x18,
     // BOGUS = 0x19,
-
-// Global Context
-extern uint32_t MTP_total_incoming;
-extern int32_t MTP_grant_nonfifo_left;
-
-typedef struct rpc_info_1 {
-    bool valid;
-    uint16_t peer_id;
-    uint32_t bytes_remaining;
-    uint32_t rpcid;
-    uint16_t local_port;
-    uint16_t remote_port;
-    uint32_t remote_ip;
-    uint32_t birth;
-    uint32_t incoming;
-    uint32_t message_length;
-    bool in_prio_list;
-    int prio_list_ind;
-} rpc_info_1;
-
-extern rpc_info_1 MTP_all_rpcs[MTP_HOMA_MAX_RPC];
-
-
-typedef struct rpc_info_2 {
-    bool valid;
-    uint32_t bytes_remaining;
-    uint16_t peer_id;
-    uint32_t rpcid;
-    uint16_t local_port;
-    uint16_t remote_port;
-    uint32_t remote_ip;
-    uint32_t message_length;
-    uint32_t incoming;
-} rpc_info_2;
-
-extern rpc_info_2 MTP_highest_prio_rpcs[MTP_HOMA_MAX_RPC];
-
-extern bool MTP_finish_grant_choose;
-
-typedef struct rinfo {
-    uint16_t peer_id;
-    uint32_t rpcid;
-    uint16_t local_port;
-    uint16_t remote_port;
-    uint32_t remote_ip;
-    uint32_t newgrant;
-    uint8_t priority;
-} rinfo;
-
-extern rinfo MTP_ri[MTP_HOMA_OVERCOMMITMENT];
-
-extern bool MTP_remove[MTP_HOMA_OVERCOMMITMENT];
-
-extern bool MTP_need_grant_fifo;
-
-extern uint32_t MTP_nr_grant_candidate;
-extern uint32_t MTP_nr_grant_ready;
-
-
 
 // Protocol-specific parameters: TCP
 

@@ -29,5 +29,6 @@ void MTP_ProcessSendEvents(mtcp_manager_t mtcp,
 int MTP_PacketGenList(mtcp_manager_t mtcp, 
     struct mtcp_sender *sender, uint32_t cur_ts, int thresh);
 
+int MTP_GlobalPacketGen(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh);
 
 #endif

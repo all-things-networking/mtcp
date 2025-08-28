@@ -106,6 +106,57 @@ mtp_bp* GetFreeBP(struct tcp_stream *cur_stream){
     return new_bp;
 }
 
+/*----------------------------------------------------------------------------*/
+bool GBPBuffer_isempty(mtcp_manager_t mtcp){
+	uint32_t head = mtcp->g_mtp_bps_head;
+    uint32_t tail = mtcp->g_mtp_bps_tail;
+     
+	return (head == tail);	
+}
+
+bool GBPBuffer_isfull(mtcp_manager_t mtcp){
+	uint32_t head = mtcp->g_mtp_bps_head;
+    uint32_t tail = mtcp->g_mtp_bps_tail;
+    uint32_t size = MTP_PER_FLOW_BP_CNT; 
+
+    uint32_t next_tail = (tail + 1) % size;
+    
+    return (next_tail == head);
+}
+
+mtp_bp* GetFreeGBP(mtcp_manager_t mtcp){
+	if (GBPBuffer_isfull(mtcp)){
+        //MTP TODO: gotta fix this
+        printf("GBP buffer is full!\n");
+        return NULL;
+    }
+
+    uint32_t bp_tail = mtcp->g_mtp_bps_tail;
+    mtp_bp* new_bp = mtcp->g_mtp_bps + bp_tail;
+    mtcp->g_mtp_bps_tail = (bp_tail + 1) % MTP_PER_FLOW_BP_CNT;
+    return new_bp;	
+}
+
+mtp_bp* GetLastGBP(mtcp_manager_t mtcp){
+	if (GBPBuffer_isempty(mtcp)){
+        printf("GBP buffer is empty!\n");
+        return NULL;
+    }
+
+    uint32_t bp_tail = mtcp->g_mtp_bps_tail;
+	uint32_t last_ind = bp_tail;
+	if (last_ind == 0){
+		last_ind = MTP_PER_FLOW_BP_CNT - 1;
+	}
+	else {
+		last_ind = last_ind - 1;
+	}
+
+    mtp_bp* last_bp = mtcp->g_mtp_bps + last_ind;
+    return last_bp;	
+}
+
+
 /***********************************************
  MTP new_ctx_instr
  

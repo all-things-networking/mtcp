@@ -767,6 +767,9 @@ MTP_PacketGen(mtcp_manager_t mtcp, uint32_t cur_ts)
 
 	/* Set the threshold to CONFIG.max_concurrency to send ACK immediately */
 	/* Otherwise, set to appropriate value (e.g. thresh) */
+
+	MTP_GlobalPacketGen(mtcp, cur_ts, thresh);
+
 	assert(mtcp->g_sender != NULL);
 	if (mtcp->g_sender->gen_list_cnt){
 		// printf("first loop\n");

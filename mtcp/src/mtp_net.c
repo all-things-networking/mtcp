@@ -597,4 +597,178 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 
 }
 
+/*----------------------------------------------------------------------------*/
+void 
+AdvanceGBPListHead(mtcp_manager_t mtcp, int advance){ 
+    int cur_head = mtcp->g_mtp_bps_head; 
+    mtcp->g_mtp_bps_head = (cur_head + advance) % MTP_PER_FLOW_BP_CNT;
+}
+
+/*----------------------------------------------------------------------------*/
+int
+SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){   
+
+    // MTP_PRINT("in SendMTPPackets\n");
+    unsigned int sent = 0;
+    unsigned int err = 0;
+    // MTP_PRINT("bp list head: %u, bp list tail: %u\n", cur_stream->sndvar->mtp_bps_head,
+    //                                                cur_stream->sndvar->mtp_bps_tail);
+    for (unsigned int i = mtcp->g_mtp_bps_head;
+         i != mtcp->g_mtp_bps_tail;
+         i = (i + 1) % MTP_PER_FLOW_BP_CNT){
+        
+        // MTP_PRINT("bp index: %d\n", i);
+        
+        mtp_bp* bp = &(mtcp->g_mtp_bps[i]);
+        
+        // MTP_PRINT("bp @ index %u:\n", i);
+        MTP_PRINT("---------------------------------\n");
+        MTP_PRINT("Sending MTP packet:\n");
+        print_MTP_bp(bp);
+
+        if (bp->payload.needs_segmentation){
+            assert(bp->payload.data != NULL);
+            uint32_t bytes_to_send = bp->payload.len;
+            uint8_t *data_ptr = bp->payload.data;
+
+            // MTP_PRINT("1 sending, here\n");
+
+            if (bp->payload.seg_rule_group_id == 1){
+                uint32_t seq = bp->hdr.seq;
+                uint32_t seg_offset = bp->hdr.data.seg.offset;
+                uint32_t seg_size = bp->payload.seg_size;
+
+                while (bytes_to_send > 0) {
+                    // MTP_PRINT("sending, here: %d\n", bytes_to_send);
+
+                    int32_t pkt_len = MIN(seg_size, bytes_to_send);
+
+                    // MTP_PRINT("pkt_len: %d\n", pkt_len);
+
+                    // Send the next packet
+                    struct mtp_bp_hdr *mtph;
+                    // TODO: technically, we should check the 
+                    //.       packet type.
+                    uint32_t hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE;
+                    // TODO: add UDP header
+                    mtph = (struct mtp_bp_hdr *)IPOutputWTos(mtcp, bp->cur_stream,
+                            hdr_len + pkt_len, bp->prio);
+                    if (mtph == NULL) {
+                        bp->hdr.seq = seq;
+                        bp->hdr.data.seg.offset = seg_offset;
+                        bp->payload.len = bytes_to_send;
+                        bp->payload.data = data_ptr;
+                        
+                        AdvanceGBPListHead(mtcp, sent + err);
+                        
+                        MTP_PRINT("ran out midway\n");
+                        return -2;
+                    }
+
+                    // MTP_PRINT("got packet memory\n");
+
+                    memcpy((uint8_t *)mtph, &(bp->hdr), hdr_len);
+
+                    // MTP_PRINT("copied the header\n");
+
+                    mtph->seq = seq;
+                    mtph->data.seg.offset = seg_offset;
+                    mtph->data.seg.segment_length = pkt_len;
+                    // printf("mtph->seq: %u, mtph->data.seg.offset: %u, mtph->data.seg.segment_length: %u\n",
+                    //        mtph->seq, mtph->data.seg.offset, mtph->data.seg.segment_length);
+                    // MTP_PRINT("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
+
+                    // MTP_PRINT("setup some fields\n");
+
+                    
+                    // MTP TODO: do we need to lock here?
+                    // copy payload if exist
+                    // MTP_PRINT("packet addr:%p\n", (uint8_t *)mtph + MTP_HEADER_LEN + optlen);
+                    // MTP_PRINT("data pointer: %p\n", data_ptr);
+                    memcpy((uint8_t *)mtph + hdr_len, data_ptr, pkt_len);
+                    #if defined(NETSTAT) && defined(ENABLELRO)
+                    mtcp->nstat.tx_gdptbytes += payloadlen;
+                    #endif // NETSTAT 
+                     
+                    // MTP_PRINT("copied payload\n");
+
+                    // MTP TODO: checksum is TCP specific
+
+                    // MTP_PRINT("setup checksum\n");
+                    // update for next packet based on segementation rules
+                    bytes_to_send -= pkt_len;
+                    seq += 1;
+                    seg_offset += pkt_len;
+                    data_ptr += pkt_len;
+
+                    // MTP_PRINT("moving on\n");
+                           
+                }
+            }
+            sent += 1;
+        }
+        else {
+            
+            uint16_t pkt_len = 0;
+            if (bp->payload.data != NULL){
+                pkt_len = bp->payload.len;
+            }
+            
+            uint32_t hdr_len = 0;
+            if(bp->hdr.type == MTP_HOMA_DATA) {
+                hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE;
+            }
+            else if (bp->hdr.type == MTP_HOMA_GRANT){
+                hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_GRANT_HSIZE;
+            }
+
+            
+            struct mtp_bp_hdr *mtph;
+            mtph = (struct mtp_bp_hdr *)IPOutputWTos(mtcp, bp->cur_stream,
+                            hdr_len + pkt_len, bp->prio);
+            if (mtph == NULL) {
+                
+                AdvanceGBPListHead(mtcp, sent + err);
+                
+                return -2;
+            }
+
+            memcpy((uint8_t *)mtph, &(bp->hdr), hdr_len);
+
+            // MTP_PRINT("Sent Seq 2: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
+
+            if (bp->hdr.type == MTP_HOMA_DATA){
+                // MTP TODO: finish this.
+                //  until then, send all data packets with segmentation
+            }
+
+            sent += 1;
+            
+        }
+    }
+    
+    
+    AdvanceGBPListHead(mtcp, sent + err);
+    
+    return 0; 
+}
+
+int 
+MTP_GlobalPacketGen(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh){
+	int cnt = 0;
+	int ret;
+
+	/* Send packets */
+	cnt = 0;
+	while (1) {
+		if (++cnt > thresh) break;
+        ret = SendGlobalMTPPackets(mtcp, cur_ts);
+        if (ret == -2){
+            // no available buffer
+            break;
+        }
+    }
+
+    return cnt;
+}
 

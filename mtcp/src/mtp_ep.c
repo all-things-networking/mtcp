@@ -14,6 +14,7 @@
 #include "mtp_instr.h"
 #include "mtp_net.h"
 #include "mtp_seq.h"
+#include "mtp_global.h"
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
@@ -29,6 +30,9 @@ typedef struct scratchpad_decl {
     bool last_grant;
     bool send_fifo_rpc;
 	uint32_t rpc_birth;
+	// for packet generation purposes
+	// should not be used in EPs
+	tcp_stream* cur_stream;
 } scratchpad;
 
 /******************* EPs ************************* */
@@ -90,8 +94,10 @@ void first_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 		return;
 	}
 
+
 	socket->rpcs[rpc_ind] = cur_stream;
 	cur_stream->socket = socket;
+	scratch->cur_stream = cur_stream;
 
     scratch->complete = ev_single_packet;
     scratch->new_state = true;
@@ -299,6 +305,25 @@ int find_ge_sorted_list_1(rpc_info_1* ri){
 	return best_ind;
 }
 
+int find_min_birth_ordered_list_1(){
+	int best_ind = -1;
+	rpc_info_1* best = NULL;
+
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		if (MTP_all_rpcs[i].valid) {
+			if (best == NULL){
+				best_ind = i;
+				best = &MTP_all_rpcs[i];
+			}
+			else if (less_then_sorted_list_1(&MTP_all_rpcs[i], best)){
+				best_ind = i;
+				best = &MTP_all_rpcs[i];
+			}
+		}
+	}
+	return best_ind;
+}
+
 void print_sorted_list_1(){
 	printf("------- All RPCs list:---------\n");
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
@@ -438,6 +463,7 @@ void no_ctx_sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 	elem.incoming = ev_incoming;
 	elem.message_length = ev_message_length;
 	elem.birth = scratch->rpc_birth;
+	elem.cur_stream = scratch->cur_stream;
 	
 	assert(scratch->new_state);
         
@@ -474,6 +500,8 @@ void no_ctx_sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
                 prio_elem.remote_ip = ev_remote_ip;
                 prio_elem.message_length = ev_message_length;
                 prio_elem.incoming = ev_incoming;
+				prio_elem.cur_stream = elem.cur_stream;
+				prio_elem.fifo_list_ind = my_ind;
 
 				int prio_ind = add_to_sorted_list_2(&prio_elem);
                 MTP_all_rpcs[my_ind].in_prio_list = true;
@@ -505,6 +533,8 @@ void no_ctx_sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
             prio_elem.remote_ip = ev_remote_ip;
             prio_elem.message_length = ev_message_length;
             prio_elem.incoming = ev_incoming;
+			prio_elem.cur_stream = elem.cur_stream;
+			prio_elem.fifo_list_ind = my_ind;
 
 			int prio_ind = add_to_sorted_list_2(&prio_elem);
             MTP_all_rpcs[my_ind].in_prio_list = true;
@@ -546,6 +576,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 	elem.incoming = ctx->cc_incoming;
 	elem.message_length = ctx->message_length;
 	elem.birth = ctx->birth;
+	elem.cur_stream = cur_stream;
 	
     if (scratch->new_state) {    
 		add_to_sorted_list_1(&elem);
@@ -603,6 +634,8 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
                 prio_elem.remote_ip = ev_remote_ip;
                 prio_elem.message_length = elem.message_length;
                 prio_elem.incoming = elem.incoming;
+				prio_elem.cur_stream = elem.cur_stream;
+				prio_elem.fifo_list_ind = my_ind;
 
 				int prio_ind = add_to_sorted_list_2(&prio_elem);
                 MTP_all_rpcs[my_ind].in_prio_list = true;
@@ -634,6 +667,8 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
             prio_elem.remote_ip = ev_remote_ip;
             prio_elem.message_length = elem.message_length;
             prio_elem.incoming = elem.incoming;
+			prio_elem.cur_stream = elem.cur_stream;
+			prio_elem.fifo_list_ind = my_ind;
 
 			int prio_ind = add_to_sorted_list_2(&prio_elem);
             MTP_all_rpcs[my_ind].in_prio_list = true;
@@ -666,6 +701,7 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
         MTP_ri[i].local_port = grant_elem.local_port;
         MTP_ri[i].remote_port = grant_elem.remote_port;
         MTP_ri[i].remote_ip = grant_elem.remote_ip;         
+		MTP_ri[i].cur_stream = grant_elem.cur_stream;
 
         uint32_t new_grant = grant_elem.message_length - 
                            	 grant_elem.bytes_remaining + MTP_HOMA_GRANT_WND;
@@ -701,7 +737,9 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
 				remove_from_sorted_list_1(&rm_elem);
             }
             else {
-                MTP_highest_prio_rpcs[ind] = grant_elem;    
+                MTP_highest_prio_rpcs[ind] = grant_elem; 
+				int fifo_ind = grant_elem.fifo_list_ind;
+				MTP_all_rpcs[fifo_ind].incoming = grant_elem.incoming;   
             }
             total_increment += increment;
             MTP_ri[i].newgrant = new_grant;
@@ -783,6 +821,7 @@ void update_prios_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch)
                 prio_elem.remote_ip = elem.remote_ip;
                 prio_elem.message_length = elem.message_length;
                 prio_elem.incoming = elem.incoming;
+				prio_elem.fifo_list_ind = ind;
 
 				int prio_ind = add_to_sorted_list_2(&prio_elem);
                 MTP_all_rpcs[ind].in_prio_list = true;
@@ -796,6 +835,138 @@ void update_prios_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch)
         MTP_finish_grant_choose = true;
     }
 }
+
+void gen_grants_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch) {
+
+    if (!MTP_finish_grant_choose) return;
+
+    scratch->last_grant = false;
+	scratch->send_fifo_rpc = false;
+    // bool no_work = false;
+    grant_info gi;
+    uint32_t gi_idx;
+
+	MTP_granting_idx += 1;
+
+    if (MTP_nr_grant_ready == 0 && !MTP_need_grant_fifo){
+        scratch->last_grant = true;
+        return;
+    }
+
+    uint16_t cnt = MTP_HOMA_OVERCOMMITMENT; 
+    if (MTP_nr_grant_candidate < cnt){
+        cnt = MTP_nr_grant_candidate;
+    }
+
+    if (MTP_need_grant_fifo){
+        // If we have RPC in the FIFO queue, we should grant it at last
+        if (MTP_granting_idx == cnt + 1){
+            scratch->last_grant = true;
+        }
+    }
+    else if (MTP_granting_idx == cnt) scratch->last_grant = true;
+    
+
+    if (MTP_need_grant_fifo && scratch->last_grant){
+        // it's time to grant the RPC in the FIFO queue
+        // TODO: fix this?
+		// TODO: not sure if this is fully matching
+		//       eTran. I think eTran considers tree 1 smaller
+        int min_ind = find_min_birth_ordered_list_1();
+        if (min_ind < 0){
+            MTP_need_grant_fifo = 0; // error or no fifo rpc to grant
+            return;
+        }
+        else {
+            uint32_t increment = 0;
+            uint32_t newgrant = 0;
+            bool need_remove = false;
+            rpc_info_1 min_elem = MTP_all_rpcs[min_ind];
+
+            increment = MTP_HOMA_GRANT_FIFO_INCREMENT;
+            // is this supposed to get updated in the
+            // other tree too? yes
+            newgrant = increment + min_elem.incoming;
+            MTP_all_rpcs[min_ind].incoming = newgrant;
+			if (MTP_all_rpcs[min_ind].in_prio_list){
+				int prio_ind = MTP_all_rpcs[min_ind].prio_list_ind;
+				MTP_highest_prio_rpcs[prio_ind].incoming = newgrant;
+			}
+
+            if (newgrant > min_elem.message_length){
+                increment -= newgrant - min_elem.message_length;
+                MTP_all_rpcs[min_ind].incoming = min_elem.message_length;
+				if (MTP_all_rpcs[min_ind].in_prio_list){
+					int prio_ind = MTP_all_rpcs[min_ind].prio_list_ind;
+					MTP_highest_prio_rpcs[prio_ind].incoming = min_elem.message_length;
+				}
+                need_remove = true;    
+            }
+
+            MTP_total_incoming += increment;
+
+            gi.rpcid = min_elem.rpcid;
+            gi.sport = min_elem.local_port;
+            gi.dport = min_elem.remote_port;
+            gi.remote_ip = min_elem.remote_ip;
+            gi.newgrant = MTP_all_rpcs[min_ind].incoming;
+            gi.priority = MTP_HOMA_MAX_SCHED_PRIO;
+
+            if (need_remove){
+				remove_from_sorted_list_1(&min_elem);
+            }
+            scratch->send_fifo_rpc = true;
+        }
+        
+    }
+    else {
+        // grant the RPC in the Priority queue
+        gi_idx = (MTP_granting_idx - 1);
+        gi_idx = gi_idx % MTP_HOMA_OVERCOMMITMENT;
+
+        gi.sport = MTP_ri[gi_idx].local_port;
+        gi.dport = MTP_ri[gi_idx].remote_port;
+        gi.rpcid = MTP_ri[gi_idx].rpcid;
+        gi.newgrant = MTP_ri[gi_idx].newgrant;
+        gi.remote_ip = MTP_ri[gi_idx].remote_ip;
+        gi.priority = MTP_ri[gi_idx].priority;
+		gi.cur_stream = MTP_ri[gi_idx].cur_stream;
+
+        MTP_ri[gi_idx].newgrant = 0;
+    }
+
+	// Create BP
+
+	printf("granting to %ld: %d\n", gi.rpcid, gi.newgrant);
+
+	mtp_bp *bp = GetFreeGBP(mtcp);
+	bp->cur_stream = gi.cur_stream;
+	struct mtp_bp_hdr *hdr = &bp->hdr;
+    hdr->type = MTP_HOMA_GRANT;
+    hdr->dest_port = gi.dport;
+    hdr->src_port = gi.sport;
+    hdr->sender_id = gi.rpcid;
+    hdr->grant.offset = gi.newgrant;
+    hdr->grant.priority = gi.priority;
+    hdr->grant.resend_all = 0;
+}
+
+void reset_grant_state (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch) {
+    if (!MTP_finish_grant_choose) return;
+
+    if (scratch->last_grant){
+        MTP_granting_idx = 0;
+        MTP_nr_grant_candidate = 0;
+        MTP_finish_grant_choose = 0;
+    }
+
+    // flush the FIFO queue
+    if (scratch->send_fifo_rpc)
+        MTP_need_grant_fifo = 0;
+
+    return;
+}
+
 /* ***************** Chains ***********************/
 tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char* buf,
 		                      size_t msg_len, uint16_t srcport, uint16_t dest_port,
@@ -1032,6 +1203,8 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	choose_grant_ep(mtcp, cur_ts, &scratch);
 	update_prios_ep(mtcp, cur_ts, &scratch);
+	gen_grants_ep(mtcp, cur_ts, &scratch);
+	reset_grant_state(mtcp, cur_ts, &scratch);
 }
 
 void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
@@ -1069,6 +1242,8 @@ void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	choose_grant_ep(mtcp, cur_ts, &scratch);
 	update_prios_ep(mtcp, cur_ts, &scratch);
+	gen_grants_ep(mtcp, cur_ts, &scratch);
+	reset_grant_state(mtcp, cur_ts, &scratch);
 }
 /********************************************************************* */
 #define TCP_MAX_WINDOW 65535
