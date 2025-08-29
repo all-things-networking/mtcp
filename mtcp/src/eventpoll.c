@@ -254,10 +254,12 @@ RaisePendingStreamEvents(mtcp_manager_t mtcp,
 		if (rcvvar->rcvbuf && rcvvar->rcvbuf->merged_len > 0) {
 			TRACE_EPOLL("Socket %d: Has existing payloads\n", socket->id);
 			// printf("Socket %d: Has existing payloads\n", socket->id);
-			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN,
+						  stream->rpc_ind);
 		} else if (stream->state == TCP_ST_CLOSE_WAIT) {
 			TRACE_EPOLL("Socket %d: Waiting for close\n", socket->id);
-			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN,
+						stream->rpc_ind);
 		}
 	}
 
@@ -267,7 +269,8 @@ RaisePendingStreamEvents(mtcp_manager_t mtcp,
 		if (!sndvar->sndbuf || (sndvar->sndbuf && sndvar->snd_wnd > 0)) {
 			if (!(socket->events[0] & MTCP_EPOLLOUT)) {
 				TRACE_EPOLL("Socket %d: Adding write event\n", socket->id);
-				AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
+				AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT,
+						 stream->rpc_ind);
 			}
 		}
 	}
@@ -501,10 +504,9 @@ wait:
 			validity = FALSE;
 		if (!(event_socket->epoll & eq->events[eq->start].ev.events))
 			validity = FALSE;
-		// This needs to be an OR of events across all of the rpc-Inds
-		bool events_exists = false;
-		for (int j)
-		if (!(event_socket->events & eq->events[eq->start].ev.events))
+			
+		uint32_t ev_rpcind = eq->events[eq->start].ev.rpc_ind;
+		if (!(event_socket->events[ev_rpcind] & eq->events[eq->start].ev.events))
 			validity = FALSE;
 
 		if (validity) {
@@ -523,7 +525,7 @@ wait:
 					EventToString(eq->events[eq->start].ev.events));
 			ep->stat.invalidated++;
 		}
-		event_socket->events &= (~eq->events[eq->start].ev.events);
+		event_socket->events[ev_rpcind] &= (~eq->events[eq->start].ev.events);
 
 		eq->start++;
 		eq->num_events--;
@@ -542,7 +544,9 @@ wait:
 			validity = FALSE;
 		if (!(event_socket->epoll & eq->events[eq->start].ev.events))
 			validity = FALSE;
-		if (!(event_socket->events & eq->events[eq->start].ev.events))
+
+		uint32_t ev_rpcind = eq->events[eq->start].ev.rpc_ind;
+		if (!(event_socket->events[ev_rpcind] & eq->events[eq->start].ev.events))
 			validity = FALSE;
 
 		if (validity) {
@@ -561,7 +565,7 @@ wait:
 					EventToString(eq->events[eq->start].ev.events));
 			ep->stat.invalidated++;
 		}
-		event_socket->events &= (~eq->events[eq->start].ev.events);
+		event_socket->events[ev_rpcind] &= (~eq->events[eq->start].ev.events);
 
 		eq->start++;
 		eq->num_events--;
@@ -580,7 +584,8 @@ wait:
 /*----------------------------------------------------------------------------*/
 inline int 
 AddEpollEvent(struct mtcp_epoll *ep, 
-		int queue_type, socket_map_t socket, uint32_t event)
+		int queue_type, socket_map_t socket, uint32_t event,
+		uint32_t rpc_ind)
 {
 	struct event_queue *eq;
 	int index;
@@ -590,7 +595,7 @@ AddEpollEvent(struct mtcp_epoll *ep,
 	
 	ep->stat.issued++;
 
-	if (socket->events & event) {
+	if (socket->events[rpc_ind] & event) {
 		return 0;
 	}
 
@@ -616,7 +621,7 @@ AddEpollEvent(struct mtcp_epoll *ep,
 
 	index = eq->end++;
 
-	socket->events |= event;
+	socket->events[rpc_ind] |= event;
 	eq->events[index].sockid = socket->id;
 	eq->events[index].ev.events = event;
 	eq->events[index].ev.data = socket->ep_data;

@@ -297,7 +297,8 @@ EqualSID(const void *flow1, const void *flow2);
 
 extern inline int 
 AddEpollEvent(struct mtcp_epoll *ep, 
-		int queue_type, socket_map_t socket, uint32_t event);
+		int queue_type, socket_map_t socket, uint32_t event,
+		uint32_t rpc_ind);
 
 extern inline void 
 RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream);

@@ -101,7 +101,7 @@ INC += -I$(PS_DIR)/include
 ifeq ($(DPDK), 1)
 #include $(RTE_SDK)/mk/rte.vars.mk
 CFLAGS+=-g -O2
-CFLAGS+=-I/usr/local/include -include rte_config.h -march=native -mrtm -I/usr/include/x86_64-linux-gnu -I/usr/include/libnl3 -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include 
+CFLAGS+=-I/usr/local/include -include rte_config.h -march=native -mrtm -I/usr/include/libnl3 
 ifeq ($(ENFORCE_RX_IDLE), 1)
 INC += -DENFORCE_RX_IDLE -DRX_IDLE_THRESH=0
 endif

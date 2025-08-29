@@ -26,7 +26,14 @@ AllocateSocket(mctx_t mctx, int socktype, int need_lock)
 
 		/* if there is not invalidated events, insert the socket to the end */
 		/* and find another socket in the free smap list */
-		if (socket->events) {
+		bool events_exist = false;
+		for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+			if (socket->events[i]){
+				events_exist = true;
+				break;
+			}
+		}
+		if (events_exist) {
 			TRACE_INFO("There are still not invalidate events remaining.\n");
 			TRACE_DBG("There are still not invalidate events remaining.\n");
 			TAILQ_INSERT_TAIL(&mtcp->free_smap, socket, free_smap_link);
@@ -41,7 +48,11 @@ AllocateSocket(mctx_t mctx, int socktype, int need_lock)
 	socket->opts = 0;
 	socket->stream = NULL;
 	socket->epoll = 0;
-	socket->events = 0;
+
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+		socket->events[i] = 0;
+	}
+	
 
 	/* 
 	 * reset a few fields (needed for client socket) 
@@ -65,7 +76,10 @@ FreeSocket(mctx_t mctx, int sockid, int need_lock)
 	
 	socket->socktype = MTCP_SOCK_UNUSED;
 	socket->epoll = MTCP_EPOLLNONE;
-	socket->events = 0;
+
+	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++) {
+		socket->events[i] = 0;
+	}
 
 	if (need_lock)
 		pthread_mutex_lock(&mtcp->ctx->smap_lock);

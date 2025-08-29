@@ -723,7 +723,7 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 	    !TAILQ_EMPTY(&mtp_listener->pending))
 		AddEpollEvent(mtcp->ep, 
 			      USR_SHADOW_EVENT_QUEUE,
-			      mtp_listener->socket, MTCP_EPOLLIN);
+			      mtp_listener->socket, MTCP_EPOLLIN, 0);
 #else
 	if (!(listener->socket->epoll & MTCP_EPOLLET) &&
 	    !StreamQueueIsEmpty(listener->acceptq))
@@ -1627,7 +1627,7 @@ mtcp_readv(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
 	if(event_remaining) {
 		if ((socket->epoll & MTCP_EPOLLIN) && !(socket->epoll & MTCP_EPOLLET)) {
 			AddEpollEvent(mtcp->ep, 
-					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, cur_stream->rpc_ind);
 #if BLOCKING_SUPPORT
 		} else if (!(socket->opts & MTCP_NONBLOCK)) {
 			if (!cur_stream->on_rcv_br_list) {
@@ -1900,7 +1900,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	if (sndvar->snd_wnd > 0) {
 		if ((socket->epoll & MTCP_EPOLLOUT) && !(socket->epoll & MTCP_EPOLLET)) {
 			AddEpollEvent(mtcp->ep, 
-					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT,cur_stream->rpc_ind);
 #if BLOCKING_SUPPORT
 		} else if (!(socket->opts & MTCP_NONBLOCK)) {
 			if (!cur_stream->on_snd_br_list) {
@@ -2120,7 +2120,7 @@ mtcp_writev(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
 	if (sndvar->snd_wnd > 0) {
 		if ((socket->epoll & MTCP_EPOLLOUT) && !(socket->epoll & MTCP_EPOLLET)) {
 			AddEpollEvent(mtcp->ep, 
-					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT, cur_stream->rpc_ind);
 #if BLOCKING_SUPPORT
 		} else if (!(socket->opts & MTCP_NONBLOCK)) {
 			if (!cur_stream->on_snd_br_list) {

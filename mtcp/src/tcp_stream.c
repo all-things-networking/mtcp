@@ -205,7 +205,8 @@ RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream)
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLIN) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN,
+				stream->rpc_ind);
 #if BLOCKING_SUPPORT
 		} else if (!(stream->socket->opts & MTCP_NONBLOCK)) {
 			if (!stream->on_rcv_br_list) {
@@ -227,7 +228,8 @@ RaiseWriteEvent(mtcp_manager_t mtcp, tcp_stream *stream)
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLOUT) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLOUT);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLOUT,
+				stream->rpc_ind);
 #if BLOCKING_SUPPORT
 		} else if (!(stream->socket->opts & MTCP_NONBLOCK)) {
 			if (!stream->on_snd_br_list) {
@@ -248,10 +250,12 @@ RaiseCloseEvent(mtcp_manager_t mtcp, tcp_stream *stream)
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLRDHUP) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLRDHUP);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLRDHUP,
+					stream->rpc_ind);
 		} else if (stream->socket->epoll & MTCP_EPOLLIN) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN,
+				   stream->rpc_ind);
 #if BLOCKING_SUPPORT
 		} else if (!(stream->socket->opts & MTCP_NONBLOCK)) {
 			//pthread_cond_signal(&stream->rcvvar->read_cond);
@@ -279,7 +283,8 @@ RaiseErrorEvent(mtcp_manager_t mtcp, tcp_stream *stream)
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLERR) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLERR);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLERR,
+					stream->rpc_ind);
 #if BLOCKING_SUPPORT
 		} else if (!(stream->socket->opts & MTCP_NONBLOCK)) {
 			if (!stream->on_rcv_br_list) {
@@ -889,14 +894,14 @@ DumpStream(mtcp_manager_t mtcp, tcp_stream *stream)
 		socket_map_t socket = stream->socket;
 		thread_printf(mtcp, mtcp->log_fp, "Socket id: %d, type: %d, opts: %u\n"
 				"epoll: %u (IN: %u, OUT: %u, ERR: %u, RDHUP: %u, ET: %u)\n"
-				"events: %u (IN: %u, OUT: %u, ERR: %u, RDHUP: %u, ET: %u)\n", 
+				"events[0]: %u (IN: %u, OUT: %u, ERR: %u, RDHUP: %u, ET: %u)\n", 
 				socket->id, socket->socktype, socket->opts, 
 				socket->epoll, socket->epoll & MTCP_EPOLLIN, 
 				socket->epoll & MTCP_EPOLLOUT, socket->epoll & MTCP_EPOLLERR, 
 				socket->epoll & MTCP_EPOLLRDHUP, socket->epoll & MTCP_EPOLLET, 
-				socket->events, socket->events & MTCP_EPOLLIN, 
-				socket->events & MTCP_EPOLLOUT, socket->events & MTCP_EPOLLERR, 
-				socket->events & MTCP_EPOLLRDHUP, socket->events & MTCP_EPOLLET);
+				socket->events, socket->events[0] & MTCP_EPOLLIN, 
+				socket->events[0] & MTCP_EPOLLOUT, socket->events[0] & MTCP_EPOLLERR, 
+				socket->events[0] & MTCP_EPOLLRDHUP, socket->events[0] & MTCP_EPOLLET);
 	} else {
 		thread_printf(mtcp, mtcp->log_fp, "Socket: (null)\n");
 	}

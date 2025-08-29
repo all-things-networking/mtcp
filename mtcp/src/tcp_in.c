@@ -897,7 +897,7 @@ Handle_TCP_ST_SYN_RCVD (mtcp_manager_t mtcp, uint32_t cur_ts,
 		/* raise an event to the listening socket */
 		if (listener->socket && (listener->socket->epoll & MTCP_EPOLLIN)) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, listener->socket, MTCP_EPOLLIN);
+					MTCP_EVENT_QUEUE, listener->socket, MTCP_EPOLLIN, cur_stream->rpc_ind);
 		}
 
 	} else {
