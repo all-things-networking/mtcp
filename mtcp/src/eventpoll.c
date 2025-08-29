@@ -265,7 +265,7 @@ RaisePendingStreamEvents(mtcp_manager_t mtcp,
 	if (socket->epoll & MTCP_EPOLLOUT) {
 		struct tcp_send_vars *sndvar = stream->sndvar;
 		if (!sndvar->sndbuf || (sndvar->sndbuf && sndvar->snd_wnd > 0)) {
-			if (!(socket->events & MTCP_EPOLLOUT)) {
+			if (!(socket->events[0] & MTCP_EPOLLOUT)) {
 				TRACE_EPOLL("Socket %d: Adding write event\n", socket->id);
 				AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
 			}
@@ -501,6 +501,9 @@ wait:
 			validity = FALSE;
 		if (!(event_socket->epoll & eq->events[eq->start].ev.events))
 			validity = FALSE;
+		// This needs to be an OR of events across all of the rpc-Inds
+		bool events_exists = false;
+		for (int j)
 		if (!(event_socket->events & eq->events[eq->start].ev.events))
 			validity = FALSE;
 

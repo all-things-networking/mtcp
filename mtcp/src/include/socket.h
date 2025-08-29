@@ -35,7 +35,7 @@ struct socket_map
 	uint32_t cur_rpcs;
 
 	uint32_t epoll;			/* registered events */
-	uint32_t events;		/* available events */
+	uint32_t events[MTP_HOMA_MAX_RPC];		/* available events */
 	mtcp_epoll_data_t ep_data;
 
 	TAILQ_ENTRY (socket_map) free_smap_link;
