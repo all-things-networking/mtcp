@@ -1,0 +1,493 @@
+Application configuration:
+URL: /100k.txt
+# of total_flows: 1
+# of cores: 1
+Concurrency: 1
+start of dpdk config
+new dpdk
+RTE_MAX_ETHPORTS = 32
+here1: 1new dpdk num devices 1
+byte1:228
+passed the check: ens2
+Initializing port 0... setting rss key len to 40 for driver_name: net_mlx4
+rss key len is 40 for driver_name: net_mlx4
+done: 
+nb_rx_queues: 1, nb_tx_queues: 1
+Port 0, MAC address: E4:1D:2D:13:9E:B0
+
+
+Checking link statusdone
+Port 0 Link Up - speed 40000 Mbps - full-duplex
+main loop
+CONFIG.eth_nums = 1
+iomodule: dev_ioctl(DEV_NAME): net_mlx4
+Successfully created RPC socket 1
+before SendRPCRequest
+Creating stream with srcip 83887882, sport 260, destip 100665098, destport 20480, rpcid 0
+after SendRPCRequest
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 0
+Sender ID: 0
+Type: 16
+Message Length: 109, Incoming: 109, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 0
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 109
+Priority: 224
+Payload Data Pointer: 0x17ebef6c0
+Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
+*********************************************
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 0
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec91956
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+peer_id: 10, rpc_id: 0, bytes_remaining: 101124, incoming: 60000
+------------------------
+------- Highest Prio RPCs list:---------
+peer_id: 10, rpc_id: 0, bytes_remaining: 101124, incoming: 60000
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 101420, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+granting to 0: 101420
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 1
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 1420, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec91016
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+peer_id: 10, rpc_id: 0, bytes_remaining: 99704, incoming: 60000
+------------------------
+------- Highest Prio RPCs list:---------
+peer_id: 10, rpc_id: 0, bytes_remaining: 99704, incoming: 101420
+------------------------
+granting to 0: 70000
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 2
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 2840, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec906d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+peer_id: 10, rpc_id: 0, bytes_remaining: 98284, incoming: 70000
+------------------------
+------- Highest Prio RPCs list:---------
+peer_id: 10, rpc_id: 0, bytes_remaining: 98284, incoming: 70000
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 102544, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+granting to 0: 102544
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 3
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 4260, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8fd96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 4
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 5680, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8f456
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 5
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 7100, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8eb16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 6
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 8520, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8e1d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 7
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 9940, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8d896
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 8
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 11360, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8cf56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 9
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 12780, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8c616
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 10
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 14200, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8bcd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 11
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 15620, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8b396
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 12
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 17040, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8aa56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 13
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 18460, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8a116
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 14
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 19880, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec897d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 15
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 21300, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec88e96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 16
+Sender ID: 0
+Type: 16
+Message Length: 102544, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 22720, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec88556
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 17
+Sender ID: 0
+Type: 16
+Messag

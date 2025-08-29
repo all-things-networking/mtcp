@@ -1,0 +1,3041 @@
+Application configuration:
+URL: /3.txt
+# of total_flows: 2000
+# of cores: 1
+Concurrency: 100
+start of dpdk config
+new dpdk
+RTE_MAX_ETHPORTS = 32
+new dpdk num devices 1
+byte1:228
+passed the check: ens2
+Initializing port 0... done: 
+Port 0, MAC address: E4:1D:2D:13:9E:C0
+
+
+Checking link statusdone
+Port 0 Link Up - speed 40000 Mbps - full-duplex
+main loop
+CONFIG.eth_nums = 1
+iomodule: dev_ioctl(DEV_NAME): net_mlx4
+Stream 0, rtt: 1, last_ack_ts:2173633911
+Stream 1, rtt: 1, last_ack_ts:2173633911
+Stream 2, rtt: 1, last_ack_ts:2173633911
+Stream 3, rtt: 1, last_ack_ts:2173633911
+Stream 4, rtt: 1, last_ack_ts:2173633911
+Stream 5, rtt: 1, last_ack_ts:2173633911
+Stream 6, rtt: 1, last_ack_ts:2173633911
+Stream 7, rtt: 1, last_ack_ts:2173633911
+Stream 8, rtt: 1, last_ack_ts:2173633911
+Stream 9, rtt: 1, last_ack_ts:2173633911
+Stream 10, rtt: 1, last_ack_ts:2173633911
+Stream 11, rtt: 1, last_ack_ts:2173633911
+Stream 12, rtt: 1, last_ack_ts:2173633911
+Stream 13, rtt: 1, last_ack_ts:2173633911
+Stream 14, rtt: 1, last_ack_ts:2173633911
+Stream 15, rtt: 1, last_ack_ts:2173633911
+Stream 16, rtt: 1, last_ack_ts:2173633911
+Stream 17, rtt: 1, last_ack_ts:2173633911
+Stream 18, rtt: 1, last_ack_ts:2173633911
+Stream 19, rtt: 1, last_ack_ts:2173633911
+Stream 20, rtt: 1, last_ack_ts:2173633911
+Stream 21, rtt: 1, last_ack_ts:2173633911
+Stream 22, rtt: 1, last_ack_ts:2173633911
+Stream 23, rtt: 1, last_ack_ts:2173633911
+Stream 24, rtt: 1, last_ack_ts:2173633911
+Stream 25, rtt: 1, last_ack_ts:2173633911
+Stream 26, rtt: 1, last_ack_ts:2173633911
+Stream 27, rtt: 1, last_ack_ts:2173633911
+Stream 28, rtt: 1, last_ack_ts:2173633911
+Stream 29, rtt: 1, last_ack_ts:2173633911
+Stream 30, rtt: 1, last_ack_ts:2173633911
+Stream 31, rtt: 1, last_ack_ts:2173633911
+Stream 32, rtt: 1, last_ack_ts:2173633911
+Stream 33, rtt: 1, last_ack_ts:2173633911
+Stream 34, rtt: 1, last_ack_ts:2173633911
+Stream 35, rtt: 1, last_ack_ts:2173633911
+Stream 36, rtt: 1, last_ack_ts:2173633911
+Stream 37, rtt: 1, last_ack_ts:2173633911
+Stream 38, rtt: 1, last_ack_ts:2173633911
+Stream 39, rtt: 1, last_ack_ts:2173633911
+Stream 40, rtt: 1, last_ack_ts:2173633911
+Stream 41, rtt: 1, last_ack_ts:2173633911
+Stream 42, rtt: 1, last_ack_ts:2173633911
+Stream 43, rtt: 1, last_ack_ts:2173633911
+Stream 44, rtt: 1, last_ack_ts:2173633911
+Stream 45, rtt: 1, last_ack_ts:2173633911
+Stream 46, rtt: 1, last_ack_ts:2173633911
+Stream 47, rtt: 1, last_ack_ts:2173633911
+Stream 48, rtt: 1, last_ack_ts:2173633911
+Stream 49, rtt: 1, last_ack_ts:2173633911
+Stream 50, rtt: 1, last_ack_ts:2173633911
+Stream 51, rtt: 1, last_ack_ts:2173633911
+Stream 52, rtt: 1, last_ack_ts:2173633911
+Stream 53, rtt: 1, last_ack_ts:2173633911
+Stream 54, rtt: 1, last_ack_ts:2173633911
+Stream 55, rtt: 1, last_ack_ts:2173633911
+Stream 56, rtt: 1, last_ack_ts:2173633911
+Stream 57, rtt: 1, last_ack_ts:2173633911
+Stream 58, rtt: 1, last_ack_ts:2173633911
+Stream 59, rtt: 1, last_ack_ts:2173633911
+Stream 60, rtt: 1, last_ack_ts:2173633911
+Stream 61, rtt: 1, last_ack_ts:2173633911
+Stream 62, rtt: 1, last_ack_ts:2173633911
+Stream 63, rtt: 1, last_ack_ts:2173633911
+Stream 65, rtt: 1, last_ack_ts:2173633911
+Stream 66, rtt: 1, last_ack_ts:2173633911
+Stream 67, rtt: 1, last_ack_ts:2173633911
+Stream 68, rtt: 1, last_ack_ts:2173633911
+Stream 69, rtt: 1, last_ack_ts:2173633911
+Stream 70, rtt: 1, last_ack_ts:2173633911
+Stream 71, rtt: 1, last_ack_ts:2173633911
+Stream 72, rtt: 1, last_ack_ts:2173633911
+Stream 73, rtt: 1, last_ack_ts:2173633911
+Stream 74, rtt: 1, last_ack_ts:2173633911
+Stream 75, rtt: 1, last_ack_ts:2173633911
+Stream 76, rtt: 1, last_ack_ts:2173633911
+Stream 77, rtt: 1, last_ack_ts:2173633911
+Stream 78, rtt: 1, last_ack_ts:2173633911
+Stream 79, rtt: 1, last_ack_ts:2173633911
+Stream 80, rtt: 1, last_ack_ts:2173633911
+Stream 81, rtt: 1, last_ack_ts:2173633911
+Stream 82, rtt: 1, last_ack_ts:2173633911
+Stream 83, rtt: 1, last_ack_ts:2173633911
+Stream 84, rtt: 1, last_ack_ts:2173633911
+Stream 85, rtt: 1, last_ack_ts:2173633911
+Stream 86, rtt: 1, last_ack_ts:2173633911
+Stream 87, rtt: 1, last_ack_ts:2173633911
+Stream 88, rtt: 1, last_ack_ts:2173633911
+Stream 89, rtt: 1, last_ack_ts:2173633911
+Stream 90, rtt: 1, last_ack_ts:2173633911
+Stream 91, rtt: 1, last_ack_ts:2173633911
+Stream 92, rtt: 1, last_ack_ts:2173633911
+Stream 93, rtt: 1, last_ack_ts:2173633911
+Stream 94, rtt: 1, last_ack_ts:2173633911
+Stream 95, rtt: 1, last_ack_ts:2173633911
+Stream 96, rtt: 1, last_ack_ts:2173633911
+Stream 97, rtt: 1, last_ack_ts:2173633911
+Stream 98, rtt: 1, last_ack_ts:2173633911
+Stream 99, rtt: 1, last_ack_ts:2173633911
+Stream 64, rtt: 1, last_ack_ts:2173633911
+Stream 100, rtt: 0, last_ack_ts:2173634213
+Stream 101, rtt: 0, last_ack_ts:2173634213
+Stream 102, rtt: 0, last_ack_ts:2173634213
+Stream 103, rtt: 0, last_ack_ts:2173634213
+Stream 104, rtt: 0, last_ack_ts:2173634213
+Stream 105, rtt: 0, last_ack_ts:2173634213
+Stream 106, rtt: 0, last_ack_ts:2173634213
+Stream 107, rtt: 0, last_ack_ts:2173634213
+Stream 108, rtt: 0, last_ack_ts:2173634213
+Stream 109, rtt: 0, last_ack_ts:2173634213
+Stream 110, rtt: 0, last_ack_ts:2173634213
+Stream 111, rtt: 0, last_ack_ts:2173634213
+Stream 112, rtt: 0, last_ack_ts:2173634213
+Stream 113, rtt: 0, last_ack_ts:2173634213
+Stream 114, rtt: 0, last_ack_ts:2173634213
+Stream 115, rtt: 0, last_ack_ts:2173634213
+Stream 116, rtt: 0, last_ack_ts:2173634213
+Stream 117, rtt: 0, last_ack_ts:2173634213
+Stream 118, rtt: 0, last_ack_ts:2173634213
+Stream 119, rtt: 0, last_ack_ts:2173634213
+Stream 120, rtt: 0, last_ack_ts:2173634213
+Stream 121, rtt: 0, last_ack_ts:2173634213
+Stream 122, rtt: 0, last_ack_ts:2173634213
+Stream 123, rtt: 0, last_ack_ts:2173634213
+Stream 124, rtt: 0, last_ack_ts:2173634213
+Stream 125, rtt: 0, last_ack_ts:2173634213
+Stream 126, rtt: 0, last_ack_ts:2173634213
+Stream 127, rtt: 0, last_ack_ts:2173634213
+Stream 128, rtt: 0, last_ack_ts:2173634213
+Stream 129, rtt: 0, last_ack_ts:2173634213
+Stream 130, rtt: 0, last_ack_ts:2173634213
+Stream 131, rtt: 0, last_ack_ts:2173634213
+Stream 132, rtt: 0, last_ack_ts:2173634213
+Stream 133, rtt: 0, last_ack_ts:2173634213
+Stream 134, rtt: 0, last_ack_ts:2173634213
+Stream 135, rtt: 0, last_ack_ts:2173634213
+Stream 136, rtt: 0, last_ack_ts:2173634213
+Stream 137, rtt: 0, last_ack_ts:2173634213
+Stream 138, rtt: 0, last_ack_ts:2173634213
+Stream 139, rtt: 0, last_ack_ts:2173634213
+Stream 140, rtt: 0, last_ack_ts:2173634213
+Stream 141, rtt: 0, last_ack_ts:2173634213
+Stream 142, rtt: 0, last_ack_ts:2173634213
+Stream 143, rtt: 0, last_ack_ts:2173634213
+Stream 144, rtt: 0, last_ack_ts:2173634213
+Stream 145, rtt: 0, last_ack_ts:2173634213
+Stream 146, rtt: 0, last_ack_ts:2173634213
+Stream 147, rtt: 0, last_ack_ts:2173634213
+Stream 148, rtt: 0, last_ack_ts:2173634213
+Stream 149, rtt: 0, last_ack_ts:2173634213
+Stream 150, rtt: 0, last_ack_ts:2173634213
+Stream 151, rtt: 0, last_ack_ts:2173634213
+Stream 152, rtt: 0, last_ack_ts:2173634213
+Stream 153, rtt: 0, last_ack_ts:2173634213
+Stream 154, rtt: 0, last_ack_ts:2173634213
+Stream 155, rtt: 0, last_ack_ts:2173634213
+Stream 156, rtt: 0, last_ack_ts:2173634213
+Stream 157, rtt: 0, last_ack_ts:2173634213
+Stream 158, rtt: 0, last_ack_ts:2173634213
+Stream 159, rtt: 0, last_ack_ts:2173634213
+Stream 160, rtt: 0, last_ack_ts:2173634213
+Stream 161, rtt: 0, last_ack_ts:2173634213
+Stream 162, rtt: 0, last_ack_ts:2173634213
+Stream 163, rtt: 0, last_ack_ts:2173634213
+Stream 165, rtt: 0, last_ack_ts:2173634213
+Stream 166, rtt: 0, last_ack_ts:2173634213
+Stream 167, rtt: 0, last_ack_ts:2173634213
+Stream 168, rtt: 0, last_ack_ts:2173634213
+Stream 169, rtt: 0, last_ack_ts:2173634213
+Stream 170, rtt: 0, last_ack_ts:2173634213
+Stream 171, rtt: 0, last_ack_ts:2173634213
+Stream 172, rtt: 0, last_ack_ts:2173634213
+Stream 173, rtt: 0, last_ack_ts:2173634213
+Stream 174, rtt: 0, last_ack_ts:2173634213
+Stream 175, rtt: 0, last_ack_ts:2173634213
+Stream 176, rtt: 0, last_ack_ts:2173634213
+Stream 177, rtt: 0, last_ack_ts:2173634213
+Stream 178, rtt: 0, last_ack_ts:2173634213
+Stream 179, rtt: 0, last_ack_ts:2173634213
+Stream 180, rtt: 0, last_ack_ts:2173634213
+Stream 181, rtt: 0, last_ack_ts:2173634213
+Stream 182, rtt: 0, last_ack_ts:2173634213
+Stream 183, rtt: 0, last_ack_ts:2173634213
+Stream 184, rtt: 0, last_ack_ts:2173634213
+Stream 185, rtt: 0, last_ack_ts:2173634213
+Stream 186, rtt: 0, last_ack_ts:2173634213
+Stream 187, rtt: 0, last_ack_ts:2173634213
+Stream 188, rtt: 0, last_ack_ts:2173634213
+Stream 189, rtt: 0, last_ack_ts:2173634213
+Stream 190, rtt: 0, last_ack_ts:2173634213
+Stream 191, rtt: 0, last_ack_ts:2173634213
+Stream 192, rtt: 0, last_ack_ts:2173634213
+Stream 193, rtt: 0, last_ack_ts:2173634213
+Stream 194, rtt: 0, last_ack_ts:2173634213
+Stream 195, rtt: 0, last_ack_ts:2173634213
+Stream 196, rtt: 0, last_ack_ts:2173634213
+Stream 197, rtt: 0, last_ack_ts:2173634213
+Stream 198, rtt: 0, last_ack_ts:2173634213
+Stream 199, rtt: 0, last_ack_ts:2173634213
+Stream 164, rtt: 0, last_ack_ts:2173634213
+Stream 200, rtt: 0, last_ack_ts:2173634514
+Stream 201, rtt: 0, last_ack_ts:2173634514
+Stream 202, rtt: 0, last_ack_ts:2173634514
+Stream 203, rtt: 0, last_ack_ts:2173634514
+Stream 204, rtt: 0, last_ack_ts:2173634514
+Stream 205, rtt: 0, last_ack_ts:2173634514
+Stream 206, rtt: 0, last_ack_ts:2173634514
+Stream 207, rtt: 0, last_ack_ts:2173634514
+Stream 208, rtt: 0, last_ack_ts:2173634514
+Stream 209, rtt: 0, last_ack_ts:2173634514
+Stream 210, rtt: 0, last_ack_ts:2173634514
+Stream 211, rtt: 0, last_ack_ts:2173634514
+Stream 212, rtt: 0, last_ack_ts:2173634514
+Stream 213, rtt: 0, last_ack_ts:2173634514
+Stream 214, rtt: 0, last_ack_ts:2173634514
+Stream 215, rtt: 0, last_ack_ts:2173634514
+Stream 216, rtt: 0, last_ack_ts:2173634514
+Stream 217, rtt: 0, last_ack_ts:2173634514
+Stream 218, rtt: 0, last_ack_ts:2173634514
+Stream 219, rtt: 0, last_ack_ts:2173634514
+Stream 220, rtt: 0, last_ack_ts:2173634514
+Stream 221, rtt: 0, last_ack_ts:2173634514
+Stream 222, rtt: 0, last_ack_ts:2173634514
+Stream 223, rtt: 0, last_ack_ts:2173634514
+Stream 224, rtt: 0, last_ack_ts:2173634514
+Stream 225, rtt: 0, last_ack_ts:2173634514
+Stream 226, rtt: 0, last_ack_ts:2173634514
+Stream 227, rtt: 0, last_ack_ts:2173634514
+Stream 228, rtt: 1, last_ack_ts:2173634514
+Stream 229, rtt: 1, last_ack_ts:2173634514
+Stream 230, rtt: 1, last_ack_ts:2173634514
+Stream 231, rtt: 1, last_ack_ts:2173634514
+Stream 232, rtt: 1, last_ack_ts:2173634514
+Stream 233, rtt: 1, last_ack_ts:2173634514
+Stream 234, rtt: 1, last_ack_ts:2173634514
+Stream 235, rtt: 1, last_ack_ts:2173634514
+Stream 236, rtt: 1, last_ack_ts:2173634514
+Stream 237, rtt: 1, last_ack_ts:2173634514
+Stream 238, rtt: 1, last_ack_ts:2173634514
+Stream 239, rtt: 1, last_ack_ts:2173634514
+Stream 240, rtt: 1, last_ack_ts:2173634514
+Stream 241, rtt: 1, last_ack_ts:2173634514
+Stream 242, rtt: 1, last_ack_ts:2173634514
+Stream 243, rtt: 1, last_ack_ts:2173634514
+Stream 244, rtt: 1, last_ack_ts:2173634514
+Stream 245, rtt: 1, last_ack_ts:2173634514
+Stream 246, rtt: 1, last_ack_ts:2173634514
+Stream 247, rtt: 1, last_ack_ts:2173634514
+Stream 248, rtt: 1, last_ack_ts:2173634514
+Stream 249, rtt: 1, last_ack_ts:2173634514
+Stream 250, rtt: 1, last_ack_ts:2173634514
+Stream 251, rtt: 1, last_ack_ts:2173634514
+Stream 252, rtt: 1, last_ack_ts:2173634514
+Stream 253, rtt: 1, last_ack_ts:2173634514
+Stream 254, rtt: 1, last_ack_ts:2173634514
+Stream 255, rtt: 1, last_ack_ts:2173634514
+Stream 256, rtt: 1, last_ack_ts:2173634514
+Stream 257, rtt: 1, last_ack_ts:2173634514
+Stream 258, rtt: 1, last_ack_ts:2173634514
+Stream 259, rtt: 1, last_ack_ts:2173634514
+Stream 260, rtt: 1, last_ack_ts:2173634514
+Stream 261, rtt: 1, last_ack_ts:2173634514
+Stream 262, rtt: 1, last_ack_ts:2173634514
+Stream 263, rtt: 1, last_ack_ts:2173634514
+Stream 265, rtt: 1, last_ack_ts:2173634514
+Stream 266, rtt: 1, last_ack_ts:2173634514
+Stream 267, rtt: 1, last_ack_ts:2173634514
+Stream 268, rtt: 1, last_ack_ts:2173634514
+Stream 269, rtt: 1, last_ack_ts:2173634514
+Stream 270, rtt: 1, last_ack_ts:2173634514
+Stream 271, rtt: 1, last_ack_ts:2173634514
+Stream 272, rtt: 1, last_ack_ts:2173634514
+Stream 273, rtt: 1, last_ack_ts:2173634514
+Stream 274, rtt: 1, last_ack_ts:2173634514
+Stream 275, rtt: 1, last_ack_ts:2173634514
+Stream 276, rtt: 1, last_ack_ts:2173634514
+Stream 277, rtt: 1, last_ack_ts:2173634514
+Stream 278, rtt: 1, last_ack_ts:2173634514
+Stream 279, rtt: 1, last_ack_ts:2173634514
+Stream 280, rtt: 1, last_ack_ts:2173634514
+Stream 281, rtt: 1, last_ack_ts:2173634514
+Stream 282, rtt: 1, last_ack_ts:2173634514
+Stream 283, rtt: 1, last_ack_ts:2173634514
+Stream 284, rtt: 1, last_ack_ts:2173634514
+Stream 285, rtt: 1, last_ack_ts:2173634514
+Stream 286, rtt: 1, last_ack_ts:2173634514
+Stream 287, rtt: 1, last_ack_ts:2173634514
+Stream 288, rtt: 1, last_ack_ts:2173634514
+Stream 289, rtt: 1, last_ack_ts:2173634514
+Stream 290, rtt: 1, last_ack_ts:2173634514
+Stream 291, rtt: 1, last_ack_ts:2173634514
+Stream 292, rtt: 1, last_ack_ts:2173634514
+Stream 293, rtt: 1, last_ack_ts:2173634514
+Stream 294, rtt: 1, last_ack_ts:2173634514
+Stream 295, rtt: 1, last_ack_ts:2173634514
+Stream 296, rtt: 1, last_ack_ts:2173634514
+Stream 297, rtt: 1, last_ack_ts:2173634514
+Stream 298, rtt: 1, last_ack_ts:2173634514
+Stream 299, rtt: 1, last_ack_ts:2173634514
+Stream 264, rtt: 1, last_ack_ts:2173634514
+Stream 271: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 271: RTO, after rto: 6
+Stream 272: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 272: RTO, after rto: 6
+Stream 273: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 273: RTO, after rto: 6
+Stream 274: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 274: RTO, after rto: 6
+Stream 275: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 275: RTO, after rto: 6
+Stream 276: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 276: RTO, after rto: 6
+Stream 277: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 277: RTO, after rto: 6
+Stream 278: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 278: RTO, after rto: 6
+Stream 279: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 279: RTO, after rto: 6
+Stream 280: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 280: RTO, after rto: 6
+Stream 281: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 281: RTO, after rto: 6
+Stream 282: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 282: RTO, after rto: 6
+Stream 283: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 283: RTO, after rto: 6
+Stream 284: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 284: RTO, after rto: 6
+Stream 285: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 285: RTO, after rto: 6
+Stream 286: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 286: RTO, after rto: 6
+Stream 287: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 287: RTO, after rto: 6
+Stream 288: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 288: RTO, after rto: 6
+Stream 289: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 289: RTO, after rto: 6
+Stream 290: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 290: RTO, after rto: 6
+Stream 291: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 291: RTO, after rto: 6
+Stream 292: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 292: RTO, after rto: 6
+Stream 293: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 293: RTO, after rto: 6
+Stream 294: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 294: RTO, after rto: 6
+Stream 295: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 295: RTO, after rto: 6
+Stream 296: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 296: RTO, after rto: 6
+Stream 297: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 297: RTO, after rto: 6
+Stream 298: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 298: RTO, after rto: 6
+Stream 299: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 299: RTO, after rto: 6
+Stream 264: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 264: RTO, after rto: 6
+Stream 202: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 202: RTO, after rto: 6
+Stream 203: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 203: RTO, after rto: 6
+Stream 204: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 204: RTO, after rto: 6
+Stream 205: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 205: RTO, after rto: 6
+Stream 206: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 206: RTO, after rto: 6
+Stream 207: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 207: RTO, after rto: 6
+Stream 208: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 208: RTO, after rto: 6
+Stream 209: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 209: RTO, after rto: 6
+Stream 210: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 210: RTO, after rto: 6
+Stream 211: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 211: RTO, after rto: 6
+Stream 212: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 212: RTO, after rto: 6
+Stream 213: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 213: RTO, after rto: 6
+Stream 214: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 214: RTO, after rto: 6
+Stream 215: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 215: RTO, after rto: 6
+Stream 216: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 216: RTO, after rto: 6
+Stream 217: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 217: RTO, after rto: 6
+Stream 218: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 218: RTO, after rto: 6
+Stream 219: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 219: RTO, after rto: 6
+Stream 220: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 220: RTO, after rto: 6
+Stream 221: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 221: RTO, after rto: 6
+Stream 222: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 222: RTO, after rto: 6
+Stream 223: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 223: RTO, after rto: 6
+Stream 224: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 224: RTO, after rto: 6
+Stream 225: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 225: RTO, after rto: 6
+Stream 226: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 226: RTO, after rto: 6
+Stream 227: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 227: RTO, after rto: 6
+Stream 266: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 266: RTO, after rto: 6
+Stream 201: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 201: RTO, after rto: 6
+Stream 300, rtt: 0, last_ack_ts:2173634817
+Stream 301, rtt: 0, last_ack_ts:2173634817
+Stream 302, rtt: 0, last_ack_ts:2173634817
+Stream 303, rtt: 0, last_ack_ts:2173634817
+Stream 304, rtt: 0, last_ack_ts:2173634817
+Stream 305, rtt: 0, last_ack_ts:2173634817
+Stream 306, rtt: 0, last_ack_ts:2173634817
+Stream 307, rtt: 0, last_ack_ts:2173634817
+Stream 308, rtt: 0, last_ack_ts:2173634817
+Stream 309, rtt: 0, last_ack_ts:2173634817
+Stream 310, rtt: 0, last_ack_ts:2173634817
+Stream 311, rtt: 0, last_ack_ts:2173634817
+Stream 312, rtt: 0, last_ack_ts:2173634817
+Stream 313, rtt: 0, last_ack_ts:2173634817
+Stream 314, rtt: 0, last_ack_ts:2173634817
+Stream 315, rtt: 0, last_ack_ts:2173634817
+Stream 316, rtt: 0, last_ack_ts:2173634817
+Stream 317, rtt: 0, last_ack_ts:2173634817
+Stream 318, rtt: 0, last_ack_ts:2173634817
+Stream 319, rtt: 0, last_ack_ts:2173634817
+Stream 320, rtt: 0, last_ack_ts:2173634817
+Stream 321, rtt: 0, last_ack_ts:2173634817
+Stream 322, rtt: 0, last_ack_ts:2173634817
+Stream 323, rtt: 0, last_ack_ts:2173634817
+Stream 324, rtt: 0, last_ack_ts:2173634817
+Stream 325, rtt: 0, last_ack_ts:2173634817
+Stream 326, rtt: 0, last_ack_ts:2173634817
+Stream 327, rtt: 0, last_ack_ts:2173634817
+Stream 328, rtt: 0, last_ack_ts:2173634817
+Stream 329, rtt: 0, last_ack_ts:2173634817
+Stream 330, rtt: 0, last_ack_ts:2173634817
+Stream 331, rtt: 0, last_ack_ts:2173634817
+Stream 332, rtt: 0, last_ack_ts:2173634817
+Stream 333, rtt: 0, last_ack_ts:2173634817
+Stream 334, rtt: 0, last_ack_ts:2173634817
+Stream 335, rtt: 0, last_ack_ts:2173634817
+Stream 336, rtt: 0, last_ack_ts:2173634817
+Stream 337, rtt: 0, last_ack_ts:2173634817
+Stream 338, rtt: 0, last_ack_ts:2173634817
+Stream 339, rtt: 0, last_ack_ts:2173634817
+Stream 340, rtt: 0, last_ack_ts:2173634817
+Stream 341, rtt: 0, last_ack_ts:2173634817
+Stream 342, rtt: 0, last_ack_ts:2173634817
+Stream 343, rtt: 0, last_ack_ts:2173634817
+Stream 344, rtt: 0, last_ack_ts:2173634817
+Stream 345, rtt: 0, last_ack_ts:2173634817
+Stream 346, rtt: 0, last_ack_ts:2173634817
+Stream 347, rtt: 0, last_ack_ts:2173634817
+Stream 348, rtt: 0, last_ack_ts:2173634817
+Stream 349, rtt: 0, last_ack_ts:2173634817
+Stream 350, rtt: 0, last_ack_ts:2173634817
+Stream 351, rtt: 0, last_ack_ts:2173634817
+Stream 352, rtt: 0, last_ack_ts:2173634817
+Stream 353, rtt: 0, last_ack_ts:2173634817
+Stream 354, rtt: 0, last_ack_ts:2173634817
+Stream 355, rtt: 0, last_ack_ts:2173634817
+Stream 356, rtt: 0, last_ack_ts:2173634817
+Stream 357, rtt: 0, last_ack_ts:2173634817
+Stream 358, rtt: 0, last_ack_ts:2173634817
+Stream 359, rtt: 0, last_ack_ts:2173634817
+Stream 360, rtt: 0, last_ack_ts:2173634817
+Stream 361, rtt: 0, last_ack_ts:2173634817
+Stream 362, rtt: 0, last_ack_ts:2173634817
+Stream 363, rtt: 0, last_ack_ts:2173634817
+Stream 365, rtt: 0, last_ack_ts:2173634817
+Stream 366, rtt: 0, last_ack_ts:2173634817
+Stream 367, rtt: 0, last_ack_ts:2173634817
+Stream 368, rtt: 0, last_ack_ts:2173634817
+Stream 369, rtt: 0, last_ack_ts:2173634817
+Stream 370, rtt: 0, last_ack_ts:2173634817
+Stream 371, rtt: 0, last_ack_ts:2173634817
+Stream 372, rtt: 0, last_ack_ts:2173634817
+Stream 373, rtt: 0, last_ack_ts:2173634817
+Stream 374, rtt: 0, last_ack_ts:2173634817
+Stream 375, rtt: 0, last_ack_ts:2173634817
+Stream 376, rtt: 0, last_ack_ts:2173634817
+Stream 377, rtt: 0, last_ack_ts:2173634817
+Stream 378, rtt: 0, last_ack_ts:2173634817
+Stream 379, rtt: 0, last_ack_ts:2173634817
+Stream 380, rtt: 0, last_ack_ts:2173634817
+Stream 381, rtt: 0, last_ack_ts:2173634817
+Stream 382, rtt: 0, last_ack_ts:2173634817
+Stream 383, rtt: 0, last_ack_ts:2173634817
+Stream 384, rtt: 0, last_ack_ts:2173634817
+Stream 385, rtt: 0, last_ack_ts:2173634817
+Stream 386, rtt: 0, last_ack_ts:2173634817
+Stream 387, rtt: 0, last_ack_ts:2173634817
+Stream 388, rtt: 0, last_ack_ts:2173634817
+Stream 389, rtt: 0, last_ack_ts:2173634817
+Stream 390, rtt: 0, last_ack_ts:2173634817
+Stream 391, rtt: 0, last_ack_ts:2173634817
+Stream 392, rtt: 0, last_ack_ts:2173634817
+Stream 393, rtt: 0, last_ack_ts:2173634817
+Stream 394, rtt: 0, last_ack_ts:2173634817
+Stream 395, rtt: 0, last_ack_ts:2173634817
+Stream 396, rtt: 0, last_ack_ts:2173634817
+Stream 397, rtt: 0, last_ack_ts:2173634817
+Stream 398, rtt: 0, last_ack_ts:2173634817
+Stream 399, rtt: 0, last_ack_ts:2173634817
+Stream 364, rtt: 0, last_ack_ts:2173634817
+Stream 346: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 346: RTO, after rto: 6
+Stream 347: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 347: RTO, after rto: 6
+Stream 348: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 348: RTO, after rto: 6
+Stream 349: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 349: RTO, after rto: 6
+Stream 350: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 350: RTO, after rto: 6
+Stream 351: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 351: RTO, after rto: 6
+Stream 352: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 352: RTO, after rto: 6
+Stream 353: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 353: RTO, after rto: 6
+Stream 354: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 354: RTO, after rto: 6
+Stream 355: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 355: RTO, after rto: 6
+Stream 356: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 356: RTO, after rto: 6
+Stream 357: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 357: RTO, after rto: 6
+Stream 358: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 358: RTO, after rto: 6
+Stream 359: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 359: RTO, after rto: 6
+Stream 360: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 360: RTO, after rto: 6
+Stream 361: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 361: RTO, after rto: 6
+Stream 362: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 362: RTO, after rto: 6
+Stream 363: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 363: RTO, after rto: 6
+Stream 365: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 365: RTO, after rto: 6
+Stream 301: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 301: RTO, after rto: 6
+Stream 367: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 367: RTO, after rto: 6
+Stream 368: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 368: RTO, after rto: 6
+Stream 369: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 369: RTO, after rto: 6
+Stream 370: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 370: RTO, after rto: 6
+Stream 371: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 371: RTO, after rto: 6
+Stream 372: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 372: RTO, after rto: 6
+Stream 373: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 373: RTO, after rto: 6
+Stream 374: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 374: RTO, after rto: 6
+Stream 375: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 375: RTO, after rto: 6
+Stream 376: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 376: RTO, after rto: 6
+Stream 377: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 377: RTO, after rto: 6
+Stream 378: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 378: RTO, after rto: 6
+Stream 380: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 380: RTO, after rto: 6
+Stream 381: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 381: RTO, after rto: 6
+Stream 382: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 382: RTO, after rto: 6
+Stream 383: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 383: RTO, after rto: 6
+Stream 384: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 384: RTO, after rto: 6
+Stream 385: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 385: RTO, after rto: 6
+Stream 386: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 386: RTO, after rto: 6
+Stream 387: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 387: RTO, after rto: 6
+Stream 388: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 388: RTO, after rto: 6
+Stream 389: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 389: RTO, after rto: 6
+Stream 390: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 390: RTO, after rto: 6
+Stream 391: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 391: RTO, after rto: 6
+Stream 392: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 392: RTO, after rto: 6
+Stream 393: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 393: RTO, after rto: 6
+Stream 394: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 394: RTO, after rto: 6
+Stream 395: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 395: RTO, after rto: 6
+Stream 396: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 396: RTO, after rto: 6
+Stream 397: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 397: RTO, after rto: 6
+Stream 398: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 398: RTO, after rto: 6
+Stream 399: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 399: RTO, after rto: 6
+Stream 364: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 364: RTO, after rto: 6
+Stream 300: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 300: RTO, after rto: 6
+Stream 302: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 302: RTO, after rto: 6
+Stream 303: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 303: RTO, after rto: 6
+Stream 304: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 304: RTO, after rto: 6
+Stream 313: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 313: RTO, after rto: 6
+Stream 366: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 366: RTO, after rto: 6
+Stream 379: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 379: RTO, after rto: 6
+Stream 400, rtt: 0, last_ack_ts:2173635121
+Stream 401, rtt: 0, last_ack_ts:2173635121
+Stream 402, rtt: 0, last_ack_ts:2173635121
+Stream 403, rtt: 0, last_ack_ts:2173635121
+Stream 404, rtt: 0, last_ack_ts:2173635121
+Stream 405, rtt: 0, last_ack_ts:2173635121
+Stream 406, rtt: 0, last_ack_ts:2173635121
+Stream 407, rtt: 0, last_ack_ts:2173635121
+Stream 408, rtt: 0, last_ack_ts:2173635121
+Stream 409, rtt: 0, last_ack_ts:2173635121
+Stream 410, rtt: 0, last_ack_ts:2173635121
+Stream 411, rtt: 0, last_ack_ts:2173635121
+Stream 412, rtt: 0, last_ack_ts:2173635121
+Stream 413, rtt: 0, last_ack_ts:2173635121
+Stream 414, rtt: 0, last_ack_ts:2173635121
+Stream 415, rtt: 0, last_ack_ts:2173635121
+Stream 416, rtt: 0, last_ack_ts:2173635121
+Stream 417, rtt: 0, last_ack_ts:2173635121
+Stream 418, rtt: 0, last_ack_ts:2173635121
+Stream 419, rtt: 0, last_ack_ts:2173635121
+Stream 420, rtt: 0, last_ack_ts:2173635121
+Stream 421, rtt: 0, last_ack_ts:2173635121
+Stream 422, rtt: 0, last_ack_ts:2173635121
+Stream 423, rtt: 0, last_ack_ts:2173635121
+Stream 424, rtt: 0, last_ack_ts:2173635121
+Stream 425, rtt: 0, last_ack_ts:2173635121
+Stream 426, rtt: 0, last_ack_ts:2173635121
+Stream 427, rtt: 0, last_ack_ts:2173635121
+Stream 428, rtt: 0, last_ack_ts:2173635121
+Stream 429, rtt: 0, last_ack_ts:2173635121
+Stream 430, rtt: 0, last_ack_ts:2173635121
+Stream 431, rtt: 0, last_ack_ts:2173635121
+Stream 432, rtt: 0, last_ack_ts:2173635121
+Stream 433, rtt: 0, last_ack_ts:2173635121
+Stream 434, rtt: 0, last_ack_ts:2173635121
+Stream 435, rtt: 0, last_ack_ts:2173635121
+Stream 436, rtt: 0, last_ack_ts:2173635121
+Stream 437, rtt: 0, last_ack_ts:2173635121
+Stream 438, rtt: 0, last_ack_ts:2173635121
+Stream 439, rtt: 0, last_ack_ts:2173635121
+Stream 440, rtt: 0, last_ack_ts:2173635121
+Stream 441, rtt: 0, last_ack_ts:2173635121
+Stream 442, rtt: 0, last_ack_ts:2173635121
+Stream 443, rtt: 0, last_ack_ts:2173635121
+Stream 444, rtt: 0, last_ack_ts:2173635121
+Stream 445, rtt: 0, last_ack_ts:2173635121
+Stream 446, rtt: 0, last_ack_ts:2173635121
+Stream 447, rtt: 0, last_ack_ts:2173635121
+Stream 448, rtt: 0, last_ack_ts:2173635121
+Stream 449, rtt: 0, last_ack_ts:2173635121
+Stream 450, rtt: 0, last_ack_ts:2173635121
+Stream 451, rtt: 0, last_ack_ts:2173635121
+Stream 452, rtt: 0, last_ack_ts:2173635121
+Stream 453, rtt: 0, last_ack_ts:2173635121
+Stream 454, rtt: 0, last_ack_ts:2173635121
+Stream 455, rtt: 0, last_ack_ts:2173635121
+Stream 456, rtt: 0, last_ack_ts:2173635121
+Stream 457, rtt: 0, last_ack_ts:2173635121
+Stream 458, rtt: 0, last_ack_ts:2173635121
+Stream 459, rtt: 0, last_ack_ts:2173635121
+Stream 460, rtt: 0, last_ack_ts:2173635121
+Stream 461, rtt: 0, last_ack_ts:2173635121
+Stream 462, rtt: 0, last_ack_ts:2173635121
+Stream 463, rtt: 0, last_ack_ts:2173635121
+Stream 465, rtt: 0, last_ack_ts:2173635121
+Stream 466, rtt: 0, last_ack_ts:2173635121
+Stream 467, rtt: 0, last_ack_ts:2173635121
+Stream 468, rtt: 0, last_ack_ts:2173635121
+Stream 469, rtt: 0, last_ack_ts:2173635121
+Stream 470, rtt: 0, last_ack_ts:2173635121
+Stream 471, rtt: 0, last_ack_ts:2173635121
+Stream 472, rtt: 0, last_ack_ts:2173635121
+Stream 473, rtt: 0, last_ack_ts:2173635121
+Stream 474, rtt: 0, last_ack_ts:2173635121
+Stream 475, rtt: 0, last_ack_ts:2173635121
+Stream 476, rtt: 0, last_ack_ts:2173635121
+Stream 477, rtt: 0, last_ack_ts:2173635121
+Stream 478, rtt: 0, last_ack_ts:2173635121
+Stream 479, rtt: 0, last_ack_ts:2173635121
+Stream 480, rtt: 0, last_ack_ts:2173635121
+Stream 481, rtt: 0, last_ack_ts:2173635121
+Stream 482, rtt: 0, last_ack_ts:2173635121
+Stream 483, rtt: 0, last_ack_ts:2173635121
+Stream 484, rtt: 0, last_ack_ts:2173635121
+Stream 485, rtt: 0, last_ack_ts:2173635121
+Stream 486, rtt: 0, last_ack_ts:2173635121
+Stream 487, rtt: 0, last_ack_ts:2173635121
+Stream 488, rtt: 0, last_ack_ts:2173635121
+Stream 489, rtt: 0, last_ack_ts:2173635121
+Stream 490, rtt: 0, last_ack_ts:2173635121
+Stream 491, rtt: 0, last_ack_ts:2173635121
+Stream 492, rtt: 0, last_ack_ts:2173635121
+Stream 493, rtt: 0, last_ack_ts:2173635121
+Stream 494, rtt: 0, last_ack_ts:2173635121
+Stream 495, rtt: 0, last_ack_ts:2173635121
+Stream 496, rtt: 0, last_ack_ts:2173635121
+Stream 497, rtt: 0, last_ack_ts:2173635121
+Stream 498, rtt: 0, last_ack_ts:2173635121
+Stream 499, rtt: 0, last_ack_ts:2173635121
+Stream 464, rtt: 0, last_ack_ts:2173635121
+Stream 445: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 445: RTO, after rto: 6
+Stream 446: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 446: RTO, after rto: 6
+Stream 447: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 447: RTO, after rto: 6
+Stream 448: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 448: RTO, after rto: 6
+Stream 449: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 449: RTO, after rto: 6
+Stream 450: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 450: RTO, after rto: 6
+Stream 451: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 451: RTO, after rto: 6
+Stream 452: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 452: RTO, after rto: 6
+Stream 453: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 453: RTO, after rto: 6
+Stream 454: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 454: RTO, after rto: 6
+Stream 455: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 455: RTO, after rto: 6
+Stream 456: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 456: RTO, after rto: 6
+Stream 457: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 457: RTO, after rto: 6
+Stream 460: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 460: RTO, after rto: 6
+Stream 461: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 461: RTO, after rto: 6
+Stream 462: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 462: RTO, after rto: 6
+Stream 463: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 463: RTO, after rto: 6
+Stream 465: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 465: RTO, after rto: 6
+Stream 466: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 466: RTO, after rto: 6
+Stream 467: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 467: RTO, after rto: 6
+Stream 468: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 468: RTO, after rto: 6
+Stream 469: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 469: RTO, after rto: 6
+Stream 470: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 470: RTO, after rto: 6
+Stream 471: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 471: RTO, after rto: 6
+Stream 472: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 472: RTO, after rto: 6
+Stream 473: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 473: RTO, after rto: 6
+Stream 474: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 474: RTO, after rto: 6
+Stream 475: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 475: RTO, after rto: 6
+Stream 476: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 476: RTO, after rto: 6
+Stream 477: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 477: RTO, after rto: 6
+Stream 478: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 478: RTO, after rto: 6
+Stream 479: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 479: RTO, after rto: 6
+Stream 480: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 480: RTO, after rto: 6
+Stream 481: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 481: RTO, after rto: 6
+Stream 482: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 482: RTO, after rto: 6
+Stream 483: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 483: RTO, after rto: 6
+Stream 484: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 484: RTO, after rto: 6
+Stream 485: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 485: RTO, after rto: 6
+Stream 486: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 486: RTO, after rto: 6
+Stream 487: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 487: RTO, after rto: 6
+Stream 488: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 488: RTO, after rto: 6
+Stream 489: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 489: RTO, after rto: 6
+Stream 490: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 490: RTO, after rto: 6
+Stream 491: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 491: RTO, after rto: 6
+Stream 492: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 492: RTO, after rto: 6
+Stream 493: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 493: RTO, after rto: 6
+Stream 494: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 494: RTO, after rto: 6
+Stream 458: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 458: RTO, after rto: 6
+Stream 459: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 459: RTO, after rto: 6
+Stream 500, rtt: 0, last_ack_ts:2173635422
+Stream 501, rtt: 0, last_ack_ts:2173635422
+Stream 502, rtt: 0, last_ack_ts:2173635422
+Stream 503, rtt: 0, last_ack_ts:2173635422
+Stream 504, rtt: 0, last_ack_ts:2173635422
+Stream 505, rtt: 0, last_ack_ts:2173635422
+Stream 506, rtt: 0, last_ack_ts:2173635422
+Stream 507, rtt: 0, last_ack_ts:2173635422
+Stream 508, rtt: 0, last_ack_ts:2173635422
+Stream 509, rtt: 0, last_ack_ts:2173635422
+Stream 510, rtt: 0, last_ack_ts:2173635422
+Stream 511, rtt: 0, last_ack_ts:2173635422
+Stream 512, rtt: 0, last_ack_ts:2173635422
+Stream 513, rtt: 0, last_ack_ts:2173635422
+Stream 514, rtt: 0, last_ack_ts:2173635422
+Stream 515, rtt: 0, last_ack_ts:2173635422
+Stream 516, rtt: 0, last_ack_ts:2173635422
+Stream 517, rtt: 0, last_ack_ts:2173635422
+Stream 518, rtt: 0, last_ack_ts:2173635422
+Stream 519, rtt: 0, last_ack_ts:2173635422
+Stream 520, rtt: 0, last_ack_ts:2173635422
+Stream 521, rtt: 0, last_ack_ts:2173635422
+Stream 522, rtt: 0, last_ack_ts:2173635422
+Stream 523, rtt: 0, last_ack_ts:2173635422
+Stream 524, rtt: 0, last_ack_ts:2173635422
+Stream 525, rtt: 0, last_ack_ts:2173635422
+Stream 526, rtt: 0, last_ack_ts:2173635422
+Stream 527, rtt: 0, last_ack_ts:2173635422
+Stream 528, rtt: 0, last_ack_ts:2173635422
+Stream 529, rtt: 0, last_ack_ts:2173635422
+Stream 530, rtt: 0, last_ack_ts:2173635422
+Stream 531, rtt: 0, last_ack_ts:2173635422
+Stream 532, rtt: 1, last_ack_ts:2173635422
+Stream 533, rtt: 1, last_ack_ts:2173635422
+Stream 534, rtt: 1, last_ack_ts:2173635422
+Stream 535, rtt: 1, last_ack_ts:2173635422
+Stream 536, rtt: 1, last_ack_ts:2173635422
+Stream 537, rtt: 1, last_ack_ts:2173635422
+Stream 538, rtt: 1, last_ack_ts:2173635422
+Stream 539, rtt: 1, last_ack_ts:2173635422
+Stream 540, rtt: 1, last_ack_ts:2173635422
+Stream 541, rtt: 1, last_ack_ts:2173635422
+Stream 542, rtt: 1, last_ack_ts:2173635422
+Stream 543, rtt: 1, last_ack_ts:2173635422
+Stream 544, rtt: 1, last_ack_ts:2173635422
+Stream 545, rtt: 1, last_ack_ts:2173635422
+Stream 546, rtt: 1, last_ack_ts:2173635422
+Stream 547, rtt: 1, last_ack_ts:2173635422
+Stream 548, rtt: 1, last_ack_ts:2173635422
+Stream 549, rtt: 1, last_ack_ts:2173635422
+Stream 550, rtt: 1, last_ack_ts:2173635422
+Stream 551, rtt: 1, last_ack_ts:2173635422
+Stream 552, rtt: 1, last_ack_ts:2173635422
+Stream 553, rtt: 1, last_ack_ts:2173635422
+Stream 554, rtt: 1, last_ack_ts:2173635422
+Stream 555, rtt: 1, last_ack_ts:2173635422
+Stream 556, rtt: 1, last_ack_ts:2173635422
+Stream 557, rtt: 1, last_ack_ts:2173635422
+Stream 558, rtt: 1, last_ack_ts:2173635422
+Stream 559, rtt: 1, last_ack_ts:2173635422
+Stream 560, rtt: 1, last_ack_ts:2173635422
+Stream 561, rtt: 1, last_ack_ts:2173635422
+Stream 562, rtt: 1, last_ack_ts:2173635422
+Stream 563, rtt: 1, last_ack_ts:2173635422
+Stream 565, rtt: 1, last_ack_ts:2173635422
+Stream 566, rtt: 1, last_ack_ts:2173635422
+Stream 567, rtt: 1, last_ack_ts:2173635422
+Stream 568, rtt: 1, last_ack_ts:2173635422
+Stream 569, rtt: 1, last_ack_ts:2173635422
+Stream 570, rtt: 1, last_ack_ts:2173635422
+Stream 571, rtt: 1, last_ack_ts:2173635422
+Stream 572, rtt: 1, last_ack_ts:2173635422
+Stream 573, rtt: 1, last_ack_ts:2173635422
+Stream 574, rtt: 1, last_ack_ts:2173635422
+Stream 575, rtt: 1, last_ack_ts:2173635422
+Stream 576, rtt: 1, last_ack_ts:2173635422
+Stream 577, rtt: 1, last_ack_ts:2173635422
+Stream 578, rtt: 1, last_ack_ts:2173635422
+Stream 579, rtt: 1, last_ack_ts:2173635422
+Stream 580, rtt: 1, last_ack_ts:2173635422
+Stream 581, rtt: 1, last_ack_ts:2173635422
+Stream 582, rtt: 1, last_ack_ts:2173635422
+Stream 583, rtt: 1, last_ack_ts:2173635422
+Stream 584, rtt: 1, last_ack_ts:2173635422
+Stream 585, rtt: 1, last_ack_ts:2173635422
+Stream 586, rtt: 1, last_ack_ts:2173635422
+Stream 587, rtt: 1, last_ack_ts:2173635422
+Stream 588, rtt: 1, last_ack_ts:2173635422
+Stream 589, rtt: 1, last_ack_ts:2173635422
+Stream 590, rtt: 1, last_ack_ts:2173635422
+Stream 591, rtt: 1, last_ack_ts:2173635422
+Stream 592, rtt: 1, last_ack_ts:2173635422
+Stream 593, rtt: 1, last_ack_ts:2173635422
+Stream 594, rtt: 1, last_ack_ts:2173635422
+Stream 595, rtt: 1, last_ack_ts:2173635422
+Stream 596, rtt: 1, last_ack_ts:2173635422
+Stream 597, rtt: 1, last_ack_ts:2173635422
+Stream 598, rtt: 1, last_ack_ts:2173635422
+Stream 599, rtt: 1, last_ack_ts:2173635422
+Stream 564, rtt: 1, last_ack_ts:2173635422
+Stream 574: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 574: RTO, after rto: 6
+Stream 575: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 575: RTO, after rto: 6
+Stream 501: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 501: RTO, after rto: 6
+Stream 576: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 576: RTO, after rto: 6
+Stream 577: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 577: RTO, after rto: 6
+Stream 578: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 578: RTO, after rto: 6
+Stream 579: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 579: RTO, after rto: 6
+Stream 580: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 580: RTO, after rto: 6
+Stream 581: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 581: RTO, after rto: 6
+Stream 582: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 582: RTO, after rto: 6
+Stream 583: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 583: RTO, after rto: 6
+Stream 584: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 584: RTO, after rto: 6
+Stream 585: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 585: RTO, after rto: 6
+Stream 587: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 587: RTO, after rto: 6
+Stream 588: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 588: RTO, after rto: 6
+Stream 589: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 589: RTO, after rto: 6
+Stream 590: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 590: RTO, after rto: 6
+Stream 591: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 591: RTO, after rto: 6
+Stream 592: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 592: RTO, after rto: 6
+Stream 593: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 593: RTO, after rto: 6
+Stream 594: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 594: RTO, after rto: 6
+Stream 595: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 595: RTO, after rto: 6
+Stream 596: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 596: RTO, after rto: 6
+Stream 597: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 597: RTO, after rto: 6
+Stream 598: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 598: RTO, after rto: 6
+Stream 599: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 599: RTO, after rto: 6
+Stream 564: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 564: RTO, after rto: 6
+Stream 502: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 502: RTO, after rto: 6
+Stream 503: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 503: RTO, after rto: 6
+Stream 504: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 504: RTO, after rto: 6
+Stream 505: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 505: RTO, after rto: 6
+Stream 506: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 506: RTO, after rto: 6
+Stream 507: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 507: RTO, after rto: 6
+Stream 508: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 508: RTO, after rto: 6
+Stream 509: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 509: RTO, after rto: 6
+Stream 510: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 510: RTO, after rto: 6
+Stream 500: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 500: RTO, after rto: 6
+Stream 511: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 511: RTO, after rto: 6
+Stream 512: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 512: RTO, after rto: 6
+Stream 513: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 513: RTO, after rto: 6
+Stream 514: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 514: RTO, after rto: 6
+Stream 515: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 515: RTO, after rto: 6
+Stream 516: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 516: RTO, after rto: 6
+Stream 517: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 517: RTO, after rto: 6
+Stream 518: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 518: RTO, after rto: 6
+Stream 519: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 519: RTO, after rto: 6
+Stream 520: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 520: RTO, after rto: 6
+Stream 566: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 566: RTO, after rto: 6
+Stream 586: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 586: RTO, after rto: 6
+Stream 600, rtt: 0, last_ack_ts:2173635723
+Stream 601, rtt: 0, last_ack_ts:2173635723
+Stream 602, rtt: 0, last_ack_ts:2173635723
+Stream 603, rtt: 0, last_ack_ts:2173635723
+Stream 604, rtt: 0, last_ack_ts:2173635723
+Stream 605, rtt: 0, last_ack_ts:2173635723
+Stream 606, rtt: 0, last_ack_ts:2173635723
+Stream 607, rtt: 0, last_ack_ts:2173635723
+Stream 608, rtt: 0, last_ack_ts:2173635723
+Stream 609, rtt: 0, last_ack_ts:2173635723
+Stream 610, rtt: 0, last_ack_ts:2173635723
+Stream 611, rtt: 1, last_ack_ts:2173635723
+Stream 612, rtt: 1, last_ack_ts:2173635723
+Stream 613, rtt: 1, last_ack_ts:2173635723
+Stream 614, rtt: 1, last_ack_ts:2173635723
+Stream 615, rtt: 1, last_ack_ts:2173635723
+Stream 616, rtt: 1, last_ack_ts:2173635723
+Stream 617, rtt: 1, last_ack_ts:2173635723
+Stream 618, rtt: 1, last_ack_ts:2173635723
+Stream 619, rtt: 1, last_ack_ts:2173635723
+Stream 620, rtt: 1, last_ack_ts:2173635723
+Stream 621, rtt: 1, last_ack_ts:2173635723
+Stream 622, rtt: 1, last_ack_ts:2173635723
+Stream 623, rtt: 1, last_ack_ts:2173635723
+Stream 624, rtt: 1, last_ack_ts:2173635723
+Stream 625, rtt: 1, last_ack_ts:2173635723
+Stream 626, rtt: 1, last_ack_ts:2173635723
+Stream 627, rtt: 1, last_ack_ts:2173635723
+Stream 628, rtt: 1, last_ack_ts:2173635723
+Stream 629, rtt: 1, last_ack_ts:2173635723
+Stream 630, rtt: 1, last_ack_ts:2173635723
+Stream 631, rtt: 1, last_ack_ts:2173635723
+Stream 632, rtt: 1, last_ack_ts:2173635723
+Stream 633, rtt: 1, last_ack_ts:2173635723
+Stream 634, rtt: 1, last_ack_ts:2173635723
+Stream 635, rtt: 1, last_ack_ts:2173635723
+Stream 636, rtt: 1, last_ack_ts:2173635723
+Stream 637, rtt: 1, last_ack_ts:2173635723
+Stream 638, rtt: 1, last_ack_ts:2173635723
+Stream 639, rtt: 1, last_ack_ts:2173635723
+Stream 640, rtt: 1, last_ack_ts:2173635723
+Stream 641, rtt: 1, last_ack_ts:2173635723
+Stream 642, rtt: 1, last_ack_ts:2173635723
+Stream 643, rtt: 1, last_ack_ts:2173635723
+Stream 644, rtt: 1, last_ack_ts:2173635723
+Stream 645, rtt: 1, last_ack_ts:2173635723
+Stream 646, rtt: 1, last_ack_ts:2173635723
+Stream 647, rtt: 1, last_ack_ts:2173635723
+Stream 648, rtt: 1, last_ack_ts:2173635723
+Stream 649, rtt: 1, last_ack_ts:2173635723
+Stream 650, rtt: 1, last_ack_ts:2173635723
+Stream 651, rtt: 1, last_ack_ts:2173635723
+Stream 652, rtt: 1, last_ack_ts:2173635723
+Stream 653, rtt: 1, last_ack_ts:2173635723
+Stream 654, rtt: 1, last_ack_ts:2173635723
+Stream 655, rtt: 1, last_ack_ts:2173635723
+Stream 656, rtt: 1, last_ack_ts:2173635723
+Stream 657, rtt: 1, last_ack_ts:2173635723
+Stream 658, rtt: 1, last_ack_ts:2173635723
+Stream 659, rtt: 1, last_ack_ts:2173635723
+Stream 660, rtt: 1, last_ack_ts:2173635723
+Stream 661, rtt: 1, last_ack_ts:2173635723
+Stream 662, rtt: 1, last_ack_ts:2173635723
+Stream 663, rtt: 1, last_ack_ts:2173635723
+Stream 665, rtt: 1, last_ack_ts:2173635723
+Stream 666, rtt: 1, last_ack_ts:2173635723
+Stream 667, rtt: 1, last_ack_ts:2173635723
+Stream 668, rtt: 1, last_ack_ts:2173635723
+Stream 669, rtt: 1, last_ack_ts:2173635723
+Stream 670, rtt: 1, last_ack_ts:2173635723
+Stream 671, rtt: 1, last_ack_ts:2173635723
+Stream 672, rtt: 1, last_ack_ts:2173635723
+Stream 673, rtt: 1, last_ack_ts:2173635723
+Stream 674, rtt: 1, last_ack_ts:2173635723
+Stream 675, rtt: 1, last_ack_ts:2173635723
+Stream 676, rtt: 1, last_ack_ts:2173635723
+Stream 677, rtt: 1, last_ack_ts:2173635723
+Stream 678, rtt: 1, last_ack_ts:2173635723
+Stream 679, rtt: 1, last_ack_ts:2173635723
+Stream 680, rtt: 1, last_ack_ts:2173635723
+Stream 681, rtt: 1, last_ack_ts:2173635723
+Stream 682, rtt: 1, last_ack_ts:2173635723
+Stream 683, rtt: 1, last_ack_ts:2173635723
+Stream 684, rtt: 1, last_ack_ts:2173635723
+Stream 685, rtt: 1, last_ack_ts:2173635723
+Stream 686, rtt: 1, last_ack_ts:2173635723
+Stream 687, rtt: 1, last_ack_ts:2173635723
+Stream 688, rtt: 1, last_ack_ts:2173635723
+Stream 689, rtt: 1, last_ack_ts:2173635723
+Stream 690, rtt: 1, last_ack_ts:2173635723
+Stream 691, rtt: 1, last_ack_ts:2173635723
+Stream 692, rtt: 1, last_ack_ts:2173635723
+Stream 693, rtt: 1, last_ack_ts:2173635723
+Stream 694, rtt: 1, last_ack_ts:2173635723
+Stream 695, rtt: 1, last_ack_ts:2173635723
+Stream 696, rtt: 1, last_ack_ts:2173635723
+Stream 697, rtt: 1, last_ack_ts:2173635723
+Stream 698, rtt: 1, last_ack_ts:2173635723
+Stream 699, rtt: 1, last_ack_ts:2173635723
+Stream 664, rtt: 1, last_ack_ts:2173635723
+Stream 644: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 644: RTO, after rto: 6
+Stream 645: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 645: RTO, after rto: 6
+Stream 646: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 646: RTO, after rto: 6
+Stream 647: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 647: RTO, after rto: 6
+Stream 648: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 648: RTO, after rto: 6
+Stream 667: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 667: RTO, after rto: 6
+Stream 614: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 614: RTO, after rto: 6
+Stream 632: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 632: RTO, after rto: 6
+Stream 700, rtt: 103, last_ack_ts:2173635925
+Stream 701, rtt: 103, last_ack_ts:2173635925
+Stream 702, rtt: 0, last_ack_ts:2173636028
+Stream 703, rtt: 0, last_ack_ts:2173636028
+Stream 704, rtt: 0, last_ack_ts:2173636028
+Stream 705, rtt: 0, last_ack_ts:2173636028
+Stream 706, rtt: 0, last_ack_ts:2173636028
+Stream 707, rtt: 0, last_ack_ts:2173636028
+Stream 708, rtt: 0, last_ack_ts:2173636028
+Stream 709, rtt: 0, last_ack_ts:2173636028
+Stream 710, rtt: 0, last_ack_ts:2173636028
+Stream 711, rtt: 0, last_ack_ts:2173636028
+Stream 712, rtt: 0, last_ack_ts:2173636028
+Stream 713, rtt: 0, last_ack_ts:2173636028
+Stream 714, rtt: 0, last_ack_ts:2173636028
+Stream 715, rtt: 0, last_ack_ts:2173636028
+Stream 716, rtt: 0, last_ack_ts:2173636028
+Stream 717, rtt: 0, last_ack_ts:2173636028
+Stream 718, rtt: 0, last_ack_ts:2173636028
+Stream 719, rtt: 0, last_ack_ts:2173636028
+Stream 720, rtt: 0, last_ack_ts:2173636028
+Stream 721, rtt: 0, last_ack_ts:2173636028
+Stream 722, rtt: 0, last_ack_ts:2173636028
+Stream 723, rtt: 0, last_ack_ts:2173636028
+Stream 724, rtt: 0, last_ack_ts:2173636028
+Stream 725, rtt: 0, last_ack_ts:2173636028
+Stream 726, rtt: 0, last_ack_ts:2173636028
+Stream 727, rtt: 0, last_ack_ts:2173636028
+Stream 728, rtt: 0, last_ack_ts:2173636028
+Stream 729, rtt: 0, last_ack_ts:2173636028
+Stream 730, rtt: 0, last_ack_ts:2173636028
+Stream 731, rtt: 0, last_ack_ts:2173636028
+Stream 732, rtt: 0, last_ack_ts:2173636028
+Stream 733, rtt: 0, last_ack_ts:2173636028
+Stream 734, rtt: 0, last_ack_ts:2173636028
+Stream 735, rtt: 0, last_ack_ts:2173636028
+Stream 736, rtt: 0, last_ack_ts:2173636028
+Stream 737, rtt: 0, last_ack_ts:2173636028
+Stream 738, rtt: 0, last_ack_ts:2173636028
+Stream 739, rtt: 0, last_ack_ts:2173636028
+Stream 740, rtt: 0, last_ack_ts:2173636028
+Stream 741, rtt: 0, last_ack_ts:2173636028
+Stream 742, rtt: 0, last_ack_ts:2173636028
+Stream 743, rtt: 0, last_ack_ts:2173636028
+Stream 744, rtt: 0, last_ack_ts:2173636028
+Stream 745, rtt: 0, last_ack_ts:2173636028
+Stream 746, rtt: 0, last_ack_ts:2173636028
+Stream 747, rtt: 0, last_ack_ts:2173636028
+Stream 748, rtt: 0, last_ack_ts:2173636028
+Stream 749, rtt: 0, last_ack_ts:2173636028
+Stream 750, rtt: 0, last_ack_ts:2173636028
+Stream 751, rtt: 0, last_ack_ts:2173636028
+Stream 752, rtt: 0, last_ack_ts:2173636028
+Stream 753, rtt: 0, last_ack_ts:2173636028
+Stream 754, rtt: 0, last_ack_ts:2173636028
+Stream 755, rtt: 0, last_ack_ts:2173636028
+Stream 756, rtt: 0, last_ack_ts:2173636028
+Stream 757, rtt: 0, last_ack_ts:2173636028
+Stream 758, rtt: 0, last_ack_ts:2173636028
+Stream 759, rtt: 0, last_ack_ts:2173636028
+Stream 760, rtt: 0, last_ack_ts:2173636028
+Stream 761, rtt: 0, last_ack_ts:2173636028
+Stream 762, rtt: 0, last_ack_ts:2173636028
+Stream 763, rtt: 0, last_ack_ts:2173636028
+Stream 765, rtt: 0, last_ack_ts:2173636028
+Stream 766, rtt: 103, last_ack_ts:2173635925
+Stream 767, rtt: 103, last_ack_ts:2173635925
+Stream 768, rtt: 103, last_ack_ts:2173635925
+Stream 769, rtt: 0, last_ack_ts:2173636028
+Stream 770, rtt: 0, last_ack_ts:2173636028
+Stream 771, rtt: 0, last_ack_ts:2173636028
+Stream 772, rtt: 0, last_ack_ts:2173636028
+Stream 773, rtt: 0, last_ack_ts:2173636028
+Stream 774, rtt: 0, last_ack_ts:2173636028
+Stream 775, rtt: 0, last_ack_ts:2173636028
+Stream 776, rtt: 0, last_ack_ts:2173636028
+Stream 777, rtt: 0, last_ack_ts:2173636028
+Stream 778, rtt: 0, last_ack_ts:2173636028
+Stream 779, rtt: 0, last_ack_ts:2173636028
+Stream 780, rtt: 0, last_ack_ts:2173636028
+Stream 781, rtt: 0, last_ack_ts:2173636028
+Stream 782, rtt: 0, last_ack_ts:2173636028
+Stream 783, rtt: 0, last_ack_ts:2173636028
+Stream 784, rtt: 0, last_ack_ts:2173636028
+Stream 785, rtt: 0, last_ack_ts:2173636028
+Stream 786, rtt: 0, last_ack_ts:2173636028
+Stream 787, rtt: 0, last_ack_ts:2173636028
+Stream 788, rtt: 0, last_ack_ts:2173636028
+Stream 789, rtt: 0, last_ack_ts:2173636028
+Stream 790, rtt: 0, last_ack_ts:2173636028
+Stream 791, rtt: 0, last_ack_ts:2173636028
+Stream 792, rtt: 0, last_ack_ts:2173636028
+Stream 793, rtt: 0, last_ack_ts:2173636028
+Stream 794, rtt: 0, last_ack_ts:2173636028
+Stream 795, rtt: 0, last_ack_ts:2173636028
+Stream 796, rtt: 0, last_ack_ts:2173636028
+Stream 797, rtt: 0, last_ack_ts:2173636028
+Stream 798, rtt: 0, last_ack_ts:2173636028
+Stream 799, rtt: 0, last_ack_ts:2173636028
+Stream 764, rtt: 0, last_ack_ts:2173636028
+Stream 720: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 720: RTO, after rto: 6
+Stream 721: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 721: RTO, after rto: 6
+Stream 769: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 769: RTO, after rto: 6
+Stream 788: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 788: RTO, after rto: 6
+Stream 800, rtt: 101, last_ack_ts:2173636228
+Stream 801, rtt: 101, last_ack_ts:2173636228
+Stream 802, rtt: 101, last_ack_ts:2173636228
+Stream 803, rtt: 101, last_ack_ts:2173636228
+Stream 804, rtt: 101, last_ack_ts:2173636228
+Stream 805, rtt: 101, last_ack_ts:2173636228
+Stream 806, rtt: 0, last_ack_ts:2173636329
+Stream 807, rtt: 0, last_ack_ts:2173636329
+Stream 808, rtt: 0, last_ack_ts:2173636329
+Stream 809, rtt: 0, last_ack_ts:2173636329
+Stream 810, rtt: 0, last_ack_ts:2173636329
+Stream 811, rtt: 0, last_ack_ts:2173636329
+Stream 812, rtt: 0, last_ack_ts:2173636329
+Stream 813, rtt: 0, last_ack_ts:2173636329
+Stream 814, rtt: 0, last_ack_ts:2173636329
+Stream 815, rtt: 0, last_ack_ts:2173636329
+Stream 816, rtt: 0, last_ack_ts:2173636329
+Stream 817, rtt: 0, last_ack_ts:2173636329
+Stream 818, rtt: 0, last_ack_ts:2173636329
+Stream 819, rtt: 0, last_ack_ts:2173636329
+Stream 820, rtt: 0, last_ack_ts:2173636329
+Stream 821, rtt: 0, last_ack_ts:2173636329
+Stream 822, rtt: 0, last_ack_ts:2173636329
+Stream 823, rtt: 0, last_ack_ts:2173636329
+Stream 824, rtt: 0, last_ack_ts:2173636329
+Stream 825, rtt: 0, last_ack_ts:2173636329
+Stream 826, rtt: 0, last_ack_ts:2173636329
+Stream 827, rtt: 0, last_ack_ts:2173636329
+Stream 828, rtt: 0, last_ack_ts:2173636329
+Stream 829, rtt: 0, last_ack_ts:2173636329
+Stream 830, rtt: 1, last_ack_ts:2173636329
+Stream 831, rtt: 1, last_ack_ts:2173636329
+Stream 832, rtt: 1, last_ack_ts:2173636329
+Stream 833, rtt: 1, last_ack_ts:2173636329
+Stream 834, rtt: 1, last_ack_ts:2173636329
+Stream 835, rtt: 1, last_ack_ts:2173636329
+Stream 836, rtt: 1, last_ack_ts:2173636329
+Stream 837, rtt: 1, last_ack_ts:2173636329
+Stream 838, rtt: 1, last_ack_ts:2173636329
+Stream 839, rtt: 1, last_ack_ts:2173636329
+Stream 840, rtt: 1, last_ack_ts:2173636329
+Stream 841, rtt: 1, last_ack_ts:2173636329
+Stream 842, rtt: 1, last_ack_ts:2173636329
+Stream 843, rtt: 1, last_ack_ts:2173636329
+Stream 844, rtt: 1, last_ack_ts:2173636329
+Stream 845, rtt: 1, last_ack_ts:2173636329
+Stream 846, rtt: 1, last_ack_ts:2173636329
+Stream 847, rtt: 1, last_ack_ts:2173636329
+Stream 848, rtt: 1, last_ack_ts:2173636329
+Stream 849, rtt: 1, last_ack_ts:2173636329
+Stream 850, rtt: 1, last_ack_ts:2173636329
+Stream 851, rtt: 1, last_ack_ts:2173636329
+Stream 852, rtt: 1, last_ack_ts:2173636329
+Stream 853, rtt: 1, last_ack_ts:2173636329
+Stream 854, rtt: 1, last_ack_ts:2173636329
+Stream 855, rtt: 1, last_ack_ts:2173636329
+Stream 856, rtt: 1, last_ack_ts:2173636329
+Stream 857, rtt: 1, last_ack_ts:2173636329
+Stream 858, rtt: 1, last_ack_ts:2173636329
+Stream 859, rtt: 1, last_ack_ts:2173636329
+Stream 860, rtt: 1, last_ack_ts:2173636329
+Stream 861, rtt: 1, last_ack_ts:2173636329
+Stream 862, rtt: 1, last_ack_ts:2173636329
+Stream 863, rtt: 1, last_ack_ts:2173636329
+Stream 865, rtt: 1, last_ack_ts:2173636329
+Stream 866, rtt: 1, last_ack_ts:2173636329
+Stream 867, rtt: 1, last_ack_ts:2173636329
+Stream 868, rtt: 1, last_ack_ts:2173636329
+Stream 869, rtt: 1, last_ack_ts:2173636329
+Stream 870, rtt: 1, last_ack_ts:2173636329
+Stream 871, rtt: 1, last_ack_ts:2173636329
+Stream 872, rtt: 1, last_ack_ts:2173636329
+Stream 873, rtt: 1, last_ack_ts:2173636329
+Stream 874, rtt: 1, last_ack_ts:2173636329
+Stream 875, rtt: 1, last_ack_ts:2173636329
+Stream 876, rtt: 1, last_ack_ts:2173636329
+Stream 877, rtt: 1, last_ack_ts:2173636329
+Stream 878, rtt: 1, last_ack_ts:2173636329
+Stream 879, rtt: 1, last_ack_ts:2173636329
+Stream 880, rtt: 1, last_ack_ts:2173636329
+Stream 881, rtt: 1, last_ack_ts:2173636329
+Stream 882, rtt: 1, last_ack_ts:2173636329
+Stream 883, rtt: 1, last_ack_ts:2173636329
+Stream 884, rtt: 1, last_ack_ts:2173636329
+Stream 885, rtt: 1, last_ack_ts:2173636329
+Stream 886, rtt: 1, last_ack_ts:2173636329
+Stream 887, rtt: 1, last_ack_ts:2173636329
+Stream 888, rtt: 1, last_ack_ts:2173636329
+Stream 889, rtt: 1, last_ack_ts:2173636329
+Stream 890, rtt: 1, last_ack_ts:2173636329
+Stream 891, rtt: 1, last_ack_ts:2173636329
+Stream 892, rtt: 1, last_ack_ts:2173636329
+Stream 893, rtt: 1, last_ack_ts:2173636329
+Stream 894, rtt: 1, last_ack_ts:2173636329
+Stream 895, rtt: 1, last_ack_ts:2173636329
+Stream 896, rtt: 1, last_ack_ts:2173636329
+Stream 897, rtt: 1, last_ack_ts:2173636329
+Stream 898, rtt: 1, last_ack_ts:2173636329
+Stream 899, rtt: 1, last_ack_ts:2173636329
+Stream 864, rtt: 1, last_ack_ts:2173636329
+Stream 85: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 85: RTO, after rto: 6
+Stream 86: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 86: RTO, after rto: 6
+Stream 87: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 87: RTO, after rto: 6
+Stream 88: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 88: RTO, after rto: 6
+Stream 1: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1: RTO, after rto: 6
+Stream 89: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 89: RTO, after rto: 6
+Stream 54: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 54: RTO, after rto: 6
+Stream 55: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 55: RTO, after rto: 6
+Stream 886: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 886: RTO, after rto: 6
+Stream 887: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 887: RTO, after rto: 6
+Stream 888: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 888: RTO, after rto: 6
+Stream 889: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 889: RTO, after rto: 6
+Stream 890: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 890: RTO, after rto: 6
+Stream 891: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 891: RTO, after rto: 6
+Stream 892: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 892: RTO, after rto: 6
+Stream 893: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 893: RTO, after rto: 6
+Stream 894: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 894: RTO, after rto: 6
+Stream 807: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 807: RTO, after rto: 6
+Stream 895: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 895: RTO, after rto: 6
+Stream 896: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 896: RTO, after rto: 6
+Stream 897: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 897: RTO, after rto: 6
+Stream 898: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 898: RTO, after rto: 6
+Stream 899: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 899: RTO, after rto: 6
+Stream 864: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 864: RTO, after rto: 6
+Stream 808: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 808: RTO, after rto: 6
+Stream 810: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 810: RTO, after rto: 6
+Stream 811: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 811: RTO, after rto: 6
+Stream 812: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 812: RTO, after rto: 6
+Stream 813: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 813: RTO, after rto: 6
+Stream 814: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 814: RTO, after rto: 6
+Stream 815: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 815: RTO, after rto: 6
+Stream 816: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 816: RTO, after rto: 6
+Stream 817: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 817: RTO, after rto: 6
+Stream 818: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 818: RTO, after rto: 6
+Stream 819: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 819: RTO, after rto: 6
+Stream 820: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 820: RTO, after rto: 6
+Stream 821: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 821: RTO, after rto: 6
+Stream 822: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 822: RTO, after rto: 6
+Stream 823: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 823: RTO, after rto: 6
+Stream 824: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 824: RTO, after rto: 6
+Stream 825: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 825: RTO, after rto: 6
+Stream 826: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 826: RTO, after rto: 6
+Stream 827: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 827: RTO, after rto: 6
+Stream 828: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 828: RTO, after rto: 6
+Stream 829: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 829: RTO, after rto: 6
+Stream 806: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 806: RTO, after rto: 6
+Stream 830: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 830: RTO, after rto: 6
+Stream 832: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 832: RTO, after rto: 6
+Stream 833: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 833: RTO, after rto: 6
+Stream 834: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 834: RTO, after rto: 6
+Stream 835: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 835: RTO, after rto: 6
+Stream 836: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 836: RTO, after rto: 6
+Stream 866: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 866: RTO, after rto: 6
+Stream 809: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 809: RTO, after rto: 6
+Stream 831: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 831: RTO, after rto: 6
+Stream 900, rtt: 0, last_ack_ts:2173636630
+Stream 901, rtt: 0, last_ack_ts:2173636630
+Stream 902, rtt: 0, last_ack_ts:2173636630
+Stream 903, rtt: 0, last_ack_ts:2173636630
+Stream 904, rtt: 0, last_ack_ts:2173636630
+Stream 905, rtt: 0, last_ack_ts:2173636630
+Stream 906, rtt: 0, last_ack_ts:2173636630
+Stream 907, rtt: 0, last_ack_ts:2173636630
+Stream 908, rtt: 0, last_ack_ts:2173636630
+Stream 909, rtt: 0, last_ack_ts:2173636630
+Stream 910, rtt: 0, last_ack_ts:2173636630
+Stream 911, rtt: 0, last_ack_ts:2173636630
+Stream 912, rtt: 0, last_ack_ts:2173636630
+Stream 913, rtt: 1, last_ack_ts:2173636630
+Stream 914, rtt: 1, last_ack_ts:2173636630
+Stream 915, rtt: 1, last_ack_ts:2173636630
+Stream 916, rtt: 1, last_ack_ts:2173636630
+Stream 917, rtt: 1, last_ack_ts:2173636630
+Stream 918, rtt: 1, last_ack_ts:2173636630
+Stream 919, rtt: 1, last_ack_ts:2173636630
+Stream 920, rtt: 1, last_ack_ts:2173636630
+Stream 921, rtt: 1, last_ack_ts:2173636630
+Stream 922, rtt: 1, last_ack_ts:2173636630
+Stream 923, rtt: 1, last_ack_ts:2173636630
+Stream 924, rtt: 1, last_ack_ts:2173636630
+Stream 925, rtt: 1, last_ack_ts:2173636630
+Stream 926, rtt: 1, last_ack_ts:2173636630
+Stream 927, rtt: 1, last_ack_ts:2173636630
+Stream 928, rtt: 1, last_ack_ts:2173636630
+Stream 929, rtt: 1, last_ack_ts:2173636630
+Stream 930, rtt: 1, last_ack_ts:2173636630
+Stream 931, rtt: 1, last_ack_ts:2173636630
+Stream 932, rtt: 1, last_ack_ts:2173636630
+Stream 933, rtt: 1, last_ack_ts:2173636630
+Stream 934, rtt: 1, last_ack_ts:2173636630
+Stream 935, rtt: 1, last_ack_ts:2173636630
+Stream 936, rtt: 1, last_ack_ts:2173636630
+Stream 937, rtt: 1, last_ack_ts:2173636630
+Stream 938, rtt: 1, last_ack_ts:2173636630
+Stream 939, rtt: 1, last_ack_ts:2173636630
+Stream 940, rtt: 1, last_ack_ts:2173636630
+Stream 941, rtt: 1, last_ack_ts:2173636630
+Stream 942, rtt: 1, last_ack_ts:2173636630
+Stream 943, rtt: 1, last_ack_ts:2173636630
+Stream 944, rtt: 1, last_ack_ts:2173636630
+Stream 945, rtt: 1, last_ack_ts:2173636630
+Stream 946, rtt: 1, last_ack_ts:2173636630
+Stream 947, rtt: 1, last_ack_ts:2173636630
+Stream 948, rtt: 1, last_ack_ts:2173636630
+Stream 949, rtt: 1, last_ack_ts:2173636630
+Stream 950, rtt: 1, last_ack_ts:2173636630
+Stream 951, rtt: 1, last_ack_ts:2173636630
+Stream 952, rtt: 1, last_ack_ts:2173636630
+Stream 953, rtt: 1, last_ack_ts:2173636630
+Stream 954, rtt: 1, last_ack_ts:2173636630
+Stream 955, rtt: 1, last_ack_ts:2173636630
+Stream 956, rtt: 1, last_ack_ts:2173636630
+Stream 957, rtt: 1, last_ack_ts:2173636630
+Stream 958, rtt: 1, last_ack_ts:2173636630
+Stream 959, rtt: 1, last_ack_ts:2173636630
+Stream 960, rtt: 1, last_ack_ts:2173636630
+Stream 961, rtt: 1, last_ack_ts:2173636630
+Stream 962, rtt: 1, last_ack_ts:2173636630
+Stream 963, rtt: 1, last_ack_ts:2173636630
+Stream 965, rtt: 1, last_ack_ts:2173636630
+Stream 966, rtt: 1, last_ack_ts:2173636630
+Stream 967, rtt: 1, last_ack_ts:2173636630
+Stream 968, rtt: 1, last_ack_ts:2173636630
+Stream 969, rtt: 1, last_ack_ts:2173636630
+Stream 970, rtt: 1, last_ack_ts:2173636630
+Stream 971, rtt: 1, last_ack_ts:2173636630
+Stream 972, rtt: 1, last_ack_ts:2173636630
+Stream 973, rtt: 1, last_ack_ts:2173636630
+Stream 974, rtt: 1, last_ack_ts:2173636630
+Stream 975, rtt: 1, last_ack_ts:2173636630
+Stream 976, rtt: 1, last_ack_ts:2173636630
+Stream 977, rtt: 1, last_ack_ts:2173636630
+Stream 978, rtt: 1, last_ack_ts:2173636630
+Stream 979, rtt: 1, last_ack_ts:2173636630
+Stream 980, rtt: 1, last_ack_ts:2173636630
+Stream 981, rtt: 1, last_ack_ts:2173636630
+Stream 982, rtt: 1, last_ack_ts:2173636630
+Stream 983, rtt: 1, last_ack_ts:2173636630
+Stream 984, rtt: 1, last_ack_ts:2173636630
+Stream 985, rtt: 1, last_ack_ts:2173636630
+Stream 986, rtt: 1, last_ack_ts:2173636630
+Stream 987, rtt: 1, last_ack_ts:2173636630
+Stream 988, rtt: 1, last_ack_ts:2173636630
+Stream 989, rtt: 1, last_ack_ts:2173636630
+Stream 990, rtt: 1, last_ack_ts:2173636630
+Stream 991, rtt: 1, last_ack_ts:2173636630
+Stream 992, rtt: 1, last_ack_ts:2173636630
+Stream 993, rtt: 1, last_ack_ts:2173636630
+Stream 994, rtt: 1, last_ack_ts:2173636630
+Stream 995, rtt: 1, last_ack_ts:2173636630
+Stream 996, rtt: 1, last_ack_ts:2173636630
+Stream 997, rtt: 1, last_ack_ts:2173636630
+Stream 998, rtt: 1, last_ack_ts:2173636630
+Stream 999, rtt: 1, last_ack_ts:2173636630
+Stream 964, rtt: 1, last_ack_ts:2173636630
+Stream 167: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 167: RTO, after rto: 6
+Stream 168: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 168: RTO, after rto: 6
+Stream 169: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 169: RTO, after rto: 6
+Stream 170: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 170: RTO, after rto: 6
+Stream 171: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 171: RTO, after rto: 6
+Stream 101: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 101: RTO, after rto: 6
+Stream 172: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 172: RTO, after rto: 6
+Stream 173: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 173: RTO, after rto: 6
+Stream 174: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 174: RTO, after rto: 6
+Stream 175: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 175: RTO, after rto: 6
+Stream 176: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 176: RTO, after rto: 6
+Stream 177: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 177: RTO, after rto: 6
+Stream 178: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 178: RTO, after rto: 6
+Stream 179: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 179: RTO, after rto: 6
+Stream 180: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 180: RTO, after rto: 6
+Stream 181: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 181: RTO, after rto: 6
+Stream 182: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 182: RTO, after rto: 6
+Stream 183: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 183: RTO, after rto: 6
+Stream 184: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 184: RTO, after rto: 6
+Stream 185: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 185: RTO, after rto: 6
+Stream 186: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 186: RTO, after rto: 6
+Stream 187: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 187: RTO, after rto: 6
+Stream 189: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 189: RTO, after rto: 6
+Stream 190: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 190: RTO, after rto: 6
+Stream 191: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 191: RTO, after rto: 6
+Stream 192: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 192: RTO, after rto: 6
+Stream 193: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 193: RTO, after rto: 6
+Stream 194: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 194: RTO, after rto: 6
+Stream 195: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 195: RTO, after rto: 6
+Stream 196: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 196: RTO, after rto: 6
+Stream 197: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 197: RTO, after rto: 6
+Stream 198: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 198: RTO, after rto: 6
+Stream 199: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 199: RTO, after rto: 6
+Stream 102: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 102: RTO, after rto: 6
+Stream 103: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 103: RTO, after rto: 6
+Stream 104: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 104: RTO, after rto: 6
+Stream 105: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 105: RTO, after rto: 6
+Stream 106: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 106: RTO, after rto: 6
+Stream 100: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 100: RTO, after rto: 6
+Stream 107: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 107: RTO, after rto: 6
+Stream 108: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 108: RTO, after rto: 6
+Stream 109: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 109: RTO, after rto: 6
+Stream 110: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 110: RTO, after rto: 6
+Stream 111: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 111: RTO, after rto: 6
+Stream 112: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 112: RTO, after rto: 6
+Stream 113: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 113: RTO, after rto: 6
+Stream 114: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 114: RTO, after rto: 6
+Stream 115: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 115: RTO, after rto: 6
+Stream 116: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 116: RTO, after rto: 6
+Stream 117: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 117: RTO, after rto: 6
+Stream 118: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 118: RTO, after rto: 6
+Stream 119: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 119: RTO, after rto: 6
+Stream 120: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 120: RTO, after rto: 6
+Stream 121: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 121: RTO, after rto: 6
+Stream 122: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 122: RTO, after rto: 6
+Stream 134: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 134: RTO, after rto: 6
+Stream 188: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 188: RTO, after rto: 6
+Stream 164: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 164: RTO, after rto: 6
+Stream 800: RTO, before: rto: 303
+srtt: 808, mdev: 202, mdev_max: 202, rttvar: 202, rtt_seq: 107
+Stream 800: RTO, after rto: 606
+Stream 801: RTO, before: rto: 303
+srtt: 808, mdev: 202, mdev_max: 202, rttvar: 202, rtt_seq: 107
+Stream 801: RTO, after rto: 606
+Stream 802: RTO, before: rto: 303
+srtt: 808, mdev: 202, mdev_max: 202, rttvar: 202, rtt_seq: 107
+Stream 802: RTO, after rto: 606
+Stream 803: RTO, before: rto: 303
+srtt: 808, mdev: 202, mdev_max: 202, rttvar: 202, rtt_seq: 107
+Stream 803: RTO, after rto: 606
+Stream 804: RTO, before: rto: 303
+srtt: 808, mdev: 202, mdev_max: 202, rttvar: 202, rtt_seq: 107
+Stream 804: RTO, after rto: 606
+Stream 805: RTO, before: rto: 303
+srtt: 808, mdev: 202, mdev_max: 202, rttvar: 202, rtt_seq: 107
+Stream 805: RTO, after rto: 606
+Stream 1000, rtt: 0, last_ack_ts:2173636934
+Stream 1001, rtt: 0, last_ack_ts:2173636934
+Stream 1002, rtt: 0, last_ack_ts:2173636934
+Stream 1003, rtt: 0, last_ack_ts:2173636934
+Stream 1004, rtt: 0, last_ack_ts:2173636934
+Stream 1005, rtt: 0, last_ack_ts:2173636934
+Stream 1006, rtt: 0, last_ack_ts:2173636934
+Stream 1007, rtt: 0, last_ack_ts:2173636934
+Stream 1008, rtt: 0, last_ack_ts:2173636934
+Stream 1009, rtt: 0, last_ack_ts:2173636934
+Stream 1010, rtt: 0, last_ack_ts:2173636934
+Stream 1011, rtt: 0, last_ack_ts:2173636934
+Stream 1012, rtt: 0, last_ack_ts:2173636934
+Stream 1013, rtt: 0, last_ack_ts:2173636934
+Stream 1014, rtt: 0, last_ack_ts:2173636934
+Stream 1015, rtt: 0, last_ack_ts:2173636934
+Stream 1016, rtt: 0, last_ack_ts:2173636934
+Stream 1017, rtt: 0, last_ack_ts:2173636934
+Stream 1018, rtt: 0, last_ack_ts:2173636934
+Stream 1019, rtt: 0, last_ack_ts:2173636934
+Stream 1020, rtt: 0, last_ack_ts:2173636934
+Stream 1021, rtt: 0, last_ack_ts:2173636934
+Stream 1022, rtt: 0, last_ack_ts:2173636934
+Stream 1023, rtt: 0, last_ack_ts:2173636934
+Stream 1024, rtt: 0, last_ack_ts:2173636934
+Stream 1025, rtt: 0, last_ack_ts:2173636934
+Stream 1026, rtt: 0, last_ack_ts:2173636934
+Stream 1027, rtt: 0, last_ack_ts:2173636934
+Stream 1028, rtt: 0, last_ack_ts:2173636934
+Stream 1029, rtt: 0, last_ack_ts:2173636934
+Stream 1030, rtt: 0, last_ack_ts:2173636934
+Stream 1031, rtt: 0, last_ack_ts:2173636934
+Stream 1032, rtt: 0, last_ack_ts:2173636934
+Stream 1033, rtt: 0, last_ack_ts:2173636934
+Stream 1034, rtt: 0, last_ack_ts:2173636934
+Stream 1035, rtt: 0, last_ack_ts:2173636934
+Stream 1036, rtt: 0, last_ack_ts:2173636934
+Stream 1037, rtt: 0, last_ack_ts:2173636934
+Stream 1038, rtt: 0, last_ack_ts:2173636934
+Stream 1039, rtt: 0, last_ack_ts:2173636934
+Stream 1040, rtt: 0, last_ack_ts:2173636934
+Stream 1041, rtt: 0, last_ack_ts:2173636934
+Stream 1042, rtt: 0, last_ack_ts:2173636934
+Stream 1043, rtt: 0, last_ack_ts:2173636934
+Stream 1044, rtt: 0, last_ack_ts:2173636934
+Stream 1045, rtt: 0, last_ack_ts:2173636934
+Stream 1046, rtt: 0, last_ack_ts:2173636934
+Stream 1047, rtt: 0, last_ack_ts:2173636934
+Stream 1048, rtt: 0, last_ack_ts:2173636934
+Stream 1049, rtt: 0, last_ack_ts:2173636934
+Stream 1050, rtt: 0, last_ack_ts:2173636934
+Stream 1051, rtt: 0, last_ack_ts:2173636934
+Stream 1052, rtt: 0, last_ack_ts:2173636934
+Stream 1053, rtt: 0, last_ack_ts:2173636934
+Stream 1054, rtt: 0, last_ack_ts:2173636934
+Stream 1055, rtt: 0, last_ack_ts:2173636934
+Stream 1056, rtt: 0, last_ack_ts:2173636934
+Stream 1057, rtt: 0, last_ack_ts:2173636934
+Stream 1058, rtt: 0, last_ack_ts:2173636934
+Stream 1059, rtt: 0, last_ack_ts:2173636934
+Stream 1060, rtt: 0, last_ack_ts:2173636934
+Stream 1061, rtt: 0, last_ack_ts:2173636934
+Stream 1062, rtt: 0, last_ack_ts:2173636934
+Stream 1063, rtt: 0, last_ack_ts:2173636934
+Stream 1065, rtt: 0, last_ack_ts:2173636934
+Stream 1066, rtt: 0, last_ack_ts:2173636934
+Stream 1067, rtt: 0, last_ack_ts:2173636934
+Stream 1068, rtt: 0, last_ack_ts:2173636934
+Stream 1069, rtt: 0, last_ack_ts:2173636934
+Stream 1070, rtt: 0, last_ack_ts:2173636934
+Stream 1071, rtt: 0, last_ack_ts:2173636934
+Stream 1072, rtt: 0, last_ack_ts:2173636934
+Stream 1073, rtt: 0, last_ack_ts:2173636934
+Stream 1074, rtt: 0, last_ack_ts:2173636934
+Stream 1075, rtt: 0, last_ack_ts:2173636934
+Stream 1076, rtt: 0, last_ack_ts:2173636934
+Stream 1077, rtt: 0, last_ack_ts:2173636934
+Stream 1078, rtt: 0, last_ack_ts:2173636934
+Stream 1079, rtt: 0, last_ack_ts:2173636934
+Stream 1080, rtt: 0, last_ack_ts:2173636934
+Stream 1081, rtt: 0, last_ack_ts:2173636934
+Stream 1082, rtt: 0, last_ack_ts:2173636934
+Stream 1083, rtt: 0, last_ack_ts:2173636934
+Stream 1084, rtt: 0, last_ack_ts:2173636934
+Stream 1085, rtt: 0, last_ack_ts:2173636934
+Stream 1086, rtt: 0, last_ack_ts:2173636934
+Stream 1087, rtt: 0, last_ack_ts:2173636934
+Stream 1088, rtt: 0, last_ack_ts:2173636934
+Stream 1089, rtt: 0, last_ack_ts:2173636934
+Stream 1090, rtt: 0, last_ack_ts:2173636934
+Stream 1091, rtt: 0, last_ack_ts:2173636934
+Stream 1092, rtt: 0, last_ack_ts:2173636934
+Stream 1093, rtt: 1, last_ack_ts:2173636934
+Stream 1094, rtt: 1, last_ack_ts:2173636934
+Stream 1095, rtt: 1, last_ack_ts:2173636934
+Stream 1096, rtt: 1, last_ack_ts:2173636934
+Stream 1097, rtt: 1, last_ack_ts:2173636934
+Stream 1098, rtt: 1, last_ack_ts:2173636934
+Stream 1099, rtt: 1, last_ack_ts:2173636934
+Stream 1064, rtt: 1, last_ack_ts:2173636934
+Stream 1100, rtt: 1, last_ack_ts:2173637235
+Stream 1101, rtt: 1, last_ack_ts:2173637235
+Stream 1102, rtt: 1, last_ack_ts:2173637235
+Stream 1103, rtt: 1, last_ack_ts:2173637235
+Stream 1104, rtt: 1, last_ack_ts:2173637235
+Stream 1105, rtt: 1, last_ack_ts:2173637235
+Stream 1106, rtt: 1, last_ack_ts:2173637235
+Stream 1107, rtt: 1, last_ack_ts:2173637235
+Stream 1108, rtt: 1, last_ack_ts:2173637235
+Stream 1109, rtt: 1, last_ack_ts:2173637235
+Stream 1110, rtt: 1, last_ack_ts:2173637235
+Stream 1111, rtt: 1, last_ack_ts:2173637235
+Stream 1112, rtt: 1, last_ack_ts:2173637235
+Stream 1113, rtt: 1, last_ack_ts:2173637235
+Stream 1114, rtt: 1, last_ack_ts:2173637235
+Stream 1115, rtt: 1, last_ack_ts:2173637235
+Stream 1116, rtt: 1, last_ack_ts:2173637235
+Stream 1117, rtt: 1, last_ack_ts:2173637235
+Stream 1118, rtt: 1, last_ack_ts:2173637235
+Stream 1119, rtt: 1, last_ack_ts:2173637235
+Stream 1120, rtt: 1, last_ack_ts:2173637235
+Stream 1121, rtt: 1, last_ack_ts:2173637235
+Stream 1122, rtt: 1, last_ack_ts:2173637235
+Stream 1123, rtt: 1, last_ack_ts:2173637235
+Stream 1124, rtt: 1, last_ack_ts:2173637235
+Stream 1125, rtt: 1, last_ack_ts:2173637235
+Stream 1126, rtt: 1, last_ack_ts:2173637235
+Stream 1127, rtt: 1, last_ack_ts:2173637235
+Stream 1128, rtt: 1, last_ack_ts:2173637235
+Stream 1129, rtt: 1, last_ack_ts:2173637235
+Stream 1130, rtt: 1, last_ack_ts:2173637235
+Stream 1131, rtt: 1, last_ack_ts:2173637235
+Stream 1132, rtt: 1, last_ack_ts:2173637235
+Stream 1133, rtt: 1, last_ack_ts:2173637235
+Stream 1134, rtt: 1, last_ack_ts:2173637235
+Stream 1135, rtt: 1, last_ack_ts:2173637235
+Stream 1136, rtt: 1, last_ack_ts:2173637235
+Stream 1137, rtt: 1, last_ack_ts:2173637235
+Stream 1138, rtt: 1, last_ack_ts:2173637235
+Stream 1139, rtt: 1, last_ack_ts:2173637235
+Stream 1140, rtt: 1, last_ack_ts:2173637235
+Stream 1141, rtt: 1, last_ack_ts:2173637235
+Stream 1142, rtt: 1, last_ack_ts:2173637235
+Stream 1143, rtt: 1, last_ack_ts:2173637235
+Stream 1144, rtt: 1, last_ack_ts:2173637235
+Stream 1145, rtt: 1, last_ack_ts:2173637235
+Stream 1146, rtt: 1, last_ack_ts:2173637235
+Stream 1147, rtt: 1, last_ack_ts:2173637235
+Stream 1148, rtt: 1, last_ack_ts:2173637235
+Stream 1149, rtt: 1, last_ack_ts:2173637235
+Stream 1150, rtt: 1, last_ack_ts:2173637235
+Stream 1151, rtt: 1, last_ack_ts:2173637235
+Stream 1152, rtt: 1, last_ack_ts:2173637235
+Stream 1153, rtt: 1, last_ack_ts:2173637235
+Stream 1154, rtt: 1, last_ack_ts:2173637235
+Stream 1155, rtt: 1, last_ack_ts:2173637235
+Stream 1156, rtt: 1, last_ack_ts:2173637235
+Stream 1157, rtt: 1, last_ack_ts:2173637235
+Stream 1158, rtt: 1, last_ack_ts:2173637235
+Stream 1159, rtt: 1, last_ack_ts:2173637235
+Stream 1160, rtt: 1, last_ack_ts:2173637235
+Stream 1161, rtt: 1, last_ack_ts:2173637235
+Stream 1162, rtt: 1, last_ack_ts:2173637235
+Stream 1163, rtt: 1, last_ack_ts:2173637235
+Stream 1165, rtt: 1, last_ack_ts:2173637235
+Stream 1166, rtt: 1, last_ack_ts:2173637235
+Stream 1167, rtt: 1, last_ack_ts:2173637235
+Stream 1168, rtt: 1, last_ack_ts:2173637235
+Stream 1169, rtt: 1, last_ack_ts:2173637235
+Stream 1170, rtt: 1, last_ack_ts:2173637235
+Stream 1171, rtt: 1, last_ack_ts:2173637235
+Stream 1172, rtt: 1, last_ack_ts:2173637235
+Stream 1173, rtt: 1, last_ack_ts:2173637235
+Stream 1174, rtt: 1, last_ack_ts:2173637235
+Stream 1175, rtt: 1, last_ack_ts:2173637235
+Stream 1176, rtt: 1, last_ack_ts:2173637235
+Stream 1177, rtt: 1, last_ack_ts:2173637235
+Stream 1178, rtt: 1, last_ack_ts:2173637235
+Stream 1179, rtt: 1, last_ack_ts:2173637235
+Stream 1180, rtt: 1, last_ack_ts:2173637235
+Stream 1181, rtt: 1, last_ack_ts:2173637235
+Stream 1182, rtt: 1, last_ack_ts:2173637235
+Stream 1183, rtt: 1, last_ack_ts:2173637235
+Stream 1184, rtt: 1, last_ack_ts:2173637235
+Stream 1185, rtt: 1, last_ack_ts:2173637235
+Stream 1186, rtt: 1, last_ack_ts:2173637235
+Stream 1187, rtt: 1, last_ack_ts:2173637235
+Stream 1188, rtt: 1, last_ack_ts:2173637235
+Stream 1189, rtt: 1, last_ack_ts:2173637235
+Stream 1190, rtt: 1, last_ack_ts:2173637235
+Stream 1191, rtt: 1, last_ack_ts:2173637235
+Stream 1192, rtt: 1, last_ack_ts:2173637235
+Stream 1193, rtt: 1, last_ack_ts:2173637235
+Stream 1194, rtt: 1, last_ack_ts:2173637235
+Stream 1195, rtt: 1, last_ack_ts:2173637235
+Stream 1196, rtt: 1, last_ack_ts:2173637235
+Stream 1197, rtt: 1, last_ack_ts:2173637235
+Stream 1198, rtt: 1, last_ack_ts:2173637235
+Stream 1199, rtt: 1, last_ack_ts:2173637235
+Stream 1164, rtt: 1, last_ack_ts:2173637235
+Stream 1195: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1195: RTO, after rto: 6
+Stream 1196: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1196: RTO, after rto: 6
+Stream 1197: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1197: RTO, after rto: 6
+Stream 1198: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1198: RTO, after rto: 6
+Stream 1199: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1199: RTO, after rto: 6
+Stream 1164: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1164: RTO, after rto: 6
+Stream 1166: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1166: RTO, after rto: 6
+Stream 1167: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1167: RTO, after rto: 6
+Stream 1200, rtt: 101, last_ack_ts:2173637437
+Stream 1201, rtt: 0, last_ack_ts:2173637538
+Stream 1202, rtt: 0, last_ack_ts:2173637538
+Stream 1203, rtt: 0, last_ack_ts:2173637538
+Stream 1204, rtt: 0, last_ack_ts:2173637538
+Stream 1205, rtt: 0, last_ack_ts:2173637538
+Stream 1206, rtt: 0, last_ack_ts:2173637538
+Stream 1207, rtt: 0, last_ack_ts:2173637538
+Stream 1208, rtt: 0, last_ack_ts:2173637538
+Stream 1209, rtt: 0, last_ack_ts:2173637538
+Stream 1210, rtt: 0, last_ack_ts:2173637538
+Stream 1211, rtt: 0, last_ack_ts:2173637538
+Stream 1212, rtt: 0, last_ack_ts:2173637538
+Stream 1213, rtt: 0, last_ack_ts:2173637538
+Stream 1214, rtt: 0, last_ack_ts:2173637538
+Stream 1215, rtt: 0, last_ack_ts:2173637538
+Stream 1216, rtt: 0, last_ack_ts:2173637538
+Stream 1217, rtt: 0, last_ack_ts:2173637538
+Stream 1218, rtt: 0, last_ack_ts:2173637538
+Stream 1219, rtt: 0, last_ack_ts:2173637538
+Stream 1220, rtt: 0, last_ack_ts:2173637538
+Stream 1221, rtt: 0, last_ack_ts:2173637538
+Stream 1222, rtt: 0, last_ack_ts:2173637538
+Stream 1223, rtt: 0, last_ack_ts:2173637538
+Stream 1224, rtt: 0, last_ack_ts:2173637538
+Stream 1225, rtt: 0, last_ack_ts:2173637538
+Stream 1226, rtt: 0, last_ack_ts:2173637538
+Stream 1227, rtt: 0, last_ack_ts:2173637538
+Stream 1228, rtt: 0, last_ack_ts:2173637538
+Stream 1229, rtt: 0, last_ack_ts:2173637538
+Stream 1230, rtt: 0, last_ack_ts:2173637538
+Stream 1231, rtt: 0, last_ack_ts:2173637538
+Stream 1232, rtt: 0, last_ack_ts:2173637538
+Stream 1233, rtt: 0, last_ack_ts:2173637538
+Stream 1234, rtt: 0, last_ack_ts:2173637538
+Stream 1235, rtt: 0, last_ack_ts:2173637538
+Stream 1236, rtt: 0, last_ack_ts:2173637538
+Stream 1237, rtt: 0, last_ack_ts:2173637538
+Stream 1238, rtt: 0, last_ack_ts:2173637538
+Stream 1239, rtt: 0, last_ack_ts:2173637538
+Stream 1240, rtt: 0, last_ack_ts:2173637538
+Stream 1241, rtt: 0, last_ack_ts:2173637538
+Stream 1242, rtt: 0, last_ack_ts:2173637538
+Stream 1243, rtt: 0, last_ack_ts:2173637538
+Stream 1244, rtt: 0, last_ack_ts:2173637538
+Stream 1245, rtt: 0, last_ack_ts:2173637538
+Stream 1246, rtt: 0, last_ack_ts:2173637538
+Stream 1247, rtt: 0, last_ack_ts:2173637538
+Stream 1248, rtt: 0, last_ack_ts:2173637538
+Stream 1249, rtt: 0, last_ack_ts:2173637538
+Stream 1250, rtt: 0, last_ack_ts:2173637538
+Stream 1251, rtt: 0, last_ack_ts:2173637538
+Stream 1252, rtt: 0, last_ack_ts:2173637538
+Stream 1253, rtt: 0, last_ack_ts:2173637538
+Stream 1254, rtt: 0, last_ack_ts:2173637538
+Stream 1255, rtt: 0, last_ack_ts:2173637538
+Stream 1256, rtt: 0, last_ack_ts:2173637538
+Stream 1257, rtt: 0, last_ack_ts:2173637538
+Stream 1258, rtt: 0, last_ack_ts:2173637538
+Stream 1259, rtt: 0, last_ack_ts:2173637538
+Stream 1260, rtt: 0, last_ack_ts:2173637538
+Stream 1261, rtt: 0, last_ack_ts:2173637538
+Stream 1262, rtt: 0, last_ack_ts:2173637538
+Stream 1263, rtt: 0, last_ack_ts:2173637538
+Stream 1265, rtt: 0, last_ack_ts:2173637538
+Stream 1266, rtt: 1, last_ack_ts:2173637538
+Stream 1267, rtt: 1, last_ack_ts:2173637538
+Stream 1268, rtt: 1, last_ack_ts:2173637538
+Stream 1269, rtt: 1, last_ack_ts:2173637538
+Stream 1270, rtt: 1, last_ack_ts:2173637538
+Stream 1271, rtt: 1, last_ack_ts:2173637538
+Stream 1272, rtt: 1, last_ack_ts:2173637538
+Stream 1273, rtt: 1, last_ack_ts:2173637538
+Stream 1274, rtt: 1, last_ack_ts:2173637538
+Stream 1275, rtt: 1, last_ack_ts:2173637538
+Stream 1276, rtt: 1, last_ack_ts:2173637538
+Stream 1277, rtt: 1, last_ack_ts:2173637538
+Stream 1278, rtt: 1, last_ack_ts:2173637538
+Stream 1279, rtt: 1, last_ack_ts:2173637538
+Stream 1280, rtt: 1, last_ack_ts:2173637538
+Stream 1281, rtt: 1, last_ack_ts:2173637538
+Stream 1282, rtt: 1, last_ack_ts:2173637538
+Stream 1283, rtt: 1, last_ack_ts:2173637538
+Stream 1284, rtt: 1, last_ack_ts:2173637538
+Stream 1285, rtt: 1, last_ack_ts:2173637538
+Stream 1286, rtt: 1, last_ack_ts:2173637538
+Stream 1287, rtt: 1, last_ack_ts:2173637538
+Stream 1288, rtt: 1, last_ack_ts:2173637538
+Stream 1289, rtt: 1, last_ack_ts:2173637538
+Stream 1290, rtt: 1, last_ack_ts:2173637538
+Stream 1291, rtt: 1, last_ack_ts:2173637538
+Stream 1292, rtt: 1, last_ack_ts:2173637538
+Stream 1293, rtt: 1, last_ack_ts:2173637538
+Stream 1294, rtt: 1, last_ack_ts:2173637538
+Stream 1295, rtt: 1, last_ack_ts:2173637538
+Stream 1296, rtt: 1, last_ack_ts:2173637538
+Stream 1297, rtt: 1, last_ack_ts:2173637538
+Stream 1298, rtt: 1, last_ack_ts:2173637538
+Stream 1299, rtt: 1, last_ack_ts:2173637538
+Stream 1264, rtt: 1, last_ack_ts:2173637538
+Stream 1265: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1265: RTO, after rto: 6
+Stream 1214: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1214: RTO, after rto: 6
+Stream 1230: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1230: RTO, after rto: 6
+Stream 1300, rtt: 104, last_ack_ts:2173637738
+Stream 1301, rtt: 104, last_ack_ts:2173637738
+Stream 1302, rtt: 104, last_ack_ts:2173637738
+Stream 1303, rtt: 104, last_ack_ts:2173637738
+Stream 1304, rtt: 104, last_ack_ts:2173637738
+Stream 1305, rtt: 104, last_ack_ts:2173637738
+Stream 1306, rtt: 104, last_ack_ts:2173637738
+Stream 1307, rtt: 0, last_ack_ts:2173637842
+Stream 1308, rtt: 0, last_ack_ts:2173637842
+Stream 1309, rtt: 0, last_ack_ts:2173637842
+Stream 1310, rtt: 0, last_ack_ts:2173637842
+Stream 1311, rtt: 0, last_ack_ts:2173637842
+Stream 1312, rtt: 0, last_ack_ts:2173637842
+Stream 1313, rtt: 0, last_ack_ts:2173637842
+Stream 1314, rtt: 0, last_ack_ts:2173637842
+Stream 1315, rtt: 0, last_ack_ts:2173637842
+Stream 1316, rtt: 0, last_ack_ts:2173637842
+Stream 1317, rtt: 0, last_ack_ts:2173637842
+Stream 1318, rtt: 0, last_ack_ts:2173637842
+Stream 1319, rtt: 0, last_ack_ts:2173637842
+Stream 1320, rtt: 0, last_ack_ts:2173637842
+Stream 1321, rtt: 0, last_ack_ts:2173637842
+Stream 1322, rtt: 0, last_ack_ts:2173637842
+Stream 1323, rtt: 0, last_ack_ts:2173637842
+Stream 1324, rtt: 0, last_ack_ts:2173637842
+Stream 1325, rtt: 0, last_ack_ts:2173637842
+Stream 1326, rtt: 0, last_ack_ts:2173637842
+Stream 1327, rtt: 0, last_ack_ts:2173637842
+Stream 1328, rtt: 0, last_ack_ts:2173637842
+Stream 1329, rtt: 0, last_ack_ts:2173637842
+Stream 1330, rtt: 0, last_ack_ts:2173637842
+Stream 1331, rtt: 0, last_ack_ts:2173637842
+Stream 1332, rtt: 0, last_ack_ts:2173637842
+Stream 1333, rtt: 0, last_ack_ts:2173637842
+Stream 1334, rtt: 0, last_ack_ts:2173637842
+Stream 1335, rtt: 0, last_ack_ts:2173637842
+Stream 1336, rtt: 0, last_ack_ts:2173637842
+Stream 1337, rtt: 0, last_ack_ts:2173637842
+Stream 1338, rtt: 0, last_ack_ts:2173637842
+Stream 1339, rtt: 0, last_ack_ts:2173637842
+Stream 1340, rtt: 0, last_ack_ts:2173637842
+Stream 1341, rtt: 0, last_ack_ts:2173637842
+Stream 1342, rtt: 0, last_ack_ts:2173637842
+Stream 1343, rtt: 0, last_ack_ts:2173637842
+Stream 1344, rtt: 0, last_ack_ts:2173637842
+Stream 1345, rtt: 0, last_ack_ts:2173637842
+Stream 1346, rtt: 0, last_ack_ts:2173637842
+Stream 1347, rtt: 0, last_ack_ts:2173637842
+Stream 1348, rtt: 0, last_ack_ts:2173637842
+Stream 1349, rtt: 0, last_ack_ts:2173637842
+Stream 1350, rtt: 0, last_ack_ts:2173637842
+Stream 1351, rtt: 0, last_ack_ts:2173637842
+Stream 1352, rtt: 0, last_ack_ts:2173637842
+Stream 1353, rtt: 0, last_ack_ts:2173637842
+Stream 1354, rtt: 0, last_ack_ts:2173637842
+Stream 1355, rtt: 0, last_ack_ts:2173637842
+Stream 1356, rtt: 0, last_ack_ts:2173637842
+Stream 1357, rtt: 0, last_ack_ts:2173637842
+Stream 1358, rtt: 0, last_ack_ts:2173637842
+Stream 1359, rtt: 0, last_ack_ts:2173637842
+Stream 1360, rtt: 0, last_ack_ts:2173637842
+Stream 1361, rtt: 0, last_ack_ts:2173637842
+Stream 1362, rtt: 0, last_ack_ts:2173637842
+Stream 1363, rtt: 0, last_ack_ts:2173637842
+Stream 1365, rtt: 0, last_ack_ts:2173637842
+Stream 1366, rtt: 0, last_ack_ts:2173637842
+Stream 1367, rtt: 0, last_ack_ts:2173637842
+Stream 1368, rtt: 0, last_ack_ts:2173637842
+Stream 1369, rtt: 0, last_ack_ts:2173637842
+Stream 1370, rtt: 0, last_ack_ts:2173637842
+Stream 1371, rtt: 0, last_ack_ts:2173637842
+Stream 1372, rtt: 0, last_ack_ts:2173637842
+Stream 1373, rtt: 0, last_ack_ts:2173637842
+Stream 1374, rtt: 0, last_ack_ts:2173637842
+Stream 1375, rtt: 0, last_ack_ts:2173637842
+Stream 1376, rtt: 0, last_ack_ts:2173637842
+Stream 1377, rtt: 0, last_ack_ts:2173637842
+Stream 1378, rtt: 0, last_ack_ts:2173637842
+Stream 1379, rtt: 0, last_ack_ts:2173637842
+Stream 1380, rtt: 0, last_ack_ts:2173637842
+Stream 1381, rtt: 0, last_ack_ts:2173637842
+Stream 1382, rtt: 0, last_ack_ts:2173637842
+Stream 1383, rtt: 0, last_ack_ts:2173637842
+Stream 1384, rtt: 0, last_ack_ts:2173637842
+Stream 1385, rtt: 0, last_ack_ts:2173637842
+Stream 1386, rtt: 0, last_ack_ts:2173637842
+Stream 1387, rtt: 0, last_ack_ts:2173637842
+Stream 1388, rtt: 0, last_ack_ts:2173637842
+Stream 1389, rtt: 0, last_ack_ts:2173637842
+Stream 1390, rtt: 0, last_ack_ts:2173637842
+Stream 1391, rtt: 0, last_ack_ts:2173637842
+Stream 1392, rtt: 0, last_ack_ts:2173637842
+Stream 1393, rtt: 0, last_ack_ts:2173637842
+Stream 1394, rtt: 0, last_ack_ts:2173637842
+Stream 1395, rtt: 0, last_ack_ts:2173637842
+Stream 1396, rtt: 0, last_ack_ts:2173637842
+Stream 1397, rtt: 0, last_ack_ts:2173637842
+Stream 1398, rtt: 0, last_ack_ts:2173637842
+Stream 1399, rtt: 0, last_ack_ts:2173637842
+Stream 1364, rtt: 0, last_ack_ts:2173637842
+Stream 1318: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1318: RTO, after rto: 6
+Stream 1319: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1319: RTO, after rto: 6
+Stream 1320: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1320: RTO, after rto: 6
+Stream 1321: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1321: RTO, after rto: 6
+Stream 1322: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1322: RTO, after rto: 6
+Stream 1323: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1323: RTO, after rto: 6
+Stream 1324: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1324: RTO, after rto: 6
+Stream 1325: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1325: RTO, after rto: 6
+Stream 1326: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1326: RTO, after rto: 6
+Stream 1327: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1327: RTO, after rto: 6
+Stream 1328: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1328: RTO, after rto: 6
+Stream 1329: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1329: RTO, after rto: 6
+Stream 1330: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1330: RTO, after rto: 6
+Stream 1331: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1331: RTO, after rto: 6
+Stream 1332: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1332: RTO, after rto: 6
+Stream 1333: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1333: RTO, after rto: 6
+Stream 1334: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1334: RTO, after rto: 6
+Stream 1335: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1335: RTO, after rto: 6
+Stream 1336: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1336: RTO, after rto: 6
+Stream 1337: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1337: RTO, after rto: 6
+Stream 1338: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1338: RTO, after rto: 6
+Stream 1339: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1339: RTO, after rto: 6
+Stream 1340: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1340: RTO, after rto: 6
+Stream 1341: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1341: RTO, after rto: 6
+Stream 1342: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1342: RTO, after rto: 6
+Stream 1343: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1343: RTO, after rto: 6
+Stream 1344: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1344: RTO, after rto: 6
+Stream 1345: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1345: RTO, after rto: 6
+Stream 1346: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1346: RTO, after rto: 6
+Stream 1347: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1347: RTO, after rto: 6
+Stream 1348: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1348: RTO, after rto: 6
+Stream 1349: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1349: RTO, after rto: 6
+Stream 1350: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1350: RTO, after rto: 6
+Stream 1351: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1351: RTO, after rto: 6
+Stream 1352: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1352: RTO, after rto: 6
+Stream 1353: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1353: RTO, after rto: 6
+Stream 1354: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1354: RTO, after rto: 6
+Stream 1355: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1355: RTO, after rto: 6
+Stream 1356: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1356: RTO, after rto: 6
+Stream 1357: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1357: RTO, after rto: 6
+Stream 1358: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1358: RTO, after rto: 6
+Stream 1366: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1366: RTO, after rto: 6
+Stream 1307: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1307: RTO, after rto: 6
+Stream 1400, rtt: 0, last_ack_ts:2173638143
+Stream 1401, rtt: 0, last_ack_ts:2173638143
+Stream 1402, rtt: 0, last_ack_ts:2173638143
+Stream 1403, rtt: 0, last_ack_ts:2173638143
+Stream 1404, rtt: 0, last_ack_ts:2173638143
+Stream 1405, rtt: 0, last_ack_ts:2173638143
+Stream 1406, rtt: 0, last_ack_ts:2173638143
+Stream 1407, rtt: 0, last_ack_ts:2173638143
+Stream 1408, rtt: 0, last_ack_ts:2173638143
+Stream 1409, rtt: 0, last_ack_ts:2173638143
+Stream 1410, rtt: 0, last_ack_ts:2173638143
+Stream 1411, rtt: 0, last_ack_ts:2173638143
+Stream 1412, rtt: 0, last_ack_ts:2173638143
+Stream 1413, rtt: 0, last_ack_ts:2173638143
+Stream 1414, rtt: 0, last_ack_ts:2173638143
+Stream 1415, rtt: 0, last_ack_ts:2173638143
+Stream 1416, rtt: 0, last_ack_ts:2173638143
+Stream 1417, rtt: 0, last_ack_ts:2173638143
+Stream 1418, rtt: 0, last_ack_ts:2173638143
+Stream 1419, rtt: 0, last_ack_ts:2173638143
+Stream 1420, rtt: 0, last_ack_ts:2173638143
+Stream 1421, rtt: 0, last_ack_ts:2173638143
+Stream 1422, rtt: 0, last_ack_ts:2173638143
+Stream 1423, rtt: 0, last_ack_ts:2173638143
+Stream 1424, rtt: 0, last_ack_ts:2173638143
+Stream 1425, rtt: 0, last_ack_ts:2173638143
+Stream 1426, rtt: 0, last_ack_ts:2173638143
+Stream 1427, rtt: 0, last_ack_ts:2173638143
+Stream 1428, rtt: 0, last_ack_ts:2173638143
+Stream 1429, rtt: 0, last_ack_ts:2173638143
+Stream 1430, rtt: 0, last_ack_ts:2173638143
+Stream 1431, rtt: 0, last_ack_ts:2173638143
+Stream 1432, rtt: 0, last_ack_ts:2173638143
+Stream 1433, rtt: 0, last_ack_ts:2173638143
+Stream 1434, rtt: 0, last_ack_ts:2173638143
+Stream 1435, rtt: 0, last_ack_ts:2173638143
+Stream 1436, rtt: 0, last_ack_ts:2173638143
+Stream 1437, rtt: 0, last_ack_ts:2173638143
+Stream 1438, rtt: 0, last_ack_ts:2173638143
+Stream 1439, rtt: 0, last_ack_ts:2173638143
+Stream 1440, rtt: 0, last_ack_ts:2173638143
+Stream 1441, rtt: 0, last_ack_ts:2173638143
+Stream 1442, rtt: 0, last_ack_ts:2173638143
+Stream 1443, rtt: 0, last_ack_ts:2173638143
+Stream 1444, rtt: 0, last_ack_ts:2173638143
+Stream 1445, rtt: 0, last_ack_ts:2173638143
+Stream 1446, rtt: 0, last_ack_ts:2173638143
+Stream 1447, rtt: 0, last_ack_ts:2173638143
+Stream 1448, rtt: 0, last_ack_ts:2173638143
+Stream 1449, rtt: 0, last_ack_ts:2173638143
+Stream 1450, rtt: 0, last_ack_ts:2173638143
+Stream 1451, rtt: 0, last_ack_ts:2173638143
+Stream 1452, rtt: 0, last_ack_ts:2173638143
+Stream 1453, rtt: 0, last_ack_ts:2173638143
+Stream 1454, rtt: 0, last_ack_ts:2173638143
+Stream 1455, rtt: 0, last_ack_ts:2173638143
+Stream 1456, rtt: 0, last_ack_ts:2173638143
+Stream 1457, rtt: 0, last_ack_ts:2173638143
+Stream 1458, rtt: 0, last_ack_ts:2173638143
+Stream 1459, rtt: 0, last_ack_ts:2173638143
+Stream 1460, rtt: 0, last_ack_ts:2173638143
+Stream 1461, rtt: 0, last_ack_ts:2173638143
+Stream 1462, rtt: 0, last_ack_ts:2173638143
+Stream 1463, rtt: 0, last_ack_ts:2173638143
+Stream 1465, rtt: 0, last_ack_ts:2173638143
+Stream 1466, rtt: 1, last_ack_ts:2173638143
+Stream 1467, rtt: 1, last_ack_ts:2173638143
+Stream 1468, rtt: 1, last_ack_ts:2173638143
+Stream 1469, rtt: 1, last_ack_ts:2173638143
+Stream 1470, rtt: 1, last_ack_ts:2173638143
+Stream 1471, rtt: 1, last_ack_ts:2173638143
+Stream 1472, rtt: 1, last_ack_ts:2173638143
+Stream 1473, rtt: 1, last_ack_ts:2173638143
+Stream 1474, rtt: 1, last_ack_ts:2173638143
+Stream 1475, rtt: 1, last_ack_ts:2173638143
+Stream 1476, rtt: 1, last_ack_ts:2173638143
+Stream 1477, rtt: 1, last_ack_ts:2173638143
+Stream 1478, rtt: 1, last_ack_ts:2173638143
+Stream 1479, rtt: 1, last_ack_ts:2173638143
+Stream 1480, rtt: 1, last_ack_ts:2173638143
+Stream 1481, rtt: 1, last_ack_ts:2173638143
+Stream 1482, rtt: 1, last_ack_ts:2173638143
+Stream 1483, rtt: 1, last_ack_ts:2173638143
+Stream 1484, rtt: 1, last_ack_ts:2173638143
+Stream 1485, rtt: 1, last_ack_ts:2173638143
+Stream 1486, rtt: 1, last_ack_ts:2173638143
+Stream 1487, rtt: 1, last_ack_ts:2173638143
+Stream 1488, rtt: 1, last_ack_ts:2173638143
+Stream 1489, rtt: 1, last_ack_ts:2173638143
+Stream 1490, rtt: 1, last_ack_ts:2173638143
+Stream 1491, rtt: 1, last_ack_ts:2173638143
+Stream 1492, rtt: 1, last_ack_ts:2173638143
+Stream 1493, rtt: 1, last_ack_ts:2173638143
+Stream 1494, rtt: 1, last_ack_ts:2173638143
+Stream 1495, rtt: 1, last_ack_ts:2173638143
+Stream 1496, rtt: 1, last_ack_ts:2173638143
+Stream 1497, rtt: 1, last_ack_ts:2173638143
+Stream 1498, rtt: 1, last_ack_ts:2173638143
+Stream 1499, rtt: 1, last_ack_ts:2173638143
+Stream 1464, rtt: 1, last_ack_ts:2173638143
+Stream 1301: RTO, before: rto: 312
+srtt: 832, mdev: 208, mdev_max: 208, rttvar: 208, rtt_seq: 107
+Stream 1301: RTO, after rto: 624
+Stream 1302: RTO, before: rto: 312
+srtt: 832, mdev: 208, mdev_max: 208, rttvar: 208, rtt_seq: 107
+Stream 1302: RTO, after rto: 624
+Stream 1303: RTO, before: rto: 312
+srtt: 832, mdev: 208, mdev_max: 208, rttvar: 208, rtt_seq: 107
+Stream 1303: RTO, after rto: 624
+Stream 1304: RTO, before: rto: 312
+srtt: 832, mdev: 208, mdev_max: 208, rttvar: 208, rtt_seq: 107
+Stream 1304: RTO, after rto: 624
+Stream 1305: RTO, before: rto: 312
+srtt: 832, mdev: 208, mdev_max: 208, rttvar: 208, rtt_seq: 107
+Stream 1305: RTO, after rto: 624
+Stream 1306: RTO, before: rto: 312
+srtt: 832, mdev: 208, mdev_max: 208, rttvar: 208, rtt_seq: 107
+Stream 1306: RTO, after rto: 624
+Stream 1300: RTO, before: rto: 312
+srtt: 832, mdev: 208, mdev_max: 208, rttvar: 208, rtt_seq: 107
+Stream 1300: RTO, after rto: 624
+Stream 988: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 988: RTO, after rto: 6
+Stream 989: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 989: RTO, after rto: 6
+Stream 990: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 990: RTO, after rto: 6
+Stream 991: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 991: RTO, after rto: 6
+Stream 992: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 992: RTO, after rto: 6
+Stream 993: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 993: RTO, after rto: 6
+Stream 994: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 994: RTO, after rto: 6
+Stream 995: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 995: RTO, after rto: 6
+Stream 996: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 996: RTO, after rto: 6
+Stream 997: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 997: RTO, after rto: 6
+Stream 998: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 998: RTO, after rto: 6
+Stream 999: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 999: RTO, after rto: 6
+Stream 964: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 964: RTO, after rto: 6
+Stream 902: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 902: RTO, after rto: 6
+Stream 904: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 904: RTO, after rto: 6
+Stream 905: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 905: RTO, after rto: 6
+Stream 906: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 906: RTO, after rto: 6
+Stream 907: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 907: RTO, after rto: 6
+Stream 908: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 908: RTO, after rto: 6
+Stream 909: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 909: RTO, after rto: 6
+Stream 910: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 910: RTO, after rto: 6
+Stream 911: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 911: RTO, after rto: 6
+Stream 912: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 912: RTO, after rto: 6
+Stream 900: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 900: RTO, after rto: 6
+Stream 913: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 913: RTO, after rto: 6
+Stream 914: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 914: RTO, after rto: 6
+Stream 915: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 915: RTO, after rto: 6
+Stream 916: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 916: RTO, after rto: 6
+Stream 917: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 917: RTO, after rto: 6
+Stream 918: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 918: RTO, after rto: 6
+Stream 919: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 919: RTO, after rto: 6
+Stream 920: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 920: RTO, after rto: 6
+Stream 921: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 921: RTO, after rto: 6
+Stream 922: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 922: RTO, after rto: 6
+Stream 923: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 923: RTO, after rto: 6
+Stream 924: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 924: RTO, after rto: 6
+Stream 925: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 925: RTO, after rto: 6
+Stream 926: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 926: RTO, after rto: 6
+Stream 927: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 927: RTO, after rto: 6
+Stream 928: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 928: RTO, after rto: 6
+Stream 929: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 929: RTO, after rto: 6
+Stream 930: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 930: RTO, after rto: 6
+Stream 932: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 932: RTO, after rto: 6
+Stream 933: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 933: RTO, after rto: 6
+Stream 934: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 934: RTO, after rto: 6
+Stream 935: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 935: RTO, after rto: 6
+Stream 936: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 936: RTO, after rto: 6
+Stream 966: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 966: RTO, after rto: 6
+Stream 903: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 903: RTO, after rto: 6
+Stream 931: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 931: RTO, after rto: 6
+Stream 1092: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1092: RTO, after rto: 6
+Stream 1001: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1001: RTO, after rto: 6
+Stream 1093: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1093: RTO, after rto: 6
+Stream 1094: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1094: RTO, after rto: 6
+Stream 1095: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1095: RTO, after rto: 6
+Stream 1096: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1096: RTO, after rto: 6
+Stream 1097: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1097: RTO, after rto: 6
+Stream 1098: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1098: RTO, after rto: 6
+Stream 1099: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1099: RTO, after rto: 6
+Stream 1064: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1064: RTO, after rto: 6
+Stream 1002: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1002: RTO, after rto: 6
+Stream 1003: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1003: RTO, after rto: 6
+Stream 1004: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1004: RTO, after rto: 6
+Stream 1006: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1006: RTO, after rto: 6
+Stream 1008: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1008: RTO, after rto: 6
+Stream 1009: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1009: RTO, after rto: 6
+Stream 1010: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1010: RTO, after rto: 6
+Stream 1011: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1011: RTO, after rto: 6
+Stream 1012: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1012: RTO, after rto: 6
+Stream 1013: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1013: RTO, after rto: 6
+Stream 1014: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1014: RTO, after rto: 6
+Stream 1015: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1015: RTO, after rto: 6
+Stream 1016: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1016: RTO, after rto: 6
+Stream 1017: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1017: RTO, after rto: 6
+Stream 1018: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1018: RTO, after rto: 6
+Stream 1019: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1019: RTO, after rto: 6
+Stream 1020: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1020: RTO, after rto: 6
+Stream 1021: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1021: RTO, after rto: 6
+Stream 1022: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1022: RTO, after rto: 6
+Stream 1023: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1023: RTO, after rto: 6
+Stream 1024: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1024: RTO, after rto: 6
+Stream 1025: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1025: RTO, after rto: 6
+Stream 1026: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1026: RTO, after rto: 6
+Stream 1027: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1027: RTO, after rto: 6
+Stream 1000: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1000: RTO, after rto: 6
+Stream 1028: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1028: RTO, after rto: 6
+Stream 1029: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1029: RTO, after rto: 6
+Stream 1030: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1030: RTO, after rto: 6
+Stream 1031: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1031: RTO, after rto: 6
+Stream 1032: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1032: RTO, after rto: 6
+Stream 1033: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1033: RTO, after rto: 6
+Stream 1034: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1034: RTO, after rto: 6
+Stream 1035: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1035: RTO, after rto: 6
+Stream 1036: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1036: RTO, after rto: 6
+Stream 1037: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1037: RTO, after rto: 6
+Stream 1038: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1038: RTO, after rto: 6
+Stream 1040: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1040: RTO, after rto: 6
+Stream 1005: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1005: RTO, after rto: 6
+Stream 1007: RTO, before: rto: 3
+srtt: 8, mdev: 2, mdev_max: 2, rttvar: 2, rtt_seq: 107
+Stream 1007: RTO, after rto: 6

@@ -1,0 +1,921 @@
+Application configuration:
+URL: /3.txt
+# of total_flows: 300
+# of cores: 1
+Concurrency: 20
+start of dpdk config
+new dpdk
+RTE_MAX_ETHPORTS = 32
+new dpdk num devices 1
+byte1:228
+passed the check: ens2
+Initializing port 0... done: 
+Port 0, MAC address: E4:1D:2D:13:9E:C0
+
+
+Checking link statusdone
+Port 0 Link Up - speed 40000 Mbps - full-duplex
+main loop
+CONFIG.eth_nums = 1
+iomodule: dev_ioctl(DEV_NAME): net_mlx4
+read[1]: Socket 1: mtcp_read ret: 8136, total_recv: 8136
+read[2]: Socket 2: mtcp_read ret: 8136, total_recv: 8136
+read[3]: Socket 3: mtcp_read ret: 8136, total_recv: 8136
+read[4]: Socket 4: mtcp_read ret: 8136, total_recv: 8136
+read[5]: Socket 5: mtcp_read ret: 8136, total_recv: 8136
+read[6]: Socket 6: mtcp_read ret: 8136, total_recv: 8136
+read[7]: Socket 7: mtcp_read ret: 8136, total_recv: 8136
+read[8]: Socket 8: mtcp_read ret: 8136, total_recv: 8136
+read[9]: Socket 9: mtcp_read ret: 8136, total_recv: 8136
+read[10]: Socket 10: mtcp_read ret: 8136, total_recv: 8136
+read[11]: Socket 11: mtcp_read ret: 8136, total_recv: 8136
+read[12]: Socket 12: mtcp_read ret: 8136, total_recv: 8136
+read[13]: Socket 13: mtcp_read ret: 8136, total_recv: 8136
+read[14]: Socket 14: mtcp_read ret: 8136, total_recv: 8136
+read[15]: Socket 15: mtcp_read ret: 8136, total_recv: 8136
+read[16]: Socket 16: mtcp_read ret: 8136, total_recv: 8136
+read[17]: Socket 17: mtcp_read ret: 8136, total_recv: 8136
+read[18]: Socket 18: mtcp_read ret: 8136, total_recv: 8136
+read[19]: Socket 19: mtcp_read ret: 8136, total_recv: 8136
+read[20]: Socket 20: mtcp_read ret: 8136, total_recv: 8136
+read[21]: Socket 1: mtcp_read ret: 198, total_recv: 8334
+Socket 1: connection closed with server.
+read[22]: Socket 2: mtcp_read ret: 198, total_recv: 8334
+Socket 2: connection closed with server.
+read[23]: Socket 3: mtcp_read ret: 198, total_recv: 8334
+Socket 3: connection closed with server.
+read[24]: Socket 4: mtcp_read ret: 198, total_recv: 8334
+Socket 4: connection closed with server.
+read[25]: Socket 5: mtcp_read ret: 198, total_recv: 8334
+Socket 5: connection closed with server.
+read[26]: Socket 6: mtcp_read ret: 198, total_recv: 8334
+Socket 6: connection closed with server.
+read[27]: Socket 7: mtcp_read ret: 198, total_recv: 8334
+Socket 7: connection closed with server.
+read[28]: Socket 8: mtcp_read ret: 198, total_recv: 8334
+Socket 8: connection closed with server.
+read[29]: Socket 9: mtcp_read ret: 198, total_recv: 8334
+Socket 9: connection closed with server.
+read[30]: Socket 10: mtcp_read ret: 198, total_recv: 8334
+Socket 10: connection closed with server.
+read[31]: Socket 11: mtcp_read ret: 198, total_recv: 8334
+Socket 11: connection closed with server.
+read[32]: Socket 12: mtcp_read ret: 198, total_recv: 8334
+Socket 12: connection closed with server.
+read[33]: Socket 13: mtcp_read ret: 198, total_recv: 8334
+Socket 13: connection closed with server.
+read[34]: Socket 14: mtcp_read ret: 198, total_recv: 8334
+Socket 14: connection closed with server.
+read[35]: Socket 15: mtcp_read ret: 198, total_recv: 8334
+Socket 15: connection closed with server.
+read[36]: Socket 16: mtcp_read ret: 198, total_recv: 8334
+Socket 16: connection closed with server.
+read[37]: Socket 17: mtcp_read ret: 198, total_recv: 8334
+Socket 17: connection closed with server.
+read[38]: Socket 18: mtcp_read ret: 198, total_recv: 8334
+Socket 18: connection closed with server.
+read[39]: Socket 19: mtcp_read ret: 198, total_recv: 8334
+Socket 19: connection closed with server.
+read[40]: Socket 20: mtcp_read ret: 198, total_recv: 8334
+Socket 20: connection closed with server.
+read[41]: Socket 21: mtcp_read ret: 8136, total_recv: 8136
+read[42]: Socket 22: mtcp_read ret: 8136, total_recv: 8136
+read[43]: Socket 23: mtcp_read ret: 8136, total_recv: 8136
+read[44]: Socket 24: mtcp_read ret: 8136, total_recv: 8136
+read[45]: Socket 25: mtcp_read ret: 8136, total_recv: 8136
+read[46]: Socket 26: mtcp_read ret: 8136, total_recv: 8136
+read[47]: Socket 27: mtcp_read ret: 8136, total_recv: 8136
+read[48]: Socket 28: mtcp_read ret: 8136, total_recv: 8136
+read[49]: Socket 29: mtcp_read ret: 8136, total_recv: 8136
+read[50]: Socket 30: mtcp_read ret: 8136, total_recv: 8136
+read[51]: Socket 31: mtcp_read ret: 8136, total_recv: 8136
+read[52]: Socket 32: mtcp_read ret: 8136, total_recv: 8136
+read[53]: Socket 33: mtcp_read ret: 8136, total_recv: 8136
+read[54]: Socket 34: mtcp_read ret: 8136, total_recv: 8136
+read[55]: Socket 35: mtcp_read ret: 8136, total_recv: 8136
+read[56]: Socket 36: mtcp_read ret: 8136, total_recv: 8136
+read[57]: Socket 37: mtcp_read ret: 8136, total_recv: 8136
+read[58]: Socket 38: mtcp_read ret: 8136, total_recv: 8136
+read[59]: Socket 39: mtcp_read ret: 8136, total_recv: 8136
+read[60]: Socket 40: mtcp_read ret: 8136, total_recv: 8136
+read[61]: Socket 26: mtcp_read ret: 198, total_recv: 8334
+Socket 26: connection closed with server.
+read[62]: Socket 27: mtcp_read ret: 198, total_recv: 8334
+Socket 27: connection closed with server.
+read[63]: Socket 28: mtcp_read ret: 198, total_recv: 8334
+Socket 28: connection closed with server.
+read[64]: Socket 29: mtcp_read ret: 198, total_recv: 8334
+Socket 29: connection closed with server.
+read[65]: Socket 30: mtcp_read ret: 198, total_recv: 8334
+Socket 30: connection closed with server.
+read[66]: Socket 31: mtcp_read ret: 198, total_recv: 8334
+Socket 31: connection closed with server.
+read[67]: Socket 33: mtcp_read ret: 198, total_recv: 8334
+Socket 33: connection closed with server.
+read[68]: Socket 34: mtcp_read ret: 198, total_recv: 8334
+Socket 34: connection closed with server.
+read[69]: Socket 35: mtcp_read ret: 198, total_recv: 8334
+Socket 35: connection closed with server.
+read[70]: Socket 36: mtcp_read ret: 198, total_recv: 8334
+Socket 36: connection closed with server.
+read[71]: Socket 21: mtcp_read ret: 198, total_recv: 8334
+Socket 21: connection closed with server.
+read[72]: Socket 37: mtcp_read ret: 198, total_recv: 8334
+Socket 37: connection closed with server.
+read[73]: Socket 38: mtcp_read ret: 198, total_recv: 8334
+Socket 38: connection closed with server.
+read[74]: Socket 39: mtcp_read ret: 198, total_recv: 8334
+Socket 39: connection closed with server.
+read[75]: Socket 40: mtcp_read ret: 198, total_recv: 8334
+Socket 40: connection closed with server.
+read[76]: Socket 22: mtcp_read ret: 198, total_recv: 8334
+Socket 22: connection closed with server.
+read[77]: Socket 23: mtcp_read ret: 198, total_recv: 8334
+Socket 23: connection closed with server.
+read[78]: Socket 24: mtcp_read ret: 198, total_recv: 8334
+Socket 24: connection closed with server.
+read[79]: Socket 25: mtcp_read ret: 198, total_recv: 8334
+Socket 25: connection closed with server.
+read[80]: Socket 32: mtcp_read ret: 198, total_recv: 8334
+Socket 32: connection closed with server.
+read[81]: Socket 41: mtcp_read ret: 8136, total_recv: 8136
+read[82]: Socket 42: mtcp_read ret: 8136, total_recv: 8136
+read[83]: Socket 43: mtcp_read ret: 8136, total_recv: 8136
+read[84]: Socket 44: mtcp_read ret: 8136, total_recv: 8136
+read[85]: Socket 45: mtcp_read ret: 8136, total_recv: 8136
+read[86]: Socket 46: mtcp_read ret: 8136, total_recv: 8136
+read[87]: Socket 47: mtcp_read ret: 8136, total_recv: 8136
+read[88]: Socket 48: mtcp_read ret: 8136, total_recv: 8136
+read[89]: Socket 49: mtcp_read ret: 8136, total_recv: 8136
+read[90]: Socket 50: mtcp_read ret: 8136, total_recv: 8136
+read[91]: Socket 51: mtcp_read ret: 8136, total_recv: 8136
+read[92]: Socket 52: mtcp_read ret: 8136, total_recv: 8136
+read[93]: Socket 53: mtcp_read ret: 8136, total_recv: 8136
+read[94]: Socket 54: mtcp_read ret: 8136, total_recv: 8136
+read[95]: Socket 55: mtcp_read ret: 8136, total_recv: 8136
+read[96]: Socket 56: mtcp_read ret: 8136, total_recv: 8136
+read[97]: Socket 57: mtcp_read ret: 8136, total_recv: 8136
+read[98]: Socket 58: mtcp_read ret: 8136, total_recv: 8136
+read[99]: Socket 59: mtcp_read ret: 8136, total_recv: 8136
+read[100]: Socket 1: mtcp_read ret: 8136, total_recv: 8136
+read[101]: Socket 42: mtcp_read ret: 198, total_recv: 8334
+Socket 42: connection closed with server.
+read[102]: Socket 43: mtcp_read ret: 198, total_recv: 8334
+Socket 43: connection closed with server.
+read[103]: Socket 41: mtcp_read ret: 198, total_recv: 8334
+Socket 41: connection closed with server.
+read[104]: Socket 44: mtcp_read ret: 198, total_recv: 8334
+Socket 44: connection closed with server.
+read[105]: Socket 45: mtcp_read ret: 198, total_recv: 8334
+Socket 45: connection closed with server.
+read[106]: Socket 46: mtcp_read ret: 198, total_recv: 8334
+Socket 46: connection closed with server.
+read[107]: Socket 48: mtcp_read ret: 198, total_recv: 8334
+Socket 48: connection closed with server.
+read[108]: Socket 49: mtcp_read ret: 198, total_recv: 8334
+Socket 49: connection closed with server.
+read[109]: Socket 50: mtcp_read ret: 198, total_recv: 8334
+Socket 50: connection closed with server.
+read[110]: Socket 51: mtcp_read ret: 198, total_recv: 8334
+Socket 51: connection closed with server.
+read[111]: Socket 52: mtcp_read ret: 198, total_recv: 8334
+Socket 52: connection closed with server.
+read[112]: Socket 53: mtcp_read ret: 198, total_recv: 8334
+Socket 53: connection closed with server.
+read[113]: Socket 54: mtcp_read ret: 198, total_recv: 8334
+Socket 54: connection closed with server.
+read[114]: Socket 55: mtcp_read ret: 198, total_recv: 8334
+Socket 55: connection closed with server.
+read[115]: Socket 56: mtcp_read ret: 198, total_recv: 8334
+Socket 56: connection closed with server.
+read[116]: Socket 57: mtcp_read ret: 198, total_recv: 8334
+Socket 57: connection closed with server.
+read[117]: Socket 58: mtcp_read ret: 198, total_recv: 8334
+Socket 58: connection closed with server.
+read[118]: Socket 59: mtcp_read ret: 198, total_recv: 8334
+Socket 59: connection closed with server.
+read[119]: Socket 1: mtcp_read ret: 198, total_recv: 8334
+Socket 1: connection closed with server.
+read[120]: Socket 47: mtcp_read ret: 198, total_recv: 8334
+Socket 47: connection closed with server.
+read[121]: Socket 2: mtcp_read ret: 8136, total_recv: 8136
+read[122]: Socket 3: mtcp_read ret: 8136, total_recv: 8136
+read[123]: Socket 4: mtcp_read ret: 8136, total_recv: 8136
+read[124]: Socket 5: mtcp_read ret: 8136, total_recv: 8136
+read[125]: Socket 6: mtcp_read ret: 8136, total_recv: 8136
+read[126]: Socket 7: mtcp_read ret: 8136, total_recv: 8136
+read[127]: Socket 8: mtcp_read ret: 8136, total_recv: 8136
+read[128]: Socket 9: mtcp_read ret: 8136, total_recv: 8136
+read[129]: Socket 10: mtcp_read ret: 8136, total_recv: 8136
+read[130]: Socket 11: mtcp_read ret: 8136, total_recv: 8136
+read[131]: Socket 12: mtcp_read ret: 8136, total_recv: 8136
+read[132]: Socket 13: mtcp_read ret: 8136, total_recv: 8136
+read[133]: Socket 14: mtcp_read ret: 8136, total_recv: 8136
+read[134]: Socket 15: mtcp_read ret: 8136, total_recv: 8136
+read[135]: Socket 16: mtcp_read ret: 8136, total_recv: 8136
+read[136]: Socket 17: mtcp_read ret: 8136, total_recv: 8136
+read[137]: Socket 18: mtcp_read ret: 8136, total_recv: 8136
+read[138]: Socket 19: mtcp_read ret: 8136, total_recv: 8136
+read[139]: Socket 20: mtcp_read ret: 8136, total_recv: 8136
+read[140]: Socket 26: mtcp_read ret: 8136, total_recv: 8136
+read[1]: Socket 14: mtcp_read ret: 198, total_recv: 8334
+Socket 14: connection closed with server.
+read[2]: Socket 15: mtcp_read ret: 198, total_recv: 8334
+Socket 15: connection closed with server.
+read[3]: Socket 16: mtcp_read ret: 198, total_recv: 8334
+Socket 16: connection closed with server.
+read[4]: Socket 17: mtcp_read ret: 198, total_recv: 8334
+Socket 17: connection closed with server.
+read[5]: Socket 18: mtcp_read ret: 198, total_recv: 8334
+Socket 18: connection closed with server.
+read[6]: Socket 19: mtcp_read ret: 198, total_recv: 8334
+Socket 19: connection closed with server.
+read[7]: Socket 20: mtcp_read ret: 198, total_recv: 8334
+Socket 20: connection closed with server.
+read[8]: Socket 26: mtcp_read ret: 198, total_recv: 8334
+Socket 26: connection closed with server.
+read[9]: Socket 2: mtcp_read ret: 198, total_recv: 8334
+Socket 2: connection closed with server.
+read[10]: Socket 3: mtcp_read ret: 198, total_recv: 8334
+Socket 3: connection closed with server.
+read[11]: Socket 4: mtcp_read ret: 198, total_recv: 8334
+Socket 4: connection closed with server.
+read[12]: Socket 5: mtcp_read ret: 198, total_recv: 8334
+Socket 5: connection closed with server.
+read[13]: Socket 6: mtcp_read ret: 198, total_recv: 8334
+Socket 6: connection closed with server.
+read[14]: Socket 7: mtcp_read ret: 198, total_recv: 8334
+Socket 7: connection closed with server.
+read[15]: Socket 8: mtcp_read ret: 198, total_recv: 8334
+Socket 8: connection closed with server.
+read[16]: Socket 9: mtcp_read ret: 198, total_recv: 8334
+Socket 9: connection closed with server.
+read[17]: Socket 10: mtcp_read ret: 198, total_recv: 8334
+Socket 10: connection closed with server.
+read[18]: Socket 11: mtcp_read ret: 198, total_recv: 8334
+Socket 11: connection closed with server.
+read[19]: Socket 12: mtcp_read ret: 198, total_recv: 8334
+Socket 12: connection closed with server.
+read[20]: Socket 13: mtcp_read ret: 198, total_recv: 8334
+Socket 13: connection closed with server.
+read[21]: Socket 27: mtcp_read ret: 8136, total_recv: 8136
+read[22]: Socket 28: mtcp_read ret: 8136, total_recv: 8136
+read[23]: Socket 29: mtcp_read ret: 8136, total_recv: 8136
+read[24]: Socket 30: mtcp_read ret: 8136, total_recv: 8136
+read[25]: Socket 31: mtcp_read ret: 8136, total_recv: 8136
+read[26]: Socket 33: mtcp_read ret: 8136, total_recv: 8136
+read[27]: Socket 34: mtcp_read ret: 8136, total_recv: 8136
+read[28]: Socket 35: mtcp_read ret: 8136, total_recv: 8136
+read[29]: Socket 36: mtcp_read ret: 8136, total_recv: 8136
+read[30]: Socket 21: mtcp_read ret: 8136, total_recv: 8136
+read[31]: Socket 37: mtcp_read ret: 8136, total_recv: 8136
+read[32]: Socket 38: mtcp_read ret: 8136, total_recv: 8136
+read[33]: Socket 39: mtcp_read ret: 8136, total_recv: 8136
+read[34]: Socket 40: mtcp_read ret: 8136, total_recv: 8136
+read[35]: Socket 22: mtcp_read ret: 8136, total_recv: 8136
+read[36]: Socket 23: mtcp_read ret: 8136, total_recv: 8136
+read[37]: Socket 24: mtcp_read ret: 8136, total_recv: 8136
+read[38]: Socket 25: mtcp_read ret: 8136, total_recv: 8136
+read[39]: Socket 32: mtcp_read ret: 8136, total_recv: 8136
+read[40]: Socket 42: mtcp_read ret: 8136, total_recv: 8136
+read[41]: Socket 37: mtcp_read ret: 198, total_recv: 8334
+Socket 37: connection closed with server.
+read[42]: Socket 38: mtcp_read ret: 198, total_recv: 8334
+Socket 38: connection closed with server.
+read[43]: Socket 39: mtcp_read ret: 198, total_recv: 8334
+Socket 39: connection closed with server.
+read[44]: Socket 40: mtcp_read ret: 198, total_recv: 8334
+Socket 40: connection closed with server.
+read[45]: Socket 22: mtcp_read ret: 198, total_recv: 8334
+Socket 22: connection closed with server.
+read[46]: Socket 23: mtcp_read ret: 198, total_recv: 8334
+Socket 23: connection closed with server.
+read[47]: Socket 24: mtcp_read ret: 198, total_recv: 8334
+Socket 24: connection closed with server.
+read[48]: Socket 25: mtcp_read ret: 198, total_recv: 8334
+Socket 25: connection closed with server.
+read[49]: Socket 32: mtcp_read ret: 198, total_recv: 8334
+Socket 32: connection closed with server.
+read[50]: Socket 28: mtcp_read ret: 198, total_recv: 8334
+Socket 28: connection closed with server.
+read[51]: Socket 29: mtcp_read ret: 198, total_recv: 8334
+Socket 29: connection closed with server.
+read[52]: Socket 30: mtcp_read ret: 198, total_recv: 8334
+Socket 30: connection closed with server.
+read[53]: Socket 27: mtcp_read ret: 198, total_recv: 8334
+Socket 27: connection closed with server.
+read[54]: Socket 31: mtcp_read ret: 198, total_recv: 8334
+Socket 31: connection closed with server.
+read[55]: Socket 33: mtcp_read ret: 198, total_recv: 8334
+Socket 33: connection closed with server.
+read[56]: Socket 34: mtcp_read ret: 198, total_recv: 8334
+Socket 34: connection closed with server.
+read[57]: Socket 35: mtcp_read ret: 198, total_recv: 8334
+Socket 35: connection closed with server.
+read[58]: Socket 36: mtcp_read ret: 198, total_recv: 8334
+Socket 36: connection closed with server.
+read[59]: Socket 21: mtcp_read ret: 198, total_recv: 8334
+Socket 21: connection closed with server.
+read[60]: Socket 42: mtcp_read ret: 198, total_recv: 8334
+Socket 42: connection closed with server.
+read[61]: Socket 43: mtcp_read ret: 8136, total_recv: 8136
+read[62]: Socket 41: mtcp_read ret: 8136, total_recv: 8136
+read[63]: Socket 44: mtcp_read ret: 8136, total_recv: 8136
+read[64]: Socket 45: mtcp_read ret: 8136, total_recv: 8136
+read[65]: Socket 46: mtcp_read ret: 8136, total_recv: 8136
+read[66]: Socket 48: mtcp_read ret: 8136, total_recv: 8136
+read[67]: Socket 49: mtcp_read ret: 8136, total_recv: 8136
+read[68]: Socket 50: mtcp_read ret: 8136, total_recv: 8136
+read[69]: Socket 51: mtcp_read ret: 8136, total_recv: 8136
+read[70]: Socket 52: mtcp_read ret: 8136, total_recv: 8136
+read[71]: Socket 53: mtcp_read ret: 8136, total_recv: 8136
+read[72]: Socket 54: mtcp_read ret: 8136, total_recv: 8136
+read[73]: Socket 55: mtcp_read ret: 8136, total_recv: 8136
+read[74]: Socket 56: mtcp_read ret: 8136, total_recv: 8136
+read[75]: Socket 57: mtcp_read ret: 8136, total_recv: 8136
+read[76]: Socket 58: mtcp_read ret: 8136, total_recv: 8136
+read[77]: Socket 59: mtcp_read ret: 8136, total_recv: 8136
+read[78]: Socket 1: mtcp_read ret: 8136, total_recv: 8136
+read[79]: Socket 47: mtcp_read ret: 8136, total_recv: 8136
+read[80]: Socket 14: mtcp_read ret: 8136, total_recv: 8136
+read[81]: Socket 53: mtcp_read ret: 198, total_recv: 8334
+Socket 53: connection closed with server.
+read[82]: Socket 54: mtcp_read ret: 198, total_recv: 8334
+Socket 54: connection closed with server.
+read[83]: Socket 55: mtcp_read ret: 198, total_recv: 8334
+Socket 55: connection closed with server.
+read[84]: Socket 56: mtcp_read ret: 198, total_recv: 8334
+Socket 56: connection closed with server.
+read[85]: Socket 57: mtcp_read ret: 198, total_recv: 8334
+Socket 57: connection closed with server.
+read[86]: Socket 58: mtcp_read ret: 198, total_recv: 8334
+Socket 58: connection closed with server.
+read[87]: Socket 59: mtcp_read ret: 198, total_recv: 8334
+Socket 59: connection closed with server.
+read[88]: Socket 1: mtcp_read ret: 198, total_recv: 8334
+Socket 1: connection closed with server.
+read[89]: Socket 47: mtcp_read ret: 198, total_recv: 8334
+Socket 47: connection closed with server.
+read[90]: Socket 14: mtcp_read ret: 198, total_recv: 8334
+Socket 14: connection closed with server.
+read[91]: Socket 43: mtcp_read ret: 198, total_recv: 8334
+Socket 43: connection closed with server.
+read[92]: Socket 41: mtcp_read ret: 198, total_recv: 8334
+Socket 41: connection closed with server.
+read[93]: Socket 44: mtcp_read ret: 198, total_recv: 8334
+Socket 44: connection closed with server.
+read[94]: Socket 45: mtcp_read ret: 198, total_recv: 8334
+Socket 45: connection closed with server.
+read[95]: Socket 46: mtcp_read ret: 198, total_recv: 8334
+Socket 46: connection closed with server.
+read[96]: Socket 48: mtcp_read ret: 198, total_recv: 8334
+Socket 48: connection closed with server.
+read[97]: Socket 49: mtcp_read ret: 198, total_recv: 8334
+Socket 49: connection closed with server.
+read[98]: Socket 50: mtcp_read ret: 198, total_recv: 8334
+Socket 50: connection closed with server.
+read[99]: Socket 51: mtcp_read ret: 198, total_recv: 8334
+Socket 51: connection closed with server.
+read[100]: Socket 52: mtcp_read ret: 198, total_recv: 8334
+Socket 52: connection closed with server.
+read[101]: Socket 15: mtcp_read ret: 8136, total_recv: 8136
+read[102]: Socket 16: mtcp_read ret: 8136, total_recv: 8136
+read[103]: Socket 17: mtcp_read ret: 8136, total_recv: 8136
+read[104]: Socket 18: mtcp_read ret: 8136, total_recv: 8136
+read[105]: Socket 19: mtcp_read ret: 8136, total_recv: 8136
+read[106]: Socket 20: mtcp_read ret: 8136, total_recv: 8136
+read[107]: Socket 26: mtcp_read ret: 8136, total_recv: 8136
+read[108]: Socket 2: mtcp_read ret: 8136, total_recv: 8136
+read[109]: Socket 3: mtcp_read ret: 8136, total_recv: 8136
+read[110]: Socket 4: mtcp_read ret: 8136, total_recv: 8136
+read[111]: Socket 5: mtcp_read ret: 8136, total_recv: 8136
+read[112]: Socket 6: mtcp_read ret: 8136, total_recv: 8136
+read[113]: Socket 7: mtcp_read ret: 8136, total_recv: 8136
+read[114]: Socket 8: mtcp_read ret: 8136, total_recv: 8136
+read[115]: Socket 9: mtcp_read ret: 8136, total_recv: 8136
+read[116]: Socket 10: mtcp_read ret: 8136, total_recv: 8136
+read[117]: Socket 11: mtcp_read ret: 8136, total_recv: 8136
+read[118]: Socket 12: mtcp_read ret: 8136, total_recv: 8136
+read[119]: Socket 13: mtcp_read ret: 8136, total_recv: 8136
+read[120]: Socket 37: mtcp_read ret: 8136, total_recv: 8136
+read[121]: Socket 13: mtcp_read ret: 198, total_recv: 8334
+Socket 13: connection closed with server.
+read[122]: Socket 37: mtcp_read ret: 198, total_recv: 8334
+Socket 37: connection closed with server.
+read[123]: Socket 16: mtcp_read ret: 198, total_recv: 8334
+Socket 16: connection closed with server.
+read[124]: Socket 17: mtcp_read ret: 198, total_recv: 8334
+Socket 17: connection closed with server.
+read[125]: Socket 18: mtcp_read ret: 198, total_recv: 8334
+Socket 18: connection closed with server.
+read[126]: Socket 19: mtcp_read ret: 198, total_recv: 8334
+Socket 19: connection closed with server.
+read[127]: Socket 20: mtcp_read ret: 198, total_recv: 8334
+Socket 20: connection closed with server.
+read[128]: Socket 26: mtcp_read ret: 198, total_recv: 8334
+Socket 26: connection closed with server.
+read[129]: Socket 2: mtcp_read ret: 198, total_recv: 8334
+Socket 2: connection closed with server.
+read[130]: Socket 3: mtcp_read ret: 198, total_recv: 8334
+Socket 3: connection closed with server.
+read[131]: Socket 15: mtcp_read ret: 198, total_recv: 8334
+Socket 15: connection closed with server.
+read[132]: Socket 4: mtcp_read ret: 198, total_recv: 8334
+Socket 4: connection closed with server.
+read[133]: Socket 5: mtcp_read ret: 198, total_recv: 8334
+Socket 5: connection closed with server.
+read[134]: Socket 6: mtcp_read ret: 198, total_recv: 8334
+Socket 6: connection closed with server.
+read[135]: Socket 7: mtcp_read ret: 198, total_recv: 8334
+Socket 7: connection closed with server.
+read[136]: Socket 8: mtcp_read ret: 198, total_recv: 8334
+Socket 8: connection closed with server.
+read[137]: Socket 9: mtcp_read ret: 198, total_recv: 8334
+Socket 9: connection closed with server.
+read[138]: Socket 10: mtcp_read ret: 198, total_recv: 8334
+Socket 10: connection closed with server.
+read[139]: Socket 11: mtcp_read ret: 198, total_recv: 8334
+Socket 11: connection closed with server.
+read[140]: Socket 12: mtcp_read ret: 198, total_recv: 8334
+Socket 12: connection closed with server.
+read[1]: Socket 38: mtcp_read ret: 8136, total_recv: 8136
+read[2]: Socket 39: mtcp_read ret: 8136, total_recv: 8136
+read[3]: Socket 40: mtcp_read ret: 8136, total_recv: 8136
+read[4]: Socket 22: mtcp_read ret: 8136, total_recv: 8136
+read[5]: Socket 23: mtcp_read ret: 8136, total_recv: 8136
+read[6]: Socket 24: mtcp_read ret: 8136, total_recv: 8136
+read[7]: Socket 25: mtcp_read ret: 8136, total_recv: 8136
+read[8]: Socket 32: mtcp_read ret: 8136, total_recv: 8136
+read[9]: Socket 28: mtcp_read ret: 8136, total_recv: 8136
+read[10]: Socket 29: mtcp_read ret: 8136, total_recv: 8136
+read[11]: Socket 30: mtcp_read ret: 8136, total_recv: 8136
+read[12]: Socket 27: mtcp_read ret: 8136, total_recv: 8136
+read[13]: Socket 31: mtcp_read ret: 8136, total_recv: 8136
+read[14]: Socket 33: mtcp_read ret: 8136, total_recv: 8136
+read[15]: Socket 34: mtcp_read ret: 8136, total_recv: 8136
+read[16]: Socket 35: mtcp_read ret: 8136, total_recv: 8136
+read[17]: Socket 36: mtcp_read ret: 8136, total_recv: 8136
+read[18]: Socket 21: mtcp_read ret: 8136, total_recv: 8136
+read[19]: Socket 42: mtcp_read ret: 8136, total_recv: 8136
+read[20]: Socket 53: mtcp_read ret: 8136, total_recv: 8136
+read[21]: Socket 33: mtcp_read ret: 198, total_recv: 8334
+Socket 33: connection closed with server.
+read[22]: Socket 34: mtcp_read ret: 198, total_recv: 8334
+Socket 34: connection closed with server.
+read[23]: Socket 35: mtcp_read ret: 198, total_recv: 8334
+Socket 35: connection closed with server.
+read[24]: Socket 36: mtcp_read ret: 198, total_recv: 8334
+Socket 36: connection closed with server.
+read[25]: Socket 21: mtcp_read ret: 198, total_recv: 8334
+Socket 21: connection closed with server.
+read[26]: Socket 42: mtcp_read ret: 198, total_recv: 8334
+Socket 42: connection closed with server.
+read[27]: Socket 53: mtcp_read ret: 198, total_recv: 8334
+Socket 53: connection closed with server.
+read[28]: Socket 38: mtcp_read ret: 198, total_recv: 8334
+Socket 38: connection closed with server.
+read[29]: Socket 39: mtcp_read ret: 198, total_recv: 8334
+Socket 39: connection closed with server.
+read[30]: Socket 40: mtcp_read ret: 198, total_recv: 8334
+Socket 40: connection closed with server.
+read[31]: Socket 22: mtcp_read ret: 198, total_recv: 8334
+Socket 22: connection closed with server.
+read[32]: Socket 23: mtcp_read ret: 198, total_recv: 8334
+Socket 23: connection closed with server.
+read[33]: Socket 24: mtcp_read ret: 198, total_recv: 8334
+Socket 24: connection closed with server.
+read[34]: Socket 25: mtcp_read ret: 198, total_recv: 8334
+Socket 25: connection closed with server.
+read[35]: Socket 32: mtcp_read ret: 198, total_recv: 8334
+Socket 32: connection closed with server.
+read[36]: Socket 28: mtcp_read ret: 198, total_recv: 8334
+Socket 28: connection closed with server.
+read[37]: Socket 29: mtcp_read ret: 198, total_recv: 8334
+Socket 29: connection closed with server.
+read[38]: Socket 30: mtcp_read ret: 198, total_recv: 8334
+Socket 30: connection closed with server.
+read[39]: Socket 27: mtcp_read ret: 198, total_recv: 8334
+Socket 27: connection closed with server.
+read[40]: Socket 31: mtcp_read ret: 198, total_recv: 8334
+Socket 31: connection closed with server.
+read[41]: Socket 54: mtcp_read ret: 8136, total_recv: 8136
+read[42]: Socket 55: mtcp_read ret: 8136, total_recv: 8136
+read[43]: Socket 56: mtcp_read ret: 8136, total_recv: 8136
+read[44]: Socket 57: mtcp_read ret: 8136, total_recv: 8136
+read[45]: Socket 58: mtcp_read ret: 8136, total_recv: 8136
+read[46]: Socket 59: mtcp_read ret: 8136, total_recv: 8136
+read[47]: Socket 1: mtcp_read ret: 8136, total_recv: 8136
+read[48]: Socket 47: mtcp_read ret: 8136, total_recv: 8136
+read[49]: Socket 14: mtcp_read ret: 8136, total_recv: 8136
+read[50]: Socket 43: mtcp_read ret: 8136, total_recv: 8136
+read[51]: Socket 41: mtcp_read ret: 8136, total_recv: 8136
+read[52]: Socket 44: mtcp_read ret: 8136, total_recv: 8136
+read[53]: Socket 45: mtcp_read ret: 8136, total_recv: 8136
+read[54]: Socket 46: mtcp_read ret: 8136, total_recv: 8136
+read[55]: Socket 48: mtcp_read ret: 8136, total_recv: 8136
+read[56]: Socket 49: mtcp_read ret: 8136, total_recv: 8136
+read[57]: Socket 50: mtcp_read ret: 8136, total_recv: 8136
+read[58]: Socket 51: mtcp_read ret: 8136, total_recv: 8136
+read[59]: Socket 52: mtcp_read ret: 8136, total_recv: 8136
+read[60]: Socket 13: mtcp_read ret: 8136, total_recv: 8136
+read[61]: Socket 54: mtcp_read ret: 198, total_recv: 8334
+Socket 54: connection closed with server.
+read[62]: Socket 59: mtcp_read ret: 198, total_recv: 8334
+Socket 59: connection closed with server.
+read[63]: Socket 1: mtcp_read ret: 198, total_recv: 8334
+Socket 1: connection closed with server.
+read[64]: Socket 47: mtcp_read ret: 198, total_recv: 8334
+Socket 47: connection closed with server.
+read[65]: Socket 14: mtcp_read ret: 198, total_recv: 8334
+Socket 14: connection closed with server.
+read[66]: Socket 43: mtcp_read ret: 198, total_recv: 8334
+Socket 43: connection closed with server.
+read[67]: Socket 41: mtcp_read ret: 198, total_recv: 8334
+Socket 41: connection closed with server.
+read[68]: Socket 44: mtcp_read ret: 198, total_recv: 8334
+Socket 44: connection closed with server.
+read[69]: Socket 45: mtcp_read ret: 198, total_recv: 8334
+Socket 45: connection closed with server.
+read[70]: Socket 46: mtcp_read ret: 198, total_recv: 8334
+Socket 46: connection closed with server.
+read[71]: Socket 48: mtcp_read ret: 198, total_recv: 8334
+Socket 48: connection closed with server.
+read[72]: Socket 49: mtcp_read ret: 198, total_recv: 8334
+Socket 49: connection closed with server.
+read[73]: Socket 50: mtcp_read ret: 198, total_recv: 8334
+Socket 50: connection closed with server.
+read[74]: Socket 51: mtcp_read ret: 198, total_recv: 8334
+Socket 51: connection closed with server.
+read[75]: Socket 52: mtcp_read ret: 198, total_recv: 8334
+Socket 52: connection closed with server.
+read[76]: Socket 13: mtcp_read ret: 198, total_recv: 8334
+Socket 13: connection closed with server.
+read[77]: Socket 55: mtcp_read ret: 198, total_recv: 8334
+Socket 55: connection closed with server.
+read[78]: Socket 56: mtcp_read ret: 198, total_recv: 8334
+Socket 56: connection closed with server.
+read[79]: Socket 57: mtcp_read ret: 198, total_recv: 8334
+Socket 57: connection closed with server.
+read[80]: Socket 58: mtcp_read ret: 198, total_recv: 8334
+Socket 58: connection closed with server.
+read[81]: Socket 37: mtcp_read ret: 8136, total_recv: 8136
+read[82]: Socket 16: mtcp_read ret: 8136, total_recv: 8136
+read[83]: Socket 17: mtcp_read ret: 8136, total_recv: 8136
+read[84]: Socket 18: mtcp_read ret: 8136, total_recv: 8136
+read[85]: Socket 19: mtcp_read ret: 8136, total_recv: 8136
+read[86]: Socket 20: mtcp_read ret: 8136, total_recv: 8136
+read[87]: Socket 26: mtcp_read ret: 8136, total_recv: 8136
+read[88]: Socket 2: mtcp_read ret: 8136, total_recv: 8136
+read[89]: Socket 3: mtcp_read ret: 8136, total_recv: 8136
+read[90]: Socket 15: mtcp_read ret: 8136, total_recv: 8136
+read[91]: Socket 4: mtcp_read ret: 8136, total_recv: 8136
+read[92]: Socket 5: mtcp_read ret: 8136, total_recv: 8136
+read[93]: Socket 6: mtcp_read ret: 8136, total_recv: 8136
+read[94]: Socket 7: mtcp_read ret: 8136, total_recv: 8136
+read[95]: Socket 8: mtcp_read ret: 8136, total_recv: 8136
+read[96]: Socket 9: mtcp_read ret: 8136, total_recv: 8136
+read[97]: Socket 10: mtcp_read ret: 8136, total_recv: 8136
+read[98]: Socket 11: mtcp_read ret: 8136, total_recv: 8136
+read[99]: Socket 12: mtcp_read ret: 8136, total_recv: 8136
+read[100]: Socket 33: mtcp_read ret: 8136, total_recv: 8136
+read[101]: Socket 3: mtcp_read ret: 198, total_recv: 8334
+Socket 3: connection closed with server.
+read[102]: Socket 15: mtcp_read ret: 198, total_recv: 8334
+Socket 15: connection closed with server.
+read[103]: Socket 4: mtcp_read ret: 198, total_recv: 8334
+Socket 4: connection closed with server.
+read[104]: Socket 5: mtcp_read ret: 198, total_recv: 8334
+Socket 5: connection closed with server.
+read[105]: Socket 6: mtcp_read ret: 198, total_recv: 8334
+Socket 6: connection closed with server.
+read[106]: Socket 7: mtcp_read ret: 198, total_recv: 8334
+Socket 7: connection closed with server.
+read[107]: Socket 8: mtcp_read ret: 198, total_recv: 8334
+Socket 8: connection closed with server.
+read[108]: Socket 9: mtcp_read ret: 198, total_recv: 8334
+Socket 9: connection closed with server.
+read[109]: Socket 10: mtcp_read ret: 198, total_recv: 8334
+Socket 10: connection closed with server.
+read[110]: Socket 11: mtcp_read ret: 198, total_recv: 8334
+Socket 11: connection closed with server.
+read[111]: Socket 12: mtcp_read ret: 198, total_recv: 8334
+Socket 12: connection closed with server.
+read[112]: Socket 33: mtcp_read ret: 198, total_recv: 8334
+Socket 33: connection closed with server.
+read[113]: Socket 37: mtcp_read ret: 198, total_recv: 8334
+Socket 37: connection closed with server.
+read[114]: Socket 16: mtcp_read ret: 198, total_recv: 8334
+Socket 16: connection closed with server.
+read[115]: Socket 17: mtcp_read ret: 198, total_recv: 8334
+Socket 17: connection closed with server.
+read[116]: Socket 18: mtcp_read ret: 198, total_recv: 8334
+Socket 18: connection closed with server.
+read[117]: Socket 19: mtcp_read ret: 198, total_recv: 8334
+Socket 19: connection closed with server.
+read[118]: Socket 20: mtcp_read ret: 198, total_recv: 8334
+Socket 20: connection closed with server.
+read[119]: Socket 26: mtcp_read ret: 198, total_recv: 8334
+Socket 26: connection closed with server.
+read[120]: Socket 2: mtcp_read ret: 198, total_recv: 8334
+Socket 2: connection closed with server.
+read[1]: Socket 34: mtcp_read ret: 8136, total_recv: 8136
+read[2]: Socket 35: mtcp_read ret: 8136, total_recv: 8136
+read[3]: Socket 36: mtcp_read ret: 8136, total_recv: 8136
+read[4]: Socket 21: mtcp_read ret: 8136, total_recv: 8136
+read[5]: Socket 42: mtcp_read ret: 8136, total_recv: 8136
+read[6]: Socket 53: mtcp_read ret: 8136, total_recv: 8136
+read[7]: Socket 38: mtcp_read ret: 8136, total_recv: 8136
+read[8]: Socket 39: mtcp_read ret: 8136, total_recv: 8136
+read[9]: Socket 40: mtcp_read ret: 8136, total_recv: 8136
+read[10]: Socket 22: mtcp_read ret: 8136, total_recv: 8136
+read[11]: Socket 23: mtcp_read ret: 8136, total_recv: 8136
+read[12]: Socket 24: mtcp_read ret: 8136, total_recv: 8136
+read[13]: Socket 25: mtcp_read ret: 8136, total_recv: 8136
+read[14]: Socket 32: mtcp_read ret: 8136, total_recv: 8136
+read[15]: Socket 28: mtcp_read ret: 8136, total_recv: 8136
+read[16]: Socket 29: mtcp_read ret: 8136, total_recv: 8136
+read[17]: Socket 30: mtcp_read ret: 8136, total_recv: 8136
+read[18]: Socket 27: mtcp_read ret: 8136, total_recv: 8136
+read[19]: Socket 31: mtcp_read ret: 8136, total_recv: 8136
+read[20]: Socket 54: mtcp_read ret: 8136, total_recv: 8136
+read[21]: Socket 42: mtcp_read ret: 198, total_recv: 8334
+Socket 42: connection closed with server.
+read[22]: Socket 53: mtcp_read ret: 198, total_recv: 8334
+Socket 53: connection closed with server.
+read[23]: Socket 38: mtcp_read ret: 198, total_recv: 8334
+Socket 38: connection closed with server.
+read[24]: Socket 39: mtcp_read ret: 198, total_recv: 8334
+Socket 39: connection closed with server.
+read[25]: Socket 40: mtcp_read ret: 198, total_recv: 8334
+Socket 40: connection closed with server.
+read[26]: Socket 22: mtcp_read ret: 198, total_recv: 8334
+Socket 22: connection closed with server.
+read[27]: Socket 34: mtcp_read ret: 198, total_recv: 8334
+Socket 34: connection closed with server.
+read[28]: Socket 23: mtcp_read ret: 198, total_recv: 8334
+Socket 23: connection closed with server.
+read[29]: Socket 24: mtcp_read ret: 198, total_recv: 8334
+Socket 24: connection closed with server.
+read[30]: Socket 25: mtcp_read ret: 198, total_recv: 8334
+Socket 25: connection closed with server.
+read[31]: Socket 32: mtcp_read ret: 198, total_recv: 8334
+Socket 32: connection closed with server.
+read[32]: Socket 28: mtcp_read ret: 198, total_recv: 8334
+Socket 28: connection closed with server.
+read[33]: Socket 29: mtcp_read ret: 198, total_recv: 8334
+Socket 29: connection closed with server.
+read[34]: Socket 30: mtcp_read ret: 198, total_recv: 8334
+Socket 30: connection closed with server.
+read[35]: Socket 27: mtcp_read ret: 198, total_recv: 8334
+Socket 27: connection closed with server.
+read[36]: Socket 31: mtcp_read ret: 198, total_recv: 8334
+Socket 31: connection closed with server.
+read[37]: Socket 54: mtcp_read ret: 198, total_recv: 8334
+Socket 54: connection closed with server.
+read[38]: Socket 35: mtcp_read ret: 198, total_recv: 8334
+Socket 35: connection closed with server.
+read[39]: Socket 36: mtcp_read ret: 198, total_recv: 8334
+Socket 36: connection closed with server.
+read[40]: Socket 21: mtcp_read ret: 198, total_recv: 8334
+Socket 21: connection closed with server.
+read[41]: Socket 59: mtcp_read ret: 8136, total_recv: 8136
+read[42]: Socket 1: mtcp_read ret: 8136, total_recv: 8136
+read[43]: Socket 47: mtcp_read ret: 8136, total_recv: 8136
+read[44]: Socket 14: mtcp_read ret: 8136, total_recv: 8136
+read[45]: Socket 43: mtcp_read ret: 8136, total_recv: 8136
+read[46]: Socket 41: mtcp_read ret: 8136, total_recv: 8136
+read[47]: Socket 44: mtcp_read ret: 8136, total_recv: 8136
+read[48]: Socket 45: mtcp_read ret: 8136, total_recv: 8136
+read[49]: Socket 46: mtcp_read ret: 8136, total_recv: 8136
+read[50]: Socket 48: mtcp_read ret: 8136, total_recv: 8136
+read[51]: Socket 49: mtcp_read ret: 8136, total_recv: 8136
+read[52]: Socket 50: mtcp_read ret: 8136, total_recv: 8136
+read[53]: Socket 51: mtcp_read ret: 8136, total_recv: 8136
+read[54]: Socket 52: mtcp_read ret: 8136, total_recv: 8136
+read[55]: Socket 13: mtcp_read ret: 8136, total_recv: 8136
+read[56]: Socket 55: mtcp_read ret: 8136, total_recv: 8136
+read[57]: Socket 56: mtcp_read ret: 8136, total_recv: 8136
+read[58]: Socket 57: mtcp_read ret: 8136, total_recv: 8136
+read[59]: Socket 58: mtcp_read ret: 8136, total_recv: 8136
+read[60]: Socket 3: mtcp_read ret: 8136, total_recv: 8136
+read[61]: Socket 51: mtcp_read ret: 198, total_recv: 8334
+Socket 51: connection closed with server.
+read[62]: Socket 52: mtcp_read ret: 198, total_recv: 8334
+Socket 52: connection closed with server.
+read[63]: Socket 13: mtcp_read ret: 198, total_recv: 8334
+Socket 13: connection closed with server.
+read[64]: Socket 55: mtcp_read ret: 198, total_recv: 8334
+Socket 55: connection closed with server.
+read[65]: Socket 56: mtcp_read ret: 198, total_recv: 8334
+Socket 56: connection closed with server.
+read[66]: Socket 57: mtcp_read ret: 198, total_recv: 8334
+Socket 57: connection closed with server.
+read[67]: Socket 58: mtcp_read ret: 198, total_recv: 8334
+Socket 58: connection closed with server.
+read[68]: Socket 3: mtcp_read ret: 198, total_recv: 8334
+Socket 3: connection closed with server.
+read[69]: Socket 59: mtcp_read ret: 198, total_recv: 8334
+Socket 59: connection closed with server.
+read[70]: Socket 1: mtcp_read ret: 198, total_recv: 8334
+Socket 1: connection closed with server.
+read[71]: Socket 47: mtcp_read ret: 198, total_recv: 8334
+Socket 47: connection closed with server.
+read[72]: Socket 14: mtcp_read ret: 198, total_recv: 8334
+Socket 14: connection closed with server.
+read[73]: Socket 43: mtcp_read ret: 198, total_recv: 8334
+Socket 43: connection closed with server.
+read[74]: Socket 41: mtcp_read ret: 198, total_recv: 8334
+Socket 41: connection closed with server.
+read[75]: Socket 44: mtcp_read ret: 198, total_recv: 8334
+Socket 44: connection closed with server.
+read[76]: Socket 45: mtcp_read ret: 198, total_recv: 8334
+Socket 45: connection closed with server.
+read[77]: Socket 46: mtcp_read ret: 198, total_recv: 8334
+Socket 46: connection closed with server.
+read[78]: Socket 48: mtcp_read ret: 198, total_recv: 8334
+Socket 48: connection closed with server.
+read[79]: Socket 49: mtcp_read ret: 198, total_recv: 8334
+Socket 49: connection closed with server.
+read[80]: Socket 50: mtcp_read ret: 198, total_recv: 8334
+Socket 50: connection closed with server.
+read[81]: Socket 15: mtcp_read ret: 8136, total_recv: 8136
+read[82]: Socket 4: mtcp_read ret: 8136, total_recv: 8136
+read[83]: Socket 5: mtcp_read ret: 8136, total_recv: 8136
+read[84]: Socket 6: mtcp_read ret: 8136, total_recv: 8136
+read[85]: Socket 7: mtcp_read ret: 8136, total_recv: 8136
+read[86]: Socket 8: mtcp_read ret: 8136, total_recv: 8136
+read[87]: Socket 9: mtcp_read ret: 8136, total_recv: 8136
+read[88]: Socket 10: mtcp_read ret: 8136, total_recv: 8136
+read[89]: Socket 11: mtcp_read ret: 8136, total_recv: 8136
+read[90]: Socket 12: mtcp_read ret: 8136, total_recv: 8136
+read[91]: Socket 33: mtcp_read ret: 8136, total_recv: 8136
+read[92]: Socket 37: mtcp_read ret: 8136, total_recv: 8136
+read[93]: Socket 16: mtcp_read ret: 8136, total_recv: 8136
+read[94]: Socket 17: mtcp_read ret: 8136, total_recv: 8136
+read[95]: Socket 18: mtcp_read ret: 8136, total_recv: 8136
+read[96]: Socket 19: mtcp_read ret: 8136, total_recv: 8136
+read[97]: Socket 20: mtcp_read ret: 8136, total_recv: 8136
+read[98]: Socket 26: mtcp_read ret: 8136, total_recv: 8136
+read[99]: Socket 2: mtcp_read ret: 8136, total_recv: 8136
+read[100]: Socket 42: mtcp_read ret: 8136, total_recv: 8136
+read[101]: Socket 17: mtcp_read ret: 198, total_recv: 8334
+Socket 17: connection closed with server.
+read[102]: Socket 18: mtcp_read ret: 198, total_recv: 8334
+Socket 18: connection closed with server.
+read[103]: Socket 19: mtcp_read ret: 198, total_recv: 8334
+Socket 19: connection closed with server.
+read[104]: Socket 20: mtcp_read ret: 198, total_recv: 8334
+Socket 20: connection closed with server.
+read[105]: Socket 15: mtcp_read ret: 198, total_recv: 8334
+Socket 15: connection closed with server.
+read[106]: Socket 26: mtcp_read ret: 198, total_recv: 8334
+Socket 26: connection closed with server.
+read[107]: Socket 2: mtcp_read ret: 198, total_recv: 8334
+Socket 2: connection closed with server.
+read[108]: Socket 42: mtcp_read ret: 198, total_recv: 8334
+Socket 42: connection closed with server.
+read[109]: Socket 4: mtcp_read ret: 198, total_recv: 8334
+Socket 4: connection closed with server.
+read[110]: Socket 5: mtcp_read ret: 198, total_recv: 8334
+Socket 5: connection closed with server.
+read[111]: Socket 6: mtcp_read ret: 198, total_recv: 8334
+Socket 6: connection closed with server.
+read[112]: Socket 7: mtcp_read ret: 198, total_recv: 8334
+Socket 7: connection closed with server.
+read[113]: Socket 8: mtcp_read ret: 198, total_recv: 8334
+Socket 8: connection closed with server.
+read[114]: Socket 9: mtcp_read ret: 198, total_recv: 8334
+Socket 9: connection closed with server.
+read[115]: Socket 10: mtcp_read ret: 198, total_recv: 8334
+Socket 10: connection closed with server.
+read[116]: Socket 11: mtcp_read ret: 198, total_recv: 8334
+Socket 11: connection closed with server.
+read[117]: Socket 12: mtcp_read ret: 198, total_recv: 8334
+Socket 12: connection closed with server.
+read[118]: Socket 33: mtcp_read ret: 198, total_recv: 8334
+Socket 33: connection closed with server.
+read[119]: Socket 37: mtcp_read ret: 198, total_recv: 8334
+Socket 37: connection closed with server.
+read[120]: Socket 16: mtcp_read ret: 198, total_recv: 8334
+Socket 16: connection closed with server.
+read[121]: Socket 53: mtcp_read ret: 8136, total_recv: 8136
+read[122]: Socket 38: mtcp_read ret: 8136, total_recv: 8136
+read[123]: Socket 39: mtcp_read ret: 8136, total_recv: 8136
+read[124]: Socket 40: mtcp_read ret: 8136, total_recv: 8136
+read[125]: Socket 22: mtcp_read ret: 8136, total_recv: 8136
+read[126]: Socket 34: mtcp_read ret: 8136, total_recv: 8136
+read[127]: Socket 23: mtcp_read ret: 8136, total_recv: 8136
+read[128]: Socket 24: mtcp_read ret: 8136, total_recv: 8136
+read[129]: Socket 25: mtcp_read ret: 8136, total_recv: 8136
+read[130]: Socket 32: mtcp_read ret: 8136, total_recv: 8136
+read[131]: Socket 28: mtcp_read ret: 8136, total_recv: 8136
+read[132]: Socket 29: mtcp_read ret: 8136, total_recv: 8136
+read[133]: Socket 30: mtcp_read ret: 8136, total_recv: 8136
+read[134]: Socket 27: mtcp_read ret: 8136, total_recv: 8136
+read[135]: Socket 31: mtcp_read ret: 8136, total_recv: 8136
+read[136]: Socket 54: mtcp_read ret: 8136, total_recv: 8136
+read[137]: Socket 35: mtcp_read ret: 8136, total_recv: 8136
+read[138]: Socket 36: mtcp_read ret: 8136, total_recv: 8136
+read[139]: Socket 21: mtcp_read ret: 8136, total_recv: 8136
+read[140]: Socket 51: mtcp_read ret: 8136, total_recv: 8136
+read[1]: Socket 22: mtcp_read ret: 198, total_recv: 8334
+Socket 22: connection closed with server.
+read[2]: Socket 34: mtcp_read ret: 198, total_recv: 8334
+Socket 34: connection closed with server.
+read[3]: Socket 23: mtcp_read ret: 198, total_recv: 8334
+Socket 23: connection closed with server.
+read[4]: Socket 24: mtcp_read ret: 198, total_recv: 8334
+Socket 24: connection closed with server.
+read[5]: Socket 25: mtcp_read ret: 198, total_recv: 8334
+Socket 25: connection closed with server.
+read[6]: Socket 32: mtcp_read ret: 198, total_recv: 8334
+Socket 32: connection closed with server.
+read[7]: Socket 28: mtcp_read ret: 198, total_recv: 8334
+Socket 28: connection closed with server.
+read[8]: Socket 29: mtcp_read ret: 198, total_recv: 8334
+Socket 29: connection closed with server.
+read[9]: Socket 30: mtcp_read ret: 198, total_recv: 8334
+Socket 30: connection closed with server.
+read[10]: Socket 27: mtcp_read ret: 198, total_recv: 8334
+Socket 27: connection closed with server.
+read[11]: Socket 31: mtcp_read ret: 198, total_recv: 8334
+Socket 31: connection closed with server.
+read[12]: Socket 54: mtcp_read ret: 198, total_recv: 8334
+Socket 54: connection closed with server.
+read[13]: Socket 35: mtcp_read ret: 198, total_recv: 8334
+Socket 35: connection closed with server.
+read[14]: Socket 36: mtcp_read ret: 198, total_recv: 8334
+Socket 36: connection closed with server.
+read[15]: Socket 21: mtcp_read ret: 198, total_recv: 8334
+Socket 21: connection closed with server.
+read[16]: Socket 51: mtcp_read ret: 198, total_recv: 8334
+Socket 51: connection closed with server.
+read[17]: Socket 53: mtcp_read ret: 198, total_recv: 8334
+Socket 53: connection closed with server.
+read[18]: Socket 38: mtcp_read ret: 198, total_recv: 8334
+Socket 38: connection closed with server.
+read[19]: Socket 39: mtcp_read ret: 198, total_recv: 8334
+Socket 39: connection closed with server.
+read[20]: Socket 40: mtcp_read ret: 198, total_recv: 8334
+Socket 40: connection closed with server.
+read[21]: Socket 52: mtcp_read ret: 8136, total_recv: 8136
+read[22]: Socket 13: mtcp_read ret: 8136, total_recv: 8136
+read[23]: Socket 55: mtcp_read ret: 8136, total_recv: 8136
+read[24]: Socket 56: mtcp_read ret: 8136, total_recv: 8136
+read[25]: Socket 57: mtcp_read ret: 8136, total_recv: 8136
+read[26]: Socket 58: mtcp_read ret: 8136, total_recv: 8136
+read[27]: Socket 3: mtcp_read ret: 8136, total_recv: 8136
+read[28]: Socket 59: mtcp_read ret: 8136, total_recv: 8136
+read[29]: Socket 1: mtcp_read ret: 8136, total_recv: 8136
+read[30]: Socket 47: mtcp_read ret: 8136, total_recv: 8136
+read[31]: Socket 14: mtcp_read ret: 8136, total_recv: 8136
+read[32]: Socket 43: mtcp_read ret: 8136, total_recv: 8136
+read[33]: Socket 41: mtcp_read ret: 8136, total_recv: 8136
+read[34]: Socket 44: mtcp_read ret: 8136, total_recv: 8136
+read[35]: Socket 45: mtcp_read ret: 8136, total_recv: 8136
+read[36]: Socket 46: mtcp_read ret: 8136, total_recv: 8136
+read[37]: Socket 48: mtcp_read ret: 8136, total_recv: 8136
+read[38]: Socket 49: mtcp_read ret: 8136, total_recv: 8136
+read[39]: Socket 50: mtcp_read ret: 8136, total_recv: 8136
+read[40]: Socket 17: mtcp_read ret: 8136, total_recv: 8136
+read[41]: Socket 47: mtcp_read ret: 198, total_recv: 8334
+Socket 47: connection closed with server.
+read[42]: Socket 14: mtcp_read ret: 198, total_recv: 8334
+Socket 14: connection closed with server.
+read[43]: Socket 41: mtcp_read ret: 198, total_recv: 8334
+Socket 41: connection closed with server.
+read[44]: Socket 44: mtcp_read ret: 198, total_recv: 8334
+Socket 44: connection closed with server.
+read[45]: Socket 45: mtcp_read ret: 198, total_recv: 8334
+Socket 45: connection closed with server.
+read[46]: Socket 46: mtcp_read ret: 198, total_recv: 8334
+Socket 46: connection closed with server.
+read[47]: Socket 48: mtcp_read ret: 198, total_recv: 8334
+Socket 48: connection closed with server.
+read[48]: Socket 49: mtcp_read ret: 198, total_recv: 8334
+Socket 49: connection closed with server.
+read[49]: Socket 50: mtcp_read ret: 198, total_recv: 8334
+Socket 50: connection closed with server.
+read[50]: Socket 17: mtcp_read ret: 198, total_recv: 8334
+Socket 17: connection closed with server.
+read[51]: Socket 13: mtcp_read ret: 198, total_recv: 8334
+Socket 13: connection closed with server.
+read[52]: Socket 52: mtcp_read ret: 198, total_recv: 8334
+Socket 52: connection closed with server.
+read[53]: Socket 55: mtcp_read ret: 198, total_recv: 8334
+Socket 55: connection closed with server.
+read[54]: Socket 56: mtcp_read ret: 198, total_recv: 8334
+Socket 56: connection closed with server.
+read[55]: Socket 57: mtcp_read ret: 198, total_recv: 8334
+Socket 57: connection closed with server.
+read[56]: Socket 58: mtcp_read ret: 198, total_recv: 8334
+Socket 58: connection closed with server.
+read[57]: Socket 3: mtcp_read ret: 198, total_recv: 8334
+Socket 3: connection closed with server.
+read[58]: Socket 59: mtcp_read ret: 198, total_recv: 8334
+Socket 59: connection closed with server.
+read[59]: Socket 1: mtcp_read ret: 198, total_recv: 8334
+Socket 1: connection closed with server.
+read[60]: Socket 43: mtcp_read ret: 198, total_recv: 8334
+Socket 43: connection closed with server.
+[CPU 0] Completed 300 connections, errors: 0 incompletes: 0
