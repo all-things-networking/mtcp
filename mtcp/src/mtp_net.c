@@ -559,14 +559,29 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 	int cnt = 0;
 	int ret;
 
-    // TODO: decide how to sort
+    // TODO: 
+    //       1. decide how to sort
     //       based on whether it is a FIFO round
     //       or a highest prio round
-    //       make sure that if cur_stream->on_gen_list
+    //       2. make sure that if cur_stream->on_gen_list
     //       is false, it ends up at the end of the array
     //       and I think we shoud start removing from the 
     //       end of the array? So we can add to it easily later
     //       and not have to sort again
+    //       3. see the part in pacing.h (303ish) where
+    //        priority is updated if not all are transmitted. I think 
+    //        I'll be fine though because of the array.
+    //       4. When next_round == 0, I need to find the highest prio.
+    //          when do_fifo = true, I need to find the one with the lowest birth
+    //          otherwise, I have to find "next" based on priority.
+    //          if I have done highest prio, that means just going in order,
+    //          so no need to sort again. 
+    //          if I have done do_fifo, I may need to sort, find its index, and
+    //           then go back from that.
+    //          Or, I can just do find_ge, and not sort at all? The
+    //          not sorting can be just for fifo, becuase maybe it doesn't happen
+    //         that often (every 200), and anyway gone after next_round == 0 
+
 
 	thresh = MIN(thresh, sender->gen_list_cnt);
 
