@@ -124,6 +124,58 @@ void first_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     }
 }
 
+void next_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
+							uint32_t ev_seq,
+							uint32_t ev_message_length,
+    						uint32_t ev_incoming,
+    						uint8_t ev_retransmit,
+							uint32_t ev_offset,
+							uint32_t ev_segment_length,
+							uint32_t ev_rpcid,
+							uint16_t ev_sport,
+							uint16_t ev_dport,
+							bool ev_single_packet,
+							uint32_t local_ip,
+							uint32_t remote_ip,
+							uint8_t* hold_addr,
+							tcp_stream* cur_stream,
+							scratchpad *scratch){
+	struct mtp_ctx *ctx = cur_stream->mtp;
+
+	// TODO: double check if this is the case.
+	// if (rcvd_seqs.is_set(ev.seq)){
+    //     int_out.dup_data_pkt = true;
+    //     return;
+    // }
+
+    // ctx.rcvd_seqs.set(ev.seq);
+    // ctx.rcvd_seqs.slide();
+    // bool complete = ctx.rcvd_seqs.head() == ctx.expected_segment_cnt;
+
+	struct tcp_recv_vars* rcvvar = cur_stream->rcvvar;
+	int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+	assert(ret == ev_segment_length);
+
+	bool complete = rcvvar->rcvbuf->merged_len == ctx->message_length;
+
+    if(complete) ctx->state = MTP_HOMA_RPC_IN_SERVICE;
+
+    if(ev_incoming > ctx->cc_incoming)
+        ctx->cc_incoming = ev_incoming;
+
+    scratch->last_bytes_remaining = ctx->cc_bytes_remaining;
+    ctx->cc_bytes_remaining = ctx->cc_bytes_remaining - ev_segment_length;
+    MTP_total_incoming -= ev_segment_length;
+    
+	scratch->complete = complete;
+    scratch->new_state = false;
+    scratch->needs_schedule = ev_message_length > ctx->cc_incoming;
+
+    if (scratch->complete) {
+        RaiseReadEvent(mtcp, cur_stream);
+    }						
+}
+
 void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 							uint32_t ev_seq,
 							uint32_t ev_message_length,
@@ -1260,6 +1312,45 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 					ev_segment_length, ev_rpcid, ev_sport, 
 					ev_dport, ev_single_packet, ev_local_ip, 
 					ev_remote_ip, &scratch);
+
+	print_sorted_list_1();
+	print_sorted_list_2();
+
+	choose_grant_ep(mtcp, cur_ts, &scratch);
+	update_prios_ep(mtcp, cur_ts, &scratch);
+	gen_grants_ep(mtcp, cur_ts, &scratch);
+	reset_grant_state(mtcp, cur_ts, &scratch);
+}
+
+void MtpHomaRecvdReqChain (mtcp_manager_t mtcp, uint32_t cur_ts,
+							uint32_t ev_seq,
+							uint32_t ev_message_length,
+    						uint32_t ev_incoming,
+    						uint8_t ev_retransmit,
+							uint32_t ev_offset,
+							uint32_t ev_segment_length,
+							uint32_t ev_rpcid,
+							uint16_t ev_sport,
+							uint16_t ev_dport,
+							bool ev_single_packet,
+							uint32_t ev_local_ip,
+							uint32_t ev_remote_ip,
+							uint8_t* hold_addr,
+							tcp_stream* cur_stream){
+
+	scratchpad scratch;
+
+	next_req_pkt_ep(mtcp, cur_ts, ev_seq, ev_message_length,
+					ev_incoming, ev_retransmit, ev_offset,
+					ev_segment_length, ev_rpcid, ev_sport,
+					ev_dport, ev_single_packet, ev_local_ip,
+					ev_remote_ip, hold_addr, cur_stream, &scratch);
+
+	sched_ep(mtcp, cur_ts, ev_seq, ev_message_length,
+			ev_incoming, ev_retransmit, ev_offset, 
+			ev_segment_length, ev_rpcid, ev_sport, 
+			ev_dport, ev_single_packet, ev_local_ip, 
+			ev_remote_ip, cur_stream, &scratch);
 
 	print_sorted_list_1();
 	print_sorted_list_2();

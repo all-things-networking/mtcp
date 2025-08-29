@@ -250,7 +250,23 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
                             ev_hold_addr,
                             cur_stream);
         }
-        //else {}
+        else {
+            MtpHomaRecvdReqChain(mtcp, cur_ts, 
+                            ev_seq,
+                            ev_message_length,
+                            ev_incoming,
+                            ev_retransmit,
+                            ev_offset,
+                            ev_segment_length,
+                            ev_rpcid,
+                            ev_sport,
+                            ev_dport,
+                            single_packet,
+                            ev_local_ip,
+                            ev_remote_ip,
+                            ev_hold_addr,
+                            cur_stream);
+        }
     }
 
     else if (mtph->type == MTP_HOMA_GRANT){
