@@ -180,6 +180,7 @@ tcp_stream* CreateHomaCtx(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t rpc_ind
 	cur_stream->sndvar->on_gen_list = FALSE;
 	cur_stream->rpc_ind = rpc_ind;
 	cur_stream->rpc_id = rpc_id;
+	printf("Setting rpc_id for Stream %d to %d\n", cur_stream->id, cur_stream->rpc_id);
     
     struct mtp_ctx* mtp = cur_stream->mtp;
 	mtp->local_ip = local_ip;

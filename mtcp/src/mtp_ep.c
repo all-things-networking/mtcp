@@ -68,6 +68,9 @@ void first_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 		printf("Error getting RPC ID\n");
 		return;
 	}
+	else {
+		printf("rpc_ind for new RPC is: %d\n", rpc_ind);
+	}
 
 	tcp_stream *cur_stream = CreateHomaCtx(mtcp, cur_ts, rpc_ind,
 										     ev_local_ip, 

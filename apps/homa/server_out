@@ -1,640 +1,4667 @@
+server_ip is: 10.7.0.6, optarg:10.7.0.6
 start of dpdk config
 new dpdk
 RTE_MAX_ETHPORTS = 32
 here1: 1new dpdk num devices 1
 byte1:228
 passed the check: ens2
-Initializing port 0... done: 
+Initializing port 0... setting rss key len to 40 for driver_name: net_mlx4
+rss key len is 40 for driver_name: net_mlx4
+done: 
 nb_rx_queues: 1, nb_tx_queues: 1
-Port 0, MAC address: E4:1D:2D:13:9E:B0
+Port 0, MAC address: E4:1D:2D:13:9E:C0
 
 
 Checking link statusdone
 Port 0 Link Up - speed 40000 Mbps - full-duplex
 main loop
 CONFIG.eth_nums = 1
-Stream 0 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 0 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 1 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 2 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 2 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 3 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 4: Raising read without a socket!
-Stream 4 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 6: Has existing payloads
-Stream 4 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 4: Raising read without a socket!
-Stream 5 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 6: Raising read without a socket!
-Stream 6 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 8: Has existing payloads
-Stream 6 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 6: Raising read without a socket!
-Stream 7 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 8: Raising read without a socket!
-Stream 8 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 10: Has existing payloads
-Stream 8 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 8: Raising read without a socket!
-Stream 9 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 10: Raising read without a socket!
-Stream 10 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 12: Has existing payloads
-Stream 11 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 13: Has existing payloads
-Stream 11: Raising read without a socket!
-Stream 10 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 11 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 12: Raising read without a socket!
-Stream 12 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 14: Has existing payloads
-Stream 12 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 12: Raising read without a socket!
-Stream 13 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 14 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 14 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 15: Raising read without a socket!
-Stream 15: Raising read without a socket!
-Stream 15 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 17: Has existing payloads
-Stream 15 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 16: Raising read without a socket!
-Stream 16 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 18: Has existing payloads
-Stream 16 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 16: Raising read without a socket!
-Stream 17: Raising read without a socket!
-Stream 17: Raising read without a socket!
-Stream 17 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 19: Has existing payloads
-Stream 17 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 18: Raising read without a socket!
-Stream 18 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 20: Has existing payloads
-Stream 18 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 18: Raising read without a socket!
-Stream 19: Raising read without a socket!
-Stream 19: Raising read without a socket!
-Stream 19 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 21: Has existing payloads
-Stream 19 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 20: Raising read without a socket!
-Stream 20 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 22: Has existing payloads
-Stream 20 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 20: Raising read without a socket!
-Stream 21: Raising read without a socket!
-Stream 21: Raising read without a socket!
-Stream 21 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 23: Has existing payloads
-Stream 21 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 22: Raising read without a socket!
-Stream 22 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 24: Has existing payloads
-Stream 22 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 22: Raising read without a socket!
-Stream 23: Raising read without a socket!
-Stream 23: Raising read without a socket!
-Stream 23 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 25: Has existing payloads
-Stream 23 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 24: Raising read without a socket!
-Stream 24 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 26: Has existing payloads
-Stream 24 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 24: Raising read without a socket!
-Stream 25: Raising read without a socket!
-Stream 25: Raising read without a socket!
-Stream 25 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 27: Has existing payloads
-Stream 25 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 26: Raising read without a socket!
-Stream 26 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 28: Has existing payloads
-Stream 26 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 26: Raising read without a socket!
-Stream 27: Raising read without a socket!
-Stream 27: Raising read without a socket!
-Stream 27 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 29: Has existing payloads
-Stream 27 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 28: Raising read without a socket!
-Stream 28 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 30: Has existing payloads
-Stream 28 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 28: Raising read without a socket!
-Stream 29: Raising read without a socket!
-Stream 29: Raising read without a socket!
-Stream 29 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 31: Has existing payloads
-Stream 29 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 30: Raising read without a socket!
-Stream 30 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 32: Has existing payloads
-Stream 30 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 30: Raising read without a socket!
-Stream 31: Raising read without a socket!
-Stream 31: Raising read without a socket!
-Stream 31 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 33: Has existing payloads
-Stream 31 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 32: Raising read without a socket!
-Stream 32 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 34: Has existing payloads
-Stream 32 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 32: Raising read without a socket!
-Stream 33: Raising read without a socket!
-Stream 33: Raising read without a socket!
-Stream 33 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 35: Has existing payloads
-Stream 33 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 34 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 34 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 35: Raising read without a socket!
-Stream 35: Raising read without a socket!
-Stream 35 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 37: Has existing payloads
-Stream 35 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 36: Raising read without a socket!
-Stream 36 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 38: Has existing payloads
-Stream 36 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 36: Raising read without a socket!
-Stream 37: Raising read without a socket!
-Stream 37: Raising read without a socket!
-Stream 37 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 39: Has existing payloads
-Stream 37 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 38: Raising read without a socket!
-Stream 38 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 40: Has existing payloads
-Stream 38 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 38: Raising read without a socket!
-Stream 39: Raising read without a socket!
-Stream 39: Raising read without a socket!
-Stream 39 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 41: Has existing payloads
-Stream 39 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 40: Raising read without a socket!
-Stream 40 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 42: Has existing payloads
-Stream 40 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 40: Raising read without a socket!
-Stream 41: Raising read without a socket!
-Stream 41: Raising read without a socket!
-Stream 41 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 43: Has existing payloads
-Stream 41 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 42: Raising read without a socket!
-Stream 42 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 44: Has existing payloads
-Stream 42 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 42: Raising read without a socket!
-Stream 43: Raising read without a socket!
-Stream 43: Raising read without a socket!
-Stream 43 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 45: Has existing payloads
-Stream 43 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 44: Raising read without a socket!
-Stream 44 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 46: Has existing payloads
-Stream 44 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 44: Raising read without a socket!
-Stream 45: Raising read without a socket!
-Stream 45: Raising read without a socket!
-Stream 45 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 47: Has existing payloads
-Stream 45 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 46: Raising read without a socket!
-Stream 46 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 48: Has existing payloads
-Stream 46 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 46: Raising read without a socket!
-Stream 47: Raising read without a socket!
-Stream 47: Raising read without a socket!
-Stream 47 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 49: Has existing payloads
-Stream 47 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 48 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 48 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 49: Raising read without a socket!
-Stream 49: Raising read without a socket!
-Stream 49 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 51: Has existing payloads
-Stream 49 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 50 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 50 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 51: Raising read without a socket!
-Stream 51: Raising read without a socket!
-Stream 51 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 53: Has existing payloads
-Stream 51 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 52: Raising read without a socket!
-Stream 52 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 54: Has existing payloads
-Stream 52 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 52: Raising read without a socket!
-Stream 53: Raising read without a socket!
-Stream 53: Raising read without a socket!
-Stream 53 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 55: Has existing payloads
-Stream 53 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 54: Raising read without a socket!
-Stream 54 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 56: Has existing payloads
-Stream 54 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 54: Raising read without a socket!
-Stream 55: Raising read without a socket!
-Stream 55: Raising read without a socket!
-Stream 55 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 57: Has existing payloads
-Stream 55 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 56: Raising read without a socket!
-Stream 56 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 58: Has existing payloads
-Stream 56 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 56: Raising read without a socket!
-Stream 57: Raising read without a socket!
-Stream 57: Raising read without a socket!
-Stream 57 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 59: Has existing payloads
-Stream 57 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 58: Raising read without a socket!
-Stream 58 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 60: Has existing payloads
-Stream 58 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 58: Raising read without a socket!
-Stream 59: Raising read without a socket!
-Stream 59: Raising read without a socket!
-Stream 59 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 61: Has existing payloads
-Stream 59 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 60: Raising read without a socket!
-Stream 60 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 62: Has existing payloads
-Stream 60 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 60: Raising read without a socket!
-Stream 61: Raising read without a socket!
-Stream 61: Raising read without a socket!
-Stream 61 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 63: Has existing payloads
-Stream 61 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 62: Raising read without a socket!
-Stream 62 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 64: Has existing payloads
-Stream 62 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 62: Raising read without a socket!
-Stream 63 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 64: Raising read without a socket!
-Stream 64 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 66: Has existing payloads
-Stream 64 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 64: Raising read without a socket!
-Stream 65 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 66: Raising read without a socket!
-Stream 66 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 68: Has existing payloads
-Stream 67 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 69: Has existing payloads
-Stream 67: Raising read without a socket!
-Stream 66 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 67 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 68: Raising read without a socket!
-Stream 68 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 70: Has existing payloads
-Stream 68 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 68: Raising read without a socket!
-Stream 69 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 70: Raising read without a socket!
-Stream 70 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 72: Has existing payloads
-Stream 70 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 70: Raising read without a socket!
-Stream 71 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 72: Raising read without a socket!
-Stream 72 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 74: Has existing payloads
-Stream 72 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 72: Raising read without a socket!
-Stream 73: Raising read without a socket!
-Stream 73: Raising read without a socket!
-Stream 73 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 75: Has existing payloads
-Stream 73 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 74: Raising read without a socket!
-Stream 74 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 76: Has existing payloads
-Stream 74 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 74: Raising read without a socket!
-Stream 75: Raising read without a socket!
-Stream 75: Raising read without a socket!
-Stream 75 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 77: Has existing payloads
-Stream 75 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 76: Raising read without a socket!
-Stream 76 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 78: Has existing payloads
-Stream 76 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 76: Raising read without a socket!
-Stream 77: Raising read without a socket!
-Stream 77: Raising read without a socket!
-Stream 77 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 79: Has existing payloads
-Stream 77 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 78: Raising read without a socket!
-Stream 78 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 80: Has existing payloads
-Stream 78 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 78: Raising read without a socket!
-Stream 79: Raising read without a socket!
-Stream 79: Raising read without a socket!
-Stream 79 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 81: Has existing payloads
-Stream 79 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 80 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 80 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 81: Raising read without a socket!
-Stream 81: Raising read without a socket!
-Stream 81 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 83: Has existing payloads
-Stream 81 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 82: Raising read without a socket!
-Stream 82 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 84: Has existing payloads
-Stream 82 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 82: Raising read without a socket!
-Stream 83: Raising read without a socket!
-Stream 83: Raising read without a socket!
-Stream 83 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 85: Has existing payloads
-Stream 83 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 84: Raising read without a socket!
-Stream 84 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 86: Has existing payloads
-Stream 84 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 84: Raising read without a socket!
-Stream 85: Raising read without a socket!
-Stream 85: Raising read without a socket!
-Stream 85 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 87: Has existing payloads
-Stream 85 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 86: Raising read without a socket!
-Stream 86 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 88: Has existing payloads
-Stream 86 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 86: Raising read without a socket!
-Stream 87: Raising read without a socket!
-Stream 87: Raising read without a socket!
-Stream 87 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 89: Has existing payloads
-Stream 87 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 88: Raising read without a socket!
-Stream 88 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 90: Has existing payloads
-Stream 88 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 88: Raising read without a socket!
-Stream 89: Raising read without a socket!
-Stream 89: Raising read without a socket!
-Stream 89 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 91: Has existing payloads
-Stream 89 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 90: Raising read without a socket!
-Stream 90 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 92: Has existing payloads
-Stream 90 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 90: Raising read without a socket!
-Stream 91: Raising read without a socket!
-Stream 91: Raising read without a socket!
-Stream 91 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 93: Has existing payloads
-Stream 91 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 92: Raising read without a socket!
-Stream 92 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 94: Has existing payloads
-Stream 92 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 92: Raising read without a socket!
-Stream 93: Raising read without a socket!
-Stream 93: Raising read without a socket!
-Stream 93 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 95: Has existing payloads
-Stream 93 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 94: Raising read without a socket!
-Stream 94 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 96: Has existing payloads
-Stream 94 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 94: Raising read without a socket!
-Stream 95: Raising read without a socket!
-Stream 95: Raising read without a socket!
-Stream 95 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 97: Has existing payloads
-Stream 95 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 96: Raising read without a socket!
-Stream 96 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 98: Has existing payloads
-Stream 96 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 96: Raising read without a socket!
-Stream 97: Raising read without a socket!
-Stream 97: Raising read without a socket!
-Stream 97 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 99: Has existing payloads
-Stream 97 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 98: Raising read without a socket!
-Stream 98 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 100: Has existing payloads
-Stream 98 at state TCP_ST_LISTEN
-In EPOLLIN
-Stream 98: Raising read without a socket!
-Stream 99: Raising read without a socket!
-Stream 99: Raising read without a socket!
-Stream 99 at state TCP_ST_LISTEN
-In EPOLLIN
-Socket 101: Has existing payloads
-Stream 99 at state TCP_ST_LISTEN
-In EPOLLIN
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 0
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec91016
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Found socket for incoming packet: id 1
+rpc_ind for new RPC is: 0
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Setting rpc_id for Stream 0 to 0
+------- All RPCs list:---------
+peer_id: 10, rpc_id: 0, bytes_remaining: 98688, incoming: 60000
+------------------------
+------- Highest Prio RPCs list:---------
+peer_id: 10, rpc_id: 0, bytes_remaining: 98688, incoming: 60000
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 100108, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+granting to 0: 100108
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 1
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 1420, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec906d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 2
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 2840, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8fd96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 3
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 4260, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8f456
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 4
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 5680, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8eb16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 5
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 7100, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8e1d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 6
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 8520, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8d896
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 7
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 9940, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8cf56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 8
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 11360, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8c616
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 9
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 12780, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8bcd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 10
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 14200, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8b396
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 11
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 15620, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8aa56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 12
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 17040, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec8a116
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 13
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 18460, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec897d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 14
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 19880, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec88e96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 15
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 21300, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec88556
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 16
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 22720, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec87c16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 17
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 24140, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec872d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 18
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 25560, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec86996
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 19
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 26980, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec86056
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 20
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 28400, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec85716
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 21
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 29820, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec84dd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 22
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 31240, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec84496
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 23
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 32660, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec83b56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 24
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 34080, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec83216
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 25
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 35500, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec828d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 26
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 36920, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec81f96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 27
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 38340, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec81656
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 28
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 39760, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec80d16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 29
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 41180, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec803d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 30
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 42600, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7fa96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 31
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 44020, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7f156
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 32
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 45440, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7e816
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 33
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 46860, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7ded6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 34
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 48280, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7d596
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 35
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 49700, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7cc56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 36
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 51120, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7c316
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 37
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 52540, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7b9d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 38
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 53960, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7b096
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 39
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 55380, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec7a756
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 40
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 56800, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec79e16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 41
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 58220, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec794d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 432
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 42
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 59640, Segment Length: 360
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 360
+Priority: 226
+Payload Data Pointer: 0x17ec78b96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 0
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec78256
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Found socket for incoming packet: id 1
+rpc_ind for new RPC is: 1
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Setting rpc_id for Stream 1 to 1
+------- All RPCs list:---------
+peer_id: 10, rpc_id: 1, bytes_remaining: 98688, incoming: 60000
+------------------------
+------- Highest Prio RPCs list:---------
+peer_id: 10, rpc_id: 1, bytes_remaining: 98688, incoming: 60000
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 100108, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+granting to 1: 100108
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 1
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 1420, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec77916
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 2
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 2840, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec76fd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 3
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 4260, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec76696
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 4
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 5680, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec75d56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 5
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 7100, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec75416
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 6
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 8520, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec74ad6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 7
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 9940, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec74196
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 8
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 11360, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec73856
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 9
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 12780, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec72f16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 10
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 14200, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec725d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 11
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 15620, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec71c96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 12
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 17040, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec71356
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 13
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 18460, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec70a16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 14
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 19880, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec700d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 15
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 21300, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec6f796
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 16
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 22720, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec6ee56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 17
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 24140, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec6e516
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 18
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 25560, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec6dbd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 19
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 26980, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec6d296
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 20
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 28400, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 226
+Payload Data Pointer: 0x17ec6c956
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 0
+Sender ID: 0
+Type: 17
+Grant Offset: 100108, Priority: 3, Resend All: 0
+Payload Length: 0
+Priority: 0
+Payload Data Pointer: (nil)
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 0
+Sender ID: 1
+Type: 17
+Grant Offset: 100108, Priority: 3, Resend All: 0
+Payload Length: 0
+Priority: 0
+Payload Data Pointer: (nil)
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 21
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 29820, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec6c016
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 22
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 31240, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec6b6d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 23
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 32660, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec6ad96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 24
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 34080, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec6a456
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 25
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 35500, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec69b16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 26
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 36920, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec691d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 27
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 38340, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec68896
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 28
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 39760, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec67f56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 29
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 41180, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec67616
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 30
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 42600, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec66cd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 31
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 44020, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec66396
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 32
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 45440, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec65a56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 33
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 46860, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec65116
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 34
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 48280, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec647d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 35
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 49700, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec63e96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 36
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 51120, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec63556
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 37
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 52540, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec62c16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 38
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 53960, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec622d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 39
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 55380, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec61996
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 40
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 56800, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec61056
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 41
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 58220, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 190
+Payload Data Pointer: 0x17ec60716
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 432
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 42
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 59640, Segment Length: 360
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 360
+Priority: 190
+Payload Data Pointer: 0x17ec5fdd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 43
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 60000, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5f496
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 44
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 61420, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5eb56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 45
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 62840, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5e216
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 46
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 64260, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5d8d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 47
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 65680, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5cf96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 48
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 67100, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5c656
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 49
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 68520, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5bd16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 50
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 69940, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5b3d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 51
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 71360, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5aa96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 52
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 72780, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5a156
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 53
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 74200, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec59816
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 54
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 75620, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec58ed6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 55
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 77040, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec58596
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 56
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 78460, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec57c56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 57
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 79880, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec57316
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 58
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 81300, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec569d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 59
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 82720, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec56096
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 60
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 84140, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec55756
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 61
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 85560, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec54e16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 62
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 86980, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec544d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 63
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 88400, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec53b96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 64
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 89820, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec53256
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 65
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 91240, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec52916
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 66
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 92660, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec51fd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 67
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 94080, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec51696
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 68
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 95500, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec50d56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 69
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 96920, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec50416
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 70
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 98340, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec4fad6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 420
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 71
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 99760, Segment Length: 348
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 348
+Priority: 178
+Payload Data Pointer: 0x17ec4f196
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
+Checking flow 1: 100665098, 20480, 83887882, 260, 0
+against flow 2: 100665098, 20480, 83887882, 260, 0
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 43
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 60000, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec4e856
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 44
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 61420, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec4df16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 45
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 62840, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec4d5d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 46
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 64260, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec4cc96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 47
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 65680, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec4c356
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 48
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 67100, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec4ba16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 49
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 68520, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec4b0d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 50
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 69940, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec4a796
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 51
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 71360, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec49e56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 52
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 72780, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec49516
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 53
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 74200, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec48bd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 54
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 75620, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec48296
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 55
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 77040, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17f7cc996
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 56
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 78460, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbd7716
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 57
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 79880, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbd8056
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 58
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 81300, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbd8996
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 59
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 82720, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbd92d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 60
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 84140, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbd9c16
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 61
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 85560, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbda556
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 62
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 86980, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbdae96
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 63
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 88400, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbdb7d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 64
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 89820, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbdc116
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 65
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 91240, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbdca56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 66
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 92660, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbdd396
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 67
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 94080, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbddcd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 68
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 95500, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbde616
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 69
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 96920, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbdef56
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 70
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 98340, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17fbdf896
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 420
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 71
+Sender ID: 1
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 99760, Segment Length: 348
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 348
+Priority: 178
+Payload Data Pointer: 0x17fbe01d6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
+Checking flow 1: 100665098, 20480, 83887882, 260, 1
+against flow 2: 100665098, 20480, 83887882, 260, 1
+result is 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+finished reading 100108 bytes
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 0
+Sender ID: 0
+Type: 16
+Message Length: 172, Incoming: 172, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 0
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 172
+Priority: 224
+Payload Data Pointer: 0x144996b00
+Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
+*********************************************

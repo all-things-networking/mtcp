@@ -149,6 +149,11 @@ RPCHashFlow(const void *f)
 	hash ^= (hash >> 11);
 	hash += (hash << 15);
 
+	// printf("Hash for flow: %d, %d, %d, %d, %d is %d\n",
+	// 			flow->saddr, flow->sport,
+	// 			flow->daddr, flow->dport,
+	// 			flow->rpc_id, hash & (NUM_BINS_FLOWS - 1));
+
 	return hash & (NUM_BINS_FLOWS - 1);
 #endif
 }
@@ -159,12 +164,25 @@ RPCEqualFlow(const void *f1, const void *f2)
 	tcp_stream *flow1 = (tcp_stream *)f1;
 	tcp_stream *flow2 = (tcp_stream *)f2;
 
-	return (flow1->saddr == flow2->saddr && 
+	// printf("Checking flow 1: %d, %d, %d, %d, %d\n",
+	// 			flow1->saddr, flow1->sport,
+	// 			flow1->daddr, flow1->dport,
+	// 			flow1->rpc_id);
+
+	// printf("against flow 2: %d, %d, %d, %d, %d\n",
+	// 			flow2->saddr, flow2->sport,
+	// 			flow2->daddr, flow2->dport,
+	// 			flow2->rpc_id);
+
+	int ret = (flow1->saddr == flow2->saddr && 
 			flow1->sport == flow2->sport &&
 			flow1->daddr == flow2->daddr &&
 			flow1->dport == flow2->dport &&
 			flow1->rpc_id == flow2->rpc_id
 		);
+
+	// printf("result is %d\n", ret);
+	return ret;
 }
 
 #if USE_CCP
@@ -530,7 +548,7 @@ CreateRPCStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	stream->daddr = daddr;
 	stream->dport = dport;
 	#ifdef USE_MTP
-	stream->mtp->rpcid = rpc_id;
+	stream->rpc_id = rpc_id;
 	#endif	
 
 	ret = StreamHTInsert(mtcp->tcp_flow_table, stream);
