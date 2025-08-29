@@ -31,6 +31,10 @@
 // #define MTP_FIXED_RTO 1
 
 #ifdef USE_MTP
+#define MTP_ARRAY_GEN_LIST 1
+#endif
+
+#ifdef USE_MTP
 #ifdef ENABLE_MTP_PRINT
 #define MTP_PRINT(f, m...) fprintf(stdout, f, ##m)
 #else
@@ -235,6 +239,10 @@ struct mtcp_sender
 	int ack_list_cnt;
 
     int gen_list_cnt;
+
+	#ifdef MTP_ARRAY_GEN_LIST
+	struct tcp_stream *gen_arr[MTP_HOMA_MAX_RPC];
+	#endif
 };
 /*----------------------------------------------------------------------------*/
 struct mtcp_manager

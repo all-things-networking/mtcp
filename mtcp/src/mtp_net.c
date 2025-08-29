@@ -550,6 +550,59 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 	//}
 }
 
+#ifdef MTP_ARRAY_GEN_LIST 
+/*----------------------------------------------------------------------------*/
+int 
+MTP_PacketGenList(mtcp_manager_t mtcp, 
+		struct mtcp_sender *sender, uint32_t cur_ts, int thresh){
+    tcp_stream *cur_stream;
+	int cnt = 0;
+	int ret;
+
+    // TODO: decide how to sort
+    //       based on whether it is a FIFO round
+    //       or a highest prio round
+    //       make sure that if cur_stream->on_gen_list
+    //       is false, it ends up at the end of the array
+    //       and I think we shoud start removing from the 
+    //       end of the array? So we can add to it easily later
+    //       and not have to sort again
+
+	thresh = MIN(thresh, sender->gen_list_cnt);
+
+    // MTP_PRINT("in packet gen list\n");
+	/* Send packets */
+
+    uint32_t org_size = sender->gen_list_cnt;
+    while (cnt < thresh){
+        uint32_t ind = org_size - 1 - cnt;
+        cur_stream = sender->gen_arr[ind];
+
+        sender->gen_list_cnt--;
+        if (cur_stream->sndvar->on_gen_list){
+            cur_stream->sndvar->on_gen_list = FALSE;
+            TRACE_DBG("Stream %u: Sending packets\n", cur_stream->id);
+            // MTP_PRINT("Stream %u: Sending packets\n", cur_stream->id);
+            ret = SendMTPPackets(mtcp, cur_stream, cur_ts);
+            if (ret == -2) {
+                cur_stream->sndvar->on_gen_list = TRUE;
+                sender->gen_list_cnt++;
+                /* since there is no available write buffer, break */
+                break;
+            } 
+            else {
+                cnt++;
+            }
+        }
+        else {
+            cnt++;
+			TRACE_ERROR("Stream %d: not on gen list.\n", cur_stream->id);
+		}
+    }
+    return cnt;
+}
+
+#else 
 /*----------------------------------------------------------------------------*/
 int 
 MTP_PacketGenList(mtcp_manager_t mtcp, 
@@ -619,6 +672,8 @@ MTP_PacketGenList(mtcp_manager_t mtcp,
 	return cnt;
 
 }
+
+#endif
 
 /*----------------------------------------------------------------------------*/
 void 

@@ -38,16 +38,20 @@ inline void
 AddtoGenList(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 {
     if (!cur_stream->sndvar->on_gen_list) {
-        struct mtcp_sender *sender = MTP_GetSender(mtcp, cur_stream);
+		struct mtcp_sender *sender = MTP_GetSender(mtcp, cur_stream);
         assert(sender != NULL);
+		cur_stream->sndvar->on_gen_list = TRUE;
 
-        cur_stream->sndvar->on_gen_list = TRUE;
+		#ifdef MTP_ARRAY_GEN_LIST
+		uint32_t tail = sender->gen_list_cnt;
+		sender->gen_arr[tail] = cur_stream;
+		#else        
         TAILQ_INSERT_TAIL(&sender->gen_list, cur_stream, sndvar->gen_link);
-        sender->gen_list_cnt++;
-        TRACE_DBG("Stream %u: added to gen list (cnt: %d)\n", 
+		#endif
+		sender->gen_list_cnt++;
+		TRACE_DBG("Stream %u: added to gen list (cnt: %d)\n", 
         		cur_stream->id, sender->gen_list_cnt);
 		// printf("add to gen list\n");
-		return;
     }
 	// printf("already on gen list\n");
 }
