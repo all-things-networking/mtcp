@@ -403,7 +403,7 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 		stream->sndvar->sndbuf = NULL;
 	}
 	if (stream->rcvvar->rcvbuf) {
-		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf);
+		RBFree(stream->mtp_rbm, stream->rcvvar->rcvbuf);
 		stream->rcvvar->rcvbuf = NULL;
 	}
 	// if (stream->mtp->meta_rwnd) {
@@ -492,7 +492,7 @@ int FlushAndNotify(mtcp_manager_t mtcp, socket_map_t socket,
 
 	// Copy data to user buffer and remove it from receiving buffer
 	memcpy(buf, rcvvar->rcvbuf->head, len);
-	RBRemove(mtcp->rbm_rcv, rcvvar->rcvbuf, len, AT_APP);
+	RBRemove(cur_stream->mtp_rbm, rcvvar->rcvbuf, len, AT_APP);
 
 	return len;
 }

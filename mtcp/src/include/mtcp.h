@@ -250,6 +250,8 @@ struct mtcp_manager
 	//mem_pool_t socket_pool;
 	sb_manager_t rbm_snd;
 	rb_manager_t rbm_rcv;
+	uint32_t default_buff_size;
+	rb_manager_t rbm_large_rcv;
 	struct hashtable *tcp_flow_table;
 #if USE_CCP
 	struct hashtable *tcp_sid_table;

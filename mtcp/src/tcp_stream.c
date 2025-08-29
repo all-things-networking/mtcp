@@ -822,7 +822,11 @@ DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream)
 		stream->sndvar->sndbuf = NULL;
 	}
 	if (stream->rcvvar->rcvbuf) {
+		#ifdef USE_MTP
+		RBFree(stream->mtp_rbm, stream->rcvvar->rcvbuf);
+		#else
 		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf);
+		#endif
 		stream->rcvvar->rcvbuf = NULL;
 	}
 

@@ -1120,7 +1120,9 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 	}
 
 	#ifdef USE_MTP
-	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, 2 * CONFIG.max_num_buffers);
+	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, CONFIG.max_num_buffers);
+	mtcp->default_buff_size = CONFIG.rcvbuf_size;
+	mtcp->rbm_large_rcv = RBManagerCreate(mtcp, MTP_LARGE_RCV_SIZE, CONFIG.max_num_buffers);
 	#else
 	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, CONFIG.max_num_buffers);
 	#endif
@@ -1128,6 +1130,13 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 		CTRACE_ERROR("Failed to create recv ring buffer.\n");
 		return NULL;
 	}
+
+	#ifdef USE_MTP
+	if (!mtcp->rbm_large_rcv) {
+		CTRACE_ERROR("Failed to create large recv ring buffer.\n");
+		return NULL;
+	}
+	#endif
 
 	InitializeTCPStreamManager();
 

@@ -16,6 +16,7 @@
 #include "mtp_seq.h"
 #include "mtp_global.h"
 
+
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
 
@@ -109,8 +110,12 @@ void first_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 	scratch->rpc_birth = cur_ts;
     MTP_total_incoming += ev_incoming - ev_segment_length;
 
-	// TODO: figure out size...
-	struct tcp_ring_buffer *rcv_buff = RBInit(mtcp->rbm_rcv, ev_offset);
+	// TODO: have more than two chunksizes
+	cur_stream->mtp_rbm = mtcp->rbm_rcv;
+	if (ev_message_length > mtcp->default_buff_size){
+		cur_stream->mtp_rbm = mtcp->rbm_large_rcv;
+	}
+	struct tcp_ring_buffer *rcv_buff = RBInit(cur_stream->mtp_rbm, ev_offset);
 	if (!rcv_buff) {
 		printf("Error creating ring buffer\n");
 		return;
@@ -120,7 +125,7 @@ void first_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	rcvvar->rcvbuf = rcv_buff;
 
-	RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+	RBPut(cur_stream->mtp_rbm, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
 
     if (scratch->complete) {
 		RaiseReadEvent(mtcp, cur_stream);
@@ -156,7 +161,7 @@ void next_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     // bool complete = ctx.rcvd_seqs.head() == ctx.expected_segment_cnt;
 
 	struct tcp_recv_vars* rcvvar = cur_stream->rcvvar;
-	int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+	int ret = RBPut(cur_stream->mtp_rbm, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
 	assert(ret == ev_segment_length);
 
 	bool complete = rcvvar->rcvbuf->merged_len == ctx->message_length;
@@ -206,8 +211,12 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     
     // First packet
     if(new_state) {
-		// TODO: figure out size...
-		struct tcp_ring_buffer *rcv_buff = RBInit(mtcp->rbm_rcv, ev_offset);
+		// TODO: have more than two chunksizes
+		cur_stream->mtp_rbm = mtcp->rbm_rcv;
+		if (ev_message_length > mtcp->default_buff_size){
+			cur_stream->mtp_rbm = mtcp->rbm_large_rcv;
+		}
+		struct tcp_ring_buffer *rcv_buff = RBInit(cur_stream->mtp_rbm, ev_offset);
 		if (!rcv_buff) {
 			printf("Error creating ring buffer\n");
 			return;
@@ -217,7 +226,7 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
         if(ev_single_packet) {
             ctx->state = MTP_HOMA_RPC_DEAD;
 			
-			int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+			int ret = RBPut(cur_stream->mtp_rbm, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
 			assert(ret == ev_segment_length);
 
 			RaiseReadEvent(mtcp, cur_stream);
@@ -253,7 +262,7 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 
         MTP_total_incoming += ev_incoming - ev_segment_length;
 
-        int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+        int ret = RBPut(cur_stream->mtp_rbm, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
 		assert(ret == ev_segment_length);
 
     } else {
@@ -268,7 +277,7 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
         // ctx.rcvd_seqs.set(ev.seq);
         // ctx.rcvd_seqs.slide();
         // bool complete = ctx.rcvd_seqs.head() == ctx.expected_segment_cnt;
-		int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+		int ret = RBPut(cur_stream->mtp_rbm, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
 		assert(ret == ev_segment_length);
 
 		scratch->complete = rcvvar->rcvbuf->merged_len == ctx->message_length;
