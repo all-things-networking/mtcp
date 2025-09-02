@@ -24,12 +24,10 @@ iomodule: dev_ioctl(DEV_NAME): net_mlx4
 Successfully created RPC socket 1
 before SendRPCRequest
 Creating stream with srcip 83887882, sport 260, destip 100665098, destport 20480, rpcid 0
-Hash for flow: 83887882, 260, 100665098, 20480, 0 is 21199
 Setting rpc_id for Stream 0 to 0
 after SendRPCRequest
 before SendRPCRequest
 Creating stream with srcip 83887882, sport 260, destip 100665098, destport 20480, rpcid 1
-Hash for flow: 83887882, 260, 100665098, 20480, 1 is 51421
 Setting rpc_id for Stream 1 to 1
 after SendRPCRequest
 *************** MTP BP Header ******************
@@ -79,11 +77,6 @@ Priority: 64
 Payload Data Pointer: (nil)
 Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 3141678489
 *********************************************
-Hash for flow: 83887882, 260, 100665098, 20480, 0 is 21199
-Hash for flow: 83887882, 260, 100665098, 20480, 0 is 21199
-Checking flow 1: 83887882, 260, 100665098, 20480, 0
-against flow 2: 83887882, 260, 100665098, 20480, 0
-result is 1
 ip_len: 50
 *************** MTP BP Header ******************
 Source: 20480, Dest: 260, Seq: 0
@@ -95,11 +88,6 @@ Priority: 64
 Payload Data Pointer: (nil)
 Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 3141678489
 *********************************************
-Hash for flow: 83887882, 260, 100665098, 20480, 1 is 51421
-Hash for flow: 83887882, 260, 100665098, 20480, 1 is 51421
-Checking flow 1: 83887882, 260, 100665098, 20480, 1
-against flow 2: 83887882, 260, 100665098, 20480, 1
-result is 1
 *************** MTP BP Header ******************
 Source: 260, Dest: 20480, Seq: 43
 Sender ID: 0
@@ -137,11 +125,9 @@ Priority: 2
 Payload Data Pointer: 0x17ec906d6
 Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 2940360089
 *********************************************
-Hash for flow: 83887882, 260, 100665098, 20480, 0 is 21199
-Hash for flow: 83887882, 260, 100665098, 20480, 0 is 21199
-Checking flow 1: 83887882, 260, 100665098, 20480, 0
-against flow 2: 83887882, 260, 100665098, 20480, 0
-result is 1
+Read event in recv resp single packet for RPC ind: 0
+adding read epoll event to RPC ind: 0
+added event for RPC ind: 0
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -156,5 +142,37 @@ rpc_id: 0, newgrant: 0, priority: 0
 rpc_id: 0, newgrant: 0, priority: 0
 rpc_id: 0, newgrant: 0, priority: 0
 ------------------------
+ip_len: 244
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 0
+Sender ID: 1
+Type: 16
+Message Length: 172, Incoming: 172, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 172
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 172
+Priority: 2
+Payload Data Pointer: 0x17ec8fd96
+Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 2940360089
+*********************************************
+Read event in recv resp single packet for RPC ind: 1
+adding read epoll event to RPC ind: 1
+added event for RPC ind: 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+Before mtcp_rpc_read
+finished reading 172 bytes
 Before mtcp_rpc_read
 finished reading 172 bytes

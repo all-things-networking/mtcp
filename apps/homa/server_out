@@ -26,14 +26,11 @@ Segmentation Offset: 0, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec91016
+Payload Data Pointer: 0x17ec91956
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
 Found socket for incoming packet: id 1
 rpc_ind for new RPC is: 0
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
 Setting rpc_id for Stream 0 to 0
 ------- All RPCs list:---------
 peer_id: 10, rpc_id: 0, bytes_remaining: 98688, incoming: 60000
@@ -62,27 +59,12 @@ Segmentation Offset: 1420, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec906d6
+Payload Data Pointer: 0x17ec91016
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
-------------------------
-------- MTP_ri list:---------
-rpc_id: 0, newgrant: 0, priority: 3
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
 ------------------------
 ip_len: 1492
 *************** MTP BP Header ******************
@@ -94,14 +76,9 @@ Segmentation Offset: 2840, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8fd96
+Payload Data Pointer: 0x17ec906d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -126,14 +103,9 @@ Segmentation Offset: 4260, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8f456
+Payload Data Pointer: 0x17ec8fd96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -158,14 +130,9 @@ Segmentation Offset: 5680, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8eb16
+Payload Data Pointer: 0x17ec8f456
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -190,14 +157,9 @@ Segmentation Offset: 7100, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8e1d6
+Payload Data Pointer: 0x17ec8eb16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -222,14 +184,9 @@ Segmentation Offset: 8520, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8d896
+Payload Data Pointer: 0x17ec8e1d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -254,14 +211,9 @@ Segmentation Offset: 9940, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8cf56
+Payload Data Pointer: 0x17ec8d896
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -286,14 +238,9 @@ Segmentation Offset: 11360, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8c616
+Payload Data Pointer: 0x17ec8cf56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -318,14 +265,9 @@ Segmentation Offset: 12780, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8bcd6
+Payload Data Pointer: 0x17ec8c616
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -350,14 +292,9 @@ Segmentation Offset: 14200, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8b396
+Payload Data Pointer: 0x17ec8bcd6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -382,14 +319,9 @@ Segmentation Offset: 15620, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8aa56
+Payload Data Pointer: 0x17ec8b396
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -414,14 +346,9 @@ Segmentation Offset: 17040, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec8a116
+Payload Data Pointer: 0x17ec8aa56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -446,14 +373,9 @@ Segmentation Offset: 18460, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec897d6
+Payload Data Pointer: 0x17ec8a116
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -478,14 +400,9 @@ Segmentation Offset: 19880, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec88e96
+Payload Data Pointer: 0x17ec897d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -510,14 +427,9 @@ Segmentation Offset: 21300, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec88556
+Payload Data Pointer: 0x17ec88e96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -542,14 +454,9 @@ Segmentation Offset: 22720, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec87c16
+Payload Data Pointer: 0x17ec88556
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -574,14 +481,9 @@ Segmentation Offset: 24140, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec872d6
+Payload Data Pointer: 0x17ec87c16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -606,14 +508,9 @@ Segmentation Offset: 25560, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec86996
+Payload Data Pointer: 0x17ec872d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -638,14 +535,9 @@ Segmentation Offset: 26980, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec86056
+Payload Data Pointer: 0x17ec86996
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -670,14 +562,9 @@ Segmentation Offset: 28400, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec85716
+Payload Data Pointer: 0x17ec86056
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -702,14 +589,9 @@ Segmentation Offset: 29820, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec84dd6
+Payload Data Pointer: 0x17ec85716
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -734,14 +616,9 @@ Segmentation Offset: 31240, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec84496
+Payload Data Pointer: 0x17ec84dd6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -766,14 +643,9 @@ Segmentation Offset: 32660, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec83b56
+Payload Data Pointer: 0x17ec84496
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -798,14 +670,9 @@ Segmentation Offset: 34080, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec83216
+Payload Data Pointer: 0x17ec83b56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -830,14 +697,9 @@ Segmentation Offset: 35500, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec828d6
+Payload Data Pointer: 0x17ec83216
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -862,14 +724,9 @@ Segmentation Offset: 36920, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec81f96
+Payload Data Pointer: 0x17ec828d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -894,14 +751,9 @@ Segmentation Offset: 38340, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec81656
+Payload Data Pointer: 0x17ec81f96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -926,14 +778,9 @@ Segmentation Offset: 39760, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec80d16
+Payload Data Pointer: 0x17ec81656
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -958,14 +805,9 @@ Segmentation Offset: 41180, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec803d6
+Payload Data Pointer: 0x17ec80d16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -990,14 +832,9 @@ Segmentation Offset: 42600, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7fa96
+Payload Data Pointer: 0x17ec803d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1022,14 +859,9 @@ Segmentation Offset: 44020, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7f156
+Payload Data Pointer: 0x17ec7fa96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1054,14 +886,9 @@ Segmentation Offset: 45440, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7e816
+Payload Data Pointer: 0x17ec7f156
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1086,14 +913,9 @@ Segmentation Offset: 46860, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7ded6
+Payload Data Pointer: 0x17ec7e816
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1118,14 +940,9 @@ Segmentation Offset: 48280, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7d596
+Payload Data Pointer: 0x17ec7ded6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1150,14 +967,9 @@ Segmentation Offset: 49700, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7cc56
+Payload Data Pointer: 0x17ec7d596
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1182,14 +994,9 @@ Segmentation Offset: 51120, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7c316
+Payload Data Pointer: 0x17ec7cc56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1214,14 +1021,9 @@ Segmentation Offset: 52540, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7b9d6
+Payload Data Pointer: 0x17ec7c316
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1246,14 +1048,9 @@ Segmentation Offset: 53960, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7b096
+Payload Data Pointer: 0x17ec7b9d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1278,14 +1075,9 @@ Segmentation Offset: 55380, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec7a756
+Payload Data Pointer: 0x17ec7b096
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1310,14 +1102,9 @@ Segmentation Offset: 56800, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec79e16
+Payload Data Pointer: 0x17ec7a756
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1342,14 +1129,9 @@ Segmentation Offset: 58220, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec794d6
+Payload Data Pointer: 0x17ec79e16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1374,14 +1156,9 @@ Segmentation Offset: 59640, Segment Length: 360
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 360
 Priority: 226
-Payload Data Pointer: 0x17ec78b96
+Payload Data Pointer: 0x17ec794d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1406,14 +1183,11 @@ Segmentation Offset: 0, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec78256
+Payload Data Pointer: 0x17ec78b96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
 Found socket for incoming packet: id 1
 rpc_ind for new RPC is: 1
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
 Setting rpc_id for Stream 1 to 1
 ------- All RPCs list:---------
 peer_id: 10, rpc_id: 1, bytes_remaining: 98688, incoming: 60000
@@ -1442,27 +1216,12 @@ Segmentation Offset: 1420, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec77916
+Payload Data Pointer: 0x17ec78256
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
-------------------------
-------- MTP_ri list:---------
-rpc_id: 1, newgrant: 0, priority: 3
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
 ------------------------
 ip_len: 1492
 *************** MTP BP Header ******************
@@ -1474,14 +1233,9 @@ Segmentation Offset: 2840, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec76fd6
+Payload Data Pointer: 0x17ec77916
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1506,14 +1260,9 @@ Segmentation Offset: 4260, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec76696
+Payload Data Pointer: 0x17ec76fd6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1538,14 +1287,9 @@ Segmentation Offset: 5680, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec75d56
+Payload Data Pointer: 0x17ec76696
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1570,14 +1314,9 @@ Segmentation Offset: 7100, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec75416
+Payload Data Pointer: 0x17ec75d56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1602,14 +1341,9 @@ Segmentation Offset: 8520, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec74ad6
+Payload Data Pointer: 0x17ec75416
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1634,14 +1368,9 @@ Segmentation Offset: 9940, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec74196
+Payload Data Pointer: 0x17ec74ad6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1666,14 +1395,9 @@ Segmentation Offset: 11360, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec73856
+Payload Data Pointer: 0x17ec74196
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1698,14 +1422,9 @@ Segmentation Offset: 12780, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec72f16
+Payload Data Pointer: 0x17ec73856
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1730,14 +1449,9 @@ Segmentation Offset: 14200, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec725d6
+Payload Data Pointer: 0x17ec72f16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1762,14 +1476,9 @@ Segmentation Offset: 15620, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec71c96
+Payload Data Pointer: 0x17ec725d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1794,14 +1503,9 @@ Segmentation Offset: 17040, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec71356
+Payload Data Pointer: 0x17ec71c96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1826,14 +1530,9 @@ Segmentation Offset: 18460, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec70a16
+Payload Data Pointer: 0x17ec71356
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1858,14 +1557,9 @@ Segmentation Offset: 19880, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec700d6
+Payload Data Pointer: 0x17ec70a16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1890,14 +1584,9 @@ Segmentation Offset: 21300, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec6f796
+Payload Data Pointer: 0x17ec700d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1922,14 +1611,9 @@ Segmentation Offset: 22720, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec6ee56
+Payload Data Pointer: 0x17ec6f796
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1954,14 +1638,9 @@ Segmentation Offset: 24140, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec6e516
+Payload Data Pointer: 0x17ec6ee56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -1986,14 +1665,9 @@ Segmentation Offset: 25560, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec6dbd6
+Payload Data Pointer: 0x17ec6e516
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2018,14 +1692,9 @@ Segmentation Offset: 26980, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec6d296
+Payload Data Pointer: 0x17ec6dbd6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2050,14 +1719,9 @@ Segmentation Offset: 28400, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 226
-Payload Data Pointer: 0x17ec6c956
+Payload Data Pointer: 0x17ec6d296
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2102,14 +1766,9 @@ Segmentation Offset: 29820, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec6c016
+Payload Data Pointer: 0x17ec6c956
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2134,14 +1793,9 @@ Segmentation Offset: 31240, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec6b6d6
+Payload Data Pointer: 0x17ec6c016
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2166,14 +1820,9 @@ Segmentation Offset: 32660, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec6ad96
+Payload Data Pointer: 0x17ec6b6d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2198,14 +1847,9 @@ Segmentation Offset: 34080, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec6a456
+Payload Data Pointer: 0x17ec6ad96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2230,14 +1874,9 @@ Segmentation Offset: 35500, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec69b16
+Payload Data Pointer: 0x17ec6a456
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2262,14 +1901,9 @@ Segmentation Offset: 36920, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec691d6
+Payload Data Pointer: 0x17ec69b16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2294,14 +1928,9 @@ Segmentation Offset: 38340, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec68896
+Payload Data Pointer: 0x17ec691d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2326,14 +1955,9 @@ Segmentation Offset: 39760, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec67f56
+Payload Data Pointer: 0x17ec68896
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2358,14 +1982,9 @@ Segmentation Offset: 41180, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec67616
+Payload Data Pointer: 0x17ec67f56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2390,14 +2009,9 @@ Segmentation Offset: 42600, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec66cd6
+Payload Data Pointer: 0x17ec67616
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2422,14 +2036,9 @@ Segmentation Offset: 44020, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec66396
+Payload Data Pointer: 0x17ec66cd6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2454,14 +2063,9 @@ Segmentation Offset: 45440, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec65a56
+Payload Data Pointer: 0x17ec66396
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2486,14 +2090,9 @@ Segmentation Offset: 46860, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec65116
+Payload Data Pointer: 0x17ec65a56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2518,14 +2117,9 @@ Segmentation Offset: 48280, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec647d6
+Payload Data Pointer: 0x17ec65116
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2550,14 +2144,9 @@ Segmentation Offset: 49700, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec63e96
+Payload Data Pointer: 0x17ec647d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2582,14 +2171,9 @@ Segmentation Offset: 51120, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec63556
+Payload Data Pointer: 0x17ec63e96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2614,14 +2198,9 @@ Segmentation Offset: 52540, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec62c16
+Payload Data Pointer: 0x17ec63556
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2646,14 +2225,9 @@ Segmentation Offset: 53960, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec622d6
+Payload Data Pointer: 0x17ec62c16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2678,14 +2252,9 @@ Segmentation Offset: 55380, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec61996
+Payload Data Pointer: 0x17ec622d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2710,14 +2279,9 @@ Segmentation Offset: 56800, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec61056
+Payload Data Pointer: 0x17ec61996
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2742,14 +2306,9 @@ Segmentation Offset: 58220, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 190
-Payload Data Pointer: 0x17ec60716
+Payload Data Pointer: 0x17ec61056
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2774,14 +2333,9 @@ Segmentation Offset: 59640, Segment Length: 360
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 360
 Priority: 190
-Payload Data Pointer: 0x17ec5fdd6
+Payload Data Pointer: 0x17ec60716
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2803,49 +2357,39 @@ Sender ID: 0
 Type: 16
 Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
 Segmentation Offset: 60000, Segment Length: 1420
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 1420
+Priority: 178
+Payload Data Pointer: 0x17ec5fdd6
+Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
+*********************************************
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 1, newgrant: 0, priority: 3
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 1492
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 44
+Sender ID: 0
+Type: 16
+Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 61420, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
 Payload Data Pointer: 0x17ec5f496
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
-------- All RPCs list:---------
-------------------------
-------- Highest Prio RPCs list:---------
-------------------------
-------- MTP_ri list:---------
-rpc_id: 1, newgrant: 0, priority: 3
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-rpc_id: 0, newgrant: 0, priority: 0
-------------------------
-ip_len: 1492
-*************** MTP BP Header ******************
-Source: 260, Dest: 20480, Seq: 44
-Sender ID: 0
-Type: 16
-Message Length: 100108, Incoming: 100108, Cutoff Version: 0, Retransmit: 0
-Segmentation Offset: 61420, Segment Length: 1420
-Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
-Payload Length: 1420
-Priority: 178
-Payload Data Pointer: 0x17ec5eb56
-Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
-*********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2870,14 +2414,9 @@ Segmentation Offset: 62840, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec5e216
+Payload Data Pointer: 0x17ec5eb56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2902,14 +2441,9 @@ Segmentation Offset: 64260, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec5d8d6
+Payload Data Pointer: 0x17ec5e216
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2934,14 +2468,9 @@ Segmentation Offset: 65680, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec5cf96
+Payload Data Pointer: 0x17ec5d8d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2966,14 +2495,9 @@ Segmentation Offset: 67100, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec5c656
+Payload Data Pointer: 0x17ec5cf96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -2998,14 +2522,9 @@ Segmentation Offset: 68520, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec5bd16
+Payload Data Pointer: 0x17ec5c656
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3030,14 +2549,9 @@ Segmentation Offset: 69940, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec5b3d6
+Payload Data Pointer: 0x17ec5bd16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3062,14 +2576,9 @@ Segmentation Offset: 71360, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec5aa96
+Payload Data Pointer: 0x17ec5b3d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3094,14 +2603,9 @@ Segmentation Offset: 72780, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec5a156
+Payload Data Pointer: 0x17ec5aa96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3126,14 +2630,9 @@ Segmentation Offset: 74200, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec59816
+Payload Data Pointer: 0x17ec5a156
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3158,14 +2657,9 @@ Segmentation Offset: 75620, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec58ed6
+Payload Data Pointer: 0x17ec59816
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3190,14 +2684,9 @@ Segmentation Offset: 77040, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec58596
+Payload Data Pointer: 0x17ec58ed6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3222,14 +2711,9 @@ Segmentation Offset: 78460, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec57c56
+Payload Data Pointer: 0x17ec58596
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3254,14 +2738,9 @@ Segmentation Offset: 79880, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec57316
+Payload Data Pointer: 0x17ec57c56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3286,14 +2765,9 @@ Segmentation Offset: 81300, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec569d6
+Payload Data Pointer: 0x17ec57316
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3318,14 +2792,9 @@ Segmentation Offset: 82720, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec56096
+Payload Data Pointer: 0x17ec569d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3350,14 +2819,9 @@ Segmentation Offset: 84140, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec55756
+Payload Data Pointer: 0x17ec56096
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3382,14 +2846,9 @@ Segmentation Offset: 85560, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec54e16
+Payload Data Pointer: 0x17ec55756
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3414,14 +2873,9 @@ Segmentation Offset: 86980, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec544d6
+Payload Data Pointer: 0x17ec54e16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3446,14 +2900,9 @@ Segmentation Offset: 88400, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec53b96
+Payload Data Pointer: 0x17ec544d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3478,14 +2927,9 @@ Segmentation Offset: 89820, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec53256
+Payload Data Pointer: 0x17ec53b96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3510,14 +2954,9 @@ Segmentation Offset: 91240, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec52916
+Payload Data Pointer: 0x17ec53256
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3542,14 +2981,9 @@ Segmentation Offset: 92660, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec51fd6
+Payload Data Pointer: 0x17ec52916
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3574,14 +3008,9 @@ Segmentation Offset: 94080, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec51696
+Payload Data Pointer: 0x17ec51fd6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3606,14 +3035,9 @@ Segmentation Offset: 95500, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec50d56
+Payload Data Pointer: 0x17ec51696
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3638,14 +3062,9 @@ Segmentation Offset: 96920, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec50416
+Payload Data Pointer: 0x17ec50d56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3670,14 +3089,9 @@ Segmentation Offset: 98340, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec4fad6
+Payload Data Pointer: 0x17ec50416
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3702,14 +3116,12 @@ Segmentation Offset: 99760, Segment Length: 348
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 348
 Priority: 178
-Payload Data Pointer: 0x17ec4f196
+Payload Data Pointer: 0x17ec4fad6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Hash for flow: 100665098, 20480, 83887882, 260, 0 is 82755
-Checking flow 1: 100665098, 20480, 83887882, 260, 0
-against flow 2: 100665098, 20480, 83887882, 260, 0
-result is 1
+Read event in next_req_pkt_eq for RPC ind: 0
+adding read epoll event to RPC ind: 0
+added event for RPC ind: 0
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3734,14 +3146,9 @@ Segmentation Offset: 60000, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec4e856
+Payload Data Pointer: 0x17ec4f196
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3766,14 +3173,9 @@ Segmentation Offset: 61420, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec4df16
+Payload Data Pointer: 0x17ec4e856
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3798,14 +3200,9 @@ Segmentation Offset: 62840, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec4d5d6
+Payload Data Pointer: 0x17ec4df16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3830,14 +3227,9 @@ Segmentation Offset: 64260, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec4cc96
+Payload Data Pointer: 0x17ec4d5d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3862,14 +3254,9 @@ Segmentation Offset: 65680, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec4c356
+Payload Data Pointer: 0x17ec4cc96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3894,14 +3281,9 @@ Segmentation Offset: 67100, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec4ba16
+Payload Data Pointer: 0x17ec4c356
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3926,14 +3308,9 @@ Segmentation Offset: 68520, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec4b0d6
+Payload Data Pointer: 0x17ec4ba16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3958,14 +3335,9 @@ Segmentation Offset: 69940, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec4a796
+Payload Data Pointer: 0x17ec4b0d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -3990,14 +3362,9 @@ Segmentation Offset: 71360, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec49e56
+Payload Data Pointer: 0x17ec4a796
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4022,14 +3389,9 @@ Segmentation Offset: 72780, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec49516
+Payload Data Pointer: 0x17ec49e56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4054,14 +3416,9 @@ Segmentation Offset: 74200, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec48bd6
+Payload Data Pointer: 0x17ec49516
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4086,14 +3443,9 @@ Segmentation Offset: 75620, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17ec48296
+Payload Data Pointer: 0x17ec48bd6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4118,14 +3470,9 @@ Segmentation Offset: 77040, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17f7cc996
+Payload Data Pointer: 0x17ec48296
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4150,14 +3497,9 @@ Segmentation Offset: 78460, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbd7716
+Payload Data Pointer: 0x17f9f2656
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4182,14 +3524,9 @@ Segmentation Offset: 79880, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbd8056
+Payload Data Pointer: 0x17f9f2f96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4214,14 +3551,9 @@ Segmentation Offset: 81300, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbd8996
+Payload Data Pointer: 0x17f9f38d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4246,14 +3578,9 @@ Segmentation Offset: 82720, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbd92d6
+Payload Data Pointer: 0x17f9f4216
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4278,14 +3605,9 @@ Segmentation Offset: 84140, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbd9c16
+Payload Data Pointer: 0x17f9f4b56
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4310,14 +3632,9 @@ Segmentation Offset: 85560, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbda556
+Payload Data Pointer: 0x17f9f5496
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4342,14 +3659,9 @@ Segmentation Offset: 86980, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbdae96
+Payload Data Pointer: 0x17f9f5dd6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4374,14 +3686,9 @@ Segmentation Offset: 88400, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbdb7d6
+Payload Data Pointer: 0x17f9f6716
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4406,14 +3713,9 @@ Segmentation Offset: 89820, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbdc116
+Payload Data Pointer: 0x17f9f7056
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4438,14 +3740,9 @@ Segmentation Offset: 91240, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbdca56
+Payload Data Pointer: 0x17f9f7996
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4470,14 +3767,9 @@ Segmentation Offset: 92660, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbdd396
+Payload Data Pointer: 0x17f9f82d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4502,14 +3794,9 @@ Segmentation Offset: 94080, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbddcd6
+Payload Data Pointer: 0x17f9f8c16
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4534,14 +3821,9 @@ Segmentation Offset: 95500, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbde616
+Payload Data Pointer: 0x17f9f9556
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4566,14 +3848,9 @@ Segmentation Offset: 96920, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbdef56
+Payload Data Pointer: 0x17f9f9e96
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4598,14 +3875,9 @@ Segmentation Offset: 98340, Segment Length: 1420
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 1420
 Priority: 178
-Payload Data Pointer: 0x17fbdf896
+Payload Data Pointer: 0x17f9fa7d6
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4630,14 +3902,12 @@ Segmentation Offset: 99760, Segment Length: 348
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 348
 Priority: 178
-Payload Data Pointer: 0x17fbe01d6
+Payload Data Pointer: 0x17f9fb116
 Needs Segmentation: No, Seg Size: 0, Seg Rule Group ID: 0
 *********************************************
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Hash for flow: 100665098, 20480, 83887882, 260, 1 is 71472
-Checking flow 1: 100665098, 20480, 83887882, 260, 1
-against flow 2: 100665098, 20480, 83887882, 260, 1
-result is 1
+Read event in next_req_pkt_eq for RPC ind: 1
+adding read epoll event to RPC ind: 1
+added event for RPC ind: 1
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------
@@ -4652,7 +3922,8 @@ rpc_id: 0, newgrant: 0, priority: 0
 rpc_id: 0, newgrant: 0, priority: 0
 rpc_id: 0, newgrant: 0, priority: 0
 ------------------------
-finished reading 100108 bytes
+finished reading 100108 bytes from RPC ind: 0
+finished reading 100108 bytes from RPC ind: 1
 *************** MTP BP Header ******************
 Source: 20480, Dest: 260, Seq: 0
 Sender ID: 0
@@ -4663,5 +3934,17 @@ Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 172
 Priority: 224
 Payload Data Pointer: 0x144996b00
+Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
+*********************************************
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 0
+Sender ID: 1
+Type: 16
+Message Length: 172, Incoming: 172, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 0
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 172
+Priority: 224
+Payload Data Pointer: 0x144996d40
 Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
 *********************************************

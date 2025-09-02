@@ -226,7 +226,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid,
 		return rd;
 	}
 	else {
-		printf("finished reading %d bytes\n", (int)req.len);
+		printf("finished reading %d bytes from RPC ind: %d\n", (int)req.len, rpc_ind);
 		// printf("Request:\n%s\n", req.buff);
 	}
 
@@ -445,7 +445,7 @@ RunServerThread(void *arg)
 				// read request
 				ret = HandleReadEvent(ctx, events[i].data.sockid,
 									  events[i].rpc_ind, 
-									  &ctx->svars[events[i].data.sockid]);
+									  &ctx->svars[events[i].rpc_ind]);
 
 			} else if (events[i].events & MTCP_EPOLLERR) {
 				int err;

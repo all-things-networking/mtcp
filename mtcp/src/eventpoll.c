@@ -625,6 +625,8 @@ AddEpollEvent(struct mtcp_epoll *ep,
 	eq->events[index].sockid = socket->id;
 	eq->events[index].ev.events = event;
 	eq->events[index].ev.data = socket->ep_data;
+	eq->events[index].ev.rpc_ind = rpc_ind;
+	printf("added event for RPC ind: %d\n", rpc_ind);
 
 	if (eq->end >= eq->size) {
 		eq->end = 0;

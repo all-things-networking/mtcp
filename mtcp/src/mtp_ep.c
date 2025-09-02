@@ -123,6 +123,7 @@ void first_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 	RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
 
     if (scratch->complete) {
+		printf("Read event in first_req_pkt_eq for RPC ind: %d\n", cur_stream->rpc_ind);
 		RaiseReadEvent(mtcp, cur_stream);
     }
 }
@@ -175,6 +176,7 @@ void next_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     scratch->needs_schedule = ev_message_length > ctx->cc_incoming;
 
     if (scratch->complete) {
+		printf("Read event in next_req_pkt_eq for RPC ind: %d\n", cur_stream->rpc_ind);
         RaiseReadEvent(mtcp, cur_stream);
     }						
 }
@@ -220,6 +222,7 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 			int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
 			assert(ret == ev_segment_length);
 
+			printf("Read event in recv resp single packet for RPC ind: %d\n", cur_stream->rpc_ind);
 			RaiseReadEvent(mtcp, cur_stream);
 
             // TODO: in eTran's implementation this part of the code
@@ -286,6 +289,7 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
             ctx->state = MTP_HOMA_RPC_DEAD;
 
             //TODO: dead rpc queue thing
+			printf("Read event in recv resp multiple packet for RPC ind: %d\n", cur_stream->rpc_ind);
 			RaiseReadEvent(mtcp, cur_stream);
         }
 
@@ -978,6 +982,10 @@ void gen_grants_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch) {
         // grant the RPC in the Priority queue
         gi_idx = (MTP_granting_idx - 1);
         gi_idx = gi_idx % MTP_HOMA_OVERCOMMITMENT;
+
+		if (MTP_ri[gi_idx].newgrant <= 0){
+			return;
+		}
 
         gi.sport = MTP_ri[gi_idx].local_port;
         gi.dport = MTP_ri[gi_idx].remote_port;
