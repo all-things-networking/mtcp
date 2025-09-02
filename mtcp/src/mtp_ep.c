@@ -160,6 +160,9 @@ void next_req_pkt_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 	int ret = RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
 	assert(ret == ev_segment_length);
 
+	printf("RPC ind: %d, merged buffer length: %d\n", 
+			cur_stream->rpc_ind, rcvvar->rcvbuf->merged_len);
+
 	bool complete = rcvvar->rcvbuf->merged_len == ctx->message_length;
 
     if(complete) ctx->state = MTP_HOMA_RPC_IN_SERVICE;
@@ -387,9 +390,10 @@ void print_sorted_list_1(){
 	printf("------- All RPCs list:---------\n");
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
 		if (MTP_all_rpcs[i].valid){
-			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d\n",
+			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d, in_prio_list: %d, prio_ind: %d\n",
 					MTP_all_rpcs[i].peer_id, MTP_all_rpcs[i].rpcid,
-					MTP_all_rpcs[i].bytes_remaining, MTP_all_rpcs[i].incoming);
+					MTP_all_rpcs[i].bytes_remaining, MTP_all_rpcs[i].incoming,
+					MTP_all_rpcs[i].in_prio_list, MTP_all_rpcs[i].prio_list_ind);
 		}
 	}
 	printf("------------------------\n");
@@ -642,7 +646,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
         // TODO: add message length and incoming
     }
     else {
-		// see if we are still in the lists. We may have
+		// see if we are still in the lists. 
         int ind = find_ge_sorted_list_1(&elem);
 		if (ind < 0){
 			// we have already received all our grants
@@ -742,7 +746,7 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
     uint16_t next_peer_id = 0;
     uint32_t min_last_bytes_remaining = 0;
     uint16_t nr_rpc = 0;
-	uint32_t total_increment;
+	uint32_t total_increment = 0;
 
 	rpc_info_2 elem;
 	elem.bytes_remaining = min_last_bytes_remaining;
@@ -771,6 +775,8 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
         int available = MTP_HOMA_MAX_INCOMING - MTP_total_incoming;
         uint32_t increment = new_grant - grant_elem.incoming;
 
+		printf("RPCID: %d, increment: %d, available:%d\n",
+				grant_elem.rpcid, increment, available);
         if (increment > 0 && available > 0){
 			// We are giving the grant
 
@@ -860,6 +866,7 @@ void update_prios_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch)
     if (MTP_finish_grant_choose) return;
 
     for (int i = 0; i < MTP_nr_grant_candidate; i++){
+		printf("MTP_remove[%d]: %d\n", i, MTP_remove[i]);
         if (MTP_remove[i]){
             // TODO: replace with a check on length
             uint16_t peer_id = MTP_ri[i].peer_id;
@@ -887,7 +894,7 @@ void update_prios_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch)
 				MTP_all_rpcs[ind].prio_list_ind = prio_ind;
             }
         }
-
+		MTP_remove[i] = 0;
     }
 
     if (MTP_nr_grant_candidate) {
@@ -1324,13 +1331,17 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 					ev_dport, ev_single_packet, ev_local_ip, 
 					ev_remote_ip, &scratch);
 
-	print_sorted_list_1();
-	print_sorted_list_2();
-
+	printf("1: total_incoming: %d, MTP_grant_nonfifo_left: %d\n",
+			MTP_total_incoming, MTP_grant_nonfifo_left);
 	choose_grant_ep(mtcp, cur_ts, &scratch);
 	update_prios_ep(mtcp, cur_ts, &scratch);
 	gen_grants_ep(mtcp, cur_ts, &scratch);
 	reset_grant_state(mtcp, cur_ts, &scratch);
+
+	print_sorted_list_1();
+	print_sorted_list_2();
+	printf("2: total_incoming: %d, MTP_grant_nonfifo_left: %d\n",
+			MTP_total_incoming, MTP_grant_nonfifo_left);
 }
 
 void MtpHomaRecvdReqChain (mtcp_manager_t mtcp, uint32_t cur_ts,
@@ -1363,13 +1374,18 @@ void MtpHomaRecvdReqChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 			ev_dport, ev_single_packet, ev_local_ip, 
 			ev_remote_ip, cur_stream, &scratch);
 
-	print_sorted_list_1();
-	print_sorted_list_2();
+	printf("1: total_incoming: %d, MTP_grant_nonfifo_left: %d\n",
+			MTP_total_incoming, MTP_grant_nonfifo_left);
 
 	choose_grant_ep(mtcp, cur_ts, &scratch);
 	update_prios_ep(mtcp, cur_ts, &scratch);
 	gen_grants_ep(mtcp, cur_ts, &scratch);
 	reset_grant_state(mtcp, cur_ts, &scratch);
+
+	print_sorted_list_1();
+	print_sorted_list_2();
+	printf("2: total_incoming: %d, MTP_grant_nonfifo_left: %d\n",
+			MTP_total_incoming, MTP_grant_nonfifo_left);
 }
 
 void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
