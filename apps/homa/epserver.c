@@ -294,6 +294,8 @@ HandleReadEvent(struct thread_context *ctx, int sockid,
 	len = strlen(response);
 	TRACE_APP("Socket %d HTTP Response: \n%s", sockid, response);
 
+	mtcp_rpc_done_rcv(ctx->mctx, sockid, rpc_ind);
+
 
 	sent = mtcp_rpc_send_resp(ctx->mctx, sockid, rpc_ind, response, len, 
 							fcache[sv->fidx].file, sv->fsize);

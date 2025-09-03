@@ -171,5 +171,7 @@ int mtcp_rpc_send_resp(mctx_t mctx, int sockid, uint32_t rpc_ind, char* msg_hdr,
 int mtcp_find_saddr(mctx_t mctx, struct sockaddr_in *saddr,
 			    struct sockaddr_in *addr_in);
 
+int mtcp_rpc_done_rcv(mctx_t mctx, int sockid, uint32_t rpc_ind);
+
 
 #endif /* MTCP_API_H */

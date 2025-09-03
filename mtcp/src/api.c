@@ -1093,6 +1093,53 @@ CloseListeningSocket(mctx_t mctx, int sockid)
 
 	return 0;
 }
+
+/*----------------------------------------------------------------------------*/
+int 
+mtcp_rpc_done_rcv(mctx_t mctx, int sockid, uint32_t rpc_ind)
+{
+	mtcp_manager_t mtcp;
+
+	mtcp = GetMTCPManager(mctx);
+	if (!mtcp) {
+		return -1;
+	}
+
+	if (sockid < 0 || sockid >= CONFIG.max_concurrency) {
+		TRACE_API("Socket id %d out of range.\n", sockid);
+		errno = EBADF;
+		return -1;
+	}
+
+	if (mtcp->smap[sockid].socktype == MTCP_SOCK_UNUSED) {
+		TRACE_API("Invalid socket id: %d\n", sockid);
+		errno = EBADF;
+		return -1;
+	}
+
+	if (mtcp->smap[sockid].socktype != MTCP_SOCK_RPC){
+		TRACE_API("Not an RPC socket. id: %d\n", sockid);
+		errno = ENOTSOCK;
+		return -1;
+	}
+
+	tcp_stream *stream = mtcp->smap[sockid].rpcs[rpc_ind];
+	if (stream == NULL){
+		TRACE_API("Invalid rpc ind %d for socket id: %d\n", rpc_ind, sockid);
+		errno = EBADF;
+		return -1;
+	}
+
+	if (stream->rcvvar->rcvbuf) {
+		RBFree(stream->mtp_rbm, stream->rcvvar->rcvbuf);
+		stream->rcvvar->rcvbuf = NULL;
+	}
+
+	// TODO: destroy ctx if client and RPC is dead
+
+	return 0;
+}
+
 /*----------------------------------------------------------------------------*/
 int 
 mtcp_close(mctx_t mctx, int sockid)

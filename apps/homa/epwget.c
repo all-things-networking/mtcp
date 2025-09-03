@@ -360,6 +360,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, uint32_t rpc_ind, struct wget_
 	}
 	else {
 		printf("finished reading %d bytes\n", (int)req.len);
+		mtcp_rpc_done_rcv(mctx, sockid, rpc_ind);
 	}
 	/*
 	char buf[BUF_SIZE];
