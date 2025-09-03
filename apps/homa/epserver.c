@@ -451,7 +451,9 @@ RunServerThread(void *arg)
 
 			} else if (events[i].events & MTCP_EPOLLRDHUP) {
 				// TODO:
-				printf("Got the ack\n");
+				printf("Got the ack for socket %d rpc ind %d\n",
+						events[i].data.sockid, events[i].rpc_ind);
+				CleanServerVariable(&ctx->svars[events[i].rpc_ind]);
 			} 
 			else {
 				assert(0);

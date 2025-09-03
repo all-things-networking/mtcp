@@ -223,6 +223,20 @@ SendRPCRequest(thread_context_t ctx, int sockid)
 }
 /*----------------------------------------------------------------------------*/
 static inline void 
+EndRPC(thread_context_t ctx, int sockid)
+{
+	ctx->pending--;
+	ctx->done++;
+	assert(ctx->pending >= 0);
+	while (ctx->pending < concurrency && ctx->started < ctx->target) {
+		if (SendRPCRequest(ctx, sockid) < 0) {
+			done[ctx->core] = TRUE;
+			break;
+		}
+	}
+}
+/*----------------------------------------------------------------------------*/
+static inline void 
 CloseConnection(thread_context_t ctx, int sockid)
 {
 	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_DEL, sockid, NULL);
@@ -361,6 +375,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, uint32_t rpc_ind, struct wget_
 	else {
 		printf("finished reading %d bytes\n", (int)req.len);
 		mtcp_rpc_done_rcv(mctx, sockid, rpc_ind);
+		EndRPC(ctx, sockid);
 	}
 	/*
 	char buf[BUF_SIZE];
