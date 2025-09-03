@@ -56,6 +56,10 @@ void print_MTP_bp(struct mtp_bp* bp){
         MTP_PRINT("Grant Offset: %u, Priority: %u, Resend All: %u\n",
                bp->hdr.grant.offset, bp->hdr.grant.priority, bp->hdr.grant.resend_all);
     } 
+    else if (bp->hdr.type == MTP_HOMA_ACK){
+        MTP_PRINT("RPC id: %u, Sport: %u, Dport: %u\n",
+                 bp->hdr.sender_id, bp->hdr.src_port, bp->hdr.dest_port);
+    }
     else {
         MTP_PRINT("Unknown packet type\n");
     }

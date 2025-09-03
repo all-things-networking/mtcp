@@ -483,20 +483,19 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             sent += 1;
         }
         else {
-            /*
+            
             uint16_t payloadLen = 0;
             if (bp->payload.data != NULL){
                 payloadLen = bp->payload.len;
             }
             // MTP TODO: 
-            if (payloadLen + optlen > cur_stream->sndvar->mss){
-                TRACE_ERROR("Payload size exceeds MSS\n");
-                err += 1;
-                continue; 
-            }
+            assert(bp->hdr.type == MTP_HOMA_ACK);
+            uint32_t hdr_len = MTP_HOMA_COMMON_HSIZE;
+            
             struct mtp_bp_hdr *mtph;
             mtph = (struct mtp_bp_hdr *)IPOutput(mtcp, cur_stream,
-                    MTP_HEADER_LEN + optlen + payloadLen);
+                    hdr_len + payloadLen);
+
             if (mtph == NULL) {
                 
                 AdvanceBPListHead(cur_stream, sent + err);
@@ -504,24 +503,17 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                 return -2;
             }
 
-            memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
+            memcpy((uint8_t *)mtph, &(bp->hdr), hdr_len);
 
-            // MTP_PRINT("Sent Seq 2: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
-
-            // MTP TODO: this is TCP specific
-            mtph->doff = (MTP_HEADER_LEN + optlen) >> 2;
-
+            
             // MTP TODO: do we need to lock here?
             // copy payload if exist
             if (bp->payload.data != NULL) {
-                memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, bp->payload.data, payloadLen);
-                #if defined(NETSTAT) && defined(ENABLELRO)
-                mtcp->nstat.tx_gdptbytes += payloadlen;
-                #endif // NETSTAT 
+                // MTP TODO: handle this
             } 
 
             sent += 1;
-            */
+            
         }
     }
     

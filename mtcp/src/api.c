@@ -1136,6 +1136,10 @@ mtcp_rpc_done_rcv(mctx_t mctx, int sockid, uint32_t rpc_ind)
 	}
 
 	// TODO: destroy ctx if client and RPC is dead
+	if (stream->mtp->rpc_is_client &&
+		stream->mtp->state == MTP_HOMA_RPC_DEAD){
+			DestroyCtx(mtcp, stream, stream->sport);
+	}
 
 	return 0;
 }

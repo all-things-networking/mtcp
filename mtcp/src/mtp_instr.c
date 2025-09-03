@@ -383,6 +383,8 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 	RemoveFromControlList(mtcp, stream);
 	RemoveFromSendList(mtcp, stream);
 	RemoveFromACKList(mtcp, stream);
+
+	// TODO: remove from gen list? I wouldn't worry about that.
 	
 	if (stream->on_rto_idx >= 0)
 		RemoveFromRTOList(mtcp, stream);
@@ -404,6 +406,7 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 		stream->sndvar->sndbuf = NULL;
 	}
 	if (stream->rcvvar->rcvbuf) {
+		// Should not reach here.
 		RBFree(stream->mtp_rbm, stream->rcvvar->rcvbuf);
 		stream->rcvvar->rcvbuf = NULL;
 	}

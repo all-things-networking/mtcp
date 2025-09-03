@@ -40,6 +40,7 @@
 #define MTP_HOMA_COMMON_HSIZE 24
 #define MTP_HOMA_DATA_HSIZE 28
 #define MTP_HOMA_GRANT_HSIZE 6
+#define MTP_HOMA_ACK_HSIZE 8
 
 #define MTP_HOMA_DATA  0x10
 #define MTP_HOMA_GRANT  0x11
@@ -49,7 +50,7 @@
     // CUTOFFS = 0x15,
     // FREEZE = 0x16,
     // NEED_ACK = 0x17,
-    // ACK = 0x18,
+#define MTP_HOMA_ACK 0x18
     // BOGUS = 0x19,
 
 // Protocol-specific parameters: TCP

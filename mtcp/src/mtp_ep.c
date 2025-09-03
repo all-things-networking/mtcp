@@ -246,30 +246,32 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 
             // TODO: cleanup state
             scratch->complete = true;
-            return;
         }
 
-        ctx->state = MTP_HOMA_RPC_INCOMING;
+		else {
+			ctx->state = MTP_HOMA_RPC_INCOMING;
 
-        uint16_t expected_segment_cnt = ev_message_length/MTP_HOMA_MSS;
-		if (ev_message_length % MTP_HOMA_MSS) expected_segment_cnt++;
+			uint16_t expected_segment_cnt = ev_message_length/MTP_HOMA_MSS;
+			if (ev_message_length % MTP_HOMA_MSS) expected_segment_cnt++;
 
-        // sliding_wnd rcvd_seqs(0, expected_segment_cnt);
-        // rcvd_seqs.set(ev.seq);
-        // ctx.rcvd_seqs = rcvd_seqs;
-        ctx->expected_segment_cnt = expected_segment_cnt;
+			// sliding_wnd rcvd_seqs(0, expected_segment_cnt);
+			// rcvd_seqs.set(ev.seq);
+			// ctx.rcvd_seqs = rcvd_seqs;
+			ctx->expected_segment_cnt = expected_segment_cnt;
 
-		// I think the request going out uses this too, is this ok?
-        ctx->message_length = ev_message_length;
-        ctx->cc_incoming = ev_incoming;
-        
-        ctx->cc_bytes_remaining = ev_message_length - ev_segment_length;
-		scratch->last_bytes_remaining = ctx->cc_bytes_remaining;
+			// I think the request going out uses this too, is this ok?
+			ctx->message_length = ev_message_length;
+			ctx->cc_incoming = ev_incoming;
+			
+			ctx->cc_bytes_remaining = ev_message_length - ev_segment_length;
+			scratch->last_bytes_remaining = ctx->cc_bytes_remaining;
 
-        MTP_total_incoming += ev_incoming - ev_segment_length;
+			MTP_total_incoming += ev_incoming - ev_segment_length;
 
-        int ret = RBPut(cur_stream->mtp_rbm, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
-		assert(ret == ev_segment_length);
+			int ret = RBPut(cur_stream->mtp_rbm, rcvvar->rcvbuf, hold_addr, ev_segment_length, ev_offset);
+			assert(ret == ev_segment_length);
+			scratch->needs_schedule = ev_message_length > ctx->cc_incoming;
+		}
 
     } else {
         // TODO: double check if this is the case.
@@ -288,8 +290,6 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 
 		scratch->complete = rcvvar->rcvbuf->merged_len == ctx->message_length;
 
-	
-
         if(ev_incoming > ctx->cc_incoming)
             ctx->cc_incoming = ev_incoming;
 
@@ -307,8 +307,22 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 
         // TODO: maybe decrease total_incoming (or not, if we abstract it)
         MTP_total_incoming -= ev_segment_length;
+		scratch->needs_schedule = ev_message_length > ctx->cc_incoming;
     }
-    scratch->needs_schedule = ev_message_length > ctx->cc_incoming;
+
+	if (scratch->complete){
+		mtp_bp *bp = GetFreeBP(cur_stream);
+		memset(&(bp->hdr), 0, MTP_HOMA_COMMON_HSIZE);
+
+		bp->cur_stream = cur_stream;
+		struct mtp_bp_hdr *hdr = &bp->hdr;
+		hdr->type = MTP_HOMA_ACK;
+		hdr->dest_port = ctx->remote_port;
+		hdr->src_port = ctx->local_port;
+		hdr->sender_id = ctx->rpcid;
+
+		AddtoGenList(mtcp, cur_stream, cur_ts);
+	}
 }
 
 int add_to_sorted_list_1(rpc_info_1* ri){
