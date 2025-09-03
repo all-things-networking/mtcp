@@ -134,6 +134,7 @@ mtp_bp* GetFreeGBP(mtcp_manager_t mtcp){
     uint32_t bp_tail = mtcp->g_mtp_bps_tail;
     mtp_bp* new_bp = mtcp->g_mtp_bps + bp_tail;
     mtcp->g_mtp_bps_tail = (bp_tail + 1) % MTP_PER_FLOW_BP_CNT;
+	MTP_PRINT("gtail is now at: %d\n", mtcp->g_mtp_bps_tail);
     return new_bp;	
 }
 

@@ -625,6 +625,7 @@ void
 AdvanceGBPListHead(mtcp_manager_t mtcp, int advance){ 
     int cur_head = mtcp->g_mtp_bps_head; 
     mtcp->g_mtp_bps_head = (cur_head + advance) % MTP_PER_FLOW_BP_CNT;
+    // MTP_PRINT("ghead is now at %d\n", mtcp->g_mtp_bps_head);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -634,17 +635,19 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
     // MTP_PRINT("in SendMTPPackets\n");
     unsigned int sent = 0;
     unsigned int err = 0;
-    // MTP_PRINT("bp list head: %u, bp list tail: %u\n", cur_stream->sndvar->mtp_bps_head,
-    //                                                cur_stream->sndvar->mtp_bps_tail);
+    
     for (unsigned int i = mtcp->g_mtp_bps_head;
          i != mtcp->g_mtp_bps_tail;
          i = (i + 1) % MTP_PER_FLOW_BP_CNT){
         
-        // MTP_PRINT("bp index: %d\n", i);
+        MTP_PRINT("bp index: %d\n", i);
         
         mtp_bp* bp = &(mtcp->g_mtp_bps[i]);
+
+        MTP_PRINT("bp list head: %u, bp list tail: %u\n", mtcp->g_mtp_bps_head,
+                                                   mtcp->g_mtp_bps_tail);
         
-        // MTP_PRINT("bp @ index %u:\n", i);
+        MTP_PRINT("bp @ index %u:\n", i);
         MTP_PRINT("---------------------------------\n");
         MTP_PRINT("Sending MTP packet:\n");
         print_MTP_bp(bp);
@@ -731,12 +734,13 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
             sent += 1;
         }
         else {
-            
+            MTP_PRINT("here0\n");
             uint16_t pkt_len = 0;
             if (bp->payload.data != NULL){
                 pkt_len = bp->payload.len;
             }
             
+            MTP_PRINT("here1\n");
             uint32_t hdr_len = 0;
             if(bp->hdr.type == MTP_HOMA_DATA) {
                 hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE;
@@ -745,10 +749,12 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
                 hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_GRANT_HSIZE;
             }
 
-            
+            MTP_PRINT("here2\n");
             struct mtp_bp_hdr *mtph;
             mtph = (struct mtp_bp_hdr *)IPOutputWTos(mtcp, bp->cur_stream,
-                            hdr_len + pkt_len, bp->prio);
+                            hdr_len + pkt_len, 100);
+
+            MTP_PRINT("here3\n");
             if (mtph == NULL) {
                 
                 AdvanceGBPListHead(mtcp, sent + err);
@@ -756,6 +762,7 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
                 return -2;
             }
 
+            MTP_PRINT("here4\n");
             memcpy((uint8_t *)mtph, &(bp->hdr), hdr_len);
 
             // MTP_PRINT("Sent Seq 2: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
@@ -769,7 +776,6 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
             
         }
     }
-    
     
     AdvanceGBPListHead(mtcp, sent + err);
     

@@ -184,6 +184,8 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 	unsigned char *haddr, is_external = 0;
 	int rc = -1;
 
+	if (tos == 100) printf("1\n");
+
 	if (stream->sndvar->nif_out >= 0) {
 		nif = stream->sndvar->nif_out;
 	} else {
@@ -192,6 +194,7 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 		stream->is_external = is_external;
 	}
 
+	if (tos == 100) printf("2\n");
 	haddr = GetDestinationHWaddr(stream->daddr, stream->is_external);
 	if (!haddr) {
 #if 0
@@ -202,17 +205,23 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 #endif
 		/* if not found in the arp table, send arp request and return NULL */
 		/* tcp will retry sending the packet later */
+		printf("RPC ind: %d, daddr: %d, is_external: %d\n", stream->daddr,
+					stream->is_external, stream->rpc_ind);
 		RequestARP(mtcp, (stream->is_external) ? (CONFIG.gateway)->daddr : stream->daddr,
 			   stream->sndvar->nif_out, mtcp->cur_ts);
 		return NULL;
 	}
 	
+	if (tos == 100) printf("3\n");
 	iph = (struct iphdr *)EthernetOutput(mtcp, ETH_P_IP, 
 			stream->sndvar->nif_out, haddr, tcplen + IP_HEADER_LEN);
+
+	if (tos == 100) printf("4\n");
 	if (!iph) {
 		return NULL;
 	}
 
+	if (tos == 100) printf("5\n");
 	iph->ihl = IP_HEADER_LEN >> 2;
 	iph->version = 4;
 	iph->tos = tos;
@@ -224,6 +233,8 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 	iph->saddr = stream->saddr;
 	iph->daddr = stream->daddr;
 	iph->check = 0;
+
+	if (tos == 100) printf("6\n");
 
 #ifndef DISABLE_HWCSUM
 	/* offload IP checkum if possible */
@@ -244,6 +255,8 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 	UNUSED(rc);
 	iph->check = ip_fast_csum(iph, iph->ihl);
 #endif
+
+	if (tos == 100) printf("7\n");
 	return (uint8_t *)(iph + 1);
 }
 

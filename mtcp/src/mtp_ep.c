@@ -648,7 +648,8 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     else {
 		// see if we are still in the lists. 
         int ind = find_ge_sorted_list_1(&elem);
-		if (ind < 0){
+		if (ind < 0 ||
+			!equal_sorted_list_1(&elem, &MTP_all_rpcs[ind])){
 			// we have already received all our grants
 			ctx->cc_incoming = ctx->message_length;	
 			scratch->needs_schedule = FALSE;
@@ -888,6 +889,7 @@ void update_prios_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch)
                 prio_elem.message_length = elem.message_length;
                 prio_elem.incoming = elem.incoming;
 				prio_elem.fifo_list_ind = ind;
+				prio_elem.cur_stream = elem.cur_stream;
 
 				int prio_ind = add_to_sorted_list_2(&prio_elem);
                 MTP_all_rpcs[ind].in_prio_list = true;
@@ -977,9 +979,14 @@ void gen_grants_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch) {
             gi.remote_ip = min_elem.remote_ip;
             gi.newgrant = MTP_all_rpcs[min_ind].incoming;
             gi.priority = MTP_HOMA_MAX_SCHED_PRIO;
+			gi.cur_stream = MTP_all_rpcs[min_ind].cur_stream;
 
             if (need_remove){
 				remove_from_sorted_list_1(&min_elem);
+				uint32_t prio_ind = min_elem.prio_list_ind;
+				rpc_info_2 prio_elem = MTP_highest_prio_rpcs[prio_ind];
+				remove_from_sorted_list_2(&prio_elem);
+				// TODO: add a new highest_prio from that peer?
             }
             scratch->send_fifo_rpc = true;
         }
@@ -1368,11 +1375,17 @@ void MtpHomaRecvdReqChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 					ev_dport, ev_single_packet, ev_local_ip,
 					ev_remote_ip, hold_addr, cur_stream, &scratch);
 
+	print_sorted_list_1();
+	print_sorted_list_2();
+
 	sched_ep(mtcp, cur_ts, ev_seq, ev_message_length,
 			ev_incoming, ev_retransmit, ev_offset, 
 			ev_segment_length, ev_rpcid, ev_sport, 
 			ev_dport, ev_single_packet, ev_local_ip, 
 			ev_remote_ip, cur_stream, &scratch);
+
+	print_sorted_list_1();
+	print_sorted_list_2();
 
 	printf("1: total_incoming: %d, MTP_grant_nonfifo_left: %d\n",
 			MTP_total_incoming, MTP_grant_nonfifo_left);
