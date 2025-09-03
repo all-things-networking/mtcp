@@ -121,7 +121,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 
 	// MTP - Compiler-Start: extract
     // maps to extract in the parser
-    printf("ip_len: %d\n", ip_len);
+    MTP_PRINT("ip_len: %d\n", ip_len);
     struct mtp_bp_hdr *mtph = (struct mtp_bp_hdr *) ((u_char *)iph + (iph->ihl << 2));
     // MTP TODO: add this after changing tcp_stream because that one keeps it in network order
     //mtph->dest = ntohs(mtph->dest);
@@ -197,7 +197,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
             printf("Error: no socket found for incoming packet\n");
         }
         else {
-            printf("Found socket for incoming packet: id %d\n", socket->id);
+            MTP_PRINT("Found socket for incoming packet: id %d\n", socket->id);
         }
 
         MtpHomaNoHomaCtxChain(mtcp, cur_ts, 
@@ -751,7 +751,7 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
             MTP_PRINT("here2\n");
             struct mtp_bp_hdr *mtph;
             mtph = (struct mtp_bp_hdr *)IPOutputWTos(mtcp, bp->cur_stream,
-                            hdr_len + pkt_len, 100);
+                            hdr_len + pkt_len, bp->prio);
 
             MTP_PRINT("here3\n");
             if (mtph == NULL) {

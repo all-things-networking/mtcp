@@ -204,8 +204,8 @@ RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream)
 {
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLIN) {
-			printf("adding read epoll event to RPC ind: %d\n",
-				   stream->rpc_id);
+			// printf("adding read epoll event to RPC ind: %d\n",
+			// 	   stream->rpc_id);
 			AddEpollEvent(mtcp->ep, 
 					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN,
 				stream->rpc_ind);

@@ -366,14 +366,14 @@ HandleReadEvent(thread_context_t ctx, int sockid, uint32_t rpc_ind, struct wget_
 	int rd;
 	struct incoming_req_wrapper req;
 
-	printf("Before mtcp_rpc_read\n");
+	// printf("Before mtcp_rpc_read\n");
 	rd = mtcp_rpc_read(mctx, sockid, rpc_ind, &req);
 	// printf("finished reading HTTP request, bytes read: %d\n", rd);
 	if (rd <= 0) {
 		return rd;
 	}
 	else {
-		printf("finished reading %d bytes\n", (int)req.len);
+		// printf("finished reading %d bytes\n", (int)req.len);
 		mtcp_rpc_done_rcv(mctx, sockid, rpc_ind);
 		EndRPC(ctx, sockid);
 	}

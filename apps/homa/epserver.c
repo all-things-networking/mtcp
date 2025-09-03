@@ -226,7 +226,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid,
 		return rd;
 	}
 	else {
-		printf("finished reading %d bytes from RPC ind: %d\n", (int)req.len, rpc_ind);
+		// printf("finished reading %d bytes from RPC ind: %d\n", (int)req.len, rpc_ind);
 		// printf("Request:\n%s\n", req.buff);
 	}
 
@@ -451,8 +451,8 @@ RunServerThread(void *arg)
 
 			} else if (events[i].events & MTCP_EPOLLRDHUP) {
 				// TODO:
-				printf("Got the ack for socket %d rpc ind %d\n",
-						events[i].data.sockid, events[i].rpc_ind);
+				// printf("Got the ack for socket %d rpc ind %d\n",
+				// 		events[i].data.sockid, events[i].rpc_ind);
 				CleanServerVariable(&ctx->svars[events[i].rpc_ind]);
 			} 
 			else {
