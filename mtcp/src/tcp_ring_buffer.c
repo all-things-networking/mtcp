@@ -75,7 +75,8 @@ RBPrintHex(struct tcp_ring_buffer* buff)
 }
 /*----------------------------------------------------------------------------*/
 rb_manager_t
-RBManagerCreate(mtcp_manager_t mtcp, size_t chunk_size, uint32_t cnum)
+RBManagerCreate(mtcp_manager_t mtcp, size_t chunk_size, uint32_t cnum, 
+				uint32_t pool_id)
 {
 	rb_manager_t rbm = (rb_manager_t) calloc(1, sizeof(rb_manager));
 
@@ -88,7 +89,7 @@ RBManagerCreate(mtcp_manager_t mtcp, size_t chunk_size, uint32_t cnum)
 	rbm->cnum = cnum;
 #if ! defined(DISABLE_DPDK) && ! defined(ENABLE_ONVM)
 	char pool_name[RTE_MEMPOOL_NAMESIZE];
-	sprintf(pool_name, "rbm_pool_%u", mtcp->ctx->cpu);
+	sprintf(pool_name, "rbm_pool_%u_%u", pool_id, mtcp->ctx->cpu);
 	rbm->mp = (mem_pool_t)MPCreate(pool_name, chunk_size, (uint64_t)chunk_size * cnum);	
 #else
 	rbm->mp = (mem_pool_t)MPCreate(chunk_size, (uint64_t)chunk_size * cnum);
@@ -99,7 +100,7 @@ RBManagerCreate(mtcp_manager_t mtcp, size_t chunk_size, uint32_t cnum)
 		return NULL;
 	}
 #if ! defined(DISABLE_DPDK) && ! defined(ENABLE_ONVM)
-	sprintf(pool_name, "frag_mp_%u", mtcp->ctx->cpu);
+	sprintf(pool_name, "frag_mp_%u_%u", pool_id, mtcp->ctx->cpu);
 	rbm->frag_mp = (mem_pool_t)MPCreate(pool_name, sizeof(struct fragment_ctx), 
 					    sizeof(struct fragment_ctx) * cnum);	
 #else

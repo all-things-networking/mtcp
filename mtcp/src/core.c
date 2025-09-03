@@ -1120,9 +1120,9 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 	}
 
 	#ifdef USE_MTP
-	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, CONFIG.max_num_buffers);
+	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, CONFIG.max_num_buffers, 1);
 	mtcp->default_buff_size = CONFIG.rcvbuf_size;
-	mtcp->rbm_large_rcv = RBManagerCreate(mtcp, MTP_LARGE_RCV_SIZE, CONFIG.max_num_buffers);
+	mtcp->rbm_large_rcv = RBManagerCreate(mtcp, MTP_LARGE_RCV_SIZE, MTP_LARGE_BUFF_CNT, 2);
 	#else
 	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, CONFIG.max_num_buffers);
 	#endif

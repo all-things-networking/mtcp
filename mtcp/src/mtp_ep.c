@@ -399,9 +399,10 @@ void print_sorted_list_1(){
 	printf("------- All RPCs list:---------\n");
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
 		if (MTP_all_rpcs[i].valid){
-			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d, in_prio_list: %d, prio_ind: %d\n",
+			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d, msg_len: %d, in_prio_list: %d, prio_ind: %d\n",
 					MTP_all_rpcs[i].peer_id, MTP_all_rpcs[i].rpcid,
 					MTP_all_rpcs[i].bytes_remaining, MTP_all_rpcs[i].incoming,
+					MTP_all_rpcs[i].message_length,
 					MTP_all_rpcs[i].in_prio_list, MTP_all_rpcs[i].prio_list_ind);
 		}
 	}
@@ -475,10 +476,11 @@ void print_sorted_list_2(){
 	printf("------- Highest Prio RPCs list:---------\n");
 	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
 		if (MTP_highest_prio_rpcs[i].valid){
-			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d\n",
+			printf("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d, msg_len: %d\n",
 					MTP_highest_prio_rpcs[i].peer_id, MTP_highest_prio_rpcs[i].rpcid,
 					MTP_highest_prio_rpcs[i].bytes_remaining,
-				    MTP_highest_prio_rpcs[i].incoming);
+				    MTP_highest_prio_rpcs[i].incoming,
+					MTP_highest_prio_rpcs[i].message_length);
 		}
 	}
 	printf("------------------------\n");
@@ -677,20 +679,22 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 
     int my_ind = find_ge_sorted_list_1(&elem);
 	elem = MTP_all_rpcs[my_ind];
+	if (elem.in_prio_list) return;
 
     rpc_info_1 search_elem = {0};
     search_elem.peer_id = elem.peer_id;
     int sind = find_ge_sorted_list_1(&search_elem);
 	rpc_info_1 highest_prio = MTP_all_rpcs[sind];
 
-	// print_rpc_info_1("elem", &elem);
-	// print_rpc_info_1("search_elem", &search_elem);
-	// printf("%d\n", less_then_sorted_list_1(&search_elem, &elem));
-	// print_rpc_info_1("highest_prio", &highest_prio);
+	print_rpc_info_1("elem", &elem);
+	print_rpc_info_1("search_elem", &search_elem);
+	printf("%d\n", less_then_sorted_list_1(&search_elem, &elem));
+	print_rpc_info_1("highest_prio", &highest_prio);
 
     if (equal_sorted_list_1(&elem, &highest_prio)) {
         rpc_info_1 next_elem = elem;
         next_elem.remote_ip += 1;
+		print_rpc_info_1("next elem", &next_elem);
         int old_ind = find_ge_sorted_list_1(&next_elem);
         
         if (old_ind < 0 || MTP_all_rpcs[old_ind].peer_id != elem.peer_id){
@@ -716,7 +720,7 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
             }
         }
         else {
-
+			printf("In this branch of sched_ep: old_ind: %d\n", old_ind);
             //remove previous highest priority
             rpc_info_2 old_prio_elem;
             rpc_info_1 old_elem = MTP_all_rpcs[old_ind];
@@ -726,9 +730,13 @@ void sched_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 			old_prio_elem.local_port = old_elem.local_port;	
 			old_prio_elem.remote_port = old_elem.remote_port;
 			old_prio_elem.remote_ip = old_elem.remote_ip;
+			print_rpc_info_2("old prio elem: ", &old_prio_elem);
 			rpc_info_2 rmvd = remove_from_sorted_list_2(&old_prio_elem);
+			print_rpc_info_2("rmoeved elem: ", &rmvd);
             MTP_all_rpcs[old_ind].in_prio_list = false;
 			MTP_all_rpcs[old_ind].incoming = rmvd.incoming;
+
+			print_sorted_list_2();
 
             // add the new one
             rpc_info_2 prio_elem;
@@ -783,10 +791,10 @@ void choose_grant_ep(mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch){
         }
         
         int available = MTP_HOMA_MAX_INCOMING - MTP_total_incoming;
-        uint32_t increment = new_grant - grant_elem.incoming;
+        int increment = new_grant - grant_elem.incoming;
 
-		printf("RPCID: %d, increment: %d, available:%d\n",
-				grant_elem.rpcid, increment, available);
+		printf("RPCID: %d, increment: %d, available:%d, new_grant: %u, grant_elem.incoming: %d\n",
+				grant_elem.rpcid, increment, available, new_grant, grant_elem.incoming);
         if (increment > 0 && available > 0){
 			// We are giving the grant
 
@@ -955,7 +963,7 @@ void gen_grants_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch) {
             return;
         }
         else {
-            uint32_t increment = 0;
+            int increment = 0;
             uint32_t newgrant = 0;
             bool need_remove = false;
             rpc_info_1 min_elem = MTP_all_rpcs[min_ind];

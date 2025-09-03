@@ -8,6 +8,7 @@
 
 #define MTP_PER_FLOW_BP_CNT 1000
 #define MTP_LARGE_RCV_SIZE 1048576
+#define MTP_LARGE_BUFF_CNT 100
 
 // Protocol-specific parameters: Homa
 #define MTP_HOMA_MAX_RPC 500

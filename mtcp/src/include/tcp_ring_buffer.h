@@ -61,7 +61,8 @@ void RBPrintInfo(struct tcp_ring_buffer* buff);
 void RBPrintStr(struct tcp_ring_buffer* buff);
 void RBPrintHex(struct tcp_ring_buffer* buff);
 /*----------------------------------------------------------------------------*/
-rb_manager_t RBManagerCreate(mtcp_manager_t mtcp, size_t chunk_size, uint32_t cnum);
+rb_manager_t RBManagerCreate(mtcp_manager_t mtcp, size_t chunk_size, uint32_t cnum,
+							uint32_t pool_id);
 /*----------------------------------------------------------------------------*/
 struct tcp_ring_buffer* RBInit(rb_manager_t rbm,  uint32_t init_seq);
 void RBFree(rb_manager_t rbm, struct tcp_ring_buffer* buff);

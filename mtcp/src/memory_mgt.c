@@ -170,7 +170,8 @@ MPCreate(char *name, int chunk_size, size_t total_size)
 				MEMPOOL_F_NO_SPREAD);
 
 	if (mp == NULL) {
-		TRACE_ERROR("Can't allocate memory for mempool!\n");
+		TRACE_ERROR("Can't allocate memory for mempool! chunk_size: %d, total_size: %ld\n", 
+			        chunk_size, total_size);
 		exit(EXIT_FAILURE);
 	}
 
