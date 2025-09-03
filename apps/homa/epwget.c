@@ -909,6 +909,7 @@ main(int argc, char **argv)
 			url, host);
 
 	int req_len = strlen(request);
+	padding = padding - req_len;
 	int total_len = req_len + padding;
 	send_string = malloc(total_len + 1);
 	strncpy(send_string, request, req_len + 1);

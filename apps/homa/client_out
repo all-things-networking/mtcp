@@ -1,8 +1,8 @@
 Application configuration:
 URL: /32b.txt
-# of total_flows: 3
+# of total_flows: 4
 # of cores: 1
-Concurrency: 3
+Concurrency: 4
 start of dpdk config
 new dpdk
 RTE_MAX_ETHPORTS = 32
@@ -34,136 +34,207 @@ before SendRPCRequest
 Creating stream with srcip 83887882, sport 260, destip 100665098, destport 20480, rpcid 2
 Setting rpc_id for Stream 2 to 2
 after SendRPCRequest
+before SendRPCRequest
+Creating stream with srcip 83887882, sport 260, destip 100665098, destport 20480, rpcid 3
+Setting rpc_id for Stream 3 to 3
+after SendRPCRequest
+---------------------------------
+Sending MTP packet:
 *************** MTP BP Header ******************
 Source: 260, Dest: 20480, Seq: 0
 Sender ID: 0
 Type: 16
-Message Length: 60109, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Message Length: 70000, Incoming: 30000, Cutoff Version: 0, Retransmit: 0
 Segmentation Offset: 0, Segment Length: 0
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
-Payload Length: 60000
+Payload Length: 30000
 Priority: 0
-Payload Data Pointer: 0x17e9b4a40
+Payload Data Pointer: 0x17e76e0c0
 Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
 *********************************************
+---------------------------------
+Sending MTP packet:
 *************** MTP BP Header ******************
 Source: 260, Dest: 20480, Seq: 0
 Sender ID: 1
 Type: 16
-Message Length: 60109, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Message Length: 70000, Incoming: 30000, Cutoff Version: 0, Retransmit: 0
 Segmentation Offset: 0, Segment Length: 0
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
-Payload Length: 60000
+Payload Length: 30000
 Priority: 0
-Payload Data Pointer: 0x17e9d4a80
+Payload Data Pointer: 0x17e7ae100
 Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
 *********************************************
-*************** MTP BP Header ******************
-Source: 260, Dest: 20480, Seq: 21
-Sender ID: 1
-Type: 16
-Message Length: 60109, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
-Segmentation Offset: 29820, Segment Length: 0
-Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
-Payload Length: 30180
-Priority: 0
-Payload Data Pointer: 0x17e9dbefc
-Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
-*********************************************
+---------------------------------
+Sending MTP packet:
 *************** MTP BP Header ******************
 Source: 260, Dest: 20480, Seq: 0
 Sender ID: 2
 Type: 16
-Message Length: 60109, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
+Message Length: 70000, Incoming: 30000, Cutoff Version: 0, Retransmit: 0
 Segmentation Offset: 0, Segment Length: 0
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
-Payload Length: 60000
+Payload Length: 30000
 Priority: 0
-Payload Data Pointer: 0x17e9f4ac0
+Payload Data Pointer: 0x17e7ee140
 Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
 *********************************************
+ran out midway
+---------------------------------
+Sending MTP packet:
 *************** MTP BP Header ******************
-Source: 260, Dest: 20480, Seq: 42
+Source: 260, Dest: 20480, Seq: 20
 Sender ID: 2
 Type: 16
-Message Length: 60109, Incoming: 60000, Cutoff Version: 0, Retransmit: 0
-Segmentation Offset: 59640, Segment Length: 0
+Message Length: 70000, Incoming: 30000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 28400, Segment Length: 0
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
-Payload Length: 360
+Payload Length: 1600
 Priority: 0
-Payload Data Pointer: 0x17ea033b8
+Payload Data Pointer: 0x17e7f5030
+Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
+*********************************************
+---------------------------------
+Sending MTP packet:
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 0
+Sender ID: 3
+Type: 16
+Message Length: 70000, Incoming: 30000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 0
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 30000
+Priority: 0
+Payload Data Pointer: 0x17e82e180
 Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
 *********************************************
 ip_len: 50
+---------------------------------
+Received MTP packet:
 *************** MTP BP Header ******************
 Source: 20480, Dest: 260, Seq: 0
 Sender ID: 0
 Type: 17
-Grant Offset: 60109, Priority: 3, Resend All: 0
+Grant Offset: 70000, Priority: 3, Resend All: 0
 Payload Length: 0
 Priority: 64
 Payload Data Pointer: (nil)
-Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 3141678489
+Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 121708698
 *********************************************
 ip_len: 50
+---------------------------------
+Received MTP packet:
 *************** MTP BP Header ******************
 Source: 20480, Dest: 260, Seq: 0
 Sender ID: 1
 Type: 17
-Grant Offset: 60109, Priority: 3, Resend All: 0
+Grant Offset: 70000, Priority: 3, Resend All: 0
 Payload Length: 0
 Priority: 64
 Payload Data Pointer: (nil)
-Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 3141678489
+Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 121708698
 *********************************************
+ip_len: 50
+---------------------------------
+Received MTP packet:
 *************** MTP BP Header ******************
-Source: 260, Dest: 20480, Seq: 43
+Source: 20480, Dest: 260, Seq: 0
+Sender ID: 2
+Type: 17
+Grant Offset: 70000, Priority: 3, Resend All: 0
+Payload Length: 0
+Priority: 64
+Payload Data Pointer: (nil)
+Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 121708698
+*********************************************
+---------------------------------
+Sending MTP packet:
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 22
 Sender ID: 0
 Type: 16
-Message Length: 60109, Incoming: 60109, Cutoff Version: 0, Retransmit: 0
-Segmentation Offset: 60000, Segment Length: 0
+Message Length: 70000, Incoming: 70000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 30000, Segment Length: 0
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
-Payload Length: 109
+Payload Length: 40000
 Priority: 3
-Payload Data Pointer: 0x17e9c34a0
+Payload Data Pointer: 0x17e7755f0
 Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
 *********************************************
+---------------------------------
+Sending MTP packet:
 *************** MTP BP Header ******************
-Source: 260, Dest: 20480, Seq: 43
+Source: 260, Dest: 20480, Seq: 22
 Sender ID: 1
 Type: 16
-Message Length: 60109, Incoming: 60109, Cutoff Version: 0, Retransmit: 0
-Segmentation Offset: 60000, Segment Length: 0
+Message Length: 70000, Incoming: 70000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 30000, Segment Length: 0
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
-Payload Length: 109
+Payload Length: 40000
 Priority: 3
-Payload Data Pointer: 0x17e9e34e0
+Payload Data Pointer: 0x17e7b5630
+Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
+*********************************************
+---------------------------------
+Sending MTP packet:
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 22
+Sender ID: 2
+Type: 16
+Message Length: 70000, Incoming: 70000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 30000, Segment Length: 0
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 40000
+Priority: 3
+Payload Data Pointer: 0x17e7f5670
+Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
+*********************************************
+ran out midway
+---------------------------------
+Sending MTP packet:
+*************** MTP BP Header ******************
+Source: 260, Dest: 20480, Seq: 28
+Sender ID: 2
+Type: 16
+Message Length: 70000, Incoming: 70000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 38520, Segment Length: 0
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 31480
+Priority: 3
+Payload Data Pointer: 0x17e7f77b8
 Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
 *********************************************
 ip_len: 50
+---------------------------------
+Received MTP packet:
 *************** MTP BP Header ******************
 Source: 20480, Dest: 260, Seq: 0
-Sender ID: 2
+Sender ID: 3
 Type: 17
-Grant Offset: 60109, Priority: 3, Resend All: 0
+Grant Offset: 70000, Priority: 3, Resend All: 0
 Payload Length: 0
 Priority: 64
 Payload Data Pointer: (nil)
-Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 3225500057
+Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 1128415385
 *********************************************
+---------------------------------
+Sending MTP packet:
 *************** MTP BP Header ******************
-Source: 260, Dest: 20480, Seq: 43
-Sender ID: 2
+Source: 260, Dest: 20480, Seq: 22
+Sender ID: 3
 Type: 16
-Message Length: 60109, Incoming: 60109, Cutoff Version: 0, Retransmit: 0
-Segmentation Offset: 60000, Segment Length: 0
+Message Length: 70000, Incoming: 70000, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 30000, Segment Length: 0
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
-Payload Length: 109
+Payload Length: 40000
 Priority: 3
-Payload Data Pointer: 0x17ea03520
+Payload Data Pointer: 0x17e8356b0
 Needs Segmentation: Yes, Seg Size: 1420, Seg Rule Group ID: 1
 *********************************************
 ip_len: 244
+---------------------------------
+Received MTP packet:
 *************** MTP BP Header ******************
 Source: 20480, Dest: 260, Seq: 0
 Sender ID: 0
@@ -173,8 +244,8 @@ Segmentation Offset: 0, Segment Length: 172
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 172
 Priority: 2
-Payload Data Pointer: 0x17ec8fd96
-Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 3225500057
+Payload Data Pointer: 0x17ec8f456
+Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 1128415385
 *********************************************
 Read event in recv resp single packet for RPC ind: 0
 adding read epoll event to RPC ind: 0
@@ -194,6 +265,8 @@ rpc_id: 0, newgrant: 0, priority: 0
 rpc_id: 0, newgrant: 0, priority: 0
 ------------------------
 ip_len: 244
+---------------------------------
+Received MTP packet:
 *************** MTP BP Header ******************
 Source: 20480, Dest: 260, Seq: 0
 Sender ID: 1
@@ -203,12 +276,80 @@ Segmentation Offset: 0, Segment Length: 172
 Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
 Payload Length: 172
 Priority: 2
-Payload Data Pointer: 0x17ec8f456
-Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 3225500057
+Payload Data Pointer: 0x17ec8eb16
+Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 1128415385
 *********************************************
 Read event in recv resp single packet for RPC ind: 1
 adding read epoll event to RPC ind: 1
 added event for RPC ind: 1
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+Before mtcp_rpc_read
+finished reading 172 bytes
+Before mtcp_rpc_read
+finished reading 172 bytes
+ip_len: 244
+---------------------------------
+Received MTP packet:
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 0
+Sender ID: 2
+Type: 16
+Message Length: 172, Incoming: 172, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 172
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 172
+Priority: 2
+Payload Data Pointer: 0x17ec8e1d6
+Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 1128415385
+*********************************************
+Read event in recv resp single packet for RPC ind: 2
+adding read epoll event to RPC ind: 2
+added event for RPC ind: 2
+------- All RPCs list:---------
+------------------------
+------- Highest Prio RPCs list:---------
+------------------------
+------- MTP_ri list:---------
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+rpc_id: 0, newgrant: 0, priority: 0
+------------------------
+ip_len: 244
+---------------------------------
+Received MTP packet:
+*************** MTP BP Header ******************
+Source: 20480, Dest: 260, Seq: 0
+Sender ID: 3
+Type: 16
+Message Length: 172, Incoming: 172, Cutoff Version: 0, Retransmit: 0
+Segmentation Offset: 0, Segment Length: 172
+Homa Ack - RPC ID: 0, Src Port: 0, Dest Port: 0
+Payload Length: 172
+Priority: 2
+Payload Data Pointer: 0x17ec8d896
+Needs Segmentation: Yes, Seg Size: 1, Seg Rule Group ID: 1128415385
+*********************************************
+Read event in recv resp single packet for RPC ind: 3
+adding read epoll event to RPC ind: 3
+added event for RPC ind: 3
 ------- All RPCs list:---------
 ------------------------
 ------- Highest Prio RPCs list:---------

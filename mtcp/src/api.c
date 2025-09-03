@@ -1462,7 +1462,7 @@ mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct incoming_req_wra
 	tcp_stream *cur_stream;
 	struct tcp_recv_vars *rcvvar;
 	
-	MTP_PRINT("mtcp_recv called: sockid %d, len %zu, flags %d\n", sockid, len, flags);
+	// MTP_PRINT("mtcp_recv called: sockid %d, len %zu, flags %d\n", sockid, len, flags);
 	mtcp = GetMTCPManager(mctx);
         if (!mtcp) {
 		return -1;
