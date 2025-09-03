@@ -275,6 +275,13 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         MtpHomaRecvdGrantChain(mtcp, cur_ts, ev_offset, ev_priority, 
 			                    cur_stream);
     }
+
+    // Not an event chain at the moment
+    else if (mtph->type == MTP_HOMA_ACK){
+        if (cur_stream->mtp->rpc_is_client) return TRUE;
+        RaiseCloseEvent(mtcp, cur_stream);
+        DestroyCtx(mtcp, cur_stream, cur_stream->sport);
+    }
     
 
     // if (mtph->syn && mtph->ack){

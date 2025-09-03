@@ -415,6 +415,10 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 	// 	stream->mtp->meta_rwnd = NULL;
 	// }
 
+	socket_map_t sock = stream->socket;
+	sock->rpcs[stream->rpc_ind] = NULL;
+	sock->cur_rpcs--;
+	
 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
 
 	/* remove from flow hash table */

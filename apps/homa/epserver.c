@@ -385,7 +385,7 @@ CreateRPCSocket(struct thread_context *ctx)
 	}
 
 	/* wait for incoming requests */
-	ev.events = MTCP_EPOLLIN;
+	ev.events = MTCP_EPOLLIN | MTCP_EPOLLRDHUP;
 	ev.data.sockid = listener;
 	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, listener, &ev);
 
@@ -449,25 +449,9 @@ RunServerThread(void *arg)
 									  events[i].rpc_ind, 
 									  &ctx->svars[events[i].rpc_ind]);
 
-			} else if (events[i].events & MTCP_EPOLLERR) {
-				int err;
-				socklen_t len = sizeof(err);
-
-				/* error on the connection */
-				TRACE_APP("[CPU %d] Error on socket %d\n", 
-						core, events[i].data.sockid);
-				if (mtcp_getsockopt(mctx, events[i].data.sockid, 
-						SOL_SOCKET, SO_ERROR, (void *)&err, &len) == 0) {
-					if (err != ETIMEDOUT) {
-						fprintf(stderr, "Error on socket %d: %s\n", 
-								events[i].data.sockid, strerror(err));
-					}
-				} else {
-					perror("mtcp_getsockopt");
-				}
-				CloseConnection(ctx, events[i].data.sockid, 
-						&ctx->svars[events[i].data.sockid]);
-
+			} else if (events[i].events & MTCP_EPOLLRDHUP) {
+				// TODO:
+				printf("Got the ack\n");
 			} 
 			else {
 				assert(0);
