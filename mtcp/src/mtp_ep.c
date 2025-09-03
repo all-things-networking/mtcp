@@ -1004,6 +1004,32 @@ void gen_grants_ep (mtcp_manager_t mtcp, uint32_t cur_ts, scratchpad *scratch) {
 				rpc_info_2 prio_elem = MTP_highest_prio_rpcs[prio_ind];
 				remove_from_sorted_list_2(&prio_elem);
 				// TODO: add a new highest_prio from that peer?
+
+				uint16_t peer_id = min_elem.peer_id;
+				rpc_info_1 elem = {0};
+				elem.peer_id = peer_id;
+				int ind = find_ge_sorted_list_1(&elem);
+
+				if (ind >= 0 && MTP_all_rpcs[ind].peer_id == elem.peer_id){
+					// There is another element, which is the 
+					// highest priority  
+					elem = MTP_all_rpcs[ind];
+					rpc_info_2 prio_elem;
+					prio_elem.bytes_remaining = elem.bytes_remaining;
+					prio_elem.peer_id = peer_id;
+					prio_elem.rpcid = elem.rpcid;
+					prio_elem.local_port = elem.local_port;
+					prio_elem.remote_port = elem.remote_port;
+					prio_elem.remote_ip = elem.remote_ip;
+					prio_elem.message_length = elem.message_length;
+					prio_elem.incoming = elem.incoming;
+					prio_elem.fifo_list_ind = ind;
+					prio_elem.cur_stream = elem.cur_stream;
+
+					int prio_ind = add_to_sorted_list_2(&prio_elem);
+					MTP_all_rpcs[ind].in_prio_list = true;
+					MTP_all_rpcs[ind].prio_list_ind = prio_ind;
+            	}
             }
             scratch->send_fifo_rpc = true;
         }
