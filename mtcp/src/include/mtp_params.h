@@ -7,6 +7,7 @@
 #define MTP_BP_BUFFER_FULL_ERROR  -2
 
 #define MTP_PER_FLOW_BP_CNT 1000
+#define MTP_LARGE_RCV_SIZE 1048576
 
 // Protocol-specific parameters: Homa
 #define MTP_HOMA_MAX_RPC 500

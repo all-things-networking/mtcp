@@ -254,6 +254,7 @@ typedef struct tcp_stream
 	uint32_t homa_tx_prio_rpcid;
 	uint16_t homa_tx_prio_local_port;
 	uint32_t homa_tx_prio_birth;
+	rb_manager_t mtp_rbm;
 //#endif
 
 #if RATE_LIMIT_ENABLED

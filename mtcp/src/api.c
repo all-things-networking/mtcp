@@ -1273,6 +1273,7 @@ CopyToUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 	prev_rcv_wnd = rcvvar->rcv_wnd;
 	/* Copy data to user buffer and remove it from receiving buffer */
 	memcpy(buf, rcvvar->rcvbuf->head, copylen);
+	//TODO watch this (change it to cur_stream->mtp_rbm) if needed
 	RBRemove(mtcp->rbm_rcv, rcvvar->rcvbuf, copylen, AT_APP);
 	rcvvar->rcv_wnd = rcvvar->rcvbuf->size - rcvvar->rcvbuf->merged_len;
 
