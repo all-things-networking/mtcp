@@ -3,7 +3,7 @@
 #include <netinet/in.h>
 #include "mtp_params.h" 
 
-// #define ENABLE_MTP_PRINT 1
+#define ENABLE_MTP_PRINT 1
 
 #ifdef ENABLE_MTP_PRINT
 #define MTP_PRINT(f, m...) fprintf(stdout, f, ##m)
