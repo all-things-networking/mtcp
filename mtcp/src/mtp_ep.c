@@ -311,7 +311,7 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
     }
 
 	if (scratch->complete){
-		mtp_bp *bp = GetFreeBP(cur_stream);
+		mtp_bp *bp = GetFreeGBP(mtcp);
 		memset(&(bp->hdr), 0, MTP_HOMA_COMMON_HSIZE);
 
 		bp->cur_stream = cur_stream;
@@ -321,7 +321,7 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 		hdr->src_port = ctx->local_port;
 		hdr->sender_id = ctx->rpcid;
 
-		AddtoGenList(mtcp, cur_stream, cur_ts);
+		// AddtoGenList(mtcp, cur_stream, cur_ts);
 	}
 }
 
