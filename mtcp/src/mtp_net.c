@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+#include "sched.h"
 #include "mtp_net.h"
 #include "mtp_ep.h"
 #include "fhash.h"
@@ -162,7 +164,11 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	s_stream.dport = mtph->src_port;
     s_stream.rpc_id = mtph->sender_id;
 
+    MTP_PRINT("before context look up\n");
+
     tcp_stream *cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream);
+
+    MTP_PRINT("after context look up: %d, %d\n", cur_stream == NULL, sched_getcpu());
 
     if (!cur_stream && mtph->type == MTP_HOMA_DATA) {
         uint32_t ev_seq = mtph->seq;
@@ -403,7 +409,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
         
         mtp_bp* bp = &(cur_stream->sndvar->mtp_bps[i]);
         
-        // MTP_PRINT("bp @ index %u:\n", i);
+        MTP_PRINT("bp @ index %u, cpu: %u:\n", i, sched_getcpu());
         MTP_PRINT("---------------------------------\n");
         MTP_PRINT("Sending MTP packet:\n");
         print_MTP_bp(bp);
@@ -674,7 +680,15 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
                     struct mtp_bp_hdr *mtph;
                     // TODO: technically, we should check the 
                     //.       packet type.
-                    uint32_t hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE;
+                    uint32_t hdr_len = 0;
+                    if (bp->hdr.type == MTP_HOMA_GRANT){
+                        hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE;
+                    }
+                    else if (bp->hdr.type == MTP_HOMA_ACK){
+                        hdr_len = MTP_HOMA_COMMON_HSIZE;
+                    }
+                    assert(hdr_len > 0);
+
                     // TODO: add UDP header
                     mtph = (struct mtp_bp_hdr *)IPOutputWTos(mtcp, bp->cur_stream,
                             hdr_len + pkt_len, bp->prio);
@@ -733,13 +747,11 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
             sent += 1;
         }
         else {
-            MTP_PRINT("here0\n");
             uint16_t pkt_len = 0;
             if (bp->payload.data != NULL){
                 pkt_len = bp->payload.len;
             }
             
-            MTP_PRINT("here1\n");
             uint32_t hdr_len = 0;
             if(bp->hdr.type == MTP_HOMA_DATA) {
                 hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE;
@@ -747,13 +759,15 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
             else if (bp->hdr.type == MTP_HOMA_GRANT){
                 hdr_len = MTP_HOMA_COMMON_HSIZE + MTP_HOMA_GRANT_HSIZE;
             }
+            else if (bp->hdr.type == MTP_HOMA_ACK){
+                hdr_len = MTP_HOMA_COMMON_HSIZE;
+            }
+            assert(hdr_len > 0);
 
-            MTP_PRINT("here2\n");
             struct mtp_bp_hdr *mtph;
             mtph = (struct mtp_bp_hdr *)IPOutputWTos(mtcp, bp->cur_stream,
                             hdr_len + pkt_len, bp->prio);
 
-            MTP_PRINT("here3\n");
             if (mtph == NULL) {
                 
                 AdvanceGBPListHead(mtcp, sent + err);
@@ -761,7 +775,6 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
                 return -2;
             }
 
-            MTP_PRINT("here4\n");
             memcpy((uint8_t *)mtph, &(bp->hdr), hdr_len);
 
             // MTP_PRINT("Sent Seq 2: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
