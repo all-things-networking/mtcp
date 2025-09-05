@@ -5,6 +5,7 @@
 #include <arpa/inet.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <rte_thash.h>
 
 #include "rss.h"
 
@@ -73,11 +74,17 @@ GetRSSHash(in_addr_t sip, in_addr_t dip, in_port_t sp, in_port_t dp)
 			res ^= key_cache[64+i];
 		sp <<= 1;
 	}
+
+	int pp = 0;
+	if (htons(dp) == 516) pp = 1;
+
 	for (i = 0; i < 16; i++) {
 		if (dp & MSB16)
 			res ^= key_cache[80+i];
 		dp <<= 1;
 	}
+
+	if (pp) printf("RSS hash: 0x%08x\n", res);
 	return res;
 }
 /*-------------------------------------------------------------------*/ 
@@ -107,6 +114,21 @@ GetRSSCPUCore(in_addr_t sip, in_addr_t dip,
 		masked += off[masked & 0x3];
 	} else {
 		/* ixgbe or mlx* */
+
+		static const uint8_t key[] = {
+		 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+		 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+		 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+		 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05,
+		 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05, 0x05
+		};
+		uint32_t tuple[3];
+		tuple[0] = sip;
+		tuple[1] = dip;
+		tuple[2] = (sp << 16) | dp;
+		uint32_t sw_hash = rte_softrss(tuple, 2, key);
+		if (htons(dp) == 516) printf("soft_rss hash: RSS 0x%08x\n", sw_hash);
+
 		masked = GetRSSHash(sip, dip, sp, dp) & RSS_BIT_MASK_IXGBE;
 	}
 

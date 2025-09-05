@@ -60,7 +60,8 @@ struct homa_grant_hdr {
 struct mtp_bp_hdr {
     uint16_t src_port;
     uint16_t dest_port;
-    uint32_t unused1;
+    uint16_t udp_len;
+    uint16_t udp_checksum;
     uint32_t unused2;
     uint8_t  doff;
     uint8_t  type;

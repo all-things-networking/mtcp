@@ -257,7 +257,7 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 #endif
 
 	// if (tos == 100) printf("7\n");
-	iph->protocol = IPPROTO_TCP; // IPPROTO_HOMA;
+	iph->protocol = IPPROTO_UDP; // IPPROTO_HOMA;
 	return (uint8_t *)(iph + 1);
 }
 

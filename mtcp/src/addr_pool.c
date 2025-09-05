@@ -168,7 +168,7 @@ CreateAddressPoolPerCore(int core, int num_queues,
 			rss_core = GetRSSCPUCore(daddr_h, saddr_h, dport_h, sport_h, num_queues, endian_check);
 			if (rss_core != core)
 				continue;
-
+					
 			ap->pool[cnt].addr.sin_addr.s_addr = saddr;
 			ap->pool[cnt].addr.sin_port = htons(sport_h);
 			ap->mapper[i].addrmap[j] = &ap->pool[cnt];

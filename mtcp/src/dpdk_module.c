@@ -537,6 +537,11 @@ dpdk_get_rptr(struct mtcp_thread_context *ctxt, int ifidx, int index, uint16_t *
 	/* enqueue the pkt ptr in mbuf */
 	dpc->rmbufs[ifidx].m_table[index] = m;
 
+	if (m->ol_flags & RTE_MBUF_F_RX_RSS_HASH) {
+		uint32_t hw_hash = m->hash.rss;
+		printf("RSS hash: 0x%08x\n", hw_hash);
+	}
+
 #if 0
 	/* verify checksum values from ol_flags */
 	if ((m->ol_flags & (PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD)) != 0) {
@@ -721,6 +726,7 @@ dpdk_load_module(void)
 #if RTE_VERSION >= RTE_VERSION_NUM(18, 5, 0, 0)
 			/* re-adjust rss_hf */
 			port_conf.rx_adv_conf.rss_conf.rss_hf &= dev_info[portid].flow_type_rss_offloads;
+			printf("RSS flow types mask: 0x%" PRIx64 "\n", port_conf.rx_adv_conf.rss_conf.rss_hf);
 #endif
 			/* init port */
 			printf("Initializing port %u... ", (unsigned) portid);
