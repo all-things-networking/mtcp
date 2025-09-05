@@ -182,7 +182,7 @@ DestroyContext(thread_context_t ctx)
 /*----------------------------------------------------------------------------*/
 
 static inline int 
-SendRPCRequest(thread_context_t ctx, int sockid)
+SendRPCRequest(thread_context_t ctx, int sockid, struct wget_vars *wvars)
 {
 	mctx_t mctx = ctx->mctx;
 	struct mtcp_epoll_event ev;
@@ -200,7 +200,9 @@ SendRPCRequest(thread_context_t ctx, int sockid)
 
 	len = strlen(send_string);
 
-	ret = mtcp_rpc_send_req(mctx, sockid, send_string, len, &addr);
+	uint32_t rpc_ind;
+
+	ret = mtcp_rpc_send_req(mctx, sockid, send_string, len, &addr, &rpc_ind);
 	
 	if (ret < 0) {
 		if (errno != EINPROGRESS) {
@@ -216,6 +218,9 @@ SendRPCRequest(thread_context_t ctx, int sockid)
 		mtcp_epoll_ctl(mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, sockid, &ev);
 	}
 
+	struct wget_vars *wv = &wvars[rpc_ind];
+	gettimeofday(&wv->t_start, NULL);
+
 	ctx->started++;
 	ctx->pending++;
 
@@ -223,13 +228,41 @@ SendRPCRequest(thread_context_t ctx, int sockid)
 }
 /*----------------------------------------------------------------------------*/
 static inline void 
-EndRPC(thread_context_t ctx, int sockid)
+EndRPC(thread_context_t ctx, int sockid, struct wget_vars *wvars, uint32_t rpc_ind)
 {
+#ifdef APP
+	mctx_t mctx = ctx->mctx;
+#endif
+	uint64_t tdiff;
+
+	struct wget_vars *wv = &wvars[rpc_ind];
+
+	TRACE_APP("RPC complete!\n", sockid);
+	// printf("Socket %d File download complete!\n", sockid);
+	gettimeofday(&wv->t_end, NULL);
+	ctx->stat.completes++;
+	tdiff = (wv->t_end.tv_sec - wv->t_start.tv_sec) * 1000000 + 
+			(wv->t_end.tv_usec - wv->t_start.tv_usec);
+
+	printf("diff:%ld\n", tdiff);
+	
+	if (record_res){
+		int len = sprintf(res_buf, "%lu\n", tdiff);
+		int ret = write(res_fd, res_buf, len);
+		if (ret != len){
+			printf("couldn't write res\n");
+		}
+	}
+	
+	ctx->stat.sum_resp_time += tdiff;
+	if (tdiff > ctx->stat.max_resp_time)
+		ctx->stat.max_resp_time = tdiff;
+	
 	ctx->pending--;
 	ctx->done++;
 	assert(ctx->pending >= 0);
 	while (ctx->pending < concurrency && ctx->started < ctx->target) {
-		if (SendRPCRequest(ctx, sockid) < 0) {
+		if (SendRPCRequest(ctx, sockid, wvars) < 0) {
 			done[ctx->core] = TRUE;
 			break;
 		}
@@ -237,7 +270,7 @@ EndRPC(thread_context_t ctx, int sockid)
 }
 /*----------------------------------------------------------------------------*/
 static inline void 
-CloseConnection(thread_context_t ctx, int sockid)
+CloseConnection(thread_context_t ctx, int sockid, struct wget_vars *wvars)
 {
 	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_DEL, sockid, NULL);
 	mtcp_close(ctx->mctx, sockid);
@@ -245,7 +278,7 @@ CloseConnection(thread_context_t ctx, int sockid)
 	ctx->done++;
 	assert(ctx->pending >= 0);
 	while (ctx->pending < concurrency && ctx->started < ctx->target) {
-		if (SendRPCRequest(ctx, sockid) < 0) {
+		if (SendRPCRequest(ctx, sockid, wvars) < 0) {
 			done[ctx->core] = TRUE;
 			break;
 		}
@@ -317,7 +350,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	TRACE_APP("Socket %d File download complete!\n", sockid);
 	// printf("Socket %d File download complete!\n", sockid);
 	gettimeofday(&wv->t_end, NULL);
-	CloseConnection(ctx, sockid);
+	CloseConnection(ctx, sockid, wv);
 	ctx->stat.completes++;
 	if (response_size == 0) {
 		response_size = wv->recv;
@@ -360,7 +393,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 }
 /*----------------------------------------------------------------------------*/
 static inline int
-HandleReadEvent(thread_context_t ctx, int sockid, uint32_t rpc_ind, struct wget_vars *wv)
+HandleReadEvent(thread_context_t ctx, int sockid, uint32_t rpc_ind, struct wget_vars *wvars)
 {
 	mctx_t mctx = ctx->mctx;
 	int rd;
@@ -375,7 +408,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, uint32_t rpc_ind, struct wget_
 	else {
 		// printf("finished reading %d bytes\n", (int)req.len);
 		mtcp_rpc_done_rcv(mctx, sockid, rpc_ind);
-		EndRPC(ctx, sockid);
+		EndRPC(ctx, sockid, wvars, rpc_ind);
 	}
 	/*
 	char buf[BUF_SIZE];
@@ -740,7 +773,7 @@ RunWgetMain(void *arg)
 
 		while (ctx->pending < concurrency && ctx->started < ctx->target) {
 			printf("before SendRPCRequest\n");
-			int ret = SendRPCRequest(ctx, client);
+			int ret = SendRPCRequest(ctx, client, wvars);
 			printf("after SendRPCRequest\n");
 			if (ret < 0) {
 				done[core] = TRUE;
@@ -769,7 +802,7 @@ RunWgetMain(void *arg)
 			if (events[i].events & MTCP_EPOLLIN) {
 				HandleReadEvent(ctx, 
 						events[i].data.sockid, events[i].rpc_ind,
-						&wvars[events[i].data.sockid]);
+						wvars);
 
 			} 
 			else {

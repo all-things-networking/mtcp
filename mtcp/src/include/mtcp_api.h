@@ -163,7 +163,7 @@ int
 mtcp_rpc_read(mctx_t mctx, int sockid, uint32_t rpc_ind, struct incoming_req_wrapper *req);
 
 int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
-					  const struct sockaddr_in *addr_in);
+					  const struct sockaddr_in *addr_in, uint32_t *rpc_ind);
 
 int mtcp_rpc_send_resp(mctx_t mctx, int sockid, uint32_t rpc_ind, char* msg_hdr, 
 					   size_t msg_hdr_len, char* buf, size_t len);

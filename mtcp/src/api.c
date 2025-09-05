@@ -1971,7 +1971,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 /*----------------------------------------------------------------------------*/
 int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
-					  const struct sockaddr_in *addr_in){
+					  const struct sockaddr_in *addr_in, uint32_t *rpc_ind){
 	
 	mtcp_manager_t mtcp;
 	socket_map_t socket;
@@ -2012,6 +2012,7 @@ int mtcp_rpc_send_req(mctx_t mctx, int sockid, char* buf, size_t len,
 
 	socket->rpcs[cur_stream->rpc_ind] = cur_stream;
 	cur_stream->socket = socket;
+	*rpc_ind = cur_stream->rpc_id;
 
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 
