@@ -229,7 +229,7 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 	iph->id = htons(stream->sndvar->ip_id++);
 	iph->frag_off = htons(0x4000);	// no fragmentation
 	iph->ttl = 64;
-	iph->protocol = MTP_IPPROTO_MTP; // IPPROTO_HOMA;
+	iph->protocol = IPPROTO_UDP; // IPPROTO_HOMA;
 	iph->saddr = stream->saddr;
 	iph->daddr = stream->daddr;
 	iph->check = 0;
@@ -257,7 +257,7 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 #endif
 
 	// if (tos == 100) printf("7\n");
-	iph->protocol = IPPROTO_UDP; // IPPROTO_HOMA;
+	// iph->protocol = IPPROTO_UDP; // IPPROTO_HOMA;
 	return (uint8_t *)(iph + 1);
 }
 
