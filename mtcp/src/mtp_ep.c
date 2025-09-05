@@ -1123,7 +1123,8 @@ void recv_grant_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
         
         bp->hdr.src_port = ctx->local_port;
         bp->hdr.dest_port = ctx->remote_port;
-        bp->hdr.doff = (MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE) >> 2;
+        // bp->hdr.doff = (MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE) >> 2;
+		bp->hdr.doff = 5;
         bp->hdr.type = MTP_HOMA_DATA;
         bp->hdr.seq = ctx->last_seq;
         bp->hdr.sender_id = ctx->rpcid;
@@ -1267,7 +1268,8 @@ tcp_stream* MtpHomaSendReqChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts, char*
     bp->hdr.src_port = htons(ev_src_port);
     bp->hdr.dest_port = htons(ev_dest_port);
     // bp->hdr.doff = (MTP_HOMA_COMMON_HSIZE + sizeof(struct homa_data_hdr) - sizeof(struct data_segment)) >> 2;
-	bp->hdr.doff = (MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE) >> 2;
+	// bp->hdr.doff = (MTP_HOMA_COMMON_HSIZE + MTP_HOMA_DATA_HSIZE) >> 2;
+	bp->hdr.doff = 5;
     bp->hdr.type = MTP_HOMA_DATA;
     bp->hdr.seq = ev_init_seq;
     bp->hdr.sender_id = rpc_id;

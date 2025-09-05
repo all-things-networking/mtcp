@@ -184,8 +184,6 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 	unsigned char *haddr, is_external = 0;
 	int rc = -1;
 
-	// if (tos == 100) printf("1\n");
-
 	if (stream->sndvar->nif_out >= 0) {
 		nif = stream->sndvar->nif_out;
 	} else {
@@ -194,7 +192,6 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 		stream->is_external = is_external;
 	}
 
-	// if (tos == 100) printf("2\n");
 	haddr = GetDestinationHWaddr(stream->daddr, stream->is_external);
 	if (!haddr) {
 #if 0
@@ -229,7 +226,7 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 	iph->id = htons(stream->sndvar->ip_id++);
 	iph->frag_off = htons(0x4000);	// no fragmentation
 	iph->ttl = 64;
-	iph->protocol = IPPROTO_UDP; // IPPROTO_HOMA;
+	iph->protocol = IPPROTO_TCP; // IPPROTO_HOMA;
 	iph->saddr = stream->saddr;
 	iph->daddr = stream->daddr;
 	iph->check = 0;
@@ -256,8 +253,6 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 	iph->check = ip_fast_csum(iph, iph->ihl);
 #endif
 
-	// if (tos == 100) printf("7\n");
-	// iph->protocol = IPPROTO_UDP; // IPPROTO_HOMA;
 	return (uint8_t *)(iph + 1);
 }
 

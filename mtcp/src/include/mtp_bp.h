@@ -60,12 +60,11 @@ struct homa_grant_hdr {
 struct mtp_bp_hdr {
     uint16_t src_port;
     uint16_t dest_port;
-    uint16_t udp_len;
-    uint16_t udp_checksum;
-    uint32_t unused2;
+    uint32_t unused_tcp_seq;
+    uint32_t unused_tcp_ack;
     uint8_t  doff;
     uint8_t  type;
-    uint16_t seq;
+    uint16_t seq; // tcp_window
     uint16_t checksum;
     uint16_t unused4;
     uint32_t sender_id; 

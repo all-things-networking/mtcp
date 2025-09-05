@@ -60,10 +60,9 @@ ProcessIPv4Packet(mtcp_manager_t mtcp, uint32_t cur_ts,
 			return MTP_ProcessTransportPacket(mtcp, cur_ts, ifidx, iph, ip_len);
 		#endif
 		case IPPROTO_TCP:
-			printf("here\n");
-			return MTP_ProcessTransportPacket(mtcp, cur_ts, ifidx, iph, ip_len);
-        #ifdef USE_MTP
-		case IPPROTO_UDP:
+        #ifndef USE_MTP
+			return ProcessTCPPacket(mtcp, cur_ts, ifidx, iph, ip_len);
+        #else
 			return MTP_ProcessTransportPacket(mtcp, cur_ts, ifidx, iph, ip_len);
         #endif
 		case IPPROTO_ICMP:

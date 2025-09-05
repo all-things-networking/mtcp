@@ -462,7 +462,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     mtph->seq = seq;
                     mtph->data.seg.offset = seg_offset;
                     mtph->data.seg.segment_length = pkt_len;
-                    mtph->udp_len = hdr_len + pkt_len;
+                    // mtph->udp_len = hdr_len + pkt_len;
                     // printf("mtph->seq: %u, mtph->data.seg.offset: %u, mtph->data.seg.segment_length: %u\n",
                     //        mtph->seq, mtph->data.seg.offset, mtph->data.seg.segment_length);
                     // MTP_PRINT("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
@@ -519,7 +519,7 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
             memcpy((uint8_t *)mtph, &(bp->hdr), hdr_len);
 
-            mtph->udp_len = hdr_len + payloadLen;
+            // mtph->udp_len = hdr_len + payloadLen;
             // MTP TODO: do we need to lock here?
             // copy payload if exist
             if (bp->payload.data != NULL) {
@@ -714,7 +714,7 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
                     mtph->seq = seq;
                     mtph->data.seg.offset = seg_offset;
                     mtph->data.seg.segment_length = pkt_len;
-                    mtph->udp_len = hdr_len + pkt_len;
+                    // mtph->udp_len = hdr_len + pkt_len;
                     // printf("mtph->seq: %u, mtph->data.seg.offset: %u, mtph->data.seg.segment_length: %u\n",
                     //        mtph->seq, mtph->data.seg.offset, mtph->data.seg.segment_length);
                     // MTP_PRINT("Sent Seq 1: %u, size: %u\n", ntohl(mtph->seq), pkt_len);
@@ -780,7 +780,7 @@ SendGlobalMTPPackets(struct mtcp_manager *mtcp, uint32_t cur_ts){
             memcpy((uint8_t *)mtph, &(bp->hdr), hdr_len);
 
 
-            mtph->udp_len = hdr_len + pkt_len;
+            // mtph->udp_len = hdr_len + pkt_len;
             // MTP_PRINT("Sent Seq 2: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
 
             if (bp->hdr.type == MTP_HOMA_DATA){
