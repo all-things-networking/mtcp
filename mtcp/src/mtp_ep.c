@@ -1490,8 +1490,8 @@ void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 			ev_dport, ev_single_packet, ev_local_ip, 
 			ev_remote_ip, cur_stream, &scratch);
 
-	print_sorted_list_1();
-	print_sorted_list_2();
+	// print_sorted_list_1();
+	// print_sorted_list_2();
 
 	choose_grant_ep(mtcp, cur_ts, &scratch);
 	update_prios_ep(mtcp, cur_ts, &scratch);

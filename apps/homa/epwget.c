@@ -218,11 +218,11 @@ SendRPCRequest(thread_context_t ctx, int sockid, struct wget_vars *wvars)
 		mtcp_epoll_ctl(mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, sockid, &ev);
 	}
 
-	struct wget_vars *wv = &wvars[rpc_ind];
-	gettimeofday(&wv->t_start, NULL);
-
 	ctx->started++;
 	ctx->pending++;
+
+	struct wget_vars *wv = &wvars[rpc_ind];
+	gettimeofday(&wv->t_start, NULL);
 
 	return ret;
 }
@@ -772,9 +772,9 @@ RunWgetMain(void *arg)
 		}
 
 		while (ctx->pending < concurrency && ctx->started < ctx->target) {
-			printf("before SendRPCRequest\n");
+			// printf("before SendRPCRequest\n");
 			int ret = SendRPCRequest(ctx, client, wvars);
-			printf("after SendRPCRequest\n");
+			// printf("after SendRPCRequest\n");
 			if (ret < 0) {
 				done[core] = TRUE;
 				break;
