@@ -126,7 +126,7 @@ GetRSSCPUCore(in_addr_t sip, in_addr_t dip,
 		tuple[0] = sip;
 		tuple[1] = dip;
 		tuple[2] = (sp << 16) | dp;
-		uint32_t sw_hash = rte_softrss(tuple, 2, key);
+		uint32_t sw_hash = rte_softrss(tuple, 3, key);
 		if (htons(dp) == 516) printf("soft_rss hash: RSS 0x%08x\n", sw_hash);
 
 		masked = GetRSSHash(sip, dip, sp, dp) & RSS_BIT_MASK_IXGBE;
