@@ -100,6 +100,9 @@ struct wget_stat
 	uint64_t sum_resp_time;
 	uint64_t max_resp_time;
 
+	uint64_t sum_connect_time;
+	uint64_t max_connect_time;
+
 	uint64_t read_count;
 	uint64_t file_writes;
 	uint64_t file_write_count;
@@ -138,6 +141,9 @@ struct wget_vars
 
 	struct timeval t_start;
 	struct timeval t_end;
+
+	struct timeval t_cstart;
+	struct timeval t_cend;
 	
 	int fd;
 };
@@ -202,6 +208,9 @@ CreateConnection(thread_context_t ctx)
 	addr.sin_addr.s_addr = daddr;
 	addr.sin_port = dport;
 	
+	struct wget_vars* wv = &ctx->wvars[sockid];
+	gettimeofday(&wv->t_cstart, NULL);
+
 	ret = mtcp_connect(mctx, sockid, 
 			(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
 	if (ret < 0) {
@@ -211,6 +220,13 @@ CreateConnection(thread_context_t ctx)
 			return -1;
 		}
 	}
+
+	gettimeofday(&wv->t_cend, NULL);
+
+	uint64_t tdiff;
+	tdiff = (wv->t_cend.tv_sec - wv->t_cstart.tv_sec) * 1000000 + 
+			(wv->t_cend.tv_usec - wv->t_cstart.tv_usec);
+	printf("connect time: %ld\n", tdiff);
 
 	ctx->started++;
 	ctx->pending++;
