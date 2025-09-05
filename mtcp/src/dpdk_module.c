@@ -537,10 +537,10 @@ dpdk_get_rptr(struct mtcp_thread_context *ctxt, int ifidx, int index, uint16_t *
 	/* enqueue the pkt ptr in mbuf */
 	dpc->rmbufs[ifidx].m_table[index] = m;
 
-	if (m->ol_flags & RTE_MBUF_F_RX_RSS_HASH) {
-		uint32_t hw_hash = m->hash.rss;
-		printf("RSS hash: 0x%08x\n", hw_hash);
-	}
+	// if (m->ol_flags & RTE_MBUF_F_RX_RSS_HASH) {
+	// 	uint32_t hw_hash = m->hash.rss;
+	// 	printf("RSS hash: 0x%08x\n", hw_hash);
+	// }
 
 #if 0
 	/* verify checksum values from ol_flags */

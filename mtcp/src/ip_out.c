@@ -239,6 +239,8 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 		switch (iph->protocol) {
 		case IPPROTO_TCP:
 			rc = mtcp->iom->dev_ioctl(mtcp->ctx, nif, PKT_TX_TCPIP_CSUM_PEEK, iph);
+			// printf("doing checksum here, rc:%d\n", rc);
+			rc = -1;
 			break;
 		case IPPROTO_ICMP:
 			rc = mtcp->iom->dev_ioctl(mtcp->ctx, nif, PKT_TX_IP_CSUM, iph);
@@ -246,8 +248,10 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 		}
 	}
 	/* otherwise calculate IP checksum in S/W */
-	if (rc == -1)
+	if (rc == -1){
 		iph->check = ip_fast_csum(iph, iph->ihl);
+		// printf("rc: %d, ip_fast_csum(iph, iph->ihl): %d\n", rc, ip_fast_csum(iph, iph->ihl));
+	}
 #else
 	UNUSED(rc);
 	iph->check = ip_fast_csum(iph, iph->ihl);
