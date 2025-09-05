@@ -247,8 +247,10 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 		}
 	}
 	/* otherwise calculate IP checksum in S/W */
-	if (rc == -1)
+	if (rc == -1){
 		iph->check = ip_fast_csum(iph, iph->ihl);
+		// printf("rc: %d, ip_fast_csum(iph, iph->ihl): %d\n", rc, ip_fast_csum(iph, iph->ihl));
+	}
 #else
 	UNUSED(rc);
 	iph->check = ip_fast_csum(iph, iph->ihl);
