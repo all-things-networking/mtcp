@@ -537,10 +537,10 @@ dpdk_get_rptr(struct mtcp_thread_context *ctxt, int ifidx, int index, uint16_t *
 	/* enqueue the pkt ptr in mbuf */
 	dpc->rmbufs[ifidx].m_table[index] = m;
 
-	if (m->ol_flags & RTE_MBUF_F_RX_RSS_HASH) {
-		uint32_t hw_hash = m->hash.rss;
-		printf("RSS hash: 0x%08x\n", hw_hash);
-	}
+	// if (m->ol_flags & RTE_MBUF_F_RX_RSS_HASH) {
+	// 	uint32_t hw_hash = m->hash.rss;
+	// 	printf("RSS hash: 0x%08x\n", hw_hash);
+	// }
 
 #if 0
 	/* verify checksum values from ol_flags */
@@ -949,8 +949,12 @@ dpdk_dev_ioctl(struct mtcp_thread_context *ctx, int nif, int cmd, void *argp)
 #endif
 		break;
 	case PKT_RX_IP_CSUM:
-		if ((dev_info[nif].rx_offload_capa & RTE_ETH_RX_OFFLOAD_IPV4_CKSUM) == 0)
+		if ((dev_info[nif].rx_offload_capa & RTE_ETH_RX_OFFLOAD_IPV4_CKSUM) == 0){
+			// printf("dev_info[nif].rx_offload_capa: %ld, RTE_ETH_RX_OFFLOAD_IPV4_CKSUM: %ld\n",
+						// dev_info[nif].rx_offload_capa, RTE_ETH_RX_OFFLOAD_IPV4_CKSUM);
+			// printf("PKT_RX_IP_CSUM error\n");
 			goto dev_ioctl_err;
+		}
 		break;
 	case PKT_RX_TCP_CSUM:
 		if ((dev_info[nif].rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM) == 0)

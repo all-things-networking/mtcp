@@ -239,6 +239,7 @@ IPOutputWTos(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen,
 		switch (iph->protocol) {
 		case IPPROTO_TCP:
 			rc = mtcp->iom->dev_ioctl(mtcp->ctx, nif, PKT_TX_TCPIP_CSUM_PEEK, iph);
+			// rc = -1;
 			break;
 		case IPPROTO_ICMP:
 			rc = mtcp->iom->dev_ioctl(mtcp->ctx, nif, PKT_TX_IP_CSUM, iph);
