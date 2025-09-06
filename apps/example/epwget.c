@@ -87,6 +87,7 @@ char res_buf[32];
 
 static uint32_t padding = 0;
 static char* send_string;
+static uint32_t send_string_len;
 /*----------------------------------------------------------------------------*/
 struct wget_stat
 {
@@ -149,6 +150,8 @@ struct wget_vars
 	struct timeval t_cend;
 	
 	int fd;
+	uint64_t sent;
+	int started_sending;
 };
 /*----------------------------------------------------------------------------*/
 static struct thread_context *g_ctx[MAX_CPUS] = {0};
@@ -265,10 +268,11 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	// char request[HTTP_HEADER_LEN];
 	struct mtcp_epoll_event ev;
 	int wr;
-	int len;
 
 	wv->headerset = FALSE;
 	wv->recv = 0;
+	wv->sent = 0;
+
 	wv->header_len = wv->file_len = 0;
 
 // 	snprintf(request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
@@ -282,36 +286,104 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 // 	len = strlen(request);
 // 	// printf("sent_len: %u\n", len);
 
-	len = strlen(send_string);
-	wr = mtcp_write(ctx->mctx, sockid, send_string, len);
-	if (wr < len) {
-		TRACE_ERROR("Socket %d: Sending HTTP request failed. "
-				"try: %d, sent: %d\n", sockid, len, wr);
-		// printf("Socket %d: Sending HTTP request failed. "
-		// 		"try: %d, sent: %d\n", sockid, len, wr);		
-	}
+	wr = mtcp_write(ctx->mctx, sockid, send_string, send_string_len);
+
 	ctx->stat.writes += wr;
+	wv->sent += wr;
+	wv->started_sending = TRUE;
+
+	wv->request_sent = wr >= send_string_len;
+	// if (wr < len) {
+	// 	TRACE_ERROR("Socket %d: Sending HTTP request failed. "
+	// 			"try: %d, sent: %d\n", sockid, len, wr);
+	// 	// printf("Socket %d: Sending HTTP request failed. "
+	// 	// 		"try: %d, sent: %d\n", sockid, len, wr);		
+	// }
+	
 	TRACE_APP("Socket %d HTTP Request of %d bytes. sent.\n", sockid, wr);
 	// printf("Socket %d HTTP Request of %d bytes. sent.\n", sockid, wr);
-	wv->request_sent = TRUE;
-
-	ev.events = MTCP_EPOLLIN;
-	ev.data.sockid = sockid;
-	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
+	// wv->request_sent = TRUE;
 
 	gettimeofday(&wv->t_start, NULL);
 
-	char fname[MAX_FILE_LEN + 1];
-	if (fio) {
-		snprintf(fname, MAX_FILE_LEN, "%s.%d", outfile, flowcnt++);
-		wv->fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-		if (wv->fd < 0) {
-			TRACE_APP("Failed to open file descriptor for %s\n", fname);
-			exit(1);
+	if (wv->request_sent){
+
+		ev.events = MTCP_EPOLLIN;
+		ev.data.sockid = sockid;
+		mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
+
+		char fname[MAX_FILE_LEN + 1];
+		if (fio) {
+			snprintf(fname, MAX_FILE_LEN, "%s.%d", outfile, flowcnt++);
+			wv->fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+			if (wv->fd < 0) {
+				TRACE_APP("Failed to open file descriptor for %s\n", fname);
+				exit(1);
+			}
 		}
 	}
 
 	return 0;
+}
+
+/*----------------------------------------------------------------------------*/
+static int 
+SendUntilAvailable(struct thread_context *ctx, int sockid, struct wget_vars *wv)
+{
+	int ret;
+	int sent;
+	int len;
+
+	if (wv->request_sent || !wv->started_sending) {
+		return 0;
+	}
+
+	sent = 0;
+	ret = 1;
+	while (ret > 0) {
+		// len = MIN(SNDBUF_SIZE, sv->fsize - sv->total_sent);
+		// printf("Socket %d, sending %d bytes, fsize: %ld, total_sent: %ld\n", 
+		// 		sockid, len, sv->fsize, sv->total_sent);
+		len = send_string_len - wv->sent;
+		if (len <= 0) {
+			break;
+		}
+		ret = mtcp_write(ctx->mctx, sockid,  
+				send_string + wv->sent, len);
+		// printf("Socket %d, mtcp_write returned: %d\n", sockid, ret);
+		if (ret < 0) {
+			TRACE_APP("Connection closed with client.\n");
+			break;
+		}
+		TRACE_APP("Socket %d: mtcp_write try: %d, ret: %d\n", sockid, len, ret);
+		sent += ret;
+		wv->sent += ret;
+	}
+
+	// printf("Socket %d: Sent %d bytes, total_sent: %ld, fcache[sv->fidx].size: %lu\n", 
+	// 		sockid, sent, sv->total_sent, fcache[sv->fidx].size);
+
+	wv->request_sent = wv->sent >= send_string_len;
+	if (wv->request_sent){
+		struct mtcp_epoll_event ev;
+		ev.events = MTCP_EPOLLIN;
+		ev.data.sockid = sockid;
+		mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
+
+		// gettimeofday(&wv->t_start, NULL);
+
+		char fname[MAX_FILE_LEN + 1];
+		if (fio) {
+			snprintf(fname, MAX_FILE_LEN, "%s.%d", outfile, flowcnt++);
+			wv->fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+			if (wv->fd < 0) {
+				TRACE_APP("Failed to open file descriptor for %s\n", fname);
+				exit(1);
+			}
+		}
+	}
+
+	return sent;
 }
 /*----------------------------------------------------------------------------*/
 static inline int 
@@ -745,7 +817,12 @@ RunWgetMain(void *arg)
 				struct wget_vars *wv = &wvars[events[i].data.sockid];
 
 				if (!wv->request_sent) {
-					SendHTTPRequest(ctx, events[i].data.sockid, wv);
+					if (!wv->started_sending){
+						SendHTTPRequest(ctx, events[i].data.sockid, wv);
+					}
+					else{
+						SendUntilAvailable(ctx, events[i].data.sockid, wv);
+					}
 				} else {
 					//TRACE_DBG("Request already sent.\n");
 				}
@@ -908,6 +985,7 @@ main(int argc, char **argv)
 		}
 	}	
     send_string[total_len] = '\0';
+	send_string_len = strlen(send_string);
 	
 	if (core_limit > 1) record_res = FALSE;
 
