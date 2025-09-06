@@ -84,6 +84,9 @@ static uint64_t response_size = 0;
 static int record_res = FALSE;
 static int res_fd;
 char res_buf[32];
+
+static uint32_t padding = 0;
+static char* send_string;
 /*----------------------------------------------------------------------------*/
 struct wget_stat
 {
@@ -208,8 +211,8 @@ CreateConnection(thread_context_t ctx)
 	addr.sin_addr.s_addr = daddr;
 	addr.sin_port = dport;
 	
-	struct wget_vars* wv = &ctx->wvars[sockid];
-	gettimeofday(&wv->t_cstart, NULL);
+	// struct wget_vars* wv = &ctx->wvars[sockid];
+	// gettimeofday(&wv->t_cstart, NULL);
 
 	ret = mtcp_connect(mctx, sockid, 
 			(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
@@ -221,12 +224,12 @@ CreateConnection(thread_context_t ctx)
 		}
 	}
 
-	gettimeofday(&wv->t_cend, NULL);
+	// gettimeofday(&wv->t_cend, NULL);
 
-	uint64_t tdiff;
-	tdiff = (wv->t_cend.tv_sec - wv->t_cstart.tv_sec) * 1000000 + 
-			(wv->t_cend.tv_usec - wv->t_cstart.tv_usec);
-	printf("connect time: %ld\n", tdiff);
+	// uint64_t tdiff;
+	// tdiff = (wv->t_cend.tv_sec - wv->t_cstart.tv_sec) * 1000000 + 
+	// 		(wv->t_cend.tv_usec - wv->t_cstart.tv_usec);
+	// // printf("connect time: %ld\n", tdiff);
 
 	ctx->started++;
 	ctx->pending++;
@@ -259,7 +262,7 @@ static inline int
 SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 {
 	// usleep(100000);
-	char request[HTTP_HEADER_LEN];
+	// char request[HTTP_HEADER_LEN];
 	struct mtcp_epoll_event ev;
 	int wr;
 	int len;
@@ -268,17 +271,19 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	wv->recv = 0;
 	wv->header_len = wv->file_len = 0;
 
-	snprintf(request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
-			"User-Agent: Wget/1.12 (linux-gnu)\r\n"
-			"Accept: */*\r\n"
-			"Host: %s\r\n"
-//			"Connection: Keep-Alive\r\n\r\n", 
-			"Connection: Close\r\n\r\n", 
-			url, host);
-	len = strlen(request);
-	// printf("sent_len: %u\n", len);
+// 	snprintf(request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
+// 			"User-Agent: Wget/1.12 (linux-gnu)\r\n"
+// 			"Accept: */*\r\n"
+// 			"Host: %s\r\n"
+// 			"PadLen: %d\r\n"
+// //			"Connection: Keep-Alive\r\n\r\n", 
+// 			"Connection: Close\r\n\r\n", 
+// 			url, host, 0);
+// 	len = strlen(request);
+// 	// printf("sent_len: %u\n", len);
 
-	wr = mtcp_write(ctx->mctx, sockid, request, len);
+	len = strlen(send_string);
+	wr = mtcp_write(ctx->mctx, sockid, send_string, len);
 	if (wr < len) {
 		TRACE_ERROR("Socket %d: Sending HTTP request failed. "
 				"try: %d, sent: %d\n", sockid, len, wr);
@@ -828,7 +833,7 @@ main(int argc, char **argv)
 	core_limit = num_cores;
 	concurrency = 100;
 
-	while (-1 != (o = getopt(argc, argv, "N:c:o:n:f:r:"))) {
+	while (-1 != (o = getopt(argc, argv, "N:c:o:n:f:r:p:"))) {
 		switch(o) {
 		case 'N':
 			core_limit = mystrtol(optarg, 10);
@@ -875,9 +880,35 @@ main(int argc, char **argv)
 			printf("here\n");
 			record_res = TRUE;
 			res_fd = open(optarg, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		case 'p':
+			padding = mystrtol(optarg, 10); 
+			break;
 		}
 	}
 
+	char request[HTTP_HEADER_LEN];
+	snprintf(request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
+			"User-Agent: Wget/1.12 (linux-gnu)\r\n"
+			"Accept: */*\r\n"
+			"Host: %s\r\n"
+			"PadLen: %d\r\n"
+//			"Connection: Keep-Alive\r\n\r\n", 
+			"Connection: Close\r\n\r\n", 
+			url, host, padding);
+
+	int req_len = strlen(request);
+	// padding = padding - req_len;
+	int total_len = req_len + padding;
+	printf("total send len: %d\n", total_len);
+	send_string = malloc(total_len + 1);
+	strncpy(send_string, request, req_len + 1);
+	if (padding > 0){
+		for (int i = 0; i < padding; i++){
+			send_string[req_len + i] = (i % 255) + 1;
+		}
+	}	
+    send_string[total_len] = '\0';
+	
 	if (core_limit > 1) record_res = FALSE;
 
 	if (total_flows < core_limit) {
