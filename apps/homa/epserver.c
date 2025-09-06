@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -445,6 +446,10 @@ RunServerThread(void *arg)
 			if (events[i].data.sockid == listener && 
 					(events[i].events & MTCP_EPOLLIN)) {
 				// read request
+				// struct timeval cur_tv;
+				// gettimeofday(&cur_tv, NULL);
+				// printf("epoll notif. sec: %ld, usec: %ld\n", cur_tv.tv_sec, cur_tv.tv_usec);
+
 				ret = HandleReadEvent(ctx, events[i].data.sockid,
 									  events[i].rpc_ind, 
 									  &ctx->svars[events[i].rpc_ind]);

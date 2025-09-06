@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -217,6 +218,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 	if (rd <= 0) {
 		return rd;
 	}
+
 	memcpy(sv->request + sv->recv_len, 
 			(char *)buf, MIN(rd, HTTP_HEADER_LEN - sv->recv_len));
 	sv->recv_len += rd;
