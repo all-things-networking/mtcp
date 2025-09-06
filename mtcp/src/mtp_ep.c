@@ -1427,10 +1427,12 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	scratchpad scratch;
 
-	// struct timeval t_start;
-	// struct timeval t_end;
+	#ifdef MTP_PROFILE
+	struct timeval t_start;
+	struct timeval t_end;
 
-	// gettimeofday(&t_start, NULL);
+	gettimeofday(&t_start, NULL);
+	#endif
 	
 	first_req_pkt_ep(mtcp, cur_ts, ev_seq, ev_message_length,
 						ev_incoming, ev_retransmit, ev_offset,
@@ -1438,13 +1440,15 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 						ev_dport, ev_single_packet, ev_local_ip,
 						ev_remote_ip, hold_addr, socket, &scratch);
 
-	// gettimeofday(&t_end, NULL);
-	// uint64_t tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
-	// 		(t_end.tv_usec - t_start.tv_usec);
+	#ifdef MTP_PROFILE
+	gettimeofday(&t_end, NULL);
+	uint64_t tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+			(t_end.tv_usec - t_start.tv_usec);
 
-	// printf("tdiff first_req_pkt_ep:%ld\n", tdiff);
+	printf("tdiff first_req_pkt_ep:%ld\n", tdiff);
 
-	// gettimeofday(&t_start, NULL);
+	gettimeofday(&t_start, NULL);
+	#endif
 	
 	no_ctx_sched_ep(mtcp, cur_ts, ev_seq, ev_message_length,
 					ev_incoming, ev_retransmit, ev_offset, 
@@ -1452,44 +1456,53 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 					ev_dport, ev_single_packet, ev_local_ip, 
 					ev_remote_ip, &scratch);
 
-	// gettimeofday(&t_end, NULL);
-	// tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
-	// 		(t_end.tv_usec - t_start.tv_usec);
+	#ifdef MTP_PROFILE
+	gettimeofday(&t_end, NULL);
+	tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+			(t_end.tv_usec - t_start.tv_usec);
 
-	// printf("tdiff no_ctx_sched_ep:%ld\n", tdiff);
+	printf("tdiff no_ctx_sched_ep:%ld\n", tdiff);
 
-	// gettimeofday(&t_start, NULL);
+	gettimeofday(&t_start, NULL);
+	#endif
 
 	MTP_PRINT("1: total_incoming: %d, MTP_grant_nonfifo_left: %d\n",
 			MTP_total_incoming, MTP_grant_nonfifo_left);
 
 	choose_grant_ep(mtcp, cur_ts, &scratch);
 
-	// gettimeofday(&t_end, NULL);
-	// tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
-	// 		(t_end.tv_usec - t_start.tv_usec);
+	#ifdef MTP_PROFILE
+	gettimeofday(&t_end, NULL);
+	tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+			(t_end.tv_usec - t_start.tv_usec);
 
-	// printf("tdiff choose_grant_ep:%ld\n", tdiff);
+	printf("tdiff choose_grant_ep:%ld\n", tdiff);
 
-	// gettimeofday(&t_start, NULL);
+	gettimeofday(&t_start, NULL);
+	#endif
 
 	update_prios_ep(mtcp, cur_ts, &scratch);
 
-	// gettimeofday(&t_end, NULL);
-	// tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
-	// 		(t_end.tv_usec - t_start.tv_usec);
+	#ifdef MTP_PROFILE
+	gettimeofday(&t_end, NULL);
+	tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+			(t_end.tv_usec - t_start.tv_usec);
 
-	// printf("tdiff update_prios_ep:%ld\n", tdiff);
+	printf("tdiff update_prios_ep:%ld\n", tdiff);
 
-	// gettimeofday(&t_start, NULL);
+	gettimeofday(&t_start, NULL);
+	#endif
 
 	gen_grants_ep(mtcp, cur_ts, &scratch);
 
-	// gettimeofday(&t_end, NULL);
-	// tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
-	// 		(t_end.tv_usec - t_start.tv_usec);
+	#ifdef MTP_PROFILE
+	gettimeofday(&t_end, NULL);
+	tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+			(t_end.tv_usec - t_start.tv_usec);
 
-	// printf("tdiff gen_grants_ep:%ld\n", tdiff);
+	printf("tdiff gen_grants_ep:%ld\n", tdiff);
+	gettimeofday(&t_start, NULL);
+	#endif
 
 
 	reset_grant_state(mtcp, cur_ts, &scratch);
@@ -1500,11 +1513,13 @@ void MtpHomaNoHomaCtxChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 	MTP_PRINT("2: total_incoming: %d, MTP_grant_nonfifo_left: %d\n",
 			MTP_total_incoming, MTP_grant_nonfifo_left);
 
-	// gettimeofday(&t_end, NULL);
-	// uint64_t tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
-	// 		(t_end.tv_usec - t_start.tv_usec);
+	#ifdef MTP_PROFILE
+	gettimeofday(&t_end, NULL);
+	tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+			(t_end.tv_usec - t_start.tv_usec);
 
-	// printf("tdiff first req pkt:%ld\n", tdiff);
+	printf("tdiff reset grant state:%ld\n", tdiff);
+	#endif
 }
 
 void MtpHomaRecvdReqChain (mtcp_manager_t mtcp, uint32_t cur_ts,
@@ -1525,10 +1540,13 @@ void MtpHomaRecvdReqChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	scratchpad scratch;
 
-	// struct timeval t_start;
-	// struct timeval t_end;
+	#ifdef MTP_PROFILE
+	struct timeval t_start;
+	struct timeval t_end;
+	uint64_t tdiff;
 
-	// gettimeofday(&t_start, NULL);
+	gettimeofday(&t_start, NULL);
+	#endif
 
 	next_req_pkt_ep(mtcp, cur_ts, ev_seq, ev_message_length,
 					ev_incoming, ev_retransmit, ev_offset,
@@ -1536,8 +1554,15 @@ void MtpHomaRecvdReqChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 					ev_dport, ev_single_packet, ev_local_ip,
 					ev_remote_ip, hold_addr, cur_stream, &scratch);
 
-	// print_sorted_list_1();
-	// print_sorted_list_2();
+	// #ifdef MTP_PROFILE
+	// gettimeofday(&t_end, NULL);
+	// tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+	// 		(t_end.tv_usec - t_start.tv_usec);
+
+	// printf("tdiff next_req_pkt_ep:%ld\n", tdiff);
+
+	// gettimeofday(&t_start, NULL);
+	// #endif
 
 	sched_ep(mtcp, cur_ts, ev_seq, ev_message_length,
 			ev_incoming, ev_retransmit, ev_offset, 
@@ -1545,27 +1570,71 @@ void MtpHomaRecvdReqChain (mtcp_manager_t mtcp, uint32_t cur_ts,
 			ev_dport, ev_single_packet, ev_local_ip, 
 			ev_remote_ip, cur_stream, &scratch);
 
-	// print_sorted_list_1();
-	// print_sorted_list_2();
+	// #ifdef MTP_PROFILE
+	// gettimeofday(&t_end, NULL);
+	// tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+	// 		(t_end.tv_usec - t_start.tv_usec);
+
+	// printf("tdiff sched_ep:%ld\n", tdiff);
+
+	// gettimeofday(&t_start, NULL);
+	// #endif
 
 	MTP_PRINT("1: total_incoming: %d, MTP_grant_nonfifo_left: %d\n",
 			MTP_total_incoming, MTP_grant_nonfifo_left);
 
 	choose_grant_ep(mtcp, cur_ts, &scratch);
+
+	// #ifdef MTP_PROFILE
+	// gettimeofday(&t_end, NULL);
+	// tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+	// 		(t_end.tv_usec - t_start.tv_usec);
+
+	// printf("tdiff choose_grant_ep:%ld\n", tdiff);
+
+	// gettimeofday(&t_start, NULL);
+	// #endif
+
 	update_prios_ep(mtcp, cur_ts, &scratch);
+
+	// #ifdef MTP_PROFILE
+	// gettimeofday(&t_end, NULL);
+	// tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+	// 		(t_end.tv_usec - t_start.tv_usec);
+
+	// printf("tdiff update_prios_ep:%ld\n", tdiff);
+
+	// gettimeofday(&t_start, NULL);
+	// #endif
+
 	gen_grants_ep(mtcp, cur_ts, &scratch);
+
+	// #ifdef MTP_PROFILE
+	// gettimeofday(&t_end, NULL);
+	// tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+	// 		(t_end.tv_usec - t_start.tv_usec);
+
+	// printf("tdiff gen_grants_ep:%ld\n", tdiff);
+
+	// gettimeofday(&t_start, NULL);
+	// #endif
+
 	reset_grant_state(mtcp, cur_ts, &scratch);
+
+	#ifdef MTP_PROFILE
+	gettimeofday(&t_end, NULL);
+	tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
+			(t_end.tv_usec - t_start.tv_usec);
+
+	printf("tdiff req_recv_chain:%ld\n", tdiff);
+
+	// gettimeofday(&t_start, NULL);
+	#endif
 
 	// print_sorted_list_1();
 	// print_sorted_list_2();
 	MTP_PRINT("2: total_incoming: %d, MTP_grant_nonfifo_left: %d\n",
 			MTP_total_incoming, MTP_grant_nonfifo_left);
-
-	// gettimeofday(&t_end, NULL);
-	// uint64_t tdiff = (t_end.tv_sec - t_start.tv_sec) * 1000000 + 
-	// 		(t_end.tv_usec - t_start.tv_usec);
-
-	// printf("tdiff next req pkt:%ld\n", tdiff);
 }
 
 void MtpHomaRecvdRespChain (mtcp_manager_t mtcp, uint32_t cur_ts,
