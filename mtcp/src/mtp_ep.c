@@ -1658,6 +1658,10 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
     */
     scratchpad scratch;
+
+	struct timeval start, end;
+	gettimeofday(&start, NULL);
+
 	timestamp_ep(mtcp, cur_ts, ev_ts, cur_stream, &scratch);
     conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, &scratch);
     rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
@@ -1665,6 +1669,13 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
     ack_net_ep(mtcp, cur_ts, ack_seq, window, seq, cur_stream, &scratch);
 	fin_ack_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
+
+	gettimeofday(&end, NULL);
+
+	uint64_t diff = (end.tv_sec - start.tv_sec) * 1000000 +
+					(end.tv_usec - start.tv_usec);
+
+	printf("ack chain diff: %ld\n", diff);
 }
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload, 
