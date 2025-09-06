@@ -27,7 +27,7 @@ typedef struct rpc_info_1 {
     tcp_stream* cur_stream;
 } rpc_info_1;
 
-extern rpc_info_1 MTP_all_rpcs[MTP_HOMA_MAX_RPC];
+extern rpc_info_1 MTP_all_rpcs[MTP_HOMA_MAX_GRANT_RPC];
 
 
 typedef struct rpc_info_2 {
@@ -46,7 +46,7 @@ typedef struct rpc_info_2 {
     tcp_stream* cur_stream;
 } rpc_info_2;
 
-extern rpc_info_2 MTP_highest_prio_rpcs[MTP_HOMA_MAX_RPC];
+extern rpc_info_2 MTP_highest_prio_rpcs[MTP_HOMA_MAX_GRANT_RPC];
 
 extern bool MTP_finish_grant_choose;
 
