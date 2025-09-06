@@ -427,6 +427,7 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_
 		// printf("Stream %u, rtt: %u, last_ack_ts:%u\n", 
 		// 		cur_stream->id, rtt, rcvvar->ts_lastack_rcvd);
 		EstimateRTT(mtcp, cur_stream, rtt);
+		MTP_PRINT("SRTT: %d\n", rcvvar->srtt);
 		#ifndef MTP_FIXED_RTO
 		sndvar->rto = (rcvvar->srtt >> 3) + rcvvar->rttvar;
 		#else

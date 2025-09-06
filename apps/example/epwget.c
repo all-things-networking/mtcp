@@ -227,12 +227,6 @@ CreateConnection(thread_context_t ctx)
 		}
 	}
 
-	// gettimeofday(&wv->t_cend, NULL);
-
-	// uint64_t tdiff;
-	// tdiff = (wv->t_cend.tv_sec - wv->t_cstart.tv_sec) * 1000000 + 
-	// 		(wv->t_cend.tv_usec - wv->t_cstart.tv_usec);
-	// // printf("connect time: %ld\n", tdiff);
 
 	ctx->started++;
 	ctx->pending++;
@@ -818,6 +812,12 @@ RunWgetMain(void *arg)
 
 				if (!wv->request_sent) {
 					if (!wv->started_sending){
+						// gettimeofday(&wv->t_cend, NULL);
+
+						// uint64_t tdiff;
+						// tdiff = (wv->t_cend.tv_sec - wv->t_cstart.tv_sec) * 1000000 + 
+						// 		(wv->t_cend.tv_usec - wv->t_cstart.tv_usec);
+						// printf("connect time: %ld\n", tdiff);
 						SendHTTPRequest(ctx, events[i].data.sockid, wv);
 					}
 					else{
@@ -957,6 +957,7 @@ main(int argc, char **argv)
 			printf("here\n");
 			record_res = TRUE;
 			res_fd = open(optarg, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+			break;
 		case 'p':
 			padding = mystrtol(optarg, 10); 
 			break;
