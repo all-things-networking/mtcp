@@ -245,7 +245,7 @@ EndRPC(thread_context_t ctx, int sockid, struct wget_vars *wvars, uint32_t rpc_i
 	tdiff = (wv->t_end.tv_sec - wv->t_start.tv_sec) * 1000000 + 
 			(wv->t_end.tv_usec - wv->t_start.tv_usec);
 
-	printf("diff:%ld\n", tdiff);
+	// printf("diff:%ld\n", tdiff);
 	
 	if (record_res){
 		int len = sprintf(res_buf, "%lu\n", tdiff);
