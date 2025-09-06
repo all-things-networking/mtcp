@@ -3,9 +3,9 @@
 uint32_t MTP_total_incoming = 0; // MTP specific
 int32_t MTP_grant_nonfifo_left = 0;
 
-rpc_info_1 MTP_all_rpcs[MTP_HOMA_MAX_RPC] = {0};
+rpc_info_1 MTP_all_rpcs[MTP_HOMA_MAX_GRANT_RPC] = {0};
 
-rpc_info_2 MTP_highest_prio_rpcs[MTP_HOMA_MAX_RPC] = {0};
+rpc_info_2 MTP_highest_prio_rpcs[MTP_HOMA_MAX_GRANT_RPC] = {0};
 
 bool MTP_finish_grant_choose = false;
 

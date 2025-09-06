@@ -8,6 +8,7 @@
 #include "ip_out.h"
 #include "timer.h"
 #include "debug.h"
+#include <sys/time.h>
 #if RATE_LIMIT_ENABLED || PACING_ENABLED
 #include "pacing.h"
 #endif
@@ -504,6 +505,12 @@ CreateRPCStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	uint8_t is_external;
 	uint8_t *sa;
 	uint8_t *da;
+
+	#ifdef MTP_PROFILE
+	struct timeval start, end;
+	uint64_t diff;
+	gettimeofday(&start, NULL);
+	#endif
 	
 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
 
@@ -558,7 +565,21 @@ CreateRPCStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	stream->rpc_id = rpc_id;
 	#endif	
 
+	#ifdef MTP_PROFILE
+	gettimeofday(&end, NULL);
+	diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+	printf("CreateRPCStream - 1: %ld\n", diff);
+	gettimeofday(&start, NULL);
+	#endif
+
 	ret = StreamHTInsert(mtcp->tcp_flow_table, stream);
+
+	#ifdef MTP_PROFILE
+	gettimeofday(&end, NULL);
+	diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+	printf("CreateRPCStream - 2: %ld\n", diff);
+	gettimeofday(&start, NULL);
+	#endif
 
 	if (ret < 0) {
 		TRACE_ERROR("Stream %d: "
@@ -680,6 +701,13 @@ CreateRPCStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 
 	UNUSED(da);
 	UNUSED(sa);
+
+	#ifdef MTP_PROFILE
+	gettimeofday(&end, NULL);
+	diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+	printf("CreateRPCStream - 3: %ld\n", diff);
+	gettimeofday(&start, NULL);
+	#endif
 	return stream;
 }
 

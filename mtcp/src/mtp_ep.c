@@ -367,7 +367,7 @@ void recv_resp_ep (mtcp_manager_t mtcp, uint32_t cur_ts,
 }
 
 int add_to_sorted_list_1(rpc_info_1* ri){
-	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+	for (int i = 0; i < MTP_HOMA_MAX_GRANT_RPC; i++){
 		if (!MTP_all_rpcs[i].valid){
 			MTP_all_rpcs[i] = *ri;
 			MTP_all_rpcs[i].valid = true;
@@ -378,7 +378,7 @@ int add_to_sorted_list_1(rpc_info_1* ri){
 }
 
 bool remove_from_sorted_list_1(rpc_info_1* ri){
-	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+	for (int i = 0; i < MTP_HOMA_MAX_GRANT_RPC; i++){
 		if (MTP_all_rpcs[i].valid &&
 			MTP_all_rpcs[i].peer_id == ri->peer_id &&
 			MTP_all_rpcs[i].rpcid == ri->rpcid &&
@@ -414,7 +414,7 @@ int find_ge_sorted_list_1(rpc_info_1* ri){
 	int best_ind = -1;
 	rpc_info_1* best = NULL;
 
-	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+	for (int i = 0; i < MTP_HOMA_MAX_GRANT_RPC; i++){
 		if (MTP_all_rpcs[i].valid) {
 			if (equal_sorted_list_1(ri, &MTP_all_rpcs[i])){
 				return i;
@@ -435,7 +435,7 @@ int find_min_birth_ordered_list_1(){
 	int best_ind = -1;
 	rpc_info_1* best = NULL;
 
-	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+	for (int i = 0; i < MTP_HOMA_MAX_GRANT_RPC; i++){
 		if (MTP_all_rpcs[i].valid) {
 			if (best == NULL){
 				best_ind = i;
@@ -452,7 +452,7 @@ int find_min_birth_ordered_list_1(){
 
 void print_sorted_list_1(){
 	MTP_PRINT("------- All RPCs list:---------\n");
-	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+	for (int i = 0; i < MTP_HOMA_MAX_GRANT_RPC; i++){
 		if (MTP_all_rpcs[i].valid){
 			MTP_PRINT("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d, msg_len: %d, in_prio_list: %d, prio_ind: %d\n",
 					MTP_all_rpcs[i].peer_id, MTP_all_rpcs[i].rpcid,
@@ -465,7 +465,7 @@ void print_sorted_list_1(){
 }
 
 int add_to_sorted_list_2(rpc_info_2* ri){
-	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+	for (int i = 0; i < MTP_HOMA_MAX_GRANT_RPC; i++){
 		if (!MTP_highest_prio_rpcs[i].valid){
 			MTP_highest_prio_rpcs[i] = *ri;
 			MTP_highest_prio_rpcs[i].valid = true;
@@ -477,7 +477,7 @@ int add_to_sorted_list_2(rpc_info_2* ri){
 
 rpc_info_2 remove_from_sorted_list_2(rpc_info_2* ri){
 	rpc_info_2 res = {0};
-	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+	for (int i = 0; i < MTP_HOMA_MAX_GRANT_RPC; i++){
 		if (MTP_highest_prio_rpcs[i].valid &&
 			MTP_highest_prio_rpcs[i].peer_id == ri->peer_id &&
 			MTP_highest_prio_rpcs[i].rpcid == ri->rpcid &&
@@ -510,7 +510,7 @@ int find_ge_sorted_list_2(rpc_info_2* ri){
 	int best_ind = -1;
 	rpc_info_2* best = NULL;
 
-	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+	for (int i = 0; i < MTP_HOMA_MAX_GRANT_RPC; i++){
 		if (MTP_highest_prio_rpcs[i].valid) {
 			if (equal_sorted_list_2(ri, &MTP_highest_prio_rpcs[i])){
 				return i;
@@ -529,7 +529,7 @@ int find_ge_sorted_list_2(rpc_info_2* ri){
 
 void print_sorted_list_2(){
 	MTP_PRINT("------- Highest Prio RPCs list:---------\n");
-	for (int i = 0; i < MTP_HOMA_MAX_RPC; i++){
+	for (int i = 0; i < MTP_HOMA_MAX_GRANT_RPC; i++){
 		if (MTP_highest_prio_rpcs[i].valid){
 			MTP_PRINT("peer_id: %d, rpc_id: %d, bytes_remaining: %d, incoming: %d, msg_len: %d\n",
 					MTP_highest_prio_rpcs[i].peer_id, MTP_highest_prio_rpcs[i].rpcid,
