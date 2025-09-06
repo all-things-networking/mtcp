@@ -185,7 +185,7 @@ static inline int
 SendRPCRequest(thread_context_t ctx, int sockid, struct wget_vars *wvars)
 {
 	mctx_t mctx = ctx->mctx;
-	struct mtcp_epoll_event ev;
+	// struct mtcp_epoll_event ev;
 	struct sockaddr_in addr;
 	int ret;
 
@@ -212,11 +212,11 @@ SendRPCRequest(thread_context_t ctx, int sockid, struct wget_vars *wvars)
 		}
 	}
 
-	if (ctx->started == 0){
-		ev.events = MTCP_EPOLLIN;
-		ev.data.sockid = sockid;
-		mtcp_epoll_ctl(mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, sockid, &ev);
-	}
+	// if (ctx->started == 0){
+	// 	ev.events = MTCP_EPOLLIN;
+	// 	ev.data.sockid = sockid;
+	// 	mtcp_epoll_ctl(mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, sockid, &ev);
+	// }
 
 	ctx->started++;
 	ctx->pending++;
@@ -240,6 +240,7 @@ EndRPC(thread_context_t ctx, int sockid, struct wget_vars *wvars, uint32_t rpc_i
 	TRACE_APP("RPC complete!\n", sockid);
 	// printf("Socket %d File download complete!\n", sockid);
 	gettimeofday(&wv->t_end, NULL);
+	mtcp_rpc_done_rcv(ctx->mctx, sockid, rpc_ind);
 	ctx->stat.completes++;
 	tdiff = (wv->t_end.tv_sec - wv->t_start.tv_sec) * 1000000 + 
 			(wv->t_end.tv_usec - wv->t_start.tv_usec);
@@ -407,7 +408,6 @@ HandleReadEvent(thread_context_t ctx, int sockid, uint32_t rpc_ind, struct wget_
 	}
 	else {
 		// printf("finished reading %d bytes\n", (int)req.len);
-		mtcp_rpc_done_rcv(mctx, sockid, rpc_ind);
 		EndRPC(ctx, sockid, wvars, rpc_ind);
 	}
 	/*
@@ -676,6 +676,12 @@ CreateRPCSocket(struct thread_context *ctx){
 
 	client = mtcp_rpc_socket(ctx->mctx, AF_INET, 0,
 							   (struct sockaddr *)&sock_saddr, sizeof(struct sockaddr_in));
+
+	
+	struct mtcp_epoll_event ev;							   
+    ev.events = MTCP_EPOLLIN;
+	ev.data.sockid = client;
+	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, client, &ev);
 	
 	return client;
 
