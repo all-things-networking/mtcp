@@ -1670,8 +1670,18 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload, 
 	int payloadlen, tcp_stream *cur_stream)
 {
+	struct timeval start, end;
+	gettimeofday(&start, NULL);
+	
 	data_net_ep(mtcp, cur_ts, seq, payload, payloadlen, cur_stream);
     send_ack_ep(mtcp, cur_ts, cur_stream);
+	
+	gettimeofday(&end, NULL);
+
+	uint64_t diff = (end.tv_sec - start.tv_sec) * 1000000 +
+					(end.tv_usec - start.tv_usec);
+
+	printf("data chain diff: %ld\n", diff);
 }
 
 int MtpListenChain(mtcp_manager_t mtcp, int sockid, int backlog)
