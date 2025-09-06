@@ -12,7 +12,7 @@
 
 // Protocol-specific parameters: Homa
 #define MTP_HOMA_MAX_RPC 500
-#define MTP_HOMA_MAX_GRANT_RPC 5
+#define MTP_HOMA_MAX_GRANT_RPC 2
 #define MTP_HOMA_UNSCHED_BYTES 60000
 #define MTP_HOMA_MSS (1514 - 14 - 20 - 60) // Last is DATA_HDR size
 #define MTP_HOMA_MAX_PEER 32
