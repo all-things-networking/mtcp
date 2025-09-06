@@ -231,6 +231,10 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	uint8_t is_external;
 	uint8_t *sa;
 	uint8_t *da;
+
+	// struct timeval start, end;
+	// uint64_t diff;
+	// gettimeofday(&start, NULL);
 	
 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
 
@@ -281,6 +285,10 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	stream->sport = sport;
 	stream->daddr = daddr;
 	stream->dport = dport;
+
+	// gettimeofday(&end, NULL);
+	// diff = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_usec - start.tv_usec);
+	// printf("CreateTCPStream - 1: %ld\n", diff);
 
 	ret = StreamHTInsert(mtcp->tcp_flow_table, stream);
 	if (ret < 0) {
