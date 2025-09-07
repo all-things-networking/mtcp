@@ -56,6 +56,8 @@
 #ifndef MAX_CPUS
 #define MAX_CPUS		16
 #endif
+
+#define MAX_OUTSTANDING_REQ 1000
 /*----------------------------------------------------------------------------*/
 struct file_cache
 {
@@ -67,7 +69,13 @@ struct file_cache
 /*----------------------------------------------------------------------------*/
 struct server_vars
 {
-	char request[HTTP_HEADER_LEN];
+	char request[MAX_OUTSTANDING_REQ][HTTP_HEADER_LEN];
+	uint32_t first_req_ind;
+	uint32_t req_cnt;
+	uint32_t cur_req_ind;
+
+	// char request[HTTP_HEADER_LEN];
+
 	int recv_len;
 	int request_len;
 	long int total_read, total_sent;
@@ -101,6 +109,7 @@ static int nfiles;
 /*----------------------------------------------------------------------------*/
 static int finished;
 /*----------------------------------------------------------------------------*/
+/*
 static char *
 StatusCodeToString(int scode)
 {
@@ -116,6 +125,7 @@ StatusCodeToString(int scode)
 
 	return NULL;
 }
+	*/
 /*----------------------------------------------------------------------------*/
 void
 CleanServerVariable(struct server_vars *sv)
@@ -197,41 +207,67 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 static int 
 HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 {
-	struct mtcp_epoll_event ev;
+	// struct mtcp_epoll_event ev;
 	char buf[HTTP_HEADER_LEN];
-	char url[URL_LEN];
-	char response[HTTP_HEADER_LEN];
-	int scode;						// status code
-	time_t t_now;
-	char t_str[128];
-	char keepalive_str[128];
+	// char url[URL_LEN];
+	// char response[HTTP_HEADER_LEN];
+	// int scode;						// status code
+	// time_t t_now;
+	// char t_str[128];
+	// char keepalive_str[128];
 	int rd;
-	int i;
-	int len;
-	int sent;
+	// int i;
+	// int len;
+	// int sent;
+
+	if (sv->req_cnt > MAX_OUTSTANDING_REQ / 2) return 0;
 
 	/* HTTP request handling */
 	// printf("starting to read HTTP request\n");
 	rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN);
 	// printf("finished reading HTTP request, bytes read: %d\n", rd);
+	// buf[rd + 1] = '\0';
+	// printf("buf:%s\n", buf);
+	
 	if (rd <= 0) {
 		return rd;
 	}
-	memcpy(sv->request + sv->recv_len, 
-			(char *)buf, MIN(rd, HTTP_HEADER_LEN - sv->recv_len));
-	sv->recv_len += rd;
-	//sv->request[rd] = '\0';
-	//fprintf(stderr, "HTTP Request: \n%s", request);
-	sv->request_len = find_http_header(sv->request, sv->recv_len);
-	if (sv->request_len <= 0) {
-		TRACE_ERROR("Socket %d: Failed to parse HTTP request header.\n"
-				"read bytes: %d, recv_len: %d, "
-				"request_len: %d, strlen: %ld, request: \n%s\n", 
-				sockid, rd, sv->recv_len, 
-				sv->request_len, strlen(sv->request), sv->request);
-		return rd;
+
+	uint32_t org_rd = rd;
+	// int new_req = sv->recv_len == 0;
+	uint32_t buff_offset = 0;
+	while (rd > 0){
+		uint32_t req_end_ind = (sv->first_req_ind + sv->req_cnt) % MAX_OUTSTANDING_REQ;
+
+		char* req = sv->request[req_end_ind];
+		memcpy(req + sv->recv_len, 
+				(char *)buf + buff_offset, MIN(rd, HTTP_HEADER_LEN - sv->recv_len));
+
+		// req[HTTP_HEADER_LEN] = '\0';
+		// fprintf(stderr, "HTTP Request: \n%s", req);
+		sv->request_len = find_http_header(req, sv->recv_len + rd);
+		// printf("sv->request_len: %d", sv->request_len);
+		if (sv->request_len <= 0) {
+			TRACE_ERROR("Socket %d: Failed to parse HTTP request header.\n"
+					"read bytes: %d, recv_len: %d, "
+					"request_len: %d, strlen: %ld, request: \n%s\n", 
+					sockid, rd, sv->recv_len, 
+					sv->request_len, strlen(req), req);
+			sv->recv_len += rd;
+			break;
+		}
+		else {
+			req[sv->request_len] = '\0';
+			printf("request: %s\n", req);
+			uint32_t new_bytes = sv->request_len - sv->recv_len;
+			rd -= new_bytes;
+			buff_offset += new_bytes;
+			sv->req_cnt++;
+			sv->recv_len = 0;
+		}
 	}
 
+	/*
 	http_get_url(sv->request, sv->request_len, url, URL_LEN);
 	TRACE_APP("Socket %d URL: %s\n", sockid, url);
 	sprintf(sv->fname, "%s%s", www_main, url);
@@ -247,7 +283,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 		}
 	}
 
-	/* Find file in cache */
+	// Find file in cache 
 	scode = 404;
 	for (i = 0; i < nfiles; i++) {
 		if (strcmp(sv->fname, fcache[i].fullname) == 0) {
@@ -262,7 +298,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 	// printf("Socket %d File size: %ld (%ldMB)\n", 
 	// 		sockid, sv->fsize, sv->fsize / 1024 / 1024);
 
-	/* Response header handling */
+	// Response header handling
 	time(&t_now);
 	strftime(t_str, 128, "%a, %d %b %Y %X GMT", gmtime(&t_now));
 	if (sv->keep_alive)
@@ -291,8 +327,9 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
 
 	SendUntilAvailable(ctx, sockid, sv);
+	*/
 
-	return rd;
+	return org_rd;
 }
 /*----------------------------------------------------------------------------*/
 int 
