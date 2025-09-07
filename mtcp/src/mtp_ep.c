@@ -868,6 +868,9 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 			bp->payload.seg_rule_group_id = 1; 
 		} 
 
+		MTP_PRINT("Generated bp:\n");
+		print_MTP_bp(bp);
+
 		AddtoGenList(mtcp, cur_stream, cur_ts);	
 
 		// MTP_PRINT("prepared bp:\n");

@@ -114,15 +114,16 @@ void print_MTP_bp(struct mtp_bp* bp){
     }
     
     MTP_PRINT("Payload Length: %u\n", bp->payload.len);
-    // if (bp->payload.data) {
-    //     MTP_PRINT("Payload Data: ");
-    //     for (uint16_t i = 0; i < bp->payload.len; i++) {
-    //         MTP_PRINT("%02x ", bp->payload.data[i]);
-    //     }
-    //     MTP_PRINT("\n");
-    // } else {
-    //     MTP_PRINT("No Payload Data\n");
-    // }
+    if (bp->payload.data) {
+        MTP_PRINT("Payload Data: ");
+        for (uint16_t i = 0; i < bp->payload.len; i++) {
+            // MTP_PRINT("%02x ", bp->payload.data[i]);
+            MTP_PRINT("%c", bp->payload.data[i]);
+        }
+        MTP_PRINT("\n");
+    } else {
+        MTP_PRINT("No Payload Data\n");
+    }
     MTP_PRINT("Payload Data Pointer: %p\n", bp->payload.data);
     MTP_PRINT("Needs Segmentation: %s, Seg Size: %u, Seg Rule Group ID: %u\n",
            bp->payload.needs_segmentation ? "Yes" : "No",
