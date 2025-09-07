@@ -57,6 +57,8 @@
 #ifndef MAX_CPUS
 #define MAX_CPUS		16
 #endif
+
+#define MAX_OUTSTANDING_REQS 1000
 /*----------------------------------------------------------------------------*/
 static pthread_t app_thread[MAX_CPUS];
 static mctx_t g_mctx[MAX_CPUS];
@@ -70,13 +72,16 @@ static char outfile[FILE_LEN + 1];
 /*----------------------------------------------------------------------------*/
 static char host[MAX_IP_STR_LEN + 1] = {'\0'};
 static char url[MAX_URL_LEN + 1] = {'\0'};
+static char url_large[MAX_URL_LEN + 1] = {'\0'};
+static uint32_t total_requests = 2;
+
 static in_addr_t daddr;
 static in_port_t dport;
 static in_addr_t saddr;
 /*----------------------------------------------------------------------------*/
 static int total_flows;
 static int flows[MAX_CPUS];
-static int flowcnt = 0;
+// static int flowcnt = 0;
 static int concurrency;
 static int max_fds;
 static uint64_t response_size = 0;
@@ -126,7 +131,9 @@ typedef struct thread_context* thread_context_t;
 /*----------------------------------------------------------------------------*/
 struct wget_vars
 {
-	int request_sent;
+	char last_request[HTTP_HEADER_LEN];
+	uint32_t req_offset;
+	// int request_sent;
 
 	char response[HTTP_HEADER_LEN];
 	int resp_len;
@@ -136,14 +143,28 @@ struct wget_vars
 	uint64_t recv;
 	uint64_t write;
 
-	struct timeval t_start;
-	struct timeval t_end;
+	struct timeval t_start[MAX_OUTSTANDING_REQS];
+	struct timeval t_end[MAX_OUTSTANDING_REQS];
+	uint32_t t_start_ind;
+	uint32_t t_cur_ind;
+	uint32_t t_end_ind;
 	
 	int fd;
+
+	int last_was_short;
+	uint32_t short_rounds;
+
+	uint32_t total_req_sent;
+	uint32_t total_req_recvd;
 };
 /*----------------------------------------------------------------------------*/
 static struct thread_context *g_ctx[MAX_CPUS] = {0};
 static struct wget_stat *g_stat[MAX_CPUS] = {0};
+/*----------------------------------------------------------------------------*/
+void incr_ind(uint32_t* ind){
+	*ind = (*ind + 1) % MAX_OUTSTANDING_REQS;
+}
+
 /*----------------------------------------------------------------------------*/
 thread_context_t 
 CreateContext(int core)
@@ -216,7 +237,7 @@ CreateConnection(thread_context_t ctx)
 	ctx->pending++;
 	ctx->stat.connects++;
 
-	ev.events = MTCP_EPOLLOUT;
+	ev.events = MTCP_EPOLLOUT | MTCP_EPOLLIN;
 	ev.data.sockid = sockid;
 	mtcp_epoll_ctl(mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, sockid, &ev);
 
@@ -243,53 +264,47 @@ static inline int
 SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 {
 	// usleep(100000);
-	char request[HTTP_HEADER_LEN];
-	struct mtcp_epoll_event ev;
+	// struct mtcp_epoll_event ev;
 	int wr;
 	int len;
+	int first_time = TRUE;
 
-	wv->headerset = FALSE;
-	wv->recv = 0;
-	wv->header_len = wv->file_len = 0;
+	// wv->headerset = FALSE;
+	// wv->recv = 0;
+	// wv->header_len = wv->file_len = 0;
 
-	snprintf(request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
-			"User-Agent: Wget/1.12 (linux-gnu)\r\n"
-			"Accept: */*\r\n"
-			"Host: %s\r\n"
-//			"Connection: Keep-Alive\r\n\r\n", 
-			"Connection: Close\r\n\r\n", 
-			url, host);
-	len = strlen(request);
-	// printf("sent_len: %u\n", len);
+	while ((first_time || wr == len) &&
+			wv->total_req_sent < total_requests){
+		first_time = FALSE;
 
-	wr = mtcp_write(ctx->mctx, sockid, request, len);
-	if (wr < len) {
-		TRACE_ERROR("Socket %d: Sending HTTP request failed. "
-				"try: %d, sent: %d\n", sockid, len, wr);
-		// printf("Socket %d: Sending HTTP request failed. "
-		// 		"try: %d, sent: %d\n", sockid, len, wr);		
-	}
-	ctx->stat.writes += wr;
-	TRACE_APP("Socket %d HTTP Request of %d bytes. sent.\n", sockid, wr);
-	// printf("Socket %d HTTP Request of %d bytes. sent.\n", sockid, wr);
-	wv->request_sent = TRUE;
+		if (wv->req_offset == 0){
+			// TODO: decide which request next
+			// Is it ok to rewrite this?
+			snprintf(wv->last_request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
+					"User-Agent: Wget/1.12 (linux-gnu)\r\n"
+					"Accept: */*\r\n"
+					"Host: %s\r\n"
+					"Connection: Keep-Alive\r\n\r\n", 
+					// "Connection: Close\r\n\r\n", 
+					url, host);
 
-	ev.events = MTCP_EPOLLIN;
-	ev.data.sockid = sockid;
-	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
+			uint32_t st_ind = wv->t_start_ind;
+			gettimeofday(&wv->t_start[st_ind], NULL);
+			incr_ind(&wv->t_start_ind);
+		}
 
-	gettimeofday(&wv->t_start, NULL);
+		len = strlen(wv->last_request) - wv->req_offset;
+		wr = mtcp_write(ctx->mctx, sockid, wv->last_request + wv->req_offset, len);
+		printf("wrote: %d\n", wr);
 
-	char fname[MAX_FILE_LEN + 1];
-	if (fio) {
-		snprintf(fname, MAX_FILE_LEN, "%s.%d", outfile, flowcnt++);
-		wv->fd = open(fname, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-		if (wv->fd < 0) {
-			TRACE_APP("Failed to open file descriptor for %s\n", fname);
-			exit(1);
+		wv->req_offset += wr;
+		ctx->stat.writes += wr;
+
+		if (wv->req_offset == len) {
+			wv->total_req_sent++;
+			wv->req_offset = 0;
 		}
 	}
-
 	return 0;
 }
 /*----------------------------------------------------------------------------*/
@@ -303,9 +318,19 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 
 	TRACE_APP("Socket %d File download complete!\n", sockid);
 	// printf("Socket %d File download complete!\n", sockid);
-	gettimeofday(&wv->t_end, NULL);
-	CloseConnection(ctx, sockid);
+	uint32_t end_ind = wv->t_end_ind;
+	gettimeofday(&wv->t_end[end_ind], NULL);
+	
+	wv->total_req_recvd++;
+
+	incr_ind(&wv->t_end_ind);
+
+	if (wv->total_req_recvd == total_requests){
+		CloseConnection(ctx, sockid);
+	}
+
 	ctx->stat.completes++;
+
 	if (response_size == 0) {
 		response_size = wv->recv;
 		fprintf(stderr, "Response size set to %lu\n", response_size);
@@ -315,8 +340,11 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 			// 		wv->recv, response_size);
 		}
 	}
-	tdiff = (wv->t_end.tv_sec - wv->t_start.tv_sec) * 1000000 + 
-			(wv->t_end.tv_usec - wv->t_start.tv_usec);
+
+	uint32_t cur_ind = wv->t_cur_ind;
+	incr_ind(&wv->t_cur_ind);
+	tdiff = (wv->t_end[end_ind].tv_sec - wv->t_start[cur_ind].tv_sec) * 1000000 + 
+			(wv->t_end[end_ind].tv_usec - wv->t_start[cur_ind].tv_usec);
 	TRACE_APP("Socket %d Total received bytes: %lu (%luMB)\n", 
 			sockid, wv->recv, wv->recv / 1000000);
 	TRACE_APP("Socket %d Total spent time: %lu us\n", sockid, tdiff);
@@ -430,27 +458,6 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 			//rd -= wv->header_len;
 		}
 		wv->recv += rd;
-		
-		if (fio && wv->fd > 0) {
-			int wr = 0;
-			while (wr < rd) {
-				int _wr = write(wv->fd, pbuf + wr, rd - wr);
-				assert (_wr == rd - wr);
-				 if (_wr < 0) {
-					 perror("write");
-					 TRACE_ERROR("Failed to write.\n");
-					//  printf("Failed to write.\n");
-					 assert(0);
-					 break;
-				 }
-                                 ctx->stat.file_write_count++;
-                                 ctx->stat.file_writes += _wr;
-				 wr += _wr;	
-				 wv->write += _wr;
-				TRACE_APP("write[%lu]: +%d = %d / %d bytes (%lu / %lu) (file: %lu bytes)\n", ctx->stat.file_write_count, _wr, wr, rd, ctx->stat.file_writes, ctx->stat.reads, wv->file_len);
-				// printf("write[%lu]: +%d = %d / %d bytes (%lu / %lu) (file: %lu bytes)\n", ctx->stat.file_write_count, _wr, wr, rd, ctx->stat.file_writes, ctx->stat.reads, wv->file_len);
-			}
-		}
 		
 #if 0
 		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
@@ -722,13 +729,9 @@ RunWgetMain(void *arg)
 			} else if (events[i].events == MTCP_EPOLLOUT) {
 				// printf("READY TO WRITE\n");
 				struct wget_vars *wv = &wvars[events[i].data.sockid];
-
-				if (!wv->request_sent) {
+				if (wv->total_req_sent < total_requests){
 					SendHTTPRequest(ctx, events[i].data.sockid, wv);
-				} else {
-					//TRACE_DBG("Request already sent.\n");
 				}
-
 			} else {
 				TRACE_ERROR("Socket %d: event: %s\n", 
 						events[i].data.sockid, EventToString(events[i].events));
@@ -795,6 +798,8 @@ main(int argc, char **argv)
 		strncpy(host, argv[1], MAX_IP_STR_LEN);
 		strncpy(url, "/", 2);
 	}
+
+	strncpy(url_large, "/1m.txt", MAX_URL_LEN);
 
 	conf_file = NULL;
 	process_cpu = -1;
