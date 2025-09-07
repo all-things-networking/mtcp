@@ -129,6 +129,7 @@ SBPut(sb_manager_t sbm, struct tcp_send_buffer *buf, const void *data, size_t le
 
 	/* if no space, return -2 */
 	to_put = MIN(len, buf->size - buf->len);
+
 	if (to_put <= 0) {
 		return -2;
 	}
@@ -138,12 +139,19 @@ SBPut(sb_manager_t sbm, struct tcp_send_buffer *buf, const void *data, size_t le
 		memcpy(buf->data + buf->tail_off, data, to_put);
 		buf->tail_off += to_put;
 	} else {
+		uint32_t first_half = buf->size - buf->tail_off;
+		memcpy(buf->data + buf->tail_off, data, first_half);
+
+		uint32_t second_half = to_put - first_half;
+		memcpy(buf->data, data + first_half, second_half);
+
+		buf->tail_off = second_half;
 		/* if buffer overflows, move the existing payload and merge */
-		memmove(buf->data, buf->head, buf->len);
-		buf->head = buf->data;
-		buf->head_off = 0;
-		memcpy(buf->head + buf->len, data, to_put);
-		buf->tail_off = buf->len + to_put;
+		// memmove(buf->data, buf->head, buf->len);
+		// buf->head = buf->data;
+		// buf->head_off = 0;
+		// memcpy(buf->head + buf->len, data, to_put);
+		// buf->tail_off = buf->len + to_put;
 	}
 	buf->len += to_put;
 	buf->cum_len += to_put;
@@ -164,16 +172,28 @@ SBRemove(sb_manager_t sbm, struct tcp_send_buffer *buf, size_t len)
 		return -2;
 	}
 
-	buf->head_off += to_remove;
-	buf->head = buf->data + buf->head_off;
-	buf->head_seq += to_remove;
-	buf->len -= to_remove;
+	if (buf->head_off + to_remove < buf->size){
+		buf->head_off += to_remove;
+		buf->head = buf->data + buf->head_off;
+		buf->head_seq += to_remove;
+		buf->len -= to_remove;
+	}
+	else {
+		uint32_t first_half = buf->size - buf->head_off;
+		uint32_t second_half = to_remove - first_half;
+
+		buf->head_off = second_half;
+		buf->head = buf->data + buf->head_off;
+		buf->head_seq += to_remove;
+		buf->len -= to_remove;
+	}
+
 
 	/* if buffer is empty, move the head to 0 */
-	if (buf->len == 0 && buf->head_off > 0) {
-		buf->head = buf->data;
-		buf->head_off = buf->tail_off = 0;
-	}
+	// if (buf->len == 0 && buf->head_off > 0) {
+	// 	buf->head = buf->data;
+	// 	buf->head_off = buf->tail_off = 0;
+	// }
 
 	return to_remove;
 }
