@@ -295,6 +295,7 @@ static inline int receive_ep(mtcp_manager_t mtcp, socket_map_t socket,
 		
 		if (rcvvar->rcvbuf->merged_len == 0)
 			return 0;
+
 	}
 	
 	/* return EAGAIN if no receive buffer */
@@ -310,7 +311,11 @@ static inline int receive_ep(mtcp_manager_t mtcp, socket_map_t socket,
 			"cur_stream->mtp->last_flushed: %u\n", 
 			ev_data_size, ctx->recv_next, ctx->last_flushed);
 
-	uint32_t data_avail = MTP_SEQ_SUB(ctx->recv_next, 
+	uint32_t recv_next = ctx->recv_next;
+	if (ctx->state == MTP_TCP_CLOSE_WAIT_ST){
+		recv_next--;
+	}
+	uint32_t data_avail = MTP_SEQ_SUB(recv_next, 
 									 ctx->last_flushed, 
 									 ctx->last_flushed) - 1;
     if (data_avail > ev_data_size){
@@ -322,14 +327,14 @@ static inline int receive_ep(mtcp_manager_t mtcp, socket_map_t socket,
 	int ret = FlushAndNotify(mtcp, socket, cur_stream, ev_buf, data_avail);
     
     ctx->last_flushed += data_avail;
-	ctx->rwnd_size = cur_stream->rcvvar->rcvbuf->size - (MTP_SEQ_SUB(ctx->recv_next, 
+	ctx->rwnd_size = cur_stream->rcvvar->rcvbuf->size - (MTP_SEQ_SUB(recv_next, 
 																	ctx->last_flushed, 
 																	ctx->last_flushed) - 1);
 	
 	// MTP TODO: I think this has race conditions
 	
 	if (socket->epoll & MTCP_EPOLLIN) {
-		if (!(socket->epoll & MTCP_EPOLLET) && ctx->recv_next > ctx->last_flushed + 1) {
+		if (!(socket->epoll & MTCP_EPOLLET) && recv_next > ctx->last_flushed + 1) {
 			if (socket->epoll) {
 				AddEpollEvent(mtcp->ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
 			}
