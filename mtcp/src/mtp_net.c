@@ -601,24 +601,24 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                     // TODO: proper subtract
                     if (!bp->payload.wraps_around ||
                         seq + pkt_len < bp->payload.wrap_around_seg){
-                        printf("case1\n");
+                        MTP_PRINT("case1\n");
                         memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, data_ptr, pkt_len);
                     }
                     else {
                         if (seq >= bp->payload.wrap_around_seg){
                             uint32_t offset = seq - bp->payload.wrap_around_seg;
-                            printf("case 2: offset: %d\n", offset);
+                            MTP_PRINT("case 2: offset: %d\n", offset);
                             memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, 
                                     bp->payload.wrap_around_data + offset, pkt_len);
                         }
                         else {
                             uint32_t first_half = bp->payload.wrap_around_seg - seq;
-                            printf("case 3, first_half: %d\n", first_half);
+                            MTP_PRINT("case 3, first_half: %d\n", first_half);
                             memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, 
                                     data_ptr, first_half);
 
                             uint32_t second_half = pkt_len - first_half;
-                            printf("case 3, second_half: %d\n", second_half);
+                            MTP_PRINT("case 3, second_half: %d\n", second_half);
                             memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen + first_half, 
                                     bp->payload.wrap_around_data, second_half);
                         }

@@ -164,11 +164,11 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 	sent = 0;
 	ret = 1;
 
-	printf("starting to send for ind: %d\n", cur_ind);
+	// printf("starting to send for ind: %d\n", cur_ind);
 	while (ret > 0){
 		ret = 0;
 		if (!sv->rspheader_sent){
-			printf("resp header not sent: %d\n", cur_ind);
+			// printf("resp header not sent: %d\n", cur_ind);
 			int32_t local_sent = 0;
 
 			if (sv->resp_offset == 0){
@@ -229,7 +229,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 						"Connection: %s\r\n\r\n", 
 						scode, StatusCodeToString(scode), t_str, sv->fsize, keepalive_str);
 				TRACE_APP("Socket %d HTTP Response: \n%s", sockid, sv->response);
-				printf("response header size: %ld\n", strlen(sv->response));
+				// printf("response header size: %ld\n", strlen(sv->response));
 			}
 
 			len = strlen(sv->response) - sv->resp_offset;
@@ -247,7 +247,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 			sv->resp_offset += local_sent;
 			sent += local_sent;
 			if (sv->resp_offset == len){
-				printf("finishsed sending resp header: %d\n", cur_ind);
+				// printf("finishsed sending resp header: %d\n", cur_ind);
 				sv->rspheader_sent = TRUE;
 				sv->resp_offset = 0;
 			}
@@ -256,7 +256,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 		}
 
 		if (sv->rspheader_sent){
-			printf("transmitting data: %d\n", cur_ind);
+			// printf("transmitting data: %d\n", cur_ind);
 			int32_t local_sent = 0;
 			len = MIN(SNDBUF_SIZE, sv->fsize - sv->total_sent);
 			// printf("Socket %d, sending %d bytes, fsize: %ld, total_sent: %ld\n", 
@@ -271,7 +271,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				TRACE_APP("Connection closed with client.\n");
 				break;
 			}
-			printf("ind %d: mtcp_write try: %d, ret: %d\n", cur_ind, len, local_sent);
+			// printf("ind %d: mtcp_write try: %d, ret: %d\n", cur_ind, len, local_sent);
 			
 			ret += local_sent;
 			sent += local_sent;
@@ -280,7 +280,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 
 		if (sv->total_sent >= fcache[sv->fidx].size) {
 			// struct mtcp_epoll_event ev;
-			printf("done with ind: %d\n", cur_ind);
+			// printf("done with ind: %d\n", cur_ind);
 			sv->done = TRUE;
 			finished++;
 
@@ -360,7 +360,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 		}
 		else {
 			req[sv->request_len] = '\0';
-			printf("request: %s\n", req);
+			// printf("request: %s\n", req);
 			uint32_t new_bytes = sv->request_len - sv->recv_len;
 			rd -= new_bytes;
 			buff_offset += new_bytes;

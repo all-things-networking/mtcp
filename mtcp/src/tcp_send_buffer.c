@@ -141,14 +141,14 @@ SBPut(sb_manager_t sbm, struct tcp_send_buffer *buf, const void *data, size_t le
 	} else {
 		uint32_t first_half = buf->size - buf->tail_off;
 		memcpy(buf->data + buf->tail_off, data, first_half);
-		printf("SBPut: tail_off: %d, first_half: %d, %s\n\n\n", 
-				buf->tail_off, first_half, buf->data + buf->tail_off);
+		// printf("SBPut: tail_off: %d, first_half: %d, %s\n\n\n", 
+		// 		buf->tail_off, first_half, buf->data + buf->tail_off);
 
 		uint32_t second_half = to_put - first_half;
 		memcpy(buf->data, data + first_half, second_half);
 		buf->tail_off = second_half;
-		printf("SBPut: tail_off: %d, second_half: %d, %s\n\n\n", 
-				buf->tail_off, second_half, buf->data);
+		// printf("SBPut: tail_off: %d, second_half: %d, %s\n\n\n", 
+		// 		buf->tail_off, second_half, buf->data);
 		/* if buffer overflows, move the existing payload and merge */
 		// memmove(buf->data, buf->head, buf->len);
 		// buf->head = buf->data;
@@ -157,7 +157,7 @@ SBPut(sb_manager_t sbm, struct tcp_send_buffer *buf, const void *data, size_t le
 		// buf->tail_off = buf->len + to_put;
 	}
 
-	printf("SBPut: tail_off:%d\n", buf->tail_off);
+	// printf("SBPut: tail_off:%d\n", buf->tail_off);
 	buf->len += to_put;
 	buf->cum_len += to_put;
 
@@ -193,7 +193,7 @@ SBRemove(sb_manager_t sbm, struct tcp_send_buffer *buf, size_t len)
 		buf->len -= to_remove;
 	}
 
-	printf("SBRemove: head_off:%d\n", buf->head_off);
+	// printf("SBRemove: head_off:%d\n", buf->head_off);
 	/* if buffer is empty, move the head to 0 */
 	// if (buf->len == 0 && buf->head_off > 0) {
 	// 	buf->head = buf->data;
