@@ -1676,7 +1676,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	struct tcp_send_vars *sndvar;
 	int ret;
 
-	printf("writing: %s\n", buf);
+	// printf("writing: %s\n", buf);
 
 	mtcp = GetMTCPManager(mctx);
 	if (!mtcp) {

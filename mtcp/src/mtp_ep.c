@@ -148,7 +148,8 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 			MTP_PRINT("merging, prev blueprint is:");
 			print_MTP_bp(last_bp);
 			bp = last_bp;
-			data_merging = TRUE;
+			data_merging = FALSE;
+			// data_merging = TRUE;
 		}
 		else if (last_bp->payload.len == 0 &&
 				 last_bp->hdr.ack == TRUE &&
@@ -216,10 +217,35 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
     // Payload
     // MTP TODO: fix snbuf
 	if (!data_merging){
-		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
-														sndvar->sndbuf->head_seq,
-														sndvar->sndbuf->head_seq);
-		bp->payload.data = data;
+		// uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+		// 												sndvar->sndbuf->head_seq,
+		// 												sndvar->sndbuf->head_seq);
+		// bp->payload.data = data;
+		uint32_t buf_offset = MTP_SEQ_SUB(ctx->send_next,
+												sndvar->sndbuf->head_seq,
+												sndvar->sndbuf->head_seq);
+
+		if (sndvar->sndbuf->head_off + buf_offset > sndvar->sndbuf->size){
+			struct tcp_send_buffer* buf = sndvar->sndbuf;
+			uint32_t first_half = buf->size - buf->head_off;
+			uint32_t second_half = buf_offset - first_half;
+			uint32_t go_back = buf->head_off - second_half;
+			bp->payload.data = buf->head - go_back;
+			bp->payload.wraps_around = FALSE;
+		}
+		else {
+			uint8_t *data = sndvar->sndbuf->head + buf_offset;
+			bp->payload.data = data;
+
+			struct tcp_send_buffer* buf = sndvar->sndbuf;
+			if (buf->head_off + buf_offset + bytes_to_send > buf->size){
+				uint32_t start = buf->head_off + buf_offset;
+				uint32_t first_half = buf->size - start;
+				bp->payload.wraps_around = TRUE;
+				bp->payload.wrap_around_seg = ctx->send_next + first_half;
+				bp->payload.wrap_around_data = buf->data;
+			}
+		}
 	}
 
 	if (data_merging){
@@ -790,7 +816,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 				MTP_PRINT("merging, prev blueprint is:\n");
 				print_MTP_bp(last_bp);
 				bp = last_bp;
-				merging = TRUE;
+				merging = FALSE;
+				// merging = TRUE;
 			}
 		}
 
@@ -848,10 +875,31 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		// Payload
 		// MTP TODO: fix snbuf
 		if (!merging){
-			uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
-															sndvar->sndbuf->head_seq,
-															sndvar->sndbuf->head_seq);
-			bp->payload.data = data;
+			uint32_t buf_offset = MTP_SEQ_SUB(ctx->send_next,
+												sndvar->sndbuf->head_seq,
+												sndvar->sndbuf->head_seq);
+
+			if (sndvar->sndbuf->head_off + buf_offset > sndvar->sndbuf->size){
+				struct tcp_send_buffer* buf = sndvar->sndbuf;
+				uint32_t first_half = buf->size - buf->head_off;
+				uint32_t second_half = buf_offset - first_half;
+				uint32_t go_back = buf->head_off - second_half;
+				bp->payload.data = buf->head - go_back;
+				bp->payload.wraps_around = FALSE;
+			}
+			else {
+				uint8_t *data = sndvar->sndbuf->head + buf_offset;
+				bp->payload.data = data;
+
+				struct tcp_send_buffer* buf = sndvar->sndbuf;
+				if (buf->head_off + buf_offset + bytes_to_send > buf->size){
+					uint32_t start = buf->head_off + buf_offset;
+					uint32_t first_half = buf->size - start;
+					bp->payload.wraps_around = TRUE;
+					bp->payload.wrap_around_seg = ctx->send_next + first_half;
+					bp->payload.wrap_around_data = buf->data;
+				}
+			}
 		}
 
 		if (merging){

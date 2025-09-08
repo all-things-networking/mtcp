@@ -113,12 +113,31 @@ void print_MTP_bp(struct mtp_bp* bp){
         MTP_PRINT("Window Scale: %u\n", bp->opts.wscale.value);
     }
     
+    MTP_PRINT("Wraps around? %d\n", bp->payload.wraps_around);
+    if (bp->payload.wraps_around){
+        MTP_PRINT("wrap around seq: %d, data pointer:%p\n", 
+                   bp->payload.wrap_around_seg,
+                   bp->payload.wrap_around_data);
+    }
     MTP_PRINT("Payload Length: %u\n", bp->payload.len);
     if (bp->payload.data) {
         MTP_PRINT("Payload Data: ");
         for (uint16_t i = 0; i < bp->payload.len; i++) {
             // MTP_PRINT("%02x ", bp->payload.data[i]);
-            MTP_PRINT("%c", bp->payload.data[i]);
+            // MTP_PRINT("%d\n", i);
+            fflush(stdout);
+            uint32_t host_seq = ntohl(bp->hdr.seq);
+            uint32_t seq = host_seq + i;
+            if (bp->payload.wraps_around && seq >= bp->payload.wrap_around_seg){
+                int32_t diff = bp->payload.wrap_around_seg - host_seq;
+                MTP_PRINT("%c", bp->payload.wrap_around_data[i - diff]);
+                // MTP_PRINT("%d ", i - diff);
+                fflush(stdout);
+            }
+            else {
+                MTP_PRINT("%c", bp->payload.data[i]);
+                fflush(stdout);
+            }
         }
         MTP_PRINT("\n");
     } else {
