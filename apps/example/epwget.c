@@ -251,6 +251,7 @@ CloseConnection(thread_context_t ctx, int sockid)
 	mtcp_close(ctx->mctx, sockid);
 	ctx->pending--;
 	ctx->done++;
+	fflush(stdout);
 	assert(ctx->pending >= 0);
 	while (ctx->pending < concurrency && ctx->started < ctx->target) {
 		if (CreateConnection(ctx) < 0) {
@@ -408,7 +409,11 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		if (rd <= 0)
 			break;
 
-		printf("%s\n", buf);
+		for (int i = 0; i < rd; i++){
+			printf("%c", buf[i]);
+		}
+		printf("\n");
+
 		ctx->stat.reads += rd;
 		ctx->stat.read_count++;
 
