@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <netinet/in.h>
 
-#define ENABLE_MTP_PRINT 1
+// #define ENABLE_MTP_PRINT 1
 
 #ifdef ENABLE_MTP_PRINT
 #define MTP_PRINT(f, m...) fprintf(stdout, f, ##m)
@@ -129,8 +129,7 @@ void print_MTP_bp(struct mtp_bp* bp){
             uint32_t host_seq = ntohl(bp->hdr.seq);
             uint32_t seq = host_seq + i;
             if (bp->payload.wraps_around && seq >= bp->payload.wrap_around_seg){
-                int32_t diff = bp->payload.wrap_around_seg - host_seq;
-                MTP_PRINT("%c", bp->payload.wrap_around_data[i - diff]);
+                MTP_PRINT("%c", bp->payload.wrap_around_data[i - (bp->payload.wrap_around_seg - host_seq)]);
                 // MTP_PRINT("%d ", i - diff);
                 fflush(stdout);
             }

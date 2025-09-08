@@ -309,7 +309,7 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 
 		len = strlen(wv->last_request) - wv->req_offset;
 		wr = mtcp_write(ctx->mctx, sockid, wv->last_request + wv->req_offset, len);
-		printf("wrote: %d\n", wr);
+		// printf("wrote: %d\n", wr);
 
 		wv->req_offset += wr;
 		ctx->stat.writes += wr;
@@ -331,7 +331,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	uint64_t tdiff;
 
 	TRACE_APP("Socket %d File download complete!\n", sockid);
-	printf("Socket %d File download complete!\n", sockid);
+	// printf("Socket %d File download complete!\n", sockid);
 	uint32_t end_ind = wv->t_end_ind;
 	gettimeofday(&wv->t_end[end_ind], NULL);
 	
@@ -355,7 +355,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		}
 	}
 
-	printf("response size: %ld\n", wv->recv);
+	// printf("response size: %ld\n", wv->recv);
 
 	uint32_t cur_ind = wv->t_cur_ind;
 	incr_ind(&wv->t_cur_ind);
@@ -366,7 +366,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 			sockid, wv->recv, wv->recv / 1000000);
 	TRACE_APP("Socket %d Total spent time: %lu us\n", sockid, tdiff);
 
-	printf("Socket %d Total spent time: %lu us\n", sockid, tdiff);
+	// printf("Socket %d Total spent time: %lu us\n", sockid, tdiff);
 
 	if (record_res){
 		int len = sprintf(res_buf, "%lu\n", tdiff);
@@ -402,7 +402,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	char *pbuf;
 	int rd, copy_len;
 
-	printf("coming into handle read event\n");
+	// printf("coming into handle read event\n");
 	rd = 1;
 
 	while (rd > 0) {
@@ -411,10 +411,10 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		if (rd <= 0)
 			break;
 
-		for (int i = 0; i < rd; i++){
-			printf("%c", buf[i]);
-		}
-		printf("\n");
+		// for (int i = 0; i < rd; i++){
+		// 	printf("%c", buf[i]);
+		// }
+		// printf("\n");
 
 		ctx->stat.reads += rd;
 		ctx->stat.read_count++;
@@ -424,8 +424,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 				ctx->stat.read_count, sockid, rd, wv->recv + rd,
 				wv->headerset, wv->header_len, wv->file_len);
 		
-		printf("read[%lu]: Socket %d: mtcp_read ret: %d, total_recv: %lu\n",
-				ctx->stat.read_count, sockid, rd, wv->recv + rd);
+		// printf("read[%lu]: Socket %d: mtcp_read ret: %d, total_recv: %lu\n",
+		// 		ctx->stat.read_count, sockid, rd, wv->recv + rd);
 
 		pbuf = buf;
 		if (!wv->headerset) {
@@ -451,10 +451,10 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 						"Header length: %u, File length: %lu (%luMB)\n", 
 						sockid, wv->header_len, 
 						wv->file_len, wv->file_len / 1024 / 1024);
-				printf("Socket %d Parsed response header. "
-						"Header length: %u, File length: %lu (%luMB)\n", 
-						sockid, wv->header_len, 
-						wv->file_len, wv->file_len / 1024 / 1024);
+				// printf("Socket %d Parsed response header. "
+				// 		"Header length: %u, File length: %lu (%luMB)\n", 
+				// 		sockid, wv->header_len, 
+				// 		wv->file_len, wv->file_len / 1024 / 1024);
 
 				wv->headerset = TRUE;
 				// wv->recv += (rd - (wv->resp_len - wv->header_len));
@@ -498,7 +498,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 				uint32_t new_bytes_for_last = wv->header_len + wv->file_len - prev_recv;
 				pbuf += new_bytes_for_last;
 
-				printf("rem: %d, new_bytes: %d\n", rem, new_bytes_for_last);
+				// printf("rem: %d, new_bytes: %d\n", rem, new_bytes_for_last);
 
 				wv->headerset = FALSE;
 				wv->resp_len = 0;
@@ -531,10 +531,10 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 								"Header length: %u, File length: %lu (%luMB)\n", 
 								sockid, wv->header_len, 
 								wv->file_len, wv->file_len / 1024 / 1024);
-						printf("Socket %d Parsed response header. "
-								"Header length: %u, File length: %lu (%luMB)\n", 
-								sockid, wv->header_len, 
-								wv->file_len, wv->file_len / 1024 / 1024);
+						// printf("Socket %d Parsed response header. "
+						// 		"Header length: %u, File length: %lu (%luMB)\n", 
+						// 		sockid, wv->header_len, 
+						// 		wv->file_len, wv->file_len / 1024 / 1024);
 
 						wv->headerset = TRUE;
 						// wv->recv += (rd - (wv->resp_len - wv->header_len));
