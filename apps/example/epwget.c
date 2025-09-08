@@ -402,7 +402,9 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	char *pbuf;
 	int rd, copy_len;
 
+	printf("coming into handle read event\n");
 	rd = 1;
+
 	while (rd > 0) {
 		rd = mtcp_read(mctx, sockid, buf, BUF_SIZE);
 		// printf("mtcp_read returned: %d\n", rd);
@@ -562,7 +564,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 					else{
 						break;
 					}
-				}	
+				}
+				if (done[ctx->core]) break;	
 			}	
 		}
 		
@@ -572,6 +575,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		}
 #endif
 	}
+
+	if (wv->total_req_recvd == total_requests) return 0;
 
 	if (rd == 0) {
 		/* connection closed by remote host */
