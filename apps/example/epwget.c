@@ -331,11 +331,14 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	uint64_t tdiff;
 
 	TRACE_APP("Socket %d File download complete!\n", sockid);
-	// printf("Socket %d File download complete!\n", sockid);
+	printf("Socket %d File download complete!\n", sockid);
 	uint32_t end_ind = wv->t_end_ind;
 	gettimeofday(&wv->t_end[end_ind], NULL);
 	
 	wv->total_req_recvd++;
+
+	printf("Total requests received so far: %u / %u\n", 
+			wv->total_req_recvd, total_requests);
 
 	incr_ind(&wv->t_end_ind);
 
@@ -355,7 +358,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		}
 	}
 
-	// printf("response size: %ld\n", wv->recv);
+	printf("response size: %ld\n", wv->recv);
 
 	uint32_t cur_ind = wv->t_cur_ind;
 	incr_ind(&wv->t_cur_ind);
@@ -736,7 +739,9 @@ RunWgetMain(void *arg)
 		pthread_exit(NULL);
 		return NULL;
 	}
-	ctx->target = n;
+	
+	// ctx->target = n;
+	ctx->target = 1;
 
 	daddr_in.s_addr = daddr;
 	fprintf(stderr, "Thread %d handles %d flows. connecting to %s:%u\n", 
@@ -912,6 +917,7 @@ main(int argc, char **argv)
 		TRACE_CONFIG("Number of flows should be large than 0.\n");
 		return FALSE;
 	}
+	total_requests = total_flows;
 
 	num_cores = GetNumCPUs();
 	core_limit = num_cores;
