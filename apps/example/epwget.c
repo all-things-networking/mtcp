@@ -73,7 +73,7 @@ static char outfile[FILE_LEN + 1];
 static char host[MAX_IP_STR_LEN + 1] = {'\0'};
 static char url[MAX_URL_LEN + 1] = {'\0'};
 static char url_large[MAX_URL_LEN + 1] = {'\0'};
-static uint32_t total_requests = 2;
+static uint32_t total_requests;
 
 static in_addr_t daddr;
 static in_port_t dport;
@@ -434,6 +434,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		if (!wv->headerset) {
 			copy_len = MIN(rd, HTTP_HEADER_LEN - wv->resp_len);
 			memcpy(wv->response + wv->resp_len, buf, copy_len);
+			printf("resp_len: %d, copy_len: %d\n", wv->resp_len, copy_len);
+			printf("response so far:\n%s\n", wv->response);
 			wv->resp_len += copy_len;
 			wv->header_len = find_http_header(wv->response, wv->resp_len);
 			if (wv->header_len > 0) {
@@ -475,14 +477,15 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 						" Data: \n%s\n", ctx->core, sockid, wv->response);
 				fflush(stdout);
 #endif
-				// wv->recv += rd;
-				rd = 0;
+				wv->recv += rd;
+				// rd = 0;
 				printf("ERROR: Socket %u, Failed to parse response header.\n",
 				       sockid);
-				ctx->stat.errors++;
-				ctx->errors++;
-				CloseConnection(ctx, sockid);
-				return 0;
+				continue;
+				// ctx->stat.errors++;
+				// ctx->errors++;
+				// CloseConnection(ctx, sockid);
+				// return 0;
 			}
 			//pbuf += wv->header_len;
 			//wv->recv += wv->header_len;
@@ -515,6 +518,9 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 
 					wv->resp_len += copy_len;
 					wv->header_len = find_http_header(wv->response, wv->resp_len);
+
+					printf("resp_len: %d, copy_len: %d\n", wv->resp_len, copy_len);
+					printf("response so far:\n%s\n", wv->response);
 
 					if (wv->header_len > 0) {
 						//wv->response[wv->header_len] = '\0';

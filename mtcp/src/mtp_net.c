@@ -623,6 +623,8 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                                     bp->payload.wrap_around_data, second_half);
                         }
                     }
+
+
                     #if defined(NETSTAT) && defined(ENABLELRO)
                     mtcp->nstat.tx_gdptbytes += payloadlen;
                     #endif // NETSTAT 
@@ -753,16 +755,19 @@ SendMTPPackets(struct mtcp_manager *mtcp,
                 else {
                     if (seq >= bp->payload.wrap_around_seg){
                         uint32_t offset = seq - bp->payload.wrap_around_seg;
+                        MTP_PRINT("case 2: offset: %d\n", offset);
                         memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, 
                                 bp->payload.wrap_around_data + offset, payloadLen);
                     }
                     else {
                         uint32_t first_half = bp->payload.wrap_around_seg - seq;
+                        MTP_PRINT("case 3, first_half: %d\n", first_half);
                         memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, 
                                 bp->payload.data, first_half);
 
                         uint32_t second_half = payloadLen - first_half;
-                        memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen, 
+                        MTP_PRINT("case 3, second_half: %d\n", second_half);
+                        memcpy((uint8_t *)mtph + MTP_HEADER_LEN + optlen + first_half, 
                                 bp->payload.wrap_around_data, second_half);
                     }
                 }
