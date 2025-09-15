@@ -194,6 +194,8 @@ struct mtp_ctx_stream {
 
 	uint32_t num_rtx;
 	uint32_t max_num_rtx;
+
+	uint32_t flightsize_dupl;
     
     // receiver vars 
     uint32_t rwnd_size;
@@ -226,7 +228,6 @@ struct mtp_ctx {
 	struct mtp_ctx_stream s1;
 
 	// congestion control vars
-	uint32_t flightsize_dupl;
     uint32_t ssthresh;
     uint32_t cwnd_size;
 

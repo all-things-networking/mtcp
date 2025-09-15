@@ -671,7 +671,8 @@ static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t e
 	
 }
 
-static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq, 
+static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq,
+	uint8_t stream_id, 
     tcp_stream* cur_stream, scratchpad* scratch)
 {
     if (scratch->skip_ack_eps) return;
@@ -781,7 +782,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 											   stx_other->send_una, 
 											   stx_other->send_una);
             uint32_t opt1 = stx->flightsize_dupl/2 + other_flight_size;
-            uint32_t opt2 = 2 * stx->SMSS;
+            uint32_t opt2 = 2 * ctx->SMSS;
             if (opt1 >= opt2) ctx->ssthresh = opt1;
             else ctx->ssthresh = opt2;
 			
@@ -917,7 +918,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 	uint32_t send_una0 = ctx->s0.send_una;
 	if (stream_id == 0 &&
-		ev_ack_seq > send_una0){send_una_0 = ev_ack_seq;}	 
+		ev_ack_seq > send_una0){send_una0 = ev_ack_seq;}	 
 	int in_flight0 = MTP_SEQ_SUB(ctx->s0.send_next, send_una0, 
 								send_una0); 
 	int recv_wnd0 = ctx->s0.last_rwnd_remote - in_flight0;
@@ -932,7 +933,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 								sndvar->sndbuf1->head_seq);
 	uint32_t send_una1 = ctx->s1.send_una;
 	if (stream_id == 1 &&
-		ev_ack_seq > send_una1){send_una_1 = ev_ack_seq;}
+		ev_ack_seq > send_una1){send_una1 = ev_ack_seq;}
 
 	int in_flight1 = MTP_SEQ_SUB(ctx->s1.send_next, send_una1, 
 								 send_una1);
@@ -992,7 +993,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 			bp->hdr.dest = cur_stream->mtp->remote_port;
 			bp->hdr.seq = htonl(ctx->final_seq);
 			// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
-			bp->hdr.ack_seq = htonl(ctx->recv_next);
+			// FIN TODO: fix
+			bp->hdr.ack_seq = htonl(ctx->s1.recv_next);
 
 			bp->hdr.syn = FALSE;
 			bp->hdr.ack = TRUE;
@@ -1021,10 +1023,11 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 			bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
 			// MTP TODO: wscale on local
-			uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
+			// TODO FIN
+			uint32_t window32 = ctx->s1.rwnd_size >> ctx->wscale;
 			uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 			bp->hdr.window = htons(advertised_window);
-			if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
+			if (advertised_window == 0) ctx->s1.adv_zero_wnd = TRUE;
 
 			// Payload
 			// MTP TODO: fix snbuf
@@ -1046,7 +1049,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	MTP_PRINT("ack_net_ep: cwnd: %d, rwnd: %d, stream_id: %d\n", 
 				ctx->cwnd_size, stx->last_rwnd_remote, stream_id);
 
-	if(ctx->duplicate_acks == 3) {
+	if(stx->duplicate_acks == 3) {
 		int bytes_to_send = ctx->eff_SMSS;
         if (bytes_to_send > effective_window){
             bytes_to_send = effective_window;
@@ -1100,11 +1103,11 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
         // MTP TODO: wscale on local
         uint8_t wscale = ctx->wscale;
-    	uint32_t window32 = ctx->rwnd_size >> wscale;  
+    	uint32_t window32 = stx->rwnd_size >> wscale;  
 		// MTP TODO: fix this
     	uint16_t advertised_window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
         bp->hdr.window = htons(advertised_window);
-		if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
+		if (advertised_window == 0) stx->adv_zero_wnd = TRUE;
 
         // Payload
         // MTP TODO: fix snbuf
@@ -1214,7 +1217,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		int bytes_from_first = MIN(first_bytes_to_send, remaining_in_cwnd);
 		int bytes_from_next = 0;
 		if (bytes_from_first < remaining_in_cwnd){
-			bytes_from_next = MIN(next_bytes_to_send, (remaining_in_cwnd - bytes_from_first);
+			bytes_from_next = MIN(next_bytes_to_send, (remaining_in_cwnd - bytes_from_first));
 		}
 
 		// Generating from first
@@ -1227,7 +1230,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 				uint32_t next_sched_byte = ntohl(last_bp->hdr.seq) + last_bp->payload.len;
 				if (last_bp->hdr.urg_ptr == htons(first_stream) &&
 					last_bp->payload.len > 0 && 
-					ctx->send_next == next_sched_byte){
+					first_stream_ctx->send_next == next_sched_byte){
 					MTP_PRINT("merging, prev blueprint is:\n");
 					print_MTP_bp(last_bp);
 					bp = last_bp;
@@ -1291,7 +1294,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 			// Payload
 			// MTP TODO: fix snbuf
 			if (!merging){
-				uint32_t buf_offset = MTP_SEQ_SUB(ctx->send_next,
+				uint32_t buf_offset = MTP_SEQ_SUB(first_stream_ctx->send_next,
 													first_stream_buf->head_seq,
 													first_stream_buf->head_seq);
 
@@ -1308,13 +1311,13 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 					bp->payload.data = data;
 
 					// struct tcp_send_buffer* buf = sndvar->sndbuf;
-					if (first_stream_buf->head_off + buf_offset + bytes_to_send > 
+					if (first_stream_buf->head_off + buf_offset + bytes_from_first> 
 						first_stream_buf->size){
 						uint32_t start = first_stream_buf->head_off + buf_offset;
 						uint32_t first_half = first_stream_buf->size - start;
 						bp->payload.wraps_around = TRUE;
 						bp->payload.wrap_around_seg = first_stream_ctx->send_next + first_half;
-						bp->payload.wrap_around_data = buf->data;
+						bp->payload.wrap_around_data = first_stream_buf->data;
 					}
 				}
 			}
@@ -1357,7 +1360,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 				uint32_t next_sched_byte = ntohl(last_bp->hdr.seq) + last_bp->payload.len;
 				if (last_bp->hdr.urg_ptr == htons(next_stream) &&
 					last_bp->payload.len > 0 && 
-					ctx->send_next == next_sched_byte){
+					next_stream_ctx->send_next == next_sched_byte){
 					MTP_PRINT("merging, prev blueprint is:\n");
 					print_MTP_bp(last_bp);
 					bp = last_bp;
@@ -1421,13 +1424,13 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 			// Payload
 			// MTP TODO: fix snbuf
 			if (!merging){
-				uint32_t buf_offset = MTP_SEQ_SUB(ctx->send_next,
+				uint32_t buf_offset = MTP_SEQ_SUB(next_stream_ctx->send_next,
 													next_stream_buf->head_seq,
 													next_stream_buf->head_seq);
 
 				if (next_stream_buf->head_off + buf_offset > next_stream_buf->size){
 					// struct tcp_send_buffer* buf = sndvar->sndbuf;
-					uint32_t next_half = next_stream_buf->size - next_stream_buf->head_off;
+					uint32_t first_half = next_stream_buf->size - next_stream_buf->head_off;
 					uint32_t second_half = buf_offset - first_half;
 					uint32_t go_back = next_stream_buf->head_off - second_half;
 					bp->payload.data = next_stream_buf->head - go_back;
@@ -1438,13 +1441,13 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 					bp->payload.data = data;
 
 					// struct tcp_send_buffer* buf = sndvar->sndbuf;
-					if (next_stream_buf->head_off + buf_offset + bytes_to_send > 
+					if (next_stream_buf->head_off + buf_offset + bytes_from_next> 
 						next_stream_buf->size){
 						uint32_t start = next_stream_buf->head_off + buf_offset;
 						uint32_t first_half = next_stream_buf->size - start;
 						bp->payload.wraps_around = TRUE;
 						bp->payload.wrap_around_seg = next_stream_ctx->send_next + first_half;
-						bp->payload.wrap_around_data = buf->data;
+						bp->payload.wrap_around_data = next_stream_buf->data;
 					}
 				}
 			}
