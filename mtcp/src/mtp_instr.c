@@ -186,47 +186,89 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     mtp->SMSS = mss;
     mtp->state = state;
     mtp->init_seq = init_seq;
-    mtp->send_una = send_una;
-    mtp->send_next = send_next;
 	mtp->wscale_remote = wscale;
-    mtp->last_rwnd_remote = last_rwnd_remote << wscale;
-    mtp->recv_init_seq = recv_init_seq;
-    mtp->recv_next = recv_next;
-    mtp->last_flushed = last_flushed; 
+	mtp->recv_init_seq = recv_init_seq;
 
-    // Setting defaults
-    // MTP TODO: fix this
-    mtp->eff_SMSS = mtp->SMSS - (TCP_OPT_TIMESTAMP_LEN + 2); 
-    mtp->rwnd_size = CONFIG.rcvbuf_size;
-    mtp->cwnd_size = 1;
-	mtp->ssthresh = mtp->SMSS * 10;
-    mtp->duplicate_acks = 0;
+	mtp->eff_SMSS = mtp->SMSS - (TCP_OPT_TIMESTAMP_LEN + 2);
+	mtp->cwnd_size = 1; 
 	mtp->wscale = 7;
-	mtp->num_rtx = 0;
-	mtp->max_num_rtx = 0;
 	mtp->closed = FALSE;
 	mtp->fin_sent = FALSE;
 	mtp->final_seq = 0;
-	mtp->adv_zero_wnd = FALSE;
 	mtp->final_seq_remote = 0;
 	mtp->fin_received = FALSE;
+	mtp->ssthresh = mtp->SMSS * 10;
+
+	// Stream 0
+
+    mtp->s0.send_una = send_una;
+    mtp->s0.send_next = send_next;
+    mtp->s0.last_rwnd_remote = last_rwnd_remote << wscale; 
+    mtp->s0.recv_next = recv_next;
+    mtp->s0.last_flushed = last_flushed; 
+
+    // Setting defaults
+    // MTP TODO: fix this
+    
+    mtp->s0.rwnd_size = CONFIG.rcvbuf_size;
+    mtp->s0.duplicate_acks = 0;
+	mtp->s0.num_rtx = 0;
+	mtp->s0.max_num_rtx = 0;
+	mtp->s0.adv_zero_wnd = FALSE;
+
+	// Stream 1
+
+    mtp->s1.send_una = send_una;
+    mtp->s1.send_next = send_next;
+    mtp->s1.last_rwnd_remote = last_rwnd_remote << wscale; 
+    mtp->s1.recv_next = recv_next;
+    mtp->s1.last_flushed = last_flushed; 
+
+    // Setting defaults
+    // MTP TODO: fix this
+    
+    mtp->s1.rwnd_size = CONFIG.rcvbuf_size;
+    mtp->s1.duplicate_acks = 0;
+	mtp->s1.num_rtx = 0;
+	mtp->s1.max_num_rtx = 0;
+	mtp->s1.adv_zero_wnd = FALSE;
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	
-	rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
+	rcvvar->rcvbuf0 = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
 	// MTP TODO: this should raise an error event that comes back
 	//           to be processed according to the MTP program
-	if (!rcvvar->rcvbuf) {
+	if (!rcvvar->rcvbuf0) {
+		mtp->state = MTP_TCP_CLOSED_ST;
+		// cur_stream->close_reason = TCP_NO_MEM;
+		RaiseErrorEvent(mtcp, cur_stream);
+		return NULL;
+	}
+
+	rcvvar->rcvbuf1 = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
+	// MTP TODO: this should raise an error event that comes back
+	//           to be processed according to the MTP program
+	if (!rcvvar->rcvbuf1) {
 		mtp->state = MTP_TCP_CLOSED_ST;
 		// cur_stream->close_reason = TCP_NO_MEM;
 		RaiseErrorEvent(mtcp, cur_stream);
 		return NULL;
 	}
 	
-	mtp->meta_rwnd = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
+	mtp->s0.meta_rwnd = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
 	// MTP TODO: this should raise an error event that comes back
 	//           to be processed according to the MTP program
-	if (!mtp->meta_rwnd) {
+	if (!mtp->s0.meta_rwnd) {
+		mtp->state = MTP_TCP_CLOSED_ST;
+		// cur_stream->close_reason = TCP_NO_MEM;
+		RaiseErrorEvent(mtcp, cur_stream);
+		return NULL;
+	}
+
+	mtp->s1.meta_rwnd = RBInit(mtcp->rbm_rcv, mtp->recv_init_seq + 1);
+	// MTP TODO: this should raise an error event that comes back
+	//           to be processed according to the MTP program
+	if (!mtp->s1.meta_rwnd) {
 		mtp->state = MTP_TCP_CLOSED_ST;
 		// cur_stream->close_reason = TCP_NO_MEM;
 		RaiseErrorEvent(mtcp, cur_stream);
@@ -248,18 +290,34 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 	sa = (uint8_t *)&stream->saddr;
 	da = (uint8_t *)&stream->daddr;
 
-	if (stream->sndvar->sndbuf) {
-		TRACE_FSTAT("Stream %d: send buffer "
+	if (stream->sndvar->sndbuf0) {
+		TRACE_FSTAT("Stream %d: send buffer 0 "
 				"cum_len: %lu, len: %u\n", stream->id, 
-				stream->sndvar->sndbuf->cum_len, 
-				stream->sndvar->sndbuf->len);
+				stream->sndvar->sndbuf0->cum_len, 
+				stream->sndvar->sndbuf0->len);
 	}
-	if (stream->rcvvar->rcvbuf) {
-		TRACE_FSTAT("Stream %d: recv buffer "
+
+	if (stream->sndvar->sndbuf1) {
+		TRACE_FSTAT("Stream %d: send buffer 1 "
+				"cum_len: %lu, len: %u\n", stream->id, 
+				stream->sndvar->sndbuf1->cum_len, 
+				stream->sndvar->sndbuf1->len);
+	}
+
+	if (stream->rcvvar->rcvbuf0) {
+		TRACE_FSTAT("Stream %d: recv buffer 0 "
 				"cum_len: %lu, merged_len: %u, last_len: %u\n", stream->id, 
-				stream->rcvvar->rcvbuf->cum_len, 
-				stream->rcvvar->rcvbuf->merged_len, 
-				stream->rcvvar->rcvbuf->last_len);
+				stream->rcvvar->rcvbuf0->cum_len, 
+				stream->rcvvar->rcvbuf0->merged_len, 
+				stream->rcvvar->rcvbuf0->last_len);
+	}
+
+	if (stream->rcvvar->rcvbuf1) {
+		TRACE_FSTAT("Stream %d: recv buffer 1 "
+				"cum_len: %lu, merged_len: %u, last_len: %u\n", stream->id, 
+				stream->rcvvar->rcvbuf1->cum_len, 
+				stream->rcvvar->rcvbuf1->merged_len, 
+				stream->rcvvar->rcvbuf1->last_len);
 	}
 
 	if (stream->is_bound_addr) {
@@ -287,17 +345,29 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 	assert(stream->on_hash_table == TRUE);
 	
 	/* free ring buffers */
-	if (stream->sndvar->sndbuf) {
-		SBFree(mtcp->rbm_snd, stream->sndvar->sndbuf);
-		stream->sndvar->sndbuf = NULL;
+	if (stream->sndvar->sndbuf0) {
+		SBFree(mtcp->rbm_snd, stream->sndvar->sndbuf0);
+		stream->sndvar->sndbuf0 = NULL;
 	}
-	if (stream->rcvvar->rcvbuf) {
-		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf);
-		stream->rcvvar->rcvbuf = NULL;
+	if (stream->sndvar->sndbuf1) {
+		SBFree(mtcp->rbm_snd, stream->sndvar->sndbuf1);
+		stream->sndvar->sndbuf1 = NULL;
 	}
-	if (stream->mtp->meta_rwnd) {
-		RBFree(mtcp->rbm_rcv, stream->mtp->meta_rwnd);
-		stream->mtp->meta_rwnd = NULL;
+	if (stream->rcvvar->rcvbuf0) {
+		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf0);
+		stream->rcvvar->rcvbuf0 = NULL;
+	}
+	if (stream->rcvvar->rcvbuf1) {
+		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf1);
+		stream->rcvvar->rcvbuf1 = NULL;
+	}
+	if (stream->mtp->s0.meta_rwnd) {
+		RBFree(mtcp->rbm_rcv, stream->mtp->s0.meta_rwnd);
+		stream->mtp->s0.meta_rwnd = NULL;
+	}
+	if (stream->mtp->s1.meta_rwnd) {
+		RBFree(mtcp->rbm_rcv, stream->mtp->s1.meta_rwnd);
+		stream->mtp->s1.meta_rwnd = NULL;
 	}
 
 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
@@ -342,8 +412,10 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
  MTP "buffer" instructions
  ***********************************************/
 void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
-                uint32_t offset, uint32_t len){
+                uint32_t offset, uint32_t len, uint8_t stream_id){
 	struct tcp_send_vars* sndvar = cur_stream->sndvar;
+	struct tcp_send_buffer* sndbuf = sndvar->sndbuf0;
+	if (stream_id == 1) sndbuf = sndvar->sndbuf1;
 	
 	// if (SBUF_LOCK(&sndvar->write_lock)) {
 	// 	if (errno == EDEADLK) perror("ProcessACK: write_lock blocked\n");
@@ -351,15 +423,15 @@ void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream,
 	// }
 	
 	// MTP TODO: should we change offset and assume you can only continuously flush?
-	uint32_t rmlen = len + MTP_SEQ_SUB(offset, sndvar->sndbuf->head_seq, sndvar->sndbuf->head_seq);
+	uint32_t rmlen = len + MTP_SEQ_SUB(offset, sndbuf->head_seq, sndbuf->head_seq);
 	// printf("TxDataFlush rmlen:%d\n", rmlen);
 	// printf("Before: head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
-	SBRemove(mtcp->rbm_snd, sndvar->sndbuf, rmlen);
+	SBRemove(mtcp->rbm_snd, sndbuf, rmlen);
 	// printf("After: head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 	
-	sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
+	sndvar->snd_wnd = sndbuf->size - sndbuf->len;
 
 	// MTP TODO: How is this modeled in MTP, if at all?
 	RaiseWriteEvent(mtcp, cur_stream);
@@ -369,10 +441,12 @@ void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream,
 
 //  Funcion to flush data to and notify app
 int FlushAndNotify(mtcp_manager_t mtcp, socket_map_t socket, 
-				   tcp_stream* cur_stream, char *buf, int len)
+				   tcp_stream* cur_stream, char *buf, int len, uint8_t stream_id)
 {
 	// Flush part (modified from mTCP CopyToUser)
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	struct tcp_ring_buffer* rcvbuf = rcvvar->rcvbuf0;
+	if (stream_id == 1) rcvbuf = rcvvar->rcvbuf1;
 
 	if (len <= 0) {
 		errno = EAGAIN;
@@ -380,8 +454,8 @@ int FlushAndNotify(mtcp_manager_t mtcp, socket_map_t socket,
 	}
 
 	// Copy data to user buffer and remove it from receiving buffer
-	memcpy(buf, rcvvar->rcvbuf->head, len);
-	RBRemove(mtcp->rbm_rcv, rcvvar->rcvbuf, len, AT_APP);
+	memcpy(buf, rcvbuf->head, len);
+	RBRemove(mtcp->rbm_rcv, rcvbuf, len, AT_APP);
 
 	return len;
 }

@@ -73,8 +73,10 @@ struct tcp_recv_vars
 	uint8_t sacks:3;
 #endif /* TCP_OPT_SACK_ENABLED */
 
-	struct tcp_ring_buffer *rcvbuf;
-    uint32_t last_flushed_seq;
+	struct tcp_ring_buffer *rcvbuf0;
+	struct tcp_ring_buffer *rcvbuf1;
+    uint32_t last_flushed_seq0;
+	uint32_t last_flushed_seq1;
 #if USE_SPIN_LOCK
 	pthread_spinlock_t read_lock;
 #else
@@ -158,7 +160,8 @@ struct tcp_send_vars
 	TAILQ_ENTRY(tcp_stream) timer_link;		/* timer link (rto list, tw list) */
 	TAILQ_ENTRY(tcp_stream) timeout_link;	/* connection timeout link */
 
-	struct tcp_send_buffer *sndbuf;
+	struct tcp_send_buffer *sndbuf0;
+	struct tcp_send_buffer *sndbuf1;
 #if USE_SPIN_LOCK
 	pthread_spinlock_t write_lock;
 #else
@@ -175,6 +178,36 @@ struct tcp_send_vars
 #endif
 };
 
+struct mtp_ctx_stream {
+// sender vars 
+    uint32_t last_ack;
+    uint8_t duplicate_acks;
+    
+    uint32_t send_una;
+    uint32_t send_next;
+    //uint32_t data_end = 0;
+    
+    uint32_t last_rwnd_remote;
+    uint32_t lwu_seq;
+    uint32_t lwu_ack;
+
+	uint32_t num_rtx;
+	uint32_t max_num_rtx;
+    
+    // receiver vars 
+    uint32_t rwnd_size;
+    uint32_t recv_next;
+    uint32_t last_flushed;
+	bool adv_zero_wnd; 
+    //bool first_data_rcvd = true;
+
+    //timer_t ack_timeout;
+
+    //addr_t read_from_addr;
+    //addr_t write_to_addr;
+
+    struct tcp_ring_buffer *meta_rwnd;
+};
 //#ifdef USE_MTP
 struct mtp_ctx {
     uint32_t remote_ip;
@@ -188,45 +221,21 @@ struct mtp_ctx {
     uint32_t SMSS;
     uint32_t eff_SMSS;
 
-    // sender vars
-    uint32_t init_seq;
-    uint32_t last_ack;
-    uint8_t duplicate_acks;
-    uint32_t flightsize_dupl;
+	struct mtp_ctx_stream s0;
+	struct mtp_ctx_stream s1;
+
+	// congestion control vars
+	uint32_t flightsize_dupl;
     uint32_t ssthresh;
     uint32_t cwnd_size;
 
-    //uint32 RTO = ONE_SEC;
-    //int64 SRTT = 0;
-    //uint32 RTTVAR = 0;
-    //bool first_rto = 1;
-
-    uint32_t send_una;
-    uint32_t send_next;
-    //uint32_t data_end = 0;
-    uint32_t wscale_remote;
-    uint32_t last_rwnd_remote;
+	// shared vars
+	uint32_t init_seq;
+	uint32_t recv_init_seq;
+	uint32_t wscale_remote;
 	uint8_t wscale;
-    uint32_t lwu_seq;
-    uint32_t lwu_ack;
 
-	uint32_t num_rtx;
-	uint32_t max_num_rtx;
     
-    // receiver vars
-    uint32_t recv_init_seq;
-    uint32_t rwnd_size;
-    uint32_t recv_next;
-    uint32_t last_flushed;
-	bool adv_zero_wnd; 
-    //bool first_data_rcvd = true;
-
-    //timer_t ack_timeout;
-
-    //addr_t read_from_addr;
-    //addr_t write_to_addr;
-
-    struct tcp_ring_buffer *meta_rwnd;
     //buffer_id_t bid;
 
 	// timestamps
