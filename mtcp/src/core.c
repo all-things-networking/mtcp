@@ -1089,14 +1089,14 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
     #endif
 	
 #endif
-	mtcp->rbm_snd = SBManagerCreate(mtcp, CONFIG.sndbuf_size, CONFIG.max_num_buffers);
+	mtcp->rbm_snd = SBManagerCreate(mtcp, CONFIG.sndbuf_size, 2 * CONFIG.max_num_buffers);
 	if (!mtcp->rbm_snd) {
 		CTRACE_ERROR("Failed to create send ring buffer.\n");
 		return NULL;
 	}
 
 	#ifdef USE_MTP
-	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, 2 * CONFIG.max_num_buffers);
+	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, 4 * CONFIG.max_num_buffers);
 	#else
 	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, CONFIG.max_num_buffers);
 	#endif

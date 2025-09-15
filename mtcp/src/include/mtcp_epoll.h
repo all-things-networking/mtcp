@@ -45,6 +45,7 @@ struct mtcp_epoll_event
 {
 	uint32_t events;
 	mtcp_epoll_data_t data;
+	uint8_t stream_id;
 };
 /*----------------------------------------------------------------------------*/
 int 

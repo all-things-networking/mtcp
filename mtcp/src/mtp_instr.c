@@ -198,6 +198,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	mtp->final_seq_remote = 0;
 	mtp->fin_received = FALSE;
 	mtp->ssthresh = mtp->SMSS * 10;
+	mtp->initial_rwnd_size = CONFIG.rcvbuf_size;
 
 	// Stream 0
 

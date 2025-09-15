@@ -8,6 +8,10 @@
 
 // Protocol-specific parameters
 
+#define MTP_QUIC_SHARED 3
+#define MTP_QUIC_ST0 0
+#define MTP_QUIC_ST1 1
+
 #define MTP_TCP_LISTEN_ST 0
 #define MTP_TCP_ACCEPT_ST 1
 #define MTP_TCP_SYNACK_SENT_ST 2

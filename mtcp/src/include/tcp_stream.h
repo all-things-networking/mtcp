@@ -234,6 +234,7 @@ struct mtp_ctx {
 	uint32_t recv_init_seq;
 	uint32_t wscale_remote;
 	uint8_t wscale;
+	uint32_t initial_rwnd_size;
 
     
     //buffer_id_t bid;
@@ -334,7 +335,8 @@ EqualSID(const void *flow1, const void *flow2);
 
 extern inline int 
 AddEpollEvent(struct mtcp_epoll *ep, 
-		int queue_type, socket_map_t socket, uint32_t event);
+		int queue_type, socket_map_t socket, uint32_t event,
+		uint8_t stream_id);
 
 extern inline void 
 RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream);

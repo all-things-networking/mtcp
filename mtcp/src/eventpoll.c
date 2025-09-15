@@ -577,7 +577,8 @@ wait:
 /*----------------------------------------------------------------------------*/
 inline int 
 AddEpollEvent(struct mtcp_epoll *ep, 
-		int queue_type, socket_map_t socket, uint32_t event)
+		int queue_type, socket_map_t socket, uint32_t event,
+		uint8_t stream_id)
 {
 	struct event_queue *eq;
 	int index;

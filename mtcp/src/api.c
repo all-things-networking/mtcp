@@ -656,7 +656,8 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 	    !TAILQ_EMPTY(&mtp_listener->pending))
 		AddEpollEvent(mtcp->ep, 
 			      USR_SHADOW_EVENT_QUEUE,
-			      mtp_listener->socket, MTCP_EPOLLIN);
+			      mtp_listener->socket, MTCP_EPOLLIN, 
+				  MTP_QUIC_SHARED);
 #else
 	if (!(listener->socket->epoll & MTCP_EPOLLET) &&
 	    !StreamQueueIsEmpty(listener->acceptq))

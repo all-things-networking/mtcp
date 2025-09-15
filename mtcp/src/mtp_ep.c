@@ -1285,8 +1285,16 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	MTP_PRINT("Created context, stream ptr: %p\n", cur_stream);
 	if (cur_stream == NULL) return;
 
-	cur_stream->sndvar->sndbuf = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);
-	if (!cur_stream->sndvar->sndbuf) {
+	cur_stream->sndvar->sndbuf0 = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);
+	if (!cur_stream->sndvar->sndbuf0) {
+		cur_stream->close_reason = TCP_NO_MEM;
+		/* notification may not required due to -1 return */
+		errno = ENOMEM;
+		return;
+	}
+
+	cur_stream->sndvar->sndbuf1 = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);
+	if (!cur_stream->sndvar->sndbuf1) {
 		cur_stream->close_reason = TCP_NO_MEM;
 		/* notification may not required due to -1 return */
 		errno = ENOMEM;
@@ -1339,6 +1347,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
     bp->hdr.syn = TRUE;
     bp->hdr.ack = TRUE;
+	bp->hdr.urg_ptr = MTP_QUIC_SHARED;
 
     // options to calculate data offset
     // MSS
@@ -1370,7 +1379,7 @@ static inline void syn_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint16_t optlen = MTP_CalculateOptionLength(bp);
     bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
-    uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
+    uint32_t window32 = cur_stream->mtp->initial_rwnd_size >> cur_stream->mtp->wscale;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
 
@@ -1794,8 +1803,16 @@ tcp_stream* MtpConnectChainPart1(mtcp_manager_t mtcp, uint32_t cur_ts,
 			cur_stream->saddr, cur_stream->daddr,
 			cur_stream->sport, cur_stream->dport);
 
-	cur_stream->sndvar->sndbuf = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);
-	if (!cur_stream->sndvar->sndbuf) {
+	cur_stream->sndvar->sndbuf0 = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);
+	if (!cur_stream->sndvar->sndbuf0) {
+		cur_stream->close_reason = TCP_NO_MEM;
+		/* notification may not required due to -1 return */
+		errno = ENOMEM;
+		return NULL;
+	}
+
+	cur_stream->sndvar->sndbuf1 = SBInit(mtcp->rbm_snd, cur_stream->mtp->init_seq + 1);
+	if (!cur_stream->sndvar->sndbuf1) {
 		cur_stream->close_reason = TCP_NO_MEM;
 		/* notification may not required due to -1 return */
 		errno = ENOMEM;
@@ -1823,6 +1840,7 @@ void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
     bp->hdr.seq = htonl(ctx->init_seq);
     bp->hdr.syn = TRUE;
     bp->hdr.ack = FALSE;
+	bp->hdr.urg_ptr = MTP_QUIC_SHARED;
 
     // options to calculate data offset
     // MSS
@@ -1850,10 +1868,13 @@ void MtpConnectChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
     uint16_t optlen = MTP_CalculateOptionLength(bp);
     bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
-    uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
+    uint32_t window32 = cur_stream->mtp->initial_rwnd_size >> cur_stream->mtp->wscale;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
-	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
+	if (advertised_window == 0) {
+		ctx->s0.adv_zero_wnd = TRUE;
+		ctx->s1.adv_zero_wnd = TRUE;
+	}
 
     // Payload
     bp->payload.data = NULL;
