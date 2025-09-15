@@ -242,7 +242,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	if (!rcvvar->rcvbuf0) {
 		mtp->state = MTP_TCP_CLOSED_ST;
 		// cur_stream->close_reason = TCP_NO_MEM;
-		RaiseErrorEvent(mtcp, cur_stream);
+		RaiseErrorEvent(mtcp, cur_stream, MTP_QUIC_SHARED);
 		return NULL;
 	}
 
@@ -252,7 +252,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	if (!rcvvar->rcvbuf1) {
 		mtp->state = MTP_TCP_CLOSED_ST;
 		// cur_stream->close_reason = TCP_NO_MEM;
-		RaiseErrorEvent(mtcp, cur_stream);
+		RaiseErrorEvent(mtcp, cur_stream, MTP_QUIC_SHARED);
 		return NULL;
 	}
 	
@@ -262,7 +262,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	if (!mtp->s0.meta_rwnd) {
 		mtp->state = MTP_TCP_CLOSED_ST;
 		// cur_stream->close_reason = TCP_NO_MEM;
-		RaiseErrorEvent(mtcp, cur_stream);
+		RaiseErrorEvent(mtcp, cur_stream, MTP_QUIC_SHARED);
 		return NULL;
 	}
 
@@ -272,7 +272,7 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	if (!mtp->s1.meta_rwnd) {
 		mtp->state = MTP_TCP_CLOSED_ST;
 		// cur_stream->close_reason = TCP_NO_MEM;
-		RaiseErrorEvent(mtcp, cur_stream);
+		RaiseErrorEvent(mtcp, cur_stream, MTP_QUIC_SHARED);
 		return NULL;
 	}
 	
@@ -432,10 +432,11 @@ void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream,
 	// printf("After: head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 	
-	sndvar->snd_wnd = sndbuf->size - sndbuf->len;
+	if (stream_id == 0) sndvar->snd_wnd0 = sndbuf->size - sndbuf->len;
+	else sndvar->snd_wnd1 = sndbuf->size - sndbuf->len;
 
 	// MTP TODO: How is this modeled in MTP, if at all?
-	RaiseWriteEvent(mtcp, cur_stream);
+	RaiseWriteEvent(mtcp, cur_stream, stream_id);
 	// SBUF_UNLOCK(&sndvar->write_lock);				
 }
 

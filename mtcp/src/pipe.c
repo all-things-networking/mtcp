@@ -119,7 +119,7 @@ RaiseEventToPair(mtcp_manager_t mtcp, socket_map_t socket, uint32_t event)
 
 	if (pair_socket->opts & MTCP_NONBLOCK) {
 		if (pair_socket->epoll) {
-			AddEpollEvent(mtcp->ep, USR_EVENT_QUEUE, pair_socket, event);
+			AddEpollEvent(mtcp->ep, USR_EVENT_QUEUE, pair_socket, event, 0);
 		}
 	} else {
 		pthread_cond_signal(&pp->pipe_cond);
@@ -220,10 +220,10 @@ PipeRead(mctx_t mctx, int pipeid, char *buf, int len)
 	if (pp->buf_len > 0) {
 		if ((socket->epoll & MTCP_EPOLLIN) && !(socket->epoll & MTCP_EPOLLET)) {
 			AddEpollEvent(mtcp->ep, 
-					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, 0);
 		}
 	} else if (pp->state == PIPE_CLOSE_WAIT && pp->buf_len == 0) {
-		AddEpollEvent(mtcp->ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+		AddEpollEvent(mtcp->ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, 0);
 	}
 
 	return to_read;
@@ -322,7 +322,7 @@ PipeWrite(mctx_t mctx, int pipeid, const char *buf, int len)
 	if (pp->buf_len < pp->buf_size) {
 		if ((socket->epoll & MTCP_EPOLLOUT) && !(socket->epoll & MTCP_EPOLLET)) {
 			AddEpollEvent(mtcp->ep, 
-					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT, 0);
 		}
 	}
 
@@ -345,16 +345,16 @@ RaisePendingPipeEvents(mctx_t mctx, int epid, int pipeid)
 	/* generate read event */
 	if (socket->epoll & MTCP_EPOLLIN) {
 		if (pp->buf_len > 0) {
-			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, 0);
 		} else if (pp->state == PIPE_CLOSE_WAIT) {
-			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, 0);
 		}
 	}
 
 	/* same thing to the write event */
 	if (socket->epoll & MTCP_EPOLLOUT) {
 		if (pp->buf_len < pp->buf_size) {
-			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
+			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT, 0);
 		}
 	}
 

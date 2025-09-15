@@ -203,7 +203,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	int bytes_from_first = MIN(first_bytes_to_send, remaining_in_cwnd);
 	int bytes_from_next = 0;
 	if (bytes_from_first < remaining_in_cwnd){
-		bytes_from_next = MIN(next_bytes_to_send, (remaining_in_cwnd - bytes_from_first);
+		bytes_from_next = MIN(next_bytes_to_send, (remaining_in_cwnd - bytes_from_first));
 	}
 
 	// Generating from first

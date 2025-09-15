@@ -324,6 +324,7 @@ mtcp_setsock_nonblock(mctx_t mctx, int sockid)
 	return 0;
 }
 /*----------------------------------------------------------------------------*/
+/*
 int 
 mtcp_socket_ioctl(mctx_t mctx, int sockid, int request, void *argp)
 {
@@ -341,7 +342,7 @@ mtcp_socket_ioctl(mctx_t mctx, int sockid, int request, void *argp)
 		return -1;
 	}
 
-	/* only support stream socket */
+	// only support stream socket 
 	socket = &mtcp->smap[sockid];
 	if (socket->socktype != MTCP_SOCK_STREAM &&
 	    socket->socktype != MTCP_SOCK_LISTENER) {
@@ -382,6 +383,8 @@ mtcp_socket_ioctl(mctx_t mctx, int sockid, int request, void *argp)
 
 	return 0;
 }
+*/
+
 /*----------------------------------------------------------------------------*/
 int 
 mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
@@ -1179,14 +1182,14 @@ PeekForUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	int copylen;
 	
-	copylen = MIN(rcvvar->rcvbuf->merged_len, len);
+	copylen = MIN(rcvvar->rcvbuf0->merged_len, len);
 	if (copylen <= 0) {
 		errno = EAGAIN;
 		return -1;
 	}
 
 	/* Only copy data to user buffer */
-	memcpy(buf, rcvvar->rcvbuf->head, copylen);
+	memcpy(buf, rcvvar->rcvbuf0->head, copylen);
 	
 	return copylen;
 }
@@ -1198,7 +1201,7 @@ CopyToUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 	uint32_t prev_rcv_wnd;
 	int copylen;
 
-	copylen = MIN(rcvvar->rcvbuf->merged_len, len);
+	copylen = MIN(rcvvar->rcvbuf0->merged_len, len);
 	if (copylen <= 0) {
 		errno = EAGAIN;
 		return -1;
@@ -1206,9 +1209,9 @@ CopyToUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 
 	prev_rcv_wnd = rcvvar->rcv_wnd;
 	/* Copy data to user buffer and remove it from receiving buffer */
-	memcpy(buf, rcvvar->rcvbuf->head, copylen);
-	RBRemove(mtcp->rbm_rcv, rcvvar->rcvbuf, copylen, AT_APP);
-	rcvvar->rcv_wnd = rcvvar->rcvbuf->size - rcvvar->rcvbuf->merged_len;
+	memcpy(buf, rcvvar->rcvbuf0->head, copylen);
+	RBRemove(mtcp->rbm_rcv, rcvvar->rcvbuf0, copylen, AT_APP);
+	rcvvar->rcv_wnd = rcvvar->rcvbuf0->size - rcvvar->rcvbuf0->merged_len;
 
 	/* Advertise newly freed receive buffer */
 	if (cur_stream->need_wnd_adv) {
@@ -1448,16 +1451,16 @@ mtcp_readv(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
 
 	/* if CLOSE_WAIT, return 0 if there is no payload */
 	if (cur_stream->state == TCP_ST_CLOSE_WAIT) {
-		if (!rcvvar->rcvbuf)
+		if (!rcvvar->rcvbuf0)
 			return 0;
 		
-		if (rcvvar->rcvbuf->merged_len == 0)
+		if (rcvvar->rcvbuf0->merged_len == 0)
 			return 0;
 	}
 
 	/* return EAGAIN if no receive buffer */
 	if (socket->opts & MTCP_NONBLOCK) {
-		if (!rcvvar->rcvbuf || rcvvar->rcvbuf->merged_len == 0) {
+		if (!rcvvar->rcvbuf0 || rcvvar->rcvbuf0->merged_len == 0) {
 			errno = EAGAIN;
 			return -1;
 		}
@@ -1497,13 +1500,13 @@ mtcp_readv(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
 	/* if there are remaining payload, generate read event */
 	/* (may due to insufficient user buffer) */
 	if (socket->epoll & MTCP_EPOLLIN) {
-		if (!(socket->epoll & MTCP_EPOLLET) && rcvvar->rcvbuf->merged_len > 0) {
+		if (!(socket->epoll & MTCP_EPOLLET) && rcvvar->rcvbuf0->merged_len > 0) {
 			event_remaining = TRUE;
 		}
 	}
 	/* if waiting for close, notify it if no remaining data */
 	if (cur_stream->state == TCP_ST_CLOSE_WAIT && 
-			rcvvar->rcvbuf->merged_len == 0 && bytes_read > 0) {
+			rcvvar->rcvbuf0->merged_len == 0 && bytes_read > 0) {
 		event_remaining = TRUE;
 	}
 
@@ -1512,7 +1515,7 @@ mtcp_readv(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
 	if(event_remaining) {
 		if ((socket->epoll & MTCP_EPOLLIN) && !(socket->epoll & MTCP_EPOLLET)) {
 			AddEpollEvent(mtcp->ep, 
-					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, 0);
 #if BLOCKING_SUPPORT
 		} else if (!(socket->opts & MTCP_NONBLOCK)) {
 			if (!cur_stream->on_rcv_br_list) {
@@ -1538,7 +1541,10 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 	int sndlen;
 	int ret;
 
-	sndlen = MIN((int)sndvar->snd_wnd, len);
+	sndlen = MIN((int)sndvar->snd_wnd0, len);
+	if (stream_id == 1){
+		sndlen = MIN((int)sndvar->snd_wnd1, len);
+	}
 	if (sndlen <= 0) {
 		errno = EAGAIN;
 		return -1;
@@ -1906,7 +1912,7 @@ mtcp_writev(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
 		if (iov[i].iov_len <= 0)
 			continue;
 
-		ret = CopyFromUser(mtcp, cur_stream, iov[i].iov_base, iov[i].iov_len);
+		ret = CopyFromUser(mtcp, cur_stream, iov[i].iov_base, iov[i].iov_len, 0);
 		if (ret <= 0)
 			break;
 
@@ -1931,10 +1937,10 @@ mtcp_writev(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
 	}
 
 	/* if there are remaining sending buffer, generate write event */
-	if (sndvar->snd_wnd > 0) {
+	if (sndvar->snd_wnd0 > 0) {
 		if ((socket->epoll & MTCP_EPOLLOUT) && !(socket->epoll & MTCP_EPOLLET)) {
 			AddEpollEvent(mtcp->ep, 
-					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT, 0);
 #if BLOCKING_SUPPORT
 		} else if (!(socket->opts & MTCP_NONBLOCK)) {
 			if (!cur_stream->on_snd_br_list) {

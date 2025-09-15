@@ -217,7 +217,7 @@ HandleRTO(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 			if (cur_stream->socket) {
 				printf("Stream %u: error event in timer\n",
 						cur_stream->id);
-				RaiseErrorEvent(mtcp, cur_stream);
+				RaiseErrorEvent(mtcp, cur_stream, MTP_QUIC_SHARED);
 			} else {
 				DestroyTCPStream(mtcp, cur_stream);
 			}
@@ -277,7 +277,7 @@ HandleRTO(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
 			if (cur_stream->socket) {
 				printf("Stream %u: error event in timer 2\n",
 						cur_stream->id);
-				RaiseErrorEvent(mtcp, cur_stream);
+				RaiseErrorEvent(mtcp, cur_stream, MTP_QUIC_SHARED);
 			} else {
 				DestroyTCPStream(mtcp, cur_stream);
 			}
@@ -533,7 +533,7 @@ CheckConnectionTimeout(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh)
 			if (walk->socket) {
 				printf("Stream %u: error event in connection timeout\n",
 						walk->id);
-				RaiseErrorEvent(mtcp, walk);
+				RaiseErrorEvent(mtcp, walk, MTP_QUIC_SHARED);
 			} else {
 				DestroyTCPStream(mtcp, walk);
 			}

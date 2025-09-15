@@ -469,7 +469,7 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
 	int packets = 0;
 	uint8_t wack_sent = 0;
 	
-	if (!sndvar->sndbuf) {
+	if (!sndvar->sndbuf0) {
 		TRACE_ERROR("Stream %d: No send buffer available.\n", cur_stream->id);
 		assert(0);
 		return 0;
@@ -478,7 +478,7 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
 	// printf("lock in tcp out\n");
 	SBUF_LOCK(&sndvar->write_lock);
 
-	if (sndvar->sndbuf->len == 0) {
+	if (sndvar->sndbuf0->len == 0) {
 		packets = 0;
 		goto out;
 	}
@@ -494,8 +494,8 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
 		}
 #endif
 		//seq = cur_stream->snd_nxt;
-		data = sndvar->sndbuf->head + (seq - sndvar->sndbuf->head_seq);
-		len = sndvar->sndbuf->len - (seq - sndvar->sndbuf->head_seq);
+		data = sndvar->sndbuf0->head + (seq - sndvar->sndbuf0->head_seq);
+		len = sndvar->sndbuf0->len - (seq - sndvar->sndbuf0->head_seq);
 #if USE_CCP
 		// Without this, mm continually drops packets (not sure why, bursting?) -> mtcp sees lots of losses -> throughput dies
 		if(cur_stream->wait_for_acks &&
@@ -504,11 +504,11 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
 		}
 #endif
 		/* sanity check */
-		if (TCP_SEQ_LT(seq, sndvar->sndbuf->head_seq)) {
+		if (TCP_SEQ_LT(seq, sndvar->sndbuf0->head_seq)) {
 			TRACE_ERROR("Stream %d: Invalid sequence to send. "
 						"state: %s, seq: %u, head_seq: %u.\n",
 						cur_stream->id, TCPStateToString(cur_stream),
-						seq, sndvar->sndbuf->head_seq);
+						seq, sndvar->sndbuf0->head_seq);
 			assert(0);
 			break;
 		}
@@ -520,7 +520,7 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
 			assert(0);
 			break;
 		}
-		if (sndvar->sndbuf->len < (seq - sndvar->sndbuf->head_seq)) {
+		if (sndvar->sndbuf0->len < (seq - sndvar->sndbuf0->head_seq)) {
 			TRACE_ERROR("Stream %d: len < 0\n",
 						cur_stream->id);
 			assert(0);
@@ -872,10 +872,10 @@ WriteTCPACKList(mtcp_manager_t mtcp,
 					cur_stream->state == TCP_ST_TIME_WAIT) {
 				/* TIMEWAIT is possible since the ack is queued 
 				   at FIN_WAIT_2 */
-				if (cur_stream->rcvvar->rcvbuf) {
+				if (cur_stream->rcvvar->rcvbuf0) {
 					if (TCP_SEQ_LEQ(cur_stream->rcv_nxt, 
-								cur_stream->rcvvar->rcvbuf->head_seq + 
-								cur_stream->rcvvar->rcvbuf->merged_len)) {
+								cur_stream->rcvvar->rcvbuf0->head_seq + 
+								cur_stream->rcvvar->rcvbuf0->merged_len)) {
 						to_ack = TRUE;
 					}
 				}
@@ -1006,7 +1006,7 @@ AddtoSendList(mtcp_manager_t mtcp, tcp_stream *cur_stream)
 	struct mtcp_sender *sender = GetSender(mtcp, cur_stream);
 	assert(sender != NULL);
 
-	if(!cur_stream->sndvar->sndbuf) {
+	if(!cur_stream->sndvar->sndbuf0) {
 		TRACE_ERROR("[%d] Stream %d: No send buffer available.\n", 
 				mtcp->ctx->cpu,
 				cur_stream->id);

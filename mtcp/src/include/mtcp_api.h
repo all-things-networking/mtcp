@@ -125,10 +125,10 @@ mtcp_getpeername(mctx_t mctx, int sockid, struct sockaddr *addr,
 		 socklen_t *addrlen);
 
 inline ssize_t
-mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len);
+mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len, uint8_t stream_id);
 
 ssize_t
-mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags);
+mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags, uint8_t stream_id);
 
 /* readv should work in atomic */
 int

@@ -251,23 +251,41 @@ RaisePendingStreamEvents(mtcp_manager_t mtcp,
 	if (socket->epoll & MTCP_EPOLLIN) {
 		struct tcp_recv_vars *rcvvar = stream->rcvvar;
 		// printf("In EPOLLIN\n");
-		if (rcvvar->rcvbuf && rcvvar->rcvbuf->merged_len > 0) {
+		// Check stream 0
+		if (rcvvar->rcvbuf0 && rcvvar->rcvbuf0->merged_len > 0) {
 			TRACE_EPOLL("Socket %d: Has existing payloads\n", socket->id);
 			// printf("Socket %d: Has existing payloads\n", socket->id);
-			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, 0);
 		} else if (stream->state == TCP_ST_CLOSE_WAIT) {
 			TRACE_EPOLL("Socket %d: Waiting for close\n", socket->id);
-			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
+			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, 0);
+		}
+
+		// Check stream 1
+		if (rcvvar->rcvbuf1 && rcvvar->rcvbuf1->merged_len > 0) {
+			TRACE_EPOLL("Socket %d: Has existing payloads\n", socket->id);
+			// printf("Socket %d: Has existing payloads\n", socket->id);
+			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, 1);
+		} else if (stream->state == TCP_ST_CLOSE_WAIT) {
+			TRACE_EPOLL("Socket %d: Waiting for close\n", socket->id);
+			AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN, 1);
 		}
 	}
 
 	/* same thing to the write event */
 	if (socket->epoll & MTCP_EPOLLOUT) {
 		struct tcp_send_vars *sndvar = stream->sndvar;
-		if (!sndvar->sndbuf || (sndvar->sndbuf && sndvar->snd_wnd > 0)) {
+		if (!sndvar->sndbuf0 || (sndvar->sndbuf0 && sndvar->snd_wnd0 > 0)) {
 			if (!(socket->events & MTCP_EPOLLOUT)) {
 				TRACE_EPOLL("Socket %d: Adding write event\n", socket->id);
-				AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
+				AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT, 0);
+			}
+		}
+
+		if (!sndvar->sndbuf1 || (sndvar->sndbuf1 && sndvar->snd_wnd1 > 0)) {
+			if (!(socket->events & MTCP_EPOLLOUT)) {
+				TRACE_EPOLL("Socket %d: Adding write event\n", socket->id);
+				AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT, 1);
 			}
 		}
 	}

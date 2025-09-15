@@ -340,16 +340,16 @@ AddEpollEvent(struct mtcp_epoll *ep,
 		uint8_t stream_id);
 
 extern inline void 
-RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream);
+RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t stream_id);
 
 extern inline void 
-RaiseWriteEvent(mtcp_manager_t mtcp, tcp_stream *stream);
+RaiseWriteEvent(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t stream_id);
 
 extern inline void 
-RaiseCloseEvent(mtcp_manager_t mtcp, tcp_stream *stream);
+RaiseCloseEvent(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t stream_id);
 
 extern inline void 
-RaiseErrorEvent(mtcp_manager_t mtcp, tcp_stream *stream);
+RaiseErrorEvent(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t stream_id);
 
 tcp_stream *
 CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
