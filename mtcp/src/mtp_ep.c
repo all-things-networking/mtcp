@@ -206,149 +206,296 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 		bytes_from_next = MIN(next_bytes_to_send, (remaining_in_cwnd - bytes_from_first);
 	}
 
-	mtp_bp* bp;
-	bool data_merging = FALSE;
-	bool ack_merging = FALSE;
+	// Generating from first
+	{
+		mtp_bp* bp;
+		bool data_merging = FALSE;
+		bool ack_merging = FALSE;
 
-	if (!BPBuffer_isempty(cur_stream)){
-		mtp_bp* last_bp = GetLastBP(cur_stream);
-		uint32_t next_sched_byte = ntohl(last_bp->hdr.seq) + last_bp->payload.len;
-		if (last_bp->hdr.urg_ptr == ntohs(first_stream) &&
-			last_bp->payload.len > 0 && 
-			first_stream_ctx->send_next == next_sched_byte){
-			MTP_PRINT("merging, prev blueprint is:");
-			print_MTP_bp(last_bp);
-			bp = last_bp;
-			data_merging = FALSE;
-			// data_merging = TRUE;
-		}
-		else if (last_bp->hdr.urg_ptr == ntohs(first_stream) &&
-				 last_bp->payload.len == 0 &&
-				 last_bp->hdr.ack == TRUE &&
-				 last_bp->hdr.fin == FALSE &&
-				 last_bp->hdr.syn == FALSE) {
-		    MTP_PRINT("merging, prev blueprint is:");
-			print_MTP_bp(last_bp);
-			bp = last_bp;
-			ack_merging = TRUE;
-		}
-	}
-
-	if (!data_merging && !ack_merging){
-		bp = GetFreeBP(cur_stream);	
-	} 
-	MTP_PRINT("got bp\n");
-	MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
-    
-	if (!data_merging && !ack_merging){
-    	memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
-	}
-
-    bp->hdr.source = cur_stream->mtp->local_port;
-    bp->hdr.dest = cur_stream->mtp->remote_port;
-
-	if (!data_merging){
-    	bp->hdr.seq = htonl(first_stream_ctx->send_next);
-	}
-
-	MTP_PRINT("Seq in send_ep: %u\n", ntohl(bp->hdr.seq));
-    bp->hdr.ack_seq = htonl(first_stream_ctx->recv_next);
-
-    bp->hdr.syn = FALSE;
-    bp->hdr.ack = TRUE;
-	bp->hdr.urg_ptr = ntohs(first_stream); // indicate which stream this bp is for
-
-    // options to calculate data offset
-   
-    // MTP TODO: SACK? 
-#if TCP_OPT_SACK_ENABLED
-    MTP_PRINT("ERROR:SACK Not supported in MTP TCP\n");
-#endif
-
-    MTP_set_opt_nop(&(bp->opts.nop1));
-    MTP_set_opt_nop(&(bp->opts.nop2));
-
-    // MTP TODO: Timestamp
-    MTP_set_opt_timestamp(&(bp->opts.timestamp),
-                            htonl(cur_ts),
-                            htonl(ctx->ts_recent));
-    
-   
-    // MTP TODO: would the MTP program do the length 
-    //           calculation itself?
-    uint16_t optlen = MTP_CalculateOptionLength(bp);
-    bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
-
-    // MTP TODO: wscale on local
-	uint8_t wscale = ctx->wscale;
-    uint32_t window32 = first_stream_ctx->rwnd_size >> wscale;  
-	// MTP TODO: fix this
-    uint16_t advertised_window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
-    bp->hdr.window = htons(advertised_window);
-	if (advertised_window == 0) first_stream_ctx->adv_zero_wnd = TRUE;
-
-    // Payload
-    // MTP TODO: fix snbuf
-	if (!data_merging){
-		// uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
-		// 												sndvar->sndbuf->head_seq,
-		// 												sndvar->sndbuf->head_seq);
-		// bp->payload.data = data;
-		uint32_t buf_offset = MTP_SEQ_SUB(first_stream_ctx->send_next,
-												first_stream_buf->head_seq,
-												first_stream_buf->head_seq);
-
-		if (first_stream_buf->head_off + buf_offset > first_stream_buf->size){
-			// struct tcp_send_buffer* buf = sndvar->sndbuf;
-			uint32_t first_half = first_stream_buf->size - first_stream_buf->head_off;
-			uint32_t second_half = buf_offset - first_half;
-			uint32_t go_back = first_stream_buf->head_off - second_half;
-			bp->payload.data = first_stream_buf->head - go_back;
-			bp->payload.wraps_around = FALSE;
-		}
-		else {
-			uint8_t *data = first_stream_buf->head + buf_offset;
-			bp->payload.data = data;
-
-			// struct tcp_send_buffer* buf = sndvar->sndbuf;
-			if (first_stream_buf->head_off + buf_offset + bytes_from_first > 
-				first_stream_buf->size){
-				uint32_t start = first_stream_buf->head_off + buf_offset;
-				uint32_t first_half = first_stream_buf->size - start;
-				bp->payload.wraps_around = TRUE;
-				bp->payload.wrap_around_seg = first_stream_ctx->send_next + first_half;
-				bp->payload.wrap_around_data = first_stream_buf->data;
+		if (!BPBuffer_isempty(cur_stream)){
+			mtp_bp* last_bp = GetLastBP(cur_stream);
+			uint32_t next_sched_byte = ntohl(last_bp->hdr.seq) + last_bp->payload.len;
+			if (last_bp->hdr.urg_ptr == ntohs(first_stream) &&
+				last_bp->payload.len > 0 && 
+				first_stream_ctx->send_next == next_sched_byte){
+				MTP_PRINT("merging, prev blueprint is:");
+				print_MTP_bp(last_bp);
+				bp = last_bp;
+				data_merging = FALSE;
+				// data_merging = TRUE;
+			}
+			else if (last_bp->hdr.urg_ptr == ntohs(first_stream) &&
+					last_bp->payload.len == 0 &&
+					last_bp->hdr.ack == TRUE &&
+					last_bp->hdr.fin == FALSE &&
+					last_bp->hdr.syn == FALSE) {
+				MTP_PRINT("merging, prev blueprint is:");
+				print_MTP_bp(last_bp);
+				bp = last_bp;
+				ack_merging = TRUE;
 			}
 		}
+
+		if (!data_merging && !ack_merging){
+			bp = GetFreeBP(cur_stream);	
+		} 
+		MTP_PRINT("got bp\n");
+		MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+		
+		if (!data_merging && !ack_merging){
+			memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+		}
+
+		bp->hdr.source = cur_stream->mtp->local_port;
+		bp->hdr.dest = cur_stream->mtp->remote_port;
+
+		if (!data_merging){
+			bp->hdr.seq = htonl(first_stream_ctx->send_next);
+		}
+
+		MTP_PRINT("Seq in send_ep: %u\n", ntohl(bp->hdr.seq));
+		bp->hdr.ack_seq = htonl(first_stream_ctx->recv_next);
+
+		bp->hdr.syn = FALSE;
+		bp->hdr.ack = TRUE;
+		bp->hdr.urg_ptr = ntohs(first_stream); // indicate which stream this bp is for
+
+		// options to calculate data offset
+	
+		// MTP TODO: SACK? 
+	#if TCP_OPT_SACK_ENABLED
+		MTP_PRINT("ERROR:SACK Not supported in MTP TCP\n");
+	#endif
+
+		MTP_set_opt_nop(&(bp->opts.nop1));
+		MTP_set_opt_nop(&(bp->opts.nop2));
+
+		// MTP TODO: Timestamp
+		MTP_set_opt_timestamp(&(bp->opts.timestamp),
+								htonl(cur_ts),
+								htonl(ctx->ts_recent));
+		
+	
+		// MTP TODO: would the MTP program do the length 
+		//           calculation itself?
+		uint16_t optlen = MTP_CalculateOptionLength(bp);
+		bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+		// MTP TODO: wscale on local
+		uint8_t wscale = ctx->wscale;
+		uint32_t window32 = first_stream_ctx->rwnd_size >> wscale;  
+		// MTP TODO: fix this
+		uint16_t advertised_window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
+		bp->hdr.window = htons(advertised_window);
+		if (advertised_window == 0) first_stream_ctx->adv_zero_wnd = TRUE;
+
+		// Payload
+		// MTP TODO: fix snbuf
+		if (!data_merging){
+			// uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+			// 												sndvar->sndbuf->head_seq,
+			// 												sndvar->sndbuf->head_seq);
+			// bp->payload.data = data;
+			uint32_t buf_offset = MTP_SEQ_SUB(first_stream_ctx->send_next,
+													first_stream_buf->head_seq,
+													first_stream_buf->head_seq);
+
+			if (first_stream_buf->head_off + buf_offset > first_stream_buf->size){
+				// struct tcp_send_buffer* buf = sndvar->sndbuf;
+				uint32_t first_half = first_stream_buf->size - first_stream_buf->head_off;
+				uint32_t second_half = buf_offset - first_half;
+				uint32_t go_back = first_stream_buf->head_off - second_half;
+				bp->payload.data = first_stream_buf->head - go_back;
+				bp->payload.wraps_around = FALSE;
+			}
+			else {
+				uint8_t *data = first_stream_buf->head + buf_offset;
+				bp->payload.data = data;
+
+				// struct tcp_send_buffer* buf = sndvar->sndbuf;
+				if (first_stream_buf->head_off + buf_offset + bytes_from_first > 
+					first_stream_buf->size){
+					uint32_t start = first_stream_buf->head_off + buf_offset;
+					uint32_t first_half = first_stream_buf->size - start;
+					bp->payload.wraps_around = TRUE;
+					bp->payload.wrap_around_seg = first_stream_ctx->send_next + first_half;
+					bp->payload.wrap_around_data = first_stream_buf->data;
+				}
+			}
+		}
+
+		if (data_merging){
+			bp->payload.len += bytes_from_first;
+		}
+		else {
+			bp->payload.len = bytes_from_first;
+		}
+
+		if (bp->payload.len > ctx->eff_SMSS){
+			bp->payload.needs_segmentation = TRUE;
+			bp->payload.seg_size = ctx->eff_SMSS;
+			bp->payload.seg_rule_group_id = 1; 
+		}
+
+		MTP_PRINT("Generated bp:\n");
+		print_MTP_bp(bp);
+
+		first_stream_ctx->send_next += bytes_from_first;
+		MTP_PRINT("send next for stream %d: %u\n", first_stream, 
+												first_stream_ctx->send_next);
 	}
+    
+	
+	// Generating from next
+	if (bytes_from_next > 0){
+		mtp_bp* bp;
+		bool data_merging = FALSE;
+		bool ack_merging = FALSE;
 
-	if (data_merging){
-    	bp->payload.len += bytes_to_send;
+		if (!BPBuffer_isempty(cur_stream)){
+			mtp_bp* last_bp = GetLastBP(cur_stream);
+			uint32_t next_sched_byte = ntohl(last_bp->hdr.seq) + last_bp->payload.len;
+			if (last_bp->hdr.urg_ptr == ntohs(next_stream) &&
+				last_bp->payload.len > 0 && 
+				next_stream_ctx->send_next == next_sched_byte){
+				MTP_PRINT("merging, prev blueprint is:");
+				print_MTP_bp(last_bp);
+				bp = last_bp;
+				data_merging = FALSE;
+				// data_merging = TRUE;
+			}
+			else if (last_bp->hdr.urg_ptr == ntohs(next_stream) &&
+					last_bp->payload.len == 0 &&
+					last_bp->hdr.ack == TRUE &&
+					last_bp->hdr.fin == FALSE &&
+					last_bp->hdr.syn == FALSE) {
+				MTP_PRINT("merging, prev blueprint is:");
+				print_MTP_bp(last_bp);
+				bp = last_bp;
+				ack_merging = TRUE;
+			}
+		}
+
+		if (!data_merging && !ack_merging){
+			bp = GetFreeBP(cur_stream);	
+		} 
+		MTP_PRINT("got bp\n");
+		MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+		
+		if (!data_merging && !ack_merging){
+			memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+		}
+
+		bp->hdr.source = cur_stream->mtp->local_port;
+		bp->hdr.dest = cur_stream->mtp->remote_port;
+
+		if (!data_merging){
+			bp->hdr.seq = htonl(next_stream_ctx->send_next);
+		}
+
+		MTP_PRINT("Seq in send_ep: %u\n", ntohl(bp->hdr.seq));
+		bp->hdr.ack_seq = htonl(next_stream_ctx->recv_next);
+
+		bp->hdr.syn = FALSE;
+		bp->hdr.ack = TRUE;
+		bp->hdr.urg_ptr = ntohs(next_stream); // indicate which stream this bp is for
+
+		// options to calculate data offset
+	
+		// MTP TODO: SACK? 
+	#if TCP_OPT_SACK_ENABLED
+		MTP_PRINT("ERROR:SACK Not supported in MTP TCP\n");
+	#endif
+
+		MTP_set_opt_nop(&(bp->opts.nop1));
+		MTP_set_opt_nop(&(bp->opts.nop2));
+
+		// MTP TODO: Timestamp
+		MTP_set_opt_timestamp(&(bp->opts.timestamp),
+								htonl(cur_ts),
+								htonl(ctx->ts_recent));
+		
+	
+		// MTP TODO: would the MTP program do the length 
+		//           calculation itself?
+		uint16_t optlen = MTP_CalculateOptionLength(bp);
+		bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+		// MTP TODO: wscale on local
+		uint8_t wscale = ctx->wscale;
+		uint32_t window32 = next_stream_ctx->rwnd_size >> wscale;  
+		// MTP TODO: fix this
+		uint16_t advertised_window = (uint16_t)MIN(window32, TCP_MAX_WINDOW);
+		bp->hdr.window = htons(advertised_window);
+		if (advertised_window == 0) next_stream_ctx->adv_zero_wnd = TRUE;
+
+		// Payload
+		// MTP TODO: fix snbuf
+		if (!data_merging){
+			// uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_next,
+			// 												sndvar->sndbuf->head_seq,
+			// 												sndvar->sndbuf->head_seq);
+			// bp->payload.data = data;
+			uint32_t buf_offset = MTP_SEQ_SUB(next_stream_ctx->send_next,
+													next_stream_buf->head_seq,
+													next_stream_buf->head_seq);
+
+			if (next_stream_buf->head_off + buf_offset > next_stream_buf->size){
+				// struct tcp_send_buffer* buf = sndvar->sndbuf;
+				uint32_t first_half = next_stream_buf->size - next_stream_buf->head_off;
+				uint32_t second_half = buf_offset - first_half;
+				uint32_t go_back = next_stream_buf->head_off - second_half;
+				bp->payload.data = next_stream_buf->head - go_back;
+				bp->payload.wraps_around = FALSE;
+			}
+			else {
+				uint8_t *data = next_stream_buf->head + buf_offset;
+				bp->payload.data = data;
+
+				// struct tcp_send_buffer* buf = sndvar->sndbuf;
+				if (next_stream_buf->head_off + buf_offset + bytes_from_next > 
+					next_stream_buf->size){
+					uint32_t start = next_stream_buf->head_off + buf_offset;
+					uint32_t first_half = next_stream_buf->size - start;
+					bp->payload.wraps_around = TRUE;
+					bp->payload.wrap_around_seg = next_stream_ctx->send_next + first_half;
+					bp->payload.wrap_around_data = next_stream_buf->data;
+				}
+			}
+		}
+
+		if (data_merging){
+			bp->payload.len += bytes_from_next;
+		}
+		else {
+			bp->payload.len = bytes_from_next;
+		}
+
+		if (bp->payload.len > ctx->eff_SMSS){
+			bp->payload.needs_segmentation = TRUE;
+			bp->payload.seg_size = ctx->eff_SMSS;
+			bp->payload.seg_rule_group_id = 1; 
+		}
+
+		MTP_PRINT("Generated bp:\n");
+		print_MTP_bp(bp);
+
+		next_stream_ctx->send_next += bytes_from_next;
+		MTP_PRINT("send next for stream %d: %u\n", next_stream, 
+												next_stream_ctx->send_next);
 	}
-	else {
-		bp->payload.len = bytes_to_send;
-	}
-
-	if (bp->payload.len > ctx->eff_SMSS){
-		bp->payload.needs_segmentation = TRUE;
-		bp->payload.seg_size = ctx->eff_SMSS;
-		bp->payload.seg_rule_group_id = 1; 
-	}
-
-	MTP_PRINT("Generated bp:\n");
-	print_MTP_bp(bp);
-
-    AddtoGenList(mtcp, cur_stream, cur_ts);	
-
+	
+	
+	AddtoGenList(mtcp, cur_stream, cur_ts);	
+	
 	// MTP_PRINT("preprared bp:\n");
 	// print_MTP_bp(bp);
 	// MTP_PRINT("head ptr: %p, head seq: %d, len: %d\n", sndvar->sndbuf->head, 
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 
 	// MTP TODO: implement + for MTP_SEQ
-	ctx->send_next += bytes_to_send;
+	
 
-	MTP_PRINT("send next: %u\n", ctx->send_next);
 
 	// MTP TODO: map to timer event with event input
 	TimerStart(mtcp, cur_stream, cur_ts);
