@@ -72,6 +72,7 @@ static char outfile[FILE_LEN + 1];
 /*----------------------------------------------------------------------------*/
 static char host[MAX_IP_STR_LEN + 1] = {'\0'};
 static char url[MAX_URL_LEN + 1] = {'\0'};
+static char url_short[MAX_URL_LEN + 1] = {'\0'};
 static char url_large[MAX_URL_LEN + 1] = {'\0'};
 static uint32_t total_requests;
 
@@ -158,6 +159,8 @@ struct wget_vars
 	uint32_t total_req_recvd;
 
 	int not_first_time;
+
+	int sent_short;
 };
 /*----------------------------------------------------------------------------*/
 static struct thread_context *g_ctx[MAX_CPUS] = {0};
@@ -270,7 +273,7 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	// struct mtcp_epoll_event ev;
 	int wr = 0;
 	int len = 0;
-
+	
 	// wv->headerset = FALSE;
 	// wv->recv = 0;
 	// wv->header_len = wv->file_len = 0;
@@ -282,9 +285,18 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		wv->not_first_time = TRUE;
 
 		if (wv->req_offset == 0){
+
 			printf("setting up request\n");
+			char* url_to_send;
 			// TODO: decide which request next
 			// Is it ok to rewrite this?
+
+			if (wv->sent_short){
+				url_to_send = url_large;
+			}
+			else {
+				url_to_send = url_short;
+			}
 
 			if (wv->total_req_sent + 1 == total_requests){
 				snprintf(wv->last_request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
@@ -293,7 +305,7 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 						"Host: %s\r\n"
 						// "Connection: Keep-Alive\r\n\r\n", 
 						"Connection: Close\r\n\r\n", 
-						url, host);
+						url_to_send, host);
 			}
 			else {
 				snprintf(wv->last_request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
@@ -302,7 +314,7 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 						"Host: %s\r\n"
 						"Connection: Keep-Alive\r\n\r\n", 
 						// "Connection: Close\r\n\r\n", 
-						url, host);
+						url_to_send, host);
 			}
 		}
 
@@ -322,9 +334,14 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 					wv->total_req_sent, total_requests);
 			wv->req_offset = 0;
 			uint32_t st_ind = wv->t_start_ind;
-			gettimeofday(&wv->t_start[st_ind], NULL);
 			incr_ind(&wv->t_start_ind);
 			printf("t_start_ind: %u\n", wv->t_start_ind);
+			
+			if (wv->sent_short) wv->sent_short = 0;
+			else wv->sent_short = 1;
+
+			gettimeofday(&wv->t_start[st_ind], NULL);
+			
 			
 		}
 	}
@@ -914,9 +931,11 @@ main(int argc, char **argv)
 	if (slash_p) {
 		strncpy(host, argv[1], slash_p - argv[1]);
 		strncpy(url, strchr(argv[1], '/'), MAX_URL_LEN);
+		strncpy(url_short, strchr(argv[1], '/'), MAX_URL_LEN);
 	} else {
 		strncpy(host, argv[1], MAX_IP_STR_LEN);
 		strncpy(url, "/", 2);
+		strncpy(url_short, "/", 2);
 	}
 
 	strncpy(url_large, "/1m.txt", MAX_URL_LEN);
