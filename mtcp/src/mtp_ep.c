@@ -1274,7 +1274,10 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	}
 
     struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
-	struct tcp_ring_buffer *rb = rcvvar->rcvbuf0;
+	struct tcp_ring_buffer *rcvbuf = rcvvar->rcvbuf0;
+	if (stream_id == 1){
+		rcvbuf = rcvvar->rcvbuf1;
+	}
 	
     uint32_t last_rcvd_seq = ev_seq + ev_payloadlen;
 
@@ -1318,19 +1321,20 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	// MtpWndSlide(mtcp->rbm_rcv, ctx->meta_rwnd, AT_MTCP);
 	// ctx->recv_next = ctx->meta_rwnd->head_seq;
 
-    RBPut(mtcp->rbm_rcv, rcvvar->rcvbuf, ev_payload, ev_payloadlen, ev_seq);
+    RBPut(mtcp->rbm_rcv, rcvbuf, ev_payload, ev_payloadlen, ev_seq);
 	MTP_PRINT("recv buffer merged len: %u\n", rcvvar->rcvbuf->merged_len);
 	MTP_PRINT("my calculated merged len: %u, recv_next: %u, last_flushed: %u\n", 
-			MTP_SEQ_SUB(ctx->recv_next, ctx->last_flushed, ctx->last_flushed) - 1, 
-			ctx->recv_next, ctx->last_flushed);
-	ctx->recv_next = rcvvar->rcvbuf->head_seq + rcvvar->rcvbuf->merged_len;
+			MTP_SEQ_SUB(stx->recv_next, stx->last_flushed, stx->last_flushed) - 1, 
+			stx->recv_next, stx->last_flushed);
+
+	stx->recv_next = rcvbuf->head_seq + rcvbuf->merged_len;
 
 	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST || 
 		ctx->state == MTP_TCP_FIN_WAIT_2_ST) {
 			// MTP TODO: integrate with MTP. Do we even need to do this?
 		RBRemove(mtcp->rbm_rcv, 
-				rcvvar->rcvbuf, 
-				MTP_SEQ_SUB(ctx->recv_next, ctx->last_flushed, ctx->last_flushed) - 1, 
+				rcvbuf, 
+				MTP_SEQ_SUB(stx->recv_next, stx->last_flushed, stx->last_flushed) - 1, 
 				AT_MTCP);
 	}
 
@@ -1339,11 +1343,12 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	if (ctx->state == MTP_TCP_ESTABLISHED_ST) {
 		// "add_data_seg" instruction
 		MTP_PRINT("data_net_ep: raising read event\n");
-		RaiseReadEvent(mtcp, cur_stream);
+		RaiseReadEvent(mtcp, cur_stream, stream_id);
 	}
 }
 
-inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_stream)
+inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
+						uint8_t stream_id, tcp_stream *cur_stream)
 {
 
 	struct mtp_ctx *ctx = cur_stream->mtp;
@@ -1362,18 +1367,28 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_st
 	}
 
 
-    struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	struct mtp_ctx_stream *stx = &ctx->s0;
+	if (stream_id == 1){
+		stx = &ctx->s1;
+	}
 
-	ctx->rwnd_size = rcvvar->rcvbuf->size - (MTP_SEQ_SUB(ctx->recv_next,
-														ctx->last_flushed,
-														ctx->last_flushed) - 1);
+    struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	struct tcp_ring_buffer* rcvbuf = rcvvar->rcvbuf0;
+	if (stream_id == 1){
+		rcvbuf = rcvvar->rcvbuf1;
+	}
+
+	stx->rwnd_size = rcvbuf->size - (MTP_SEQ_SUB(stx->recv_next,
+														stx->last_flushed,
+														stx->last_flushed) - 1);
 
 	mtp_bp* bp;													
 	bool merging = FALSE;
 
 	if (!BPBuffer_isempty(cur_stream)){
 		mtp_bp* last_bp = GetLastBP(cur_stream);
-		if (last_bp->payload.len == 0 &&
+		if (last_bp->hdr.urg_ptr == hton(stream_id) &&
+			last_bp->payload.len == 0 &&
 			last_bp->hdr.ack == TRUE &&
 			last_bp->hdr.fin == FALSE) {
 			MTP_PRINT("merging, prev blueprint is:\n");
@@ -1400,6 +1415,7 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur_st
 
 	bp->hdr.syn = FALSE;
 	bp->hdr.ack = TRUE;
+	bp->hdr.urg_ptr = htons(stream_id);
 
 	// options to calculate data offset
 

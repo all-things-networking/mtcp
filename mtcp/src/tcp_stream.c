@@ -122,12 +122,13 @@ EqualSID(const void *f1, const void *f2) {
 #endif
 
 inline void 
-RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream)
+RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t stream_id)
 {
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLIN) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN,
+					stream_id);
 #if BLOCKING_SUPPORT
 		} else if (!(stream->socket->opts & MTCP_NONBLOCK)) {
 			if (!stream->on_rcv_br_list) {
@@ -144,12 +145,13 @@ RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream)
 }
 /*---------------------------------------------------------------------------*/
 inline void 
-RaiseWriteEvent(mtcp_manager_t mtcp, tcp_stream *stream)
+RaiseWriteEvent(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t stream_id)
 {
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLOUT) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLOUT);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLOUT,
+					stream_id);
 #if BLOCKING_SUPPORT
 		} else if (!(stream->socket->opts & MTCP_NONBLOCK)) {
 			if (!stream->on_snd_br_list) {
@@ -165,15 +167,17 @@ RaiseWriteEvent(mtcp_manager_t mtcp, tcp_stream *stream)
 }
 /*---------------------------------------------------------------------------*/
 inline void 
-RaiseCloseEvent(mtcp_manager_t mtcp, tcp_stream *stream)
+RaiseCloseEvent(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t stream_id)
 {
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLRDHUP) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLRDHUP);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLRDHUP,
+					stream_id);
 		} else if (stream->socket->epoll & MTCP_EPOLLIN) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN,
+					stream_id);
 #if BLOCKING_SUPPORT
 		} else if (!(stream->socket->opts & MTCP_NONBLOCK)) {
 			//pthread_cond_signal(&stream->rcvvar->read_cond);
@@ -196,12 +200,13 @@ RaiseCloseEvent(mtcp_manager_t mtcp, tcp_stream *stream)
 }
 /*---------------------------------------------------------------------------*/
 inline void 
-RaiseErrorEvent(mtcp_manager_t mtcp, tcp_stream *stream)
+RaiseErrorEvent(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t stream_id)
 {
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLERR) {
 			AddEpollEvent(mtcp->ep, 
-					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLERR);
+					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLERR,
+					stream_id);
 #if BLOCKING_SUPPORT
 		} else if (!(stream->socket->opts & MTCP_NONBLOCK)) {
 			if (!stream->on_rcv_br_list) {
@@ -333,7 +338,8 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 #if USE_CCP
 	stream->sndvar->missing_seq = 0;
 #endif
-	stream->sndvar->snd_wnd = CONFIG.sndbuf_size;
+	stream->sndvar->snd_wnd0 = CONFIG.sndbuf_size;
+	stream->sndvar->snd_wnd1 = CONFIG.sndbuf_size;
 	stream->rcv_nxt = 0;
 	stream->rcvvar->rcv_wnd = TCP_INITIAL_WINDOW;
 
@@ -432,13 +438,13 @@ DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream)
 			da[0], da[1], da[2], da[3], ntohs(stream->dport), 
 			close_reason_str[stream->close_reason]);
 
-	if (stream->sndvar->sndbuf) {
+	if (stream->sndvar->sndbuf0) {
 		TRACE_FSTAT("Stream %d: send buffer "
 				"cum_len: %lu, len: %u\n", stream->id, 
 				stream->sndvar->sndbuf->cum_len, 
 				stream->sndvar->sndbuf->len);
 	}
-	if (stream->rcvvar->rcvbuf) {
+	if (stream->rcvvar->rcvbuf0) {
 		TRACE_FSTAT("Stream %d: recv buffer "
 				"cum_len: %lu, merged_len: %u, last_len: %u\n", stream->id, 
 				stream->rcvvar->rcvbuf->cum_len, 
@@ -541,13 +547,13 @@ DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream)
 	assert(stream->on_hash_table == TRUE);
 	
 	/* free ring buffers */
-	if (stream->sndvar->sndbuf) {
-		SBFree(mtcp->rbm_snd, stream->sndvar->sndbuf);
-		stream->sndvar->sndbuf = NULL;
+	if (stream->sndvar->sndbuf0) {
+		SBFree(mtcp->rbm_snd, stream->sndvar->sndbuf0);
+		stream->sndvar->sndbuf0 = NULL;
 	}
-	if (stream->rcvvar->rcvbuf) {
-		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf);
-		stream->rcvvar->rcvbuf = NULL;
+	if (stream->rcvvar->rcvbuf0) {
+		RBFree(mtcp->rbm_rcv, stream->rcvvar->rcvbuf0);
+		stream->rcvvar->rcvbuf0 = NULL;
 	}
 
 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
@@ -661,14 +667,14 @@ DumpStream(mtcp_manager_t mtcp, tcp_stream *stream)
 			"snd_nxt: %u, snd_una: %u, iss: %u, fss: %u\nsnd_wnd: %u, "
 			"peer_wnd: %u, cwnd: %u, ssthresh: %u\n", 
 			stream->snd_nxt, sndvar->snd_una, sndvar->iss, sndvar->fss, 
-			sndvar->snd_wnd, sndvar->peer_wnd, sndvar->cwnd, sndvar->ssthresh);
+			sndvar->snd_wnd0, sndvar->peer_wnd, sndvar->cwnd, sndvar->ssthresh);
 
-	if (sndvar->sndbuf) {
+	if (sndvar->sndbuf0) {
 		thread_printf(mtcp, mtcp->log_fp, 
 				"Send buffer: init_seq: %u, head_seq: %u, "
 				"len: %d, cum_len: %lu, size: %d\n", 
-				sndvar->sndbuf->init_seq, sndvar->sndbuf->head_seq, 
-				sndvar->sndbuf->len, sndvar->sndbuf->cum_len, sndvar->sndbuf->size);
+				sndvar->sndbuf0->init_seq, sndvar->sndbuf0->head_seq, 
+				sndvar->sndbuf0->len, sndvar->sndbuf0->cum_len, sndvar->sndbuf0->size);
 	} else {
 		thread_printf(mtcp, mtcp->log_fp, "Send buffer: (null)\n");
 	}
@@ -684,13 +690,13 @@ DumpStream(mtcp_manager_t mtcp, tcp_stream *stream)
 			"snd_wl1: %u, snd_wl2: %u\n", 
 			stream->rcv_nxt, rcvvar->irs, 
 			rcvvar->rcv_wnd, rcvvar->snd_wl1, rcvvar->snd_wl2);
-	if (rcvvar->rcvbuf) {
+	if (rcvvar->rcvbuf0) {
 		thread_printf(mtcp, mtcp->log_fp, 
 				"Receive buffer: init_seq: %u, head_seq: %u, "
 				"merged_len: %d, cum_len: %lu, last_len: %d, size: %d\n", 
-				rcvvar->rcvbuf->init_seq, rcvvar->rcvbuf->head_seq, 
-				rcvvar->rcvbuf->merged_len, rcvvar->rcvbuf->cum_len, 
-				rcvvar->rcvbuf->last_len, rcvvar->rcvbuf->size);
+				rcvvar->rcvbuf0->init_seq, rcvvar->rcvbuf0->head_seq, 
+				rcvvar->rcvbuf0->merged_len, rcvvar->rcvbuf0->cum_len, 
+				rcvvar->rcvbuf0->last_len, rcvvar->rcvbuf0->size);
 	} else {
 		thread_printf(mtcp, mtcp->log_fp, "Receive buffer: (null)\n");
 	}
