@@ -174,6 +174,8 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 			if (sv->resp_offset == 0){
 
 				char* req = sv->request[cur_ind];
+				printf("cur_ind: %d Request: \n%s", cur_ind, req);
+
 				char url[URL_LEN];
 				char keepalive_str[128];
 				int scode;	
@@ -187,6 +189,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				TRACE_APP("Socket %d URL: %s\n", sockid, url);
 				sprintf(sv->fname, "%s%s", www_main, url);
 				TRACE_APP("Socket %d File name: %s\n", sockid, sv->fname);
+				printf("cur_ind %d File name: %s\n", cur_ind, sv->fname);
 
 				sv->keep_alive = FALSE;
 				if (http_header_str_val(req, "Connection: ", 
