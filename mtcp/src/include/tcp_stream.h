@@ -106,7 +106,8 @@ struct tcp_send_vars
 
 	/* send sequence variables */
 	uint32_t snd_una;		/* send unacknoledged */
-	uint32_t snd_wnd;		/* send window (unscaled) */
+	uint32_t snd_wnd0;		/* send window (unscaled) */
+	uint32_t snd_wnd1;
 	uint32_t peer_wnd;		/* client window size */
 	//uint32_t snd_up;		/* send urgent pointer (not used) */
 	uint32_t iss;			/* initial sending sequence */

@@ -135,7 +135,7 @@ int
 mtcp_readv(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV);
 
 ssize_t
-mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len);
+mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len, uint8_t stream_id);
 
 /* writev should work in atomic */
 int

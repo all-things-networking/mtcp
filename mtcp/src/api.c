@@ -1529,7 +1529,8 @@ mtcp_readv(mctx_t mctx, int sockid, const struct iovec *iov, int numIOV)
 }
 /*----------------------------------------------------------------------------*/
 static inline int 
-CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int len)
+CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int len,
+			uint8_t stream_id)
 {
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
 	int sndlen;
@@ -1554,21 +1555,36 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 	}
 	#endif
 
-	ret = SBPut(mtcp->rbm_snd, sndvar->sndbuf, buf, sndlen);
+	struct tcp_send_buffer *sndbuf = sndvar->sndbuf0;
+	if (stream_id == 1) sndbuf = sndvar->sndbuf1;
+	
+	ret = SBPut(mtcp->rbm_snd, sndbuf, buf, sndlen);
 	assert(ret == sndlen);
-	sndvar->snd_wnd = sndvar->sndbuf->size - sndvar->sndbuf->len;
+	if (stream_id == 0) sndvar->snd_wnd0 = sndbuf->size - sndbuf->len;
+	else sndvar->snd_wnd1 = sndbuf->size - sndbuf->len;
+
 	if (ret <= 0) {
-		TRACE_ERROR("SBPut failed. reason: %d (sndlen: %u, len: %u\n", 
-				ret, sndlen, sndvar->sndbuf->len);
+		TRACE_ERROR("SBPut failed. reason: %d (sndlen: %u, len: %u, stream_id: %d\n", 
+				ret, sndlen, sndbuf->len, stream_id);
 		errno = EAGAIN;
 		return -1;
 	}
 	
-	if (sndvar->snd_wnd <= 0) {
-		TRACE_SNDBUF("%u Sending buffer became full!! snd_wnd: %u\n", 
-				cur_stream->id, sndvar->snd_wnd);
-		// MTP_PRINT("%u Sending buffer became full!! snd_wnd: %u\n", 
-		// 		cur_stream->id, sndvar->snd_wnd);
+	if (stream_id == 0){
+		if (sndvar->snd_wnd0 <= 0) {
+			TRACE_SNDBUF("%u Sending buffer became full!! snd_wnd0: %u\n", 
+					cur_stream->id, sndvar->snd_wnd0);
+			// MTP_PRINT("%u Sending buffer became full!! snd_wnd: %u\n", 
+			// 		cur_stream->id, sndvar->snd_wnd);
+		}
+	}
+	else{
+		if (sndvar->snd_wnd1 <= 0) {
+			TRACE_SNDBUF("%u Sending buffer became full!! snd_wnd1: %u\n", 
+					cur_stream->id, sndvar->snd_wnd1);
+			// MTP_PRINT("%u Sending buffer became full!! snd_wnd: %u\n", 
+			// 		cur_stream->id, sndvar->snd_wnd);
+		}
 	}
 
 	return ret;
@@ -1673,7 +1689,8 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 }
 */
 ssize_t
-mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
+mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len,
+			uint8_t stream_id)
 {
 	mtcp_manager_t mtcp;
 	socket_map_t socket;
@@ -1761,7 +1778,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 #endif
 
 	// MTP TODO: add this to "application event parser"
-	ret = CopyFromUser(mtcp, cur_stream, buf, len);
+	ret = CopyFromUser(mtcp, cur_stream, buf, len, stream_id);
 
 	// MTP_PRINT("mtcp_write before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
@@ -1782,10 +1799,29 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	}
 
 	/* if there are remaining sending buffer, generate write event */
-	if (sndvar->snd_wnd > 0) {
+	// Mina TODO: Should we check both anyway?
+	if (stream_id == 0 && sndvar->snd_wnd0 > 0) {
 		if ((socket->epoll & MTCP_EPOLLOUT) && !(socket->epoll & MTCP_EPOLLET)) {
 			AddEpollEvent(mtcp->ep, 
-					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT,
+					MTP_QUIC_ST0);
+#if BLOCKING_SUPPORT
+		} else if (!(socket->opts & MTCP_NONBLOCK)) {
+			if (!cur_stream->on_snd_br_list) {
+				cur_stream->on_snd_br_list = TRUE;
+				TAILQ_INSERT_TAIL(&mtcp->snd_br_list, 
+						cur_stream, sndvar->snd_br_link);
+				mtcp->snd_br_list_cnt++;
+			}
+#endif
+		}
+	}
+
+	if (stream_id == 1 && sndvar->snd_wnd1 > 0) {
+		if ((socket->epoll & MTCP_EPOLLOUT) && !(socket->epoll & MTCP_EPOLLET)) {
+			AddEpollEvent(mtcp->ep, 
+					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT,
+					MTP_QUIC_ST1);
 #if BLOCKING_SUPPORT
 		} else if (!(socket->opts & MTCP_NONBLOCK)) {
 			if (!cur_stream->on_snd_br_list) {
