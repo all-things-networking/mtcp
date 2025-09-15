@@ -164,17 +164,17 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 	sent = 0;
 	ret = 1;
 
-	printf("starting to send for ind: %d\n", cur_ind);
+	// printf("starting to send for ind: %d\n", cur_ind);
 	while (ret > 0){
 		ret = 0;
 		if (!sv->rspheader_sent){
-			printf("resp header not sent ind: %d\n", cur_ind);
+			// printf("resp header not sent ind: %d\n", cur_ind);
 			int32_t local_sent = 0;
 
 			if (sv->resp_offset == 0){
 
 				char* req = sv->request[cur_ind];
-				printf("cur_ind: %d Request: \n%s", cur_ind, req);
+				// printf("cur_ind: %d Request: \n%s", cur_ind, req);
 
 				char url[URL_LEN];
 				char keepalive_str[128];
@@ -189,7 +189,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				TRACE_APP("Socket %d URL: %s\n", sockid, url);
 				sprintf(sv->fname, "%s%s", www_main, url);
 				TRACE_APP("Socket %d File name: %s\n", sockid, sv->fname);
-				printf("cur_ind %d File name: %s\n", cur_ind, sv->fname);
+				// printf("cur_ind %d File name: %s\n", cur_ind, sv->fname);
 
 				sv->keep_alive = FALSE;
 				if (http_header_str_val(req, "Connection: ", 
@@ -244,13 +244,13 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 			}
 			TRACE_APP("Socket %d Sending response header: try: %d, sent: %d\n", 
 					sockid, len, local_sent);
-			printf("ind: %d Socket %d Sent response header: try: %d, sent: %d\n", 
-					cur_ind, sockid, len, local_sent);
+			// printf("ind: %d Socket %d Sent response header: try: %d, sent: %d\n", 
+			// 		cur_ind, sockid, len, local_sent);
 			// assert(sent == len);
 			sv->resp_offset += local_sent;
 			sent += local_sent;
 			if (local_sent == len){
-				printf("finishsed sending resp header ind: %d\n", cur_ind);
+				// printf("finishsed sending resp header ind: %d\n", cur_ind);
 				sv->rspheader_sent = TRUE;
 				sv->resp_offset = 0;
 			}
@@ -259,7 +259,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 		}
 
 		if (sv->rspheader_sent){
-			printf("transmitting data ind: %d\n", cur_ind);
+			// printf("transmitting data ind: %d\n", cur_ind);
 			int32_t local_sent = 0;
 			len = MIN(SNDBUF_SIZE, sv->fsize - sv->total_sent);
 			// printf("Socket %d, sending %d bytes, fsize: %ld, total_sent: %ld\n", 
@@ -274,7 +274,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				TRACE_APP("Connection closed with client.\n");
 				break;
 			}
-			printf("ind: %d: mtcp_write try: %d, ret: %d\n", cur_ind, len, local_sent);
+			// printf("ind: %d: mtcp_write try: %d, ret: %d\n", cur_ind, len, local_sent);
 			
 			ret += local_sent;
 			sent += local_sent;
@@ -283,7 +283,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 
 		if (sv->total_sent >= fcache[sv->fidx].size) {
 			// struct mtcp_epoll_event ev;
-			printf("done with ind: %d\n", cur_ind);
+			// printf("done with ind: %d\n", cur_ind);
 			sv->done = TRUE;
 			finished++;
 
@@ -351,7 +351,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 		// req[HTTP_HEADER_LEN] = '\0';
 		// fprintf(stderr, "HTTP Request: \n%s", req);
 		sv->request_len = find_http_header(req, sv->recv_len + rd);
-		printf("sv->request_len: %d\n", sv->request_len);
+		// printf("sv->request_len: %d\n", sv->request_len);
 		if (sv->request_len <= 0) {
 			TRACE_ERROR("Socket %d: Failed to parse HTTP request header.\n"
 					"read bytes: %d, recv_len: %d, "
@@ -363,7 +363,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 		}
 		else {
 			req[sv->request_len] = '\0';
-			printf("request: %s\n", req);
+			// printf("request: %s\n", req);
 			uint32_t new_bytes = sv->request_len - sv->recv_len;
 			rd -= new_bytes;
 			buff_offset += new_bytes;

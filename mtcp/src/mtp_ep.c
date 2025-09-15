@@ -1263,25 +1263,33 @@ static inline void fin_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 }
 
 static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_seq, uint8_t *ev_payload,
-    int ev_payloadlen, tcp_stream* cur_stream)
+    int ev_payloadlen, uint8_t stream_id, tcp_stream* cur_stream)
 {
 	struct mtp_ctx *ctx = cur_stream->mtp;
+
 	if (ctx->state == MTP_TCP_CLOSE_WAIT_ST) return;
+	struct mtp_ctx_stream *stx = &ctx.s0;
+	if (stream_id == 1){
+		stx = &ctx.s1;
+	}
+
     struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+	struct tcp_ring_buffer *rb = rcvvar->rcvbuf0;
+	
     uint32_t last_rcvd_seq = ev_seq + ev_payloadlen;
 
 	// MTP TODO?: new ordered data
 
-
+	MTP_PRINT("in data_net_ep for stream id: %d\n", stream_id);
 	MTP_PRINT("data_net_ep: ev_seq: %u, ev_payloadlen: %d, last_rcvd_seq: %u, ctx->rwnd_size: %u\n", 
-			ev_seq, ev_payloadlen, last_rcvd_seq, ctx->rwnd_size);
+			ev_seq, ev_payloadlen, last_rcvd_seq, stx->rwnd_size);
 	MTP_PRINT("MTP_SEQ_GT(last_rcvd_seq, ctx->recv_next + ctx->rwnd_size, ctx->recv_init_seq): %d\n", 
-			MTP_SEQ_GT(last_rcvd_seq, ctx->recv_next + ctx->rwnd_size, ctx->recv_init_seq));
+			MTP_SEQ_GT(last_rcvd_seq, stx->recv_next + stx->rwnd_size, stx->recv_init_seq));
 	MTP_PRINT("data_net_ep: MTP_SEQ_LT(last_rcvd_seq, ctx->recv_next, ctx->recv_init_seq): %d\n", 
-			MTP_SEQ_LT(last_rcvd_seq, ctx->recv_next, ctx->recv_init_seq));
+			MTP_SEQ_LT(last_rcvd_seq, stx->recv_next, ctx->recv_init_seq));
 	// if seq and segment length is lower than rcv_nxt or exceeds buffer, ignore and send ack
-	if (MTP_SEQ_LT(last_rcvd_seq, ctx->recv_next, ctx->recv_init_seq) ||
-		MTP_SEQ_GT(last_rcvd_seq, ctx->recv_next + ctx->rwnd_size, ctx->recv_init_seq)) {
+	if (MTP_SEQ_LT(last_rcvd_seq, stx->recv_next, ctx->recv_init_seq) ||
+		MTP_SEQ_GT(last_rcvd_seq, stx->recv_next + stx->rwnd_size, ctx->recv_init_seq)) {
 		return;
 	}
 
@@ -1632,15 +1640,26 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	ctx->state = MTP_TCP_ESTABLISHED_ST; //ESTABLISHED_ST
 
 	// receiver related variables
-    ctx->recv_init_seq = ev_init_seq;
-    ctx->recv_next = ev_init_seq + 1;
-	ctx->last_flushed = ev_init_seq;
+    ctx->s0.recv_init_seq = ev_init_seq;
+    ctx->s0.recv_next = ev_init_seq + 1;
+	ctx->s0.last_flushed = ev_init_seq;
+
+	ctx->s1.recv_init_seq = ev_init_seq;
+    ctx->s1.recv_next = ev_init_seq + 1;
+	ctx->s1.last_flushed = ev_init_seq;
 
 	// sender related variables
 	if (ev_wscale_valid) ctx->wscale_remote = ev_wscale;
-    ctx->last_rwnd_remote = ev_rwnd_size << ctx->wscale_remote;
-	ctx->send_una = ev_ack_seq;
-	ctx->send_next = ev_ack_seq;
+    
+	ctx->s0.last_rwnd_remote = ev_rwnd_size << ctx->wscale_remote;
+	ctx->s1.last_rwnd_remote = ev_rwnd_size << ctx->wscale_remote;
+	
+	ctx->s0.send_una = ev_ack_seq;
+	ctx->s1.send_una = ev_ack_seq;
+
+	ctx->s0.send_next = ev_ack_seq;
+	ctx->s1.send_next = ev_ack_seq;
+
 	ctx->lwu_seq = ev_init_seq - 1;
 	ctx->last_ack = ev_ack_seq;
 
@@ -1667,12 +1686,13 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	bp->hdr.source = cur_stream->mtp->local_port;
 	bp->hdr.dest = cur_stream->mtp->remote_port;
-	bp->hdr.seq = htonl(ctx->send_next);
+	bp->hdr.seq = htonl(ev_ack_seq);
 	// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
-	bp->hdr.ack_seq = htonl(ctx->recv_next);
+	bp->hdr.ack_seq = htonl(ev_init_seq + 1);
 
 	bp->hdr.syn = FALSE;
 	bp->hdr.ack = TRUE;
+	bp->hdr.urg_ptr = ntohs(MTP_QUIC_SHARED);
 
 	// options to calculate data offset
 
@@ -1696,10 +1716,13 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
 	// MTP TODO: wscale on local
-	uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
+	uint32_t window32 = cur_stream->mtp->initial_rwnd_size >> cur_stream->mtp->wscale;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
-	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
+	if (advertised_window == 0) {
+		ctx->s0.adv_zero_wnd = TRUE;
+		ctx->s1.adv_zero_wnd = TRUE;
+	}
 
 	// Payload
 	// MTP TODO: fix snbuf
@@ -1710,7 +1733,7 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	AddtoGenList(mtcp, cur_stream, cur_ts);
 	
 	// MTP TODO: integrate into MTP
-	RaiseWriteEvent(mtcp, cur_stream);
+	RaiseWriteEvent(mtcp, cur_stream, MTP_QUIC_SHARED);
 }
 
 void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
@@ -1987,10 +2010,10 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
 }
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload, 
-	int payloadlen, tcp_stream *cur_stream)
+	int payloadlen, uint8_t stream_id, tcp_stream *cur_stream)
 {
-	data_net_ep(mtcp, cur_ts, seq, payload, payloadlen, cur_stream);
-    send_ack_ep(mtcp, cur_ts, cur_stream);
+	data_net_ep(mtcp, cur_ts, seq, payload, payloadlen, stream_id, cur_stream);
+    send_ack_ep(mtcp, cur_ts, stream_id, cur_stream);
 }
 
 int MtpListenChain(mtcp_manager_t mtcp, int sockid, int backlog)

@@ -33,7 +33,7 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     uint32_t window, uint32_t seq, struct tcp_opt_timestamp* ev_ts, tcp_stream* cur_stream);
 
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload,
-	int payloadlen, tcp_stream *cur_stream);
+	int payloadlen, uint8_t stream_id, tcp_stream *cur_stream);
 
 int MtpListenChain(mtcp_manager_t mtcp, int sockid, int backlog);
 

@@ -368,6 +368,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         uint32_t ev_seq = mtph->seq;
         uint32_t ev_payload_len = payload.len;
         uint8_t* ev_data_ptr = payload.data;
+        uint8_t stream_id = ntohs(mtph->urg_ptr);
 
         tcp_stream *cur_stream = NULL;
 	    if (!(cur_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream))) {
@@ -377,7 +378,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         }
 
         MtpDataChain(mtcp, cur_ts, ev_seq, ev_data_ptr, 
-                     ev_payload_len, cur_stream);
+                     ev_payload_len, stream_id, cur_stream);
     } 
 
     if (mtph->fin){
