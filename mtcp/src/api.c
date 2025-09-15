@@ -1230,7 +1230,8 @@ CopyToUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 }
 /*----------------------------------------------------------------------------*/
 ssize_t
-mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
+mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags,
+		 uint8_t stream_id)
 {
 	mtcp_manager_t mtcp;
 	socket_map_t socket;
@@ -1312,7 +1313,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 		MTP_PRINT("MTP Receive Chain called: sockid %d, len %zu\n", sockid, len);
 		SBUF_LOCK(&rcvvar->read_lock);
 		ret = MtpReceiveChainPart1(mtcp, socket, socket->opts & MTCP_NONBLOCK, 
-								   buf, len, cur_stream);
+								   buf, len, stream_id, cur_stream);
 
 		if (!cur_stream->sndvar->on_ackq) {
 			SQ_LOCK(&mtcp->ctx->ackq_lock);
@@ -1394,9 +1395,10 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 }
 /*----------------------------------------------------------------------------*/
 inline ssize_t
-mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len)
+mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len,
+		 uint8_t stream_id)
 {
-	return mtcp_recv(mctx, sockid, buf, len, 0);
+	return mtcp_recv(mctx, sockid, buf, len, 0, stream_id);
 }
 /*----------------------------------------------------------------------------*/
 int

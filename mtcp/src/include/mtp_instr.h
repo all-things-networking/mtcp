@@ -40,7 +40,8 @@ void DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport);
 void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream, 
                 uint32_t offset, uint32_t len, uint8_t stream_id);
 int FlushAndNotify(mtcp_manager_t mtcp, socket_map_t socket, 
-				   tcp_stream* cur_stream, char *buf, int len);
+				   tcp_stream* cur_stream, char *buf, int len,
+                   uint8_t stream_id);
 
 // timer_instr
 void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts);
