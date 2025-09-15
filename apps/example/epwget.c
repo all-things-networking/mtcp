@@ -105,6 +105,7 @@ struct wget_stat
 
 	uint64_t sum_resp_time;
 	uint64_t max_resp_time;
+	uint64_t short_resp_cnt;
 
 	uint64_t read_count;
 	uint64_t file_writes;
@@ -278,7 +279,7 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	// wv->recv = 0;
 	// wv->header_len = wv->file_len = 0;
 
-	printf("coming here\n");
+	// printf("coming here\n");
 
 	while ((!wv->not_first_time || wr == len) &&
 			wv->total_req_sent < total_requests){
@@ -286,7 +287,7 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 
 		if (wv->req_offset == 0){
 
-			printf("setting up request\n");
+			// printf("setting up request\n");
 			char* url_to_send;
 			// TODO: decide which request next
 			// Is it ok to rewrite this?
@@ -319,24 +320,24 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		}
 
 		len = strlen(wv->last_request) - wv->req_offset;
-		printf("last_request_len: %d, req_offset: %d, len: %d\n", 
-				(int)strlen(wv->last_request), wv->req_offset, len);
+		// printf("last_request_len: %d, req_offset: %d, len: %d\n", 
+		// 		(int)strlen(wv->last_request), wv->req_offset, len);
 
 		wr = mtcp_write(ctx->mctx, sockid, wv->last_request + wv->req_offset, len);
-		printf("wrote: %d\n", wr);
+		// printf("wrote: %d\n", wr);
 
 		wv->req_offset += wr;
 		ctx->stat.writes += wr;
 
 		if (wv->req_offset == strlen(wv->last_request)) {
 			wv->total_req_sent++;
-			printf("total requests sent so far: %u / %u\n", 
-					wv->total_req_sent, total_requests);
+			// printf("total requests sent so far: %u / %u\n", 
+			// 		wv->total_req_sent, total_requests);
 			wv->req_offset = 0;
 			uint32_t st_ind = wv->t_start_ind;
 			incr_ind(&wv->t_start_ind);
-			printf("t_start_ind: %u\n", wv->t_start_ind);
-			
+			// printf("t_start_ind: %u\n", wv->t_start_ind);
+
 			if (wv->sent_short) wv->sent_short = 0;
 			else wv->sent_short = 1;
 
@@ -357,14 +358,14 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	uint64_t tdiff;
 
 	TRACE_APP("Socket %d File download complete!\n", sockid);
-	printf("Socket %d File download complete!\n", sockid);
+	// printf("Socket %d File download complete!\n", sockid);
 	uint32_t end_ind = wv->t_end_ind;
 	gettimeofday(&wv->t_end[end_ind], NULL);
 	
 	wv->total_req_recvd++;
 
-	printf("Total requests received so far: %u / %u\n", 
-			wv->total_req_recvd, total_requests);
+	// printf("Total requests received so far: %u / %u\n", 
+	// 		wv->total_req_recvd, total_requests);
 
 	incr_ind(&wv->t_end_ind);
 
@@ -384,7 +385,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		}
 	}
 
-	printf("response size: %ld\n", wv->recv);
+	// printf("response size: %ld\n", wv->recv);
 
 	uint32_t cur_ind = wv->t_cur_ind;
 	incr_ind(&wv->t_cur_ind);
@@ -397,7 +398,8 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 
 	// printf("Socket %d Total spent time: %lu us\n", sockid, tdiff);
 
-	if (record_res){
+	// Mina TODO: the threshold is hard-coded for now.
+	if (record_res && wv->recv < 100000){
 		int len = sprintf(res_buf, "%lu\n", tdiff);
 		int ret = write(res_fd, res_buf, len);
 		if (ret != len){
@@ -413,9 +415,14 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		TRACE_APP("Socket %d Average bandwidth: %lf[MB/s]\n", 
 				sockid, (double)wv->recv / tdiff);
 	}
-	ctx->stat.sum_resp_time += tdiff;
-	if (tdiff > ctx->stat.max_resp_time)
-		ctx->stat.max_resp_time = tdiff;
+
+	// Mina TODO: this is hardcoded
+	if (wv->recv < 100000){
+		ctx->stat.sum_resp_time += tdiff;
+		ctx->stat.short_resp_cnt += 1;
+		if (tdiff > ctx->stat.max_resp_time)
+			ctx->stat.max_resp_time = tdiff;
+	}
 
 	if (fio && wv->fd > 0)
 		close(wv->fd);
@@ -460,8 +467,10 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		if (!wv->headerset) {
 			copy_len = MIN(rd, HTTP_HEADER_LEN - wv->resp_len);
 			memcpy(wv->response + wv->resp_len, buf, copy_len);
-			printf("resp_len: %d, copy_len: %d\n", wv->resp_len, copy_len);
-			printf("response so far:\n%s\n", wv->response);
+
+			// printf("resp_len: %d, copy_len: %d\n", wv->resp_len, copy_len);
+			// printf("response so far:\n%s\n", wv->response);
+			
 			wv->resp_len += copy_len;
 			wv->header_len = find_http_header(wv->response, wv->resp_len);
 			if (wv->header_len > 0) {
@@ -545,8 +554,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
 					wv->resp_len += copy_len;
 					wv->header_len = find_http_header(wv->response, wv->resp_len);
 
-					printf("resp_len: %d, copy_len: %d\n", wv->resp_len, copy_len);
-					printf("response so far:\n%s\n", wv->response);
+					// printf("resp_len: %d, copy_len: %d\n", wv->resp_len, copy_len);
+					// printf("response so far:\n%s\n", wv->response);
 
 					if (wv->header_len > 0) {
 						//wv->response[wv->header_len] = '\0';
@@ -692,7 +701,8 @@ PrintStats()
 		st = g_stat[i];
 
 		if (st == NULL) continue;
-		avg_resp_time = st->completes? st->sum_resp_time / st->completes : 0;
+		// avg_resp_time = st->completes? st->sum_resp_time / st->completes : 0;
+		avg_resp_time = st->short_resp_cnt? st->sum_resp_time / st->short_resp_cnt : 0;
 #if 0
 		fprintf(stderr, "[CPU%2d] epoll_wait: %5lu, event: %7lu, "
 				"connect: %7lu, read: %4lu MB, write: %4lu MB, "
@@ -710,6 +720,7 @@ PrintStats()
 		total.reads += st->reads;
 		total.writes += st->writes;
 		total.completes += st->completes;
+		total.short_resp_cnt += st->short_resp_cnt;
 		total_resp_time += avg_resp_time;
 		if (st->max_resp_time > total.max_resp_time)
 			total.max_resp_time = st->max_resp_time;
