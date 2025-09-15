@@ -29,7 +29,8 @@ typedef struct scratchpad_decl {
 
 // Helper functions
 /*----------------------------------------------------------------------------*/
-static inline void EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt)
+static inline void EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt,
+							   uint8_t stream_id)
 {
 	/* This function should be called for not retransmitted packets */
 	/* TODO: determine tcp_rto_min */
@@ -61,19 +62,34 @@ static inline void EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint
 				rcvvar->rttvar = rcvvar->mdev_max;
 			}
 		}
-		if (TCP_SEQ_GT(cur_stream->mtp->send_una, rcvvar->rtt_seq)) {
-			if (rcvvar->mdev_max < rcvvar->rttvar) {
-				rcvvar->rttvar -= (rcvvar->rttvar - rcvvar->mdev_max) >> 2;
+
+		if (stream_id == 0){
+			if (TCP_SEQ_GT(cur_stream->mtp->s0.send_una, rcvvar->rtt_seq0)) {
+				if (rcvvar->mdev_max < rcvvar->rttvar) {
+					rcvvar->rttvar -= (rcvvar->rttvar - rcvvar->mdev_max) >> 2;
+				}
+				rcvvar->rtt_seq0 = cur_stream->mtp->s0.send_next;
+				rcvvar->rtt_seq1 = cur_stream->mtp->s1.send_next;
+				rcvvar->mdev_max = tcp_rto_min;
 			}
-			rcvvar->rtt_seq = cur_stream->mtp->send_next;
-			rcvvar->mdev_max = tcp_rto_min;
+		}
+		else {
+			if (TCP_SEQ_GT(cur_stream->mtp->s1.send_una, rcvvar->rtt_seq1)) {
+				if (rcvvar->mdev_max < rcvvar->rttvar) {
+					rcvvar->rttvar -= (rcvvar->rttvar - rcvvar->mdev_max) >> 2;
+				}
+				rcvvar->rtt_seq0 = cur_stream->mtp->s0.send_next;
+				rcvvar->rtt_seq1 = cur_stream->mtp->s1.send_next;
+				rcvvar->mdev_max = tcp_rto_min;
+			}
 		}
 	} else {
 		/* fresh measurement */
 		rcvvar->srtt = m << 3;
 		rcvvar->mdev = m << 1;
 		rcvvar->mdev_max = rcvvar->rttvar = MAX(rcvvar->mdev, tcp_rto_min);
-		rcvvar->rtt_seq = cur_stream->mtp->send_next;
+		rcvvar->rtt_seq0 = cur_stream->mtp->s0.send_next;
+		rcvvar->rtt_seq1 = cur_stream->mtp->s1.send_next;
 	}
 
 	TRACE_RTT("mrtt: %u (%uus), srtt: %u (%ums), mdev: %u, mdev_max: %u, "
@@ -672,8 +688,7 @@ static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t e
 }
 
 static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_seq,
-	uint8_t stream_id, 
-    tcp_stream* cur_stream, scratchpad* scratch)
+    tcp_stream* cur_stream, uint8_t stream_id, scratchpad* scratch)
 {
     if (scratch->skip_ack_eps) return;
 
@@ -710,7 +725,7 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_
 		uint32_t rtt = cur_ts - rcvvar->ts_lastack_rcvd;
 		// printf("Stream %u, rtt: %u, last_ack_ts:%u\n", 
 		// 		cur_stream->id, rtt, rcvvar->ts_lastack_rcvd);
-		EstimateRTT(mtcp, cur_stream, rtt);
+		EstimateRTT(mtcp, cur_stream, rtt, stream_id);
 		#ifndef MTP_FIXED_RTO
 		sndvar->rto = (rcvvar->srtt >> 3) + rcvvar->rttvar;
 		#else
@@ -720,9 +735,8 @@ static inline void rto_ep( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t ev_ack_
 }
 
 static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts, 
-								    uint32_t ev_ack_seq, uint8_t stream_id,
-									tcp_stream* cur_stream, 
-									scratchpad* scratch)
+								    uint32_t ev_ack_seq, tcp_stream* cur_stream, 
+									uint8_t stream_id, scratchpad* scratch)
 {
 	if(scratch->skip_ack_eps) return;
 	// if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
@@ -803,8 +817,7 @@ static inline void fast_retr_rec_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 }
 
 static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_ack_seq, 
-				uint8_t stream_id,
-				tcp_stream* cur_stream, scratchpad* scratch)
+				tcp_stream* cur_stream, uint8_t stream_id, scratchpad* scratch)
 {
 	if(scratch->skip_ack_eps) return;
 	// if (cur_stream->mtp->state != MTP_TCP_ESTABLISHED_ST) return;
@@ -853,8 +866,8 @@ static inline void slows_congc_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t
 }
 
 static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_ack_seq, 
-	uint32_t ev_window, uint32_t ev_seq, uint8_t stream_id, 
-	tcp_stream* cur_stream, scratchpad* scratch)
+	uint32_t ev_window, uint32_t ev_seq, tcp_stream* cur_stream, 
+	uint8_t stream_id, scratchpad* scratch)
 {
 	// MTP TODO: do wscale properly?
 	if(scratch->skip_ack_eps) return;
@@ -975,12 +988,12 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 				// MTP_PRINT("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
 					// sndvar->sndbuf->head_seq, sndvar->sndbuf->len, sndvar->snd_wnd);
 				stx->send_una = ev_ack_seq;
-				stx->num_rtx = 0;
+				ctx->num_rtx = 0;
 			}
 			
 			// MTP_PRINT("ack_net_ep before releasing lock\n");
 		}
-		else {
+		else if (stream_id == 1){
 			// Send FIN
 			mtp_bp* bp = GetFreeBP(cur_stream);
 
@@ -999,7 +1012,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 			bp->hdr.syn = FALSE;
 			bp->hdr.ack = TRUE;
 			bp->hdr.fin = TRUE;
-			bp->hdr.urg_ptr = htons(MTP_QUIC_SHARED);
+			bp->hdr.urg_ptr = htons(1);
 
 			// options to calculate data offset
 
@@ -1508,12 +1521,12 @@ static inline void fin_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	
 	if (ctx->fin_sent && 
 		ev_ack_seq == ctx->final_seq + 1) {
-		ctx->send_una = ev_ack_seq;
-		if (MTP_SEQ_GT(ev_ack_seq, ctx->send_next, ctx->send_una)) {
+		ctx->s1.send_una = ev_ack_seq;
+		if (MTP_SEQ_GT(ev_ack_seq, ctx->s1.send_next, ctx->s1.send_una)) {
 			TRACE_DBG("Stream %d: update snd_nxt to %u\n", 
 					cur_stream->id, ev_ack_seq);
 			MTP_PRINT("I think this is not supposed to happen\n");
-			ctx->send_next = ev_ack_seq;
+			ctx->s1.send_next = ev_ack_seq;
 		}
 		
 		ctx->num_rtx = 0;
@@ -1545,9 +1558,9 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	struct mtp_ctx *ctx = cur_stream->mtp;
 
 	if (ctx->state == MTP_TCP_CLOSE_WAIT_ST) return;
-	struct mtp_ctx_stream *stx = &ctx.s0;
+	struct mtp_ctx_stream *stx = &ctx->s0;
 	if (stream_id == 1){
-		stx = &ctx.s1;
+		stx = &ctx->s1;
 	}
 
     struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
@@ -1634,13 +1647,14 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	if (ctx->state == MTP_TCP_ESTABLISHED_ST &&
 		ctx->fin_received &&
-	    ctx->final_seq_remote == ctx->recv_next) {
+		stream_id == 1 &&
+	    ctx->final_seq_remote == ctx->s1.recv_next) {
 		MTP_PRINT("data_net_ep: final_seq_remote: %u, recv_next: %u\n", 
 				ctx->final_seq_remote, ctx->recv_next);
 		ctx->state = MTP_TCP_CLOSE_WAIT_ST;
-		ctx->recv_next += 1;
+		ctx->s1.recv_next += 1;
 		MTP_PRINT("data_net_ep: raising read event for fin\n");
-		RaiseReadEvent(mtcp, cur_stream);
+		RaiseReadEvent(mtcp, cur_stream, stream_id);
 	}
 
 
@@ -1664,7 +1678,7 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	if (!BPBuffer_isempty(cur_stream)){
 		mtp_bp* last_bp = GetLastBP(cur_stream);
-		if (last_bp->hdr.urg_ptr == hton(stream_id) &&
+		if (last_bp->hdr.urg_ptr == htons(stream_id) &&
 			last_bp->payload.len == 0 &&
 			last_bp->hdr.ack == TRUE &&
 			last_bp->hdr.fin == FALSE) {
@@ -1686,9 +1700,9 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	bp->hdr.source = cur_stream->mtp->local_port;
 	bp->hdr.dest = cur_stream->mtp->remote_port;
-	bp->hdr.seq = htonl(ctx->send_next);
+	bp->hdr.seq = htonl(stx->send_next);
 	// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
-	bp->hdr.ack_seq = htonl(ctx->recv_next);
+	bp->hdr.ack_seq = htonl(stx->recv_next);
 
 	bp->hdr.syn = FALSE;
 	bp->hdr.ack = TRUE;
@@ -1716,10 +1730,10 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
 	// MTP TODO: wscale on local
-	uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
+	uint32_t window32 = stx->rwnd_size >> ctx->wscale;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
-	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
+	if (advertised_window == 0) stx->adv_zero_wnd = TRUE;
 
 	// Payload
 	// MTP TODO: fix snbuf
@@ -1933,11 +1947,11 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	ctx->state = MTP_TCP_ESTABLISHED_ST; //ESTABLISHED_ST
 
 	// receiver related variables
-    ctx->s0.recv_init_seq = ev_init_seq;
+    ctx->recv_init_seq = ev_init_seq;
+
     ctx->s0.recv_next = ev_init_seq + 1;
 	ctx->s0.last_flushed = ev_init_seq;
 
-	ctx->s1.recv_init_seq = ev_init_seq;
     ctx->s1.recv_next = ev_init_seq + 1;
 	ctx->s1.last_flushed = ev_init_seq;
 
@@ -1953,8 +1967,11 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	ctx->s0.send_next = ev_ack_seq;
 	ctx->s1.send_next = ev_ack_seq;
 
-	ctx->lwu_seq = ev_init_seq - 1;
-	ctx->last_ack = ev_ack_seq;
+	ctx->s0.lwu_seq = ev_init_seq - 1;
+	ctx->s1.lwu_seq = ev_init_seq - 1;
+	
+	ctx->s0.last_ack = ev_ack_seq;
+	ctx->s1.last_ack = ev_ack_seq;
 
 	// options
 	if (ev_mss_valid) ctx->SMSS = ev_mss;
@@ -2077,7 +2094,8 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 	//cur_stream->sndvar->ts_rto = cur_ts + cur_stream->sndvar->rto;
 
 	/* reduce congestion window and ssthresh */
-	ctx->ssthresh = MIN(ctx->cwnd_size, ctx->last_rwnd_remote) / 2;
+	uint32_t last_rwnd_remote = ctx->s0.last_rwnd_remote + ctx->s1.last_rwnd_remote;
+	ctx->ssthresh = MIN(ctx->cwnd_size, last_rwnd_remote) / 2;
 	if (ctx->ssthresh < (2 * ctx->SMSS)) {
 		ctx->ssthresh = ctx->SMSS * 2;
 	}
@@ -2093,83 +2111,166 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 		struct tcp_send_vars *sndvar = cur_stream->sndvar;
 
 		SBUF_LOCK(&sndvar->write_lock);
+
+		// Send from stream 0
         // MTP TODO: check that size + options is not more than MSS
-        uint32_t data_rest =  sndvar->sndbuf->len - 
-					      MTP_SEQ_SUB(ctx->send_una, sndvar->sndbuf->head_seq,
-									  sndvar->sndbuf->head_seq);
+		{
+			uint32_t data_rest =  sndvar->sndbuf0->len - 
+							MTP_SEQ_SUB(ctx->s0.send_una, sndvar->sndbuf0->head_seq,
+										sndvar->sndbuf0->head_seq);
 
-		uint32_t effective_window = ctx->cwnd_size;
-		if (ctx->last_rwnd_remote < effective_window){
-			effective_window = ctx->last_rwnd_remote;
+			uint32_t effective_window = ctx->cwnd_size;
+			if (ctx->s0.last_rwnd_remote < effective_window){
+				effective_window = ctx->s0.last_rwnd_remote;
+			}
+			
+			uint32_t bytes_to_send = effective_window;
+			if (data_rest < effective_window) bytes_to_send = data_rest;
+			
+			// MTP TODO: check bytes to send is not zero
+			// MTP_PRINT("ack_net_ep: bytes to send: %d\n", bytes_to_send);
+
+			// assert(bytes_to_send > 0);
+			bool send_fin_again = FALSE;
+
+			mtp_bp* bp = GetFreeBP(cur_stream);
+
+			// MTP_PRINT("got bp\n");
+			// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+			
+			memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+			bp->hdr.source = cur_stream->mtp->local_port;
+			bp->hdr.dest = cur_stream->mtp->remote_port;
+			bp->hdr.seq = htonl(ctx->s0.send_una);
+			// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+			bp->hdr.ack_seq = htonl(ctx->s0.recv_next);
+
+			bp->hdr.syn = FALSE;
+			bp->hdr.ack = TRUE;
+			bp->hdr.fin = send_fin_again;
+			bp->hdr.urg_ptr = htons(0);
+
+			// options to calculate data offset
+		
+			// MTP TODO: SACK? 
+		#if TCP_OPT_SACK_ENABLED
+			MTP_PRINT("ERROR:SACK Not supported in MTP TCP\n");
+		#endif
+
+			MTP_set_opt_nop(&(bp->opts.nop1));
+			MTP_set_opt_nop(&(bp->opts.nop2));
+
+			// MTP TODO: Timestamp
+			MTP_set_opt_timestamp(&(bp->opts.timestamp),
+									htonl(cur_ts),
+									htonl(ctx->ts_recent));
+			
+		
+			// MTP TODO: would the MTP program do the length 
+			//           calculation itself?
+			uint16_t optlen = MTP_CalculateOptionLength(bp);
+			bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+			// MTP TODO: wscale on local
+			uint32_t window32 = cur_stream->mtp->s0.rwnd_size >> cur_stream->mtp->wscale;
+			uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+			bp->hdr.window = htons(advertised_window);
+			if (advertised_window == 0) ctx->s0.adv_zero_wnd = TRUE;
+
+			// Payload
+			// MTP TODO: fix snbuf
+			uint8_t *data = sndvar->sndbuf0->head + MTP_SEQ_SUB(ctx->s0.send_una,
+															sndvar->sndbuf0->head_seq,
+															sndvar->sndbuf0->head_seq);
+			bp->payload.data = data;
+			bp->payload.len = bytes_to_send;
+			bp->payload.needs_segmentation = TRUE;
+			bp->payload.seg_size = ctx->eff_SMSS;
+			bp->payload.seg_rule_group_id = 1; 
 		}
-		
-		uint32_t bytes_to_send = effective_window;
-		if (data_rest < effective_window) bytes_to_send = data_rest;
-		
-		// MTP TODO: check bytes to send is not zero
-		// MTP_PRINT("ack_net_ep: bytes to send: %d\n", bytes_to_send);
 
-		// assert(bytes_to_send > 0);
-		bool send_fin_again = FALSE;
-		if (bytes_to_send == 0 && ctx->fin_sent) {
-			if(ctx->send_next == ctx->final_seq &&
-				   ctx->send_una == ctx->final_seq) send_fin_again = TRUE;
+		// Send from stream 1
+		{
+			uint32_t data_rest =  sndvar->sndbuf1->len - 
+							MTP_SEQ_SUB(ctx->s1.send_una, sndvar->sndbuf1->head_seq,
+										sndvar->sndbuf1->head_seq);
+
+			uint32_t effective_window = ctx->cwnd_size;
+			if (ctx->s1.last_rwnd_remote < effective_window){
+				effective_window = ctx->s1.last_rwnd_remote;
+			}
+			
+			uint32_t bytes_to_send = effective_window;
+			if (data_rest < effective_window) bytes_to_send = data_rest;
+			
+			// MTP TODO: check bytes to send is not zero
+			// MTP_PRINT("ack_net_ep: bytes to send: %d\n", bytes_to_send);
+
+			// assert(bytes_to_send > 0);
+			bool send_fin_again = FALSE;
+
+			if (bytes_to_send == 0 && ctx->fin_sent) {
+				if(ctx->s1.send_next == ctx->final_seq &&
+					ctx->s1.send_una == ctx->final_seq) send_fin_again = TRUE;
+			}
+
+			mtp_bp* bp = GetFreeBP(cur_stream);
+
+			// MTP_PRINT("got bp\n");
+			// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
+			
+			memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
+
+			bp->hdr.source = cur_stream->mtp->local_port;
+			bp->hdr.dest = cur_stream->mtp->remote_port;
+			bp->hdr.seq = htonl(ctx->s1.send_una);
+			// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
+			bp->hdr.ack_seq = htonl(ctx->s1.recv_next);
+
+			bp->hdr.syn = FALSE;
+			bp->hdr.ack = TRUE;
+			bp->hdr.fin = send_fin_again;
+			bp->hdr.urg_ptr = htons(1);
+
+			// options to calculate data offset
+		
+			// MTP TODO: SACK? 
+		#if TCP_OPT_SACK_ENABLED
+			MTP_PRINT("ERROR:SACK Not supported in MTP TCP\n");
+		#endif
+
+			MTP_set_opt_nop(&(bp->opts.nop1));
+			MTP_set_opt_nop(&(bp->opts.nop2));
+
+			// MTP TODO: Timestamp
+			MTP_set_opt_timestamp(&(bp->opts.timestamp),
+									htonl(cur_ts),
+									htonl(ctx->ts_recent));
+			
+		
+			// MTP TODO: would the MTP program do the length 
+			//           calculation itself?
+			uint16_t optlen = MTP_CalculateOptionLength(bp);
+			bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
+
+			// MTP TODO: wscale on local
+			uint32_t window32 = cur_stream->mtp->s1.rwnd_size >> cur_stream->mtp->wscale;
+			uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
+			bp->hdr.window = htons(advertised_window);
+			if (advertised_window == 0) ctx->s1.adv_zero_wnd = TRUE;
+
+			// Payload
+			// MTP TODO: fix snbuf
+			uint8_t *data = sndvar->sndbuf1->head + MTP_SEQ_SUB(ctx->s1.send_una,
+															sndvar->sndbuf1->head_seq,
+															sndvar->sndbuf1->head_seq);
+			bp->payload.data = data;
+			bp->payload.len = bytes_to_send;
+			bp->payload.needs_segmentation = TRUE;
+			bp->payload.seg_size = ctx->eff_SMSS;
+			bp->payload.seg_rule_group_id = 1; 
 		}
-
-		mtp_bp* bp = GetFreeBP(cur_stream);
-
-		// MTP_PRINT("got bp\n");
-		// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
-		
-		memset(&(bp->hdr), 0, sizeof(struct mtp_bp_hdr) + sizeof(struct mtp_bp_options));
-
-		bp->hdr.source = cur_stream->mtp->local_port;
-		bp->hdr.dest = cur_stream->mtp->remote_port;
-		bp->hdr.seq = htonl(ctx->send_una);
-		// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
-		bp->hdr.ack_seq = htonl(ctx->recv_next);
-
-		bp->hdr.syn = FALSE;
-		bp->hdr.ack = TRUE;
-		bp->hdr.fin = send_fin_again;
-
-		// options to calculate data offset
-	
-		// MTP TODO: SACK? 
-	#if TCP_OPT_SACK_ENABLED
-		MTP_PRINT("ERROR:SACK Not supported in MTP TCP\n");
-	#endif
-
-		MTP_set_opt_nop(&(bp->opts.nop1));
-		MTP_set_opt_nop(&(bp->opts.nop2));
-
-		// MTP TODO: Timestamp
-		MTP_set_opt_timestamp(&(bp->opts.timestamp),
-								htonl(cur_ts),
-								htonl(ctx->ts_recent));
-		
-	
-		// MTP TODO: would the MTP program do the length 
-		//           calculation itself?
-		uint16_t optlen = MTP_CalculateOptionLength(bp);
-		bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
-
-		// MTP TODO: wscale on local
-		uint32_t window32 = cur_stream->mtp->rwnd_size >> cur_stream->mtp->wscale;
-		uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
-		bp->hdr.window = htons(advertised_window);
-		if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
-
-		// Payload
-		// MTP TODO: fix snbuf
-		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_una,
-														sndvar->sndbuf->head_seq,
-														sndvar->sndbuf->head_seq);
-		bp->payload.data = data;
-		bp->payload.len = bytes_to_send;
-		bp->payload.needs_segmentation = TRUE;
-		bp->payload.seg_size = ctx->eff_SMSS;
-		bp->payload.seg_rule_group_id = 1; 
 
 		AddtoGenList(mtcp, cur_stream, cur_ts);	
 		
@@ -2266,7 +2367,7 @@ void MtpReceiveChainPart2(mtcp_manager_t mtcp, uint32_t cur_ts,
 	}
 
 	// Check stream 1
-	struct mtp_ctx_stream *stx = &ctx->s1;
+	stx = &ctx->s1;
 	if (stx->adv_zero_wnd) {
 		// MTP TODO: integrate with MTP
 		stx->adv_zero_wnd = FALSE;
@@ -2358,11 +2459,11 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     */
     scratchpad scratch;
 	timestamp_ep(mtcp, cur_ts, ev_ts, cur_stream, &scratch);
-    conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, &scratch);
-    rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-    fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-    slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
-    ack_net_ep(mtcp, cur_ts, ack_seq, window, seq, cur_stream, &scratch);
+    conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, stream_id, &scratch);
+    rto_ep(mtcp, cur_ts, ack_seq, cur_stream, stream_id, &scratch);
+    fast_retr_rec_ep(mtcp, cur_ts, ack_seq, cur_stream, stream_id, &scratch);
+    slows_congc_ep(mtcp, cur_ts, ack_seq, cur_stream, stream_id, &scratch);
+    ack_net_ep(mtcp, cur_ts, ack_seq, window, seq, cur_stream, stream_id, &scratch);
 	fin_ack_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
 }
 
@@ -2539,10 +2640,10 @@ void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream)
 	}
 
 	struct tcp_send_vars *sndvar = cur_stream->sndvar;
-	if (sndvar->sndbuf) {
-		ctx->final_seq = sndvar->sndbuf->head_seq + sndvar->sndbuf->len;
+	if (sndvar->sndbuf1) {
+		ctx->final_seq = sndvar->sndbuf1->head_seq + sndvar->sndbuf1->len;
 	} else {
-		ctx->final_seq = ctx->send_next;
+		ctx->final_seq = ctx->s1.send_next;
 	}
 
 	// if (CONFIG.tcp_timeout > 0)
@@ -2567,7 +2668,7 @@ void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream)
 	bp->hdr.dest = cur_stream->mtp->remote_port;
 	bp->hdr.seq = htonl(ctx->final_seq);
 	// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
-	bp->hdr.ack_seq = htonl(ctx->recv_next);
+	bp->hdr.ack_seq = htonl(ctx->s1.recv_next);
 
 	bp->hdr.syn = FALSE;
 	bp->hdr.ack = TRUE;
@@ -2595,10 +2696,10 @@ void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream)
 	bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
 	// MTP TODO: wscale on local
-	uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
+	uint32_t window32 = ctx->s1.rwnd_size >> ctx->wscale;
 	uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 	bp->hdr.window = htons(advertised_window);
-	if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
+	if (advertised_window == 0) ctx->s1.adv_zero_wnd = TRUE;
 
 	// Payload
 	// MTP TODO: fix snbuf
@@ -2625,14 +2726,15 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	MTP_PRINT("ev_seq: %u, ev_payload_len: %u, recv_next: %u\n",
 			ev_seq, ev_payloadlen, ctx->recv_next);
 
-	if (ctx->final_seq_remote == ctx->recv_next){
-		ctx->recv_next = ctx->recv_next + 1;
+	if (ctx->final_seq_remote == ctx->s1.recv_next){
+		ctx->s1.recv_next = ctx->s1.recv_next + 1;
 		
 		if (ctx->state == MTP_TCP_ESTABLISHED_ST){
 				ctx->state = MTP_TCP_CLOSE_WAIT_ST;
 				MTP_PRINT("Stream %d: TCP_ST_CLOSE_WAIT\n", cur_stream->id);
 				/* notify FIN to application */
-				RaiseReadEvent(mtcp, cur_stream);
+				// TODO FIN
+				RaiseReadEvent(mtcp, cur_stream, 1);
 		}
 
 		else if (ctx->state == MTP_TCP_FIN_WAIT_1_ST) {
@@ -2658,7 +2760,7 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 		bp->hdr.fin = FALSE; 
 		if (ctx->state == MTP_TCP_CLOSING_ST){
-			if ((ctx->fin_sent && ctx->send_next == ctx->final_seq) ||
+			if ((ctx->fin_sent && ctx->s1.send_next == ctx->final_seq) ||
 				(!ctx->fin_sent)){
 					bp->hdr.fin = TRUE;
 					ctx->fin_sent = TRUE;
@@ -2667,15 +2769,16 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 		bp->hdr.source = cur_stream->mtp->local_port;
 		bp->hdr.dest = cur_stream->mtp->remote_port;
-		bp->hdr.seq = htonl(ctx->send_next);
+		bp->hdr.seq = htonl(ctx->s1.send_next);
 		if (bp->hdr.fin){
 			bp->hdr.seq = htonl(ctx->final_seq);
 		}
 		// MTP_PRINT("Seq ack_ep: %u\n", ntohl(bp->hdr.seq));
-		bp->hdr.ack_seq = htonl(ctx->recv_next);
+		bp->hdr.ack_seq = htonl(ctx->s1.recv_next);
 
 		bp->hdr.syn = FALSE;
 		bp->hdr.ack = TRUE;
+		bp->hdr.urg_ptr = htons(1);
 
 		// options to calculate data offset
 
@@ -2699,10 +2802,10 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 		bp->hdr.doff = (MTP_HEADER_LEN + optlen) >> 2;
 
 		// MTP TODO: wscale on local
-		uint32_t window32 = ctx->rwnd_size >> ctx->wscale;
+		uint32_t window32 = ctx->s1.rwnd_size >> ctx->wscale;
 		uint16_t advertised_window = MIN(window32, TCP_MAX_WINDOW);
 		bp->hdr.window = htons(advertised_window);
-		if (advertised_window == 0) ctx->adv_zero_wnd = TRUE;
+		if (advertised_window == 0) ctx->s1.adv_zero_wnd = TRUE;
 
 		// Payload
 		// MTP TODO: fix snbuf

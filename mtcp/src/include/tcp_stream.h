@@ -64,7 +64,8 @@ struct tcp_recv_vars
 	uint32_t mdev;			/* medium deviation */
 	uint32_t mdev_max;		/* maximal mdev ffor the last rtt period */
 	uint32_t rttvar;		/* smoothed mdev_max */
-	uint32_t rtt_seq;		/* sequence number to update rttvar */
+	uint32_t rtt_seq0;		/* sequence number to update rttvar */
+	uint32_t rtt_seq1;		/* sequence number to update rttvar */
 
 #if TCP_OPT_SACK_ENABLED		/* currently not used */
 #define MAX_SACK_ENTRY 8
@@ -192,9 +193,6 @@ struct mtp_ctx_stream {
     uint32_t lwu_seq;
     uint32_t lwu_ack;
 
-	uint32_t num_rtx;
-	uint32_t max_num_rtx;
-
 	uint32_t flightsize_dupl;
     
     // receiver vars 
@@ -246,6 +244,10 @@ struct mtp_ctx {
 	uint32_t ts_lastack_rcvd;	/* last ack rcvd time */
 	uint32_t ts_last_ts_upd;	/* last peer ts update time */
 
+	// rtx
+	uint32_t num_rtx;
+	uint32_t max_num_rtx;
+	
 	// closing
 	bool closed;
 	

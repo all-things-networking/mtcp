@@ -199,6 +199,8 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
 	mtp->fin_received = FALSE;
 	mtp->ssthresh = mtp->SMSS * 10;
 	mtp->initial_rwnd_size = CONFIG.rcvbuf_size;
+	mtp->num_rtx = 0;
+	mtp->max_num_rtx = 0;
 
 	// Stream 0
 
@@ -213,8 +215,6 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     
     mtp->s0.rwnd_size = CONFIG.rcvbuf_size;
     mtp->s0.duplicate_acks = 0;
-	mtp->s0.num_rtx = 0;
-	mtp->s0.max_num_rtx = 0;
 	mtp->s0.adv_zero_wnd = FALSE;
 
 	// Stream 1
@@ -230,8 +230,6 @@ tcp_stream* CreateCtx(mtcp_manager_t mtcp, uint32_t cur_ts,
     
     mtp->s1.rwnd_size = CONFIG.rcvbuf_size;
     mtp->s1.duplicate_acks = 0;
-	mtp->s1.num_rtx = 0;
-	mtp->s1.max_num_rtx = 0;
 	mtp->s1.adv_zero_wnd = FALSE;
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;

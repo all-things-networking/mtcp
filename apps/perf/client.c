@@ -311,7 +311,7 @@ end_wait_loop:
 
 	printf("Starting to write\n");
 	while (1) {
-		wrote = mtcp_write(ctx->mctx, sockfd, buf, BUF_LEN);
+		wrote = mtcp_write(ctx->mctx, sockfd, buf, BUF_LEN, 0);
 		bytes_sent += wrote;
 		if (wrote > 0) {
 			gettimeofday(&t1, NULL);
@@ -329,7 +329,7 @@ end_wait_loop:
 		for (int i = 0; i < events_ready; i++) {
 			assert(sockfd == events[i].data.sockid);
 			if (events[i].events & MTCP_EPOLLIN) {
-				read = mtcp_read(ctx->mctx, sockfd, rcvbuf, BUF_LEN);
+				read = mtcp_read(ctx->mctx, sockfd, rcvbuf, BUF_LEN, 0);
 				if (read <= 0) {
 					continue;
 				} else {
@@ -340,12 +340,12 @@ end_wait_loop:
 				//if (bytes_sent < sec_to_send) {
 				clock_gettime(CLOCK_MONOTONIC, &now);
 				if (now.tv_sec < end_time) {
-					wrote = mtcp_write(ctx->mctx, sockfd, buf, BUF_LEN);
+					wrote = mtcp_write(ctx->mctx, sockfd, buf, BUF_LEN,0);
 					bytes_sent += wrote;
 					//DEBUG("wrote %d, total %d", wrote, bytes_sent);
 				} else if (!sent_close) {
 					memset(buf, 0x96, sizeof(char) * BUF_LEN);
-					mtcp_write(ctx->mctx, sockfd, buf, 1);
+					mtcp_write(ctx->mctx, sockfd, buf, 1, 0);
 					DEBUG("Done writing... waiting for FIN-ACK");  
 					sent_close = 1;
 				}

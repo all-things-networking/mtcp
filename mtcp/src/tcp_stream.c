@@ -707,7 +707,7 @@ DumpStream(mtcp_manager_t mtcp, tcp_stream *stream)
 			"ts_tw_expire: %u\n", rcvvar->ts_recent, rcvvar->ts_lastack_rcvd, 
 			rcvvar->ts_last_ts_upd, rcvvar->ts_tw_expire);
 	thread_printf(mtcp, mtcp->log_fp, 
-			"srtt: %u, mdev: %u, mdev_max: %u, rttvar: %u, rtt_seq: %u\n", 
+			"srtt: %u, mdev: %u, mdev_max: %u, rttvar: %u, rtt_seq0: %u\n", 
 			rcvvar->srtt, rcvvar->mdev, rcvvar->mdev_max, 
-			rcvvar->rttvar, rcvvar->rtt_seq);
+			rcvvar->rttvar, rcvvar->rtt_seq0);
 }

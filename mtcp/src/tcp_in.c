@@ -284,11 +284,11 @@ EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt)
 				rcvvar->rttvar = rcvvar->mdev_max;
 			}
 		}
-		if (TCP_SEQ_GT(cur_stream->sndvar->snd_una, rcvvar->rtt_seq)) {
+		if (TCP_SEQ_GT(cur_stream->sndvar->snd_una, rcvvar->rtt_seq0)) {
 			if (rcvvar->mdev_max < rcvvar->rttvar) {
 				rcvvar->rttvar -= (rcvvar->rttvar - rcvvar->mdev_max) >> 2;
 			}
-			rcvvar->rtt_seq = cur_stream->snd_nxt;
+			rcvvar->rtt_seq0 = cur_stream->snd_nxt;
 			rcvvar->mdev_max = tcp_rto_min;
 		}
 	} else {
@@ -296,7 +296,7 @@ EstimateRTT(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t mrtt)
 		rcvvar->srtt = m << 3;
 		rcvvar->mdev = m << 1;
 		rcvvar->mdev_max = rcvvar->rttvar = MAX(rcvvar->mdev, tcp_rto_min);
-		rcvvar->rtt_seq = cur_stream->snd_nxt;
+		rcvvar->rtt_seq0 = cur_stream->snd_nxt;
 	}
 
 	TRACE_RTT("mrtt: %u (%uus), srtt: %u (%ums), mdev: %u, mdev_max: %u, "
