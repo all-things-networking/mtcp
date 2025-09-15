@@ -351,6 +351,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         uint16_t ev_rwnd_size = mtph->window;
         uint32_t ev_seq = mtph->seq;
         struct tcp_opt_timestamp* ev_ts = &(mtp_opt.timestamp);
+        uint8_t stream_id = ntohs(mtph->urg_ptr);
  
         // Context lookup
         tcp_stream *cur_stream = NULL;
@@ -361,7 +362,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         }
         
         MtpAckChain(mtcp, cur_ts, ev_ack_seq, ev_rwnd_size, 
-                        ev_seq, ev_ts, cur_stream);
+                        ev_seq, ev_ts, stream_id, cur_stream);
     }
 
     if (payload.len > 0){
