@@ -260,6 +260,9 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 		bp->payload.seg_size = ctx->eff_SMSS;
 		bp->payload.seg_rule_group_id = 1; 
 	}
+	
+	MTP_PRINT("Generated bp:\n");
+	print_MTP_bp(bp);
 
     AddtoGenList(mtcp, cur_stream, cur_ts);	
 

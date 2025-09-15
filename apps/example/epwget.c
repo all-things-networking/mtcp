@@ -156,6 +156,8 @@ struct wget_vars
 
 	uint32_t total_req_sent;
 	uint32_t total_req_recvd;
+
+	int not_first_time;
 };
 /*----------------------------------------------------------------------------*/
 static struct thread_context *g_ctx[MAX_CPUS] = {0};
@@ -266,19 +268,21 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 {
 	// usleep(100000);
 	// struct mtcp_epoll_event ev;
-	int wr;
-	int len;
-	int first_time = TRUE;
+	int wr = 0;
+	int len = 0;
 
 	// wv->headerset = FALSE;
 	// wv->recv = 0;
 	// wv->header_len = wv->file_len = 0;
 
-	while ((first_time || wr == len) &&
+	printf("coming here\n");
+
+	while ((!wv->not_first_time || wr == len) &&
 			wv->total_req_sent < total_requests){
-		first_time = FALSE;
+		wv->not_first_time = TRUE;
 
 		if (wv->req_offset == 0){
+			printf("setting up request\n");
 			// TODO: decide which request next
 			// Is it ok to rewrite this?
 
@@ -305,17 +309,23 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 			uint32_t st_ind = wv->t_start_ind;
 			gettimeofday(&wv->t_start[st_ind], NULL);
 			incr_ind(&wv->t_start_ind);
+			printf("t_start_ind: %u\n", wv->t_start_ind);
 		}
 
 		len = strlen(wv->last_request) - wv->req_offset;
+		printf("last_request_len: %d, req_offset: %d, len: %d\n", 
+				(int)strlen(wv->last_request), wv->req_offset, len);
+
 		wr = mtcp_write(ctx->mctx, sockid, wv->last_request + wv->req_offset, len);
-		// printf("wrote: %d\n", wr);
+		printf("wrote: %d\n", wr);
 
 		wv->req_offset += wr;
 		ctx->stat.writes += wr;
 
-		if (wv->req_offset == len) {
+		if (wv->req_offset == strlen(wv->last_request)) {
 			wv->total_req_sent++;
+			printf("total requests sent so far: %u / %u\n", 
+					wv->total_req_sent, total_requests);
 			wv->req_offset = 0;
 		}
 	}
