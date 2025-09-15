@@ -138,36 +138,40 @@ SBPut(sb_manager_t sbm, struct tcp_send_buffer *buf, const void *data, size_t le
 		/* if the data fit into the buffer, copy it */
 		memcpy(buf->data + buf->tail_off, data, to_put);
 		
-		printf("SBPut: tail_off: %d\n", 
-				buf->tail_off);
+		// printf("SBPut: tail_off: %d\n", 
+		// 		buf->tail_off);
 
-		for (int i = 0; i < to_put; i++){
-			printf("%c", buf->data[buf->tail_off + i]);
-		}
-		printf("\n");
+		// for (int i = 0; i < to_put; i++){
+		// 	printf("%c", buf->data[buf->tail_off + i]);
+		// }
+		// printf("\n");
+
 		buf->tail_off += to_put;
-		
+
 	} else {
 		uint32_t first_half = buf->size - buf->tail_off;
 		memcpy(buf->data + buf->tail_off, data, first_half);
-		printf("SBPut: tail_off: %d, first_half: %d\n", 
-				buf->tail_off, first_half);
+		
+		// printf("SBPut: tail_off: %d, first_half: %d\n", 
+		// 		buf->tail_off, first_half);
 
-		for (int i = 0; i < first_half; i++){
-			printf("%c", buf->data[buf->tail_off + i]);
-		}
-		printf("\n");
+		// for (int i = 0; i < first_half; i++){
+		// 	printf("%c", buf->data[buf->tail_off + i]);
+		// }
+		// printf("\n");
 		
 		uint32_t second_half = to_put - first_half;
 		memcpy(buf->data, data + first_half, second_half);
 		buf->tail_off = second_half;
-		printf("SBPut: tail_off: %d, second_half: %d\n", 
-				buf->tail_off, second_half);
 
-		for (int i = 0; i < second_half; i++){
-			printf("%c", buf->data[i]);
-		}
-		printf("\n");
+		// printf("SBPut: tail_off: %d, second_half: %d\n", 
+		// 		buf->tail_off, second_half);
+
+		// for (int i = 0; i < second_half; i++){
+		// 	printf("%c", buf->data[i]);
+		// }
+		// printf("\n");
+
 		/* if buffer overflows, move the existing payload and merge */
 		// memmove(buf->data, buf->head, buf->len);
 		// buf->head = buf->data;

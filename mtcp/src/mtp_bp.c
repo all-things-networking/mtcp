@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <netinet/in.h>
 
-#define ENABLE_MTP_PRINT 1
+// #define ENABLE_MTP_PRINT 1
 
 #ifdef ENABLE_MTP_PRINT
 #define MTP_PRINT(f, m...) fprintf(stdout, f, ##m)
@@ -122,22 +122,22 @@ void print_MTP_bp(struct mtp_bp* bp){
     MTP_PRINT("Payload Length: %u\n", bp->payload.len);
     if (bp->payload.data) {
         MTP_PRINT("Payload Data: ");
-        for (uint16_t i = 0; i < bp->payload.len; i++) {
-            // MTP_PRINT("%02x ", bp->payload.data[i]);
-            // MTP_PRINT("%d\n", i);
-            fflush(stdout);
-            uint32_t host_seq = ntohl(bp->hdr.seq);
-            uint32_t seq = host_seq + i;
-            if (bp->payload.wraps_around && seq >= bp->payload.wrap_around_seg){
-                MTP_PRINT("%c", bp->payload.wrap_around_data[i - (bp->payload.wrap_around_seg - host_seq)]);
-                // MTP_PRINT("%d ", i - diff);
-                fflush(stdout);
-            }
-            else {
-                MTP_PRINT("%c", bp->payload.data[i]);
-                fflush(stdout);
-            }
-        }
+        // for (uint16_t i = 0; i < bp->payload.len; i++) {
+        //     // MTP_PRINT("%02x ", bp->payload.data[i]);
+        //     // MTP_PRINT("%d\n", i);
+        //     fflush(stdout);
+        //     uint32_t host_seq = ntohl(bp->hdr.seq);
+        //     uint32_t seq = host_seq + i;
+        //     if (bp->payload.wraps_around && seq >= bp->payload.wrap_around_seg){
+        //         MTP_PRINT("%c", bp->payload.wrap_around_data[i - (bp->payload.wrap_around_seg - host_seq)]);
+        //         // MTP_PRINT("%d ", i - diff);
+        //         fflush(stdout);
+        //     }
+        //     else {
+        //         MTP_PRINT("%c", bp->payload.data[i]);
+        //         fflush(stdout);
+        //     }
+        // }
         MTP_PRINT("\n");
     } else {
         MTP_PRINT("No Payload Data\n");

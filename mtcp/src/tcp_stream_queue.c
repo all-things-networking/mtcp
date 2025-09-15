@@ -191,6 +191,7 @@ StreamEnqueue(stream_queue_t sq, tcp_stream *stream)
 		return 0;
 	}
 
+	printf("Exceed capacity of stream queue!\n");
 	TRACE_ERROR("Exceed capacity of stream queue!\n");
 	return -1;
 }

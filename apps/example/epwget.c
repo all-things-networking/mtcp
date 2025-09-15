@@ -304,12 +304,6 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 						// "Connection: Close\r\n\r\n", 
 						url, host);
 			}
-
-			
-			uint32_t st_ind = wv->t_start_ind;
-			gettimeofday(&wv->t_start[st_ind], NULL);
-			incr_ind(&wv->t_start_ind);
-			printf("t_start_ind: %u\n", wv->t_start_ind);
 		}
 
 		len = strlen(wv->last_request) - wv->req_offset;
@@ -327,6 +321,11 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 			printf("total requests sent so far: %u / %u\n", 
 					wv->total_req_sent, total_requests);
 			wv->req_offset = 0;
+			uint32_t st_ind = wv->t_start_ind;
+			gettimeofday(&wv->t_start[st_ind], NULL);
+			incr_ind(&wv->t_start_ind);
+			printf("t_start_ind: %u\n", wv->t_start_ind);
+			
 		}
 	}
 	return 0;

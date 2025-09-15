@@ -260,7 +260,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 		bp->payload.seg_size = ctx->eff_SMSS;
 		bp->payload.seg_rule_group_id = 1; 
 	}
-	
+
 	MTP_PRINT("Generated bp:\n");
 	print_MTP_bp(bp);
 
@@ -647,6 +647,24 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		    ctx->state != MTP_TCP_CLOSING_ST) {
 			TimerCancel(mtcp, cur_stream);
 			MTP_PRINT("THIS CASE\n");
+
+			// Remove acked sequence from sending buffer
+			// This step is kinda target dependent (depending on the implementation of sending buffer)
+			uint32_t rmlen = MTP_SEQ_SUB(ev_ack_seq, ctx->send_una, ctx->send_una);
+			// MTP_PRINT("ack_net_ep: rmlen: %u, send_una: %u, ev_ack_seq: %u\n", 
+			// 		rmlen, ctx->send_una, ev_ack_seq);
+			
+			if(rmlen > 0) {
+				// MTP_PRINT("Removing %d bytes\n", rmlen);
+				//uint32_t offset = MTP_SEQ_SUB(ctx->send_una, ctx->init_seq, ctx->init_seq);
+				uint32_t offset = ctx->send_una;
+				TxDataFlush(mtcp, cur_stream, offset, rmlen);
+				// MTP_PRINT("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
+					// sndvar->sndbuf->head_seq, sndvar->sndbuf->len, sndvar->snd_wnd);
+				ctx->send_una = ev_ack_seq;
+				ctx->num_rtx = 0;
+			}
+			
 			// MTP_PRINT("ack_net_ep before releasing lock\n");
 		}
 		else {
@@ -771,11 +789,38 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
         // Payload
         // MTP TODO: fix snbuf
-		uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_una,
-														   sndvar->sndbuf->head_seq,
-														   sndvar->sndbuf->head_seq);
-        bp->payload.data = data;
-        bp->payload.len = bytes_to_send;
+
+		uint32_t buf_offset = MTP_SEQ_SUB(ctx->send_una,
+												sndvar->sndbuf->head_seq,
+												sndvar->sndbuf->head_seq);
+
+		if (sndvar->sndbuf->head_off + buf_offset > sndvar->sndbuf->size){
+			struct tcp_send_buffer* buf = sndvar->sndbuf;
+			uint32_t first_half = buf->size - buf->head_off;
+			uint32_t second_half = buf_offset - first_half;
+			uint32_t go_back = buf->head_off - second_half;
+			bp->payload.data = buf->head - go_back;
+			bp->payload.wraps_around = FALSE;
+		}
+		else {
+			uint8_t *data = sndvar->sndbuf->head + buf_offset;
+			bp->payload.data = data;
+
+			struct tcp_send_buffer* buf = sndvar->sndbuf;
+			if (buf->head_off + buf_offset + bytes_to_send > buf->size){
+				uint32_t start = buf->head_off + buf_offset;
+				uint32_t first_half = buf->size - start;
+				bp->payload.wraps_around = TRUE;
+				bp->payload.wrap_around_seg = ctx->send_next + first_half;
+				bp->payload.wrap_around_data = buf->data;
+			}
+		}
+		// uint8_t *data = sndvar->sndbuf->head + MTP_SEQ_SUB(ctx->send_una,
+		// 												   sndvar->sndbuf->head_seq,
+		// 												   sndvar->sndbuf->head_seq);
+        // bp->payload.data = data;
+        
+		bp->payload.len = bytes_to_send;
         bp->payload.needs_segmentation = FALSE;
 
         AddtoGenList(mtcp, cur_stream, cur_ts);
@@ -938,22 +983,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		// MTP_PRINT("ack_ep send next: %u\n", ctx->send_next);
 	}
 
-	// Remove acked sequence from sending buffer
-	// This step is kinda target dependent (depending on the implementation of sending buffer)
-	uint32_t rmlen = MTP_SEQ_SUB(ev_ack_seq, ctx->send_una, ctx->send_una);
-	// MTP_PRINT("ack_net_ep: rmlen: %u, send_una: %u, ev_ack_seq: %u\n", 
-	// 		rmlen, ctx->send_una, ev_ack_seq);
-	if(rmlen > 0) {
-		// MTP_PRINT("Removing %d bytes\n", rmlen);
-		//uint32_t offset = MTP_SEQ_SUB(ctx->send_una, ctx->init_seq, ctx->init_seq);
-		uint32_t offset = ctx->send_una;
-		TxDataFlush(mtcp, cur_stream, offset, rmlen);
-		// MTP_PRINT("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
-			// sndvar->sndbuf->head_seq, sndvar->sndbuf->len, sndvar->snd_wnd);
-		ctx->send_una = ev_ack_seq;
-		ctx->num_rtx = 0;
-	}
-
+	
 	// MTP TODO: match the mtp file in creating right "event" on timeout
 	TimerRestart(mtcp, cur_stream, cur_ts);
 	// MTP_PRINT("ack_net_ep before releasing lock\n");

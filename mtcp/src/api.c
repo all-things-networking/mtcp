@@ -1215,6 +1215,7 @@ CopyToUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 			if (!cur_stream->sndvar->on_ackq) {
 				SQ_LOCK(&mtcp->ctx->ackq_lock);
 				cur_stream->sndvar->on_ackq = TRUE;
+				printf("this enqueue\n");
 				StreamEnqueue(mtcp->ackq, cur_stream); /* this always success */
 				SQ_UNLOCK(&mtcp->ctx->ackq_lock);
 				cur_stream->need_wnd_adv = FALSE;
@@ -1312,11 +1313,14 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 		ret = MtpReceiveChainPart1(mtcp, socket, socket->opts & MTCP_NONBLOCK, 
 								   buf, len, cur_stream);
 
-		SQ_LOCK(&mtcp->ctx->ackq_lock);
-		cur_stream->sndvar->on_ackq = TRUE;
-		StreamEnqueue(mtcp->ackq, cur_stream); /* this always success */
-		SQ_UNLOCK(&mtcp->ctx->ackq_lock);
-		mtcp->wakeup_flag = TRUE;
+		if (!cur_stream->sndvar->on_ackq) {
+			SQ_LOCK(&mtcp->ctx->ackq_lock);
+			cur_stream->sndvar->on_ackq = TRUE;
+			// printf("in recv this enqueue\n");
+			StreamEnqueue(mtcp->ackq, cur_stream); /* this always success */
+			SQ_UNLOCK(&mtcp->ctx->ackq_lock);
+			mtcp->wakeup_flag = TRUE;
+		}
 
 		SBUF_UNLOCK(&rcvvar->read_lock);
 		MTP_PRINT("MTP Receive Chain returned: %d\n", ret);
@@ -1765,7 +1769,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	if (ret > 0 && !(sndvar->on_sendq || sndvar->on_send_list)) {
 		SQ_LOCK(&mtcp->ctx->sendq_lock);
 		sndvar->on_sendq = TRUE;
-		// MTP_PRINT("enqueue in send queue\n");
+		MTP_PRINT("enqueue in send queue\n");
 		StreamEnqueue(mtcp->sendq, cur_stream);		/* this always success */
 		SQ_UNLOCK(&mtcp->ctx->sendq_lock);
 		mtcp->wakeup_flag = TRUE;
