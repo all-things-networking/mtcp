@@ -569,7 +569,7 @@ wait:
 
 		uint8_t stream_id = eq->events[eq->start].ev.stream_id;
 		uint32_t sockevents = event_socket->events0;
-		if (stream_id != 1) sockevents = event_socket->events1;
+		if (stream_id != 0) sockevents = event_socket->events1;
 		if (!(sockevents & eq->events[eq->start].ev.events))
 			validity = FALSE;
 
@@ -621,7 +621,7 @@ AddEpollEvent(struct mtcp_epoll *ep,
 	ep->stat.issued++;
 
 	uint32_t sockevents = socket->events0;
-	if (stream_id != 1) sockevents = socket->events1;
+	if (stream_id != 0) sockevents = socket->events1;
 
 	if (sockevents & event) {
 		return 0;
@@ -651,6 +651,9 @@ AddEpollEvent(struct mtcp_epoll *ep,
 
 	if (stream_id == 0) socket->events0 |= event;
 	else socket->events1 |= event;
+
+	printf("registered event %s for socket %d stream %d\n", EventToString(event), socket->id,
+													stream_id);
 
 	eq->events[index].sockid = socket->id;
 	eq->events[index].ev.events = event;
