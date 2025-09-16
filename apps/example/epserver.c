@@ -165,6 +165,8 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 	if (stream_id == 1){
 		sv = &svm->long_sv;
 	}
+	if (stream_id > 1) return 0;
+	if (sv->req_cnt <= 0) return 0;
 	
 	int ret;
 	int sent;
@@ -248,9 +250,12 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 						scode, StatusCodeToString(scode), t_str, sv->fsize, keepalive_str);
 				TRACE_APP("Socket %d HTTP Response: \n%s", sockid, sv->response);
 				// printf("response header size: %ld\n", strlen(sv->response));
+				printf("stream %d ind: %d response: %s\n", 
+				   stream_id, cur_ind, sv->response);
 			}
 
 			len = strlen(sv->response) - sv->resp_offset;
+
 			local_sent = mtcp_write(ctx->mctx, sockid, 
 							  sv->response + sv->resp_offset, len, stream_id);
 			if (local_sent < 0) {
@@ -340,6 +345,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *svm,
 	if (stream_id == 1){
 		sv = &svm->long_sv;
 	}
+	if (stream_id > 1) return 0;
 	
 	
 	int rd;
@@ -406,6 +412,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *svm,
 		sv->epollout_active = TRUE;
 	}
 
+	printf("Calling send available for stream %d", stream_id);
 	SendUntilAvailable(ctx, sockid, svm, stream_id);
 
 	return org_rd;
@@ -598,11 +605,10 @@ RunServerThread(void *arg)
 
 		do_accept = FALSE;
 		for (i = 0; i < nevents; i++) {
-
 			if (events[i].data.sockid == listener) {
 				/* if the event is for the listener, accept connection */
+				printf("in accept event\n");
 				do_accept = TRUE;
-
 			} else if (events[i].events & MTCP_EPOLLERR) {
 				int err;
 				socklen_t len = sizeof(err);
@@ -624,7 +630,7 @@ RunServerThread(void *arg)
 						&ctx->svars[events[i].data.sockid]);
 
 			} else if (events[i].events & MTCP_EPOLLIN) {
-				// printf("in read event\n");
+				printf("in read event for stream %d\n", events[i].stream_id);
 				ret = HandleReadEvent(ctx, events[i].data.sockid, 
 						&ctx->svars[events[i].data.sockid],
 						 events[i].stream_id);
@@ -646,6 +652,7 @@ RunServerThread(void *arg)
 
 			} else if (events[i].events & MTCP_EPOLLOUT) {
 				struct server_vars *sv = &ctx->svars[events[i].data.sockid];
+				printf("in write event for stream %d\n", events[i].stream_id);
 				// if (sv->rspheader_sent) {
 					SendUntilAvailable(ctx, events[i].data.sockid, sv,
 										events[i].stream_id);

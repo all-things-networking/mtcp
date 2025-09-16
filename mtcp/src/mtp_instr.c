@@ -431,7 +431,7 @@ void TxDataFlush(mtcp_manager_t mtcp, tcp_stream *cur_stream,
 	// 		sndvar->sndbuf->head_seq, sndvar->sndbuf->len);
 	
 	if (stream_id == 0) sndvar->snd_wnd0 = sndbuf->size - sndbuf->len;
-	else sndvar->snd_wnd1 = sndbuf->size - sndbuf->len;
+	else if (stream_id == 1) sndvar->snd_wnd1 = sndbuf->size - sndbuf->len;
 
 	// MTP TODO: How is this modeled in MTP, if at all?
 	RaiseWriteEvent(mtcp, cur_stream, stream_id);

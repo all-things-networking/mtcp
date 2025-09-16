@@ -285,6 +285,7 @@ RaisePendingStreamEvents(mtcp_manager_t mtcp,
 		if (!sndvar->sndbuf1 || (sndvar->sndbuf1 && sndvar->snd_wnd1 > 0)) {
 			if (!(socket->events1 & MTCP_EPOLLOUT)) {
 				TRACE_EPOLL("Socket %d: Adding write event\n", socket->id);
+				printf("adding write event for stream 1\n");
 				AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT, 1);
 			}
 		}
@@ -522,7 +523,8 @@ wait:
 
 		uint8_t stream_id = eq->events[eq->start].ev.stream_id;
 		uint32_t sockevents = event_socket->events0;
-		if (stream_id != 0) sockevents = event_socket->events1;
+		if (stream_id == 1) sockevents = event_socket->events1;
+		if (stream_id == 3) sockevents = event_socket->events3;
 		if (!(sockevents & eq->events[eq->start].ev.events))
 			validity = FALSE;
 
@@ -545,8 +547,11 @@ wait:
 		if (stream_id == 0){
 			event_socket->events0 &= (~eq->events[eq->start].ev.events);
 		}
-		else {
+		else if (stream_id == 1){
 			event_socket->events1 &= (~eq->events[eq->start].ev.events);
+		}
+		else if (stream_id == 3){
+			event_socket->events3 &= (~eq->events[eq->start].ev.events);
 		}
 
 		eq->start++;
@@ -569,7 +574,8 @@ wait:
 
 		uint8_t stream_id = eq->events[eq->start].ev.stream_id;
 		uint32_t sockevents = event_socket->events0;
-		if (stream_id != 0) sockevents = event_socket->events1;
+		if (stream_id == 1) sockevents = event_socket->events1;
+		if (stream_id == 3) sockevents = event_socket->events3;
 		if (!(sockevents & eq->events[eq->start].ev.events))
 			validity = FALSE;
 
@@ -590,7 +596,8 @@ wait:
 			ep->stat.invalidated++;
 		}
 		if (stream_id == 0) event_socket->events0 &= (~eq->events[eq->start].ev.events);
-		else event_socket->events1 &= (~eq->events[eq->start].ev.events);
+		else if (stream_id == 1) event_socket->events1 &= (~eq->events[eq->start].ev.events);
+		else if (stream_id == 3) event_socket->events3 &= (~eq->events[eq->start].ev.events);
 
 		eq->start++;
 		eq->num_events--;
@@ -621,8 +628,12 @@ AddEpollEvent(struct mtcp_epoll *ep,
 	ep->stat.issued++;
 
 	uint32_t sockevents = socket->events0;
-	if (stream_id != 0) sockevents = socket->events1;
+	if (stream_id == 1) sockevents = socket->events1;
+	if (stream_id == 3) sockevents = socket->events3;
+	
 
+	printf("starting to register event %s for socket %d stream %d\n", EventToString(event), socket->id,
+													stream_id);
 	if (sockevents & event) {
 		return 0;
 	}
@@ -650,7 +661,8 @@ AddEpollEvent(struct mtcp_epoll *ep,
 	index = eq->end++;
 
 	if (stream_id == 0) socket->events0 |= event;
-	else socket->events1 |= event;
+	else if (stream_id == 1) socket->events1 |= event;
+	else if (stream_id == 3) socket->events3 |= event;
 
 	printf("registered event %s for socket %d stream %d\n", EventToString(event), socket->id,
 													stream_id);

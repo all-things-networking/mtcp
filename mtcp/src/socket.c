@@ -42,6 +42,7 @@ AllocateSocket(mctx_t mctx, int socktype, int need_lock)
 	socket->epoll = 0;
 	socket->events0 = 0;
 	socket->events1 = 0;
+	socket->events3 = 0;
 
 	/* 
 	 * reset a few fields (needed for client socket) 
@@ -67,6 +68,7 @@ FreeSocket(mctx_t mctx, int sockid, int need_lock)
 	socket->epoll = MTCP_EPOLLNONE;
 	socket->events0 = 0;
 	socket->events1 = 0;
+	socket->events3 = 0;
 
 	if (need_lock)
 		pthread_mutex_lock(&mtcp->ctx->smap_lock);

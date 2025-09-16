@@ -126,6 +126,7 @@ RaiseReadEvent(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t stream_id)
 {
 	if (stream->socket) {
 		if (stream->socket->epoll & MTCP_EPOLLIN) {
+			printf("before addpollevent for socket %d stream %d\n", stream->socket->id, stream_id);
 			AddEpollEvent(mtcp->ep, 
 					MTCP_EVENT_QUEUE, stream->socket, MTCP_EPOLLIN,
 					stream_id);
