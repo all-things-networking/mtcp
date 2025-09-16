@@ -137,6 +137,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 								ctx->s0.send_una); 
 	int recv_wnd0 = ctx->s0.last_rwnd_remote - in_flight0;
 	int bytes_to_send0 = MIN(data_rest0, recv_wnd0);
+	if (bytes_to_send0 < 0) bytes_to_send0 = 0;
 
 	MTP_PRINT("data_rest0: %d, recv_wnd0: %d, bytes_to_send0: %d\n", 
 			data_rest0, recv_wnd0, bytes_to_send0);
@@ -149,6 +150,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 								ctx->s1.send_una);
 	int recv_wnd1 = ctx->s1.last_rwnd_remote - in_flight1;
 	int bytes_to_send1 = MIN(data_rest1, recv_wnd1);
+	if (bytes_to_send1 < 0) bytes_to_send1 = 0;
 
 	MTP_PRINT("data_rest1: %d, recv_wnd1: %d, bytes_to_send1: %d\n", 
 			data_rest1, recv_wnd1, bytes_to_send1);
@@ -203,8 +205,11 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	struct tcp_send_buffer* next_stream_buf = sndvar->sndbuf1;
 	int next_bytes_to_send = bytes_to_send1;
 
-	if ( (sent_from_s0 > sent_from_s1 + MTP_QUIC_SCHED_CHUNK) ||
-		 bytes_to_send0 <= 0){
+	bool cond1 = sent_from_s0 > sent_from_s1 && sent_from_s0 > sent_from_s1 + MTP_QUIC_SCHED_CHUNK;
+	bool cond2 = sent_from_s0 <= sent_from_s1 && sent_from_s1 <= sent_from_s0 + MTP_QUIC_SCHED_CHUNK;
+	bool cond3 = bytes_to_send0 <= 0;
+
+	if (cond1 || cond2 || cond3){
 		first_stream = 1;
 		first_stream_ctx = &ctx->s1;
 		first_stream_buf = sndvar->sndbuf1;
@@ -936,6 +941,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 								send_una0); 
 	int recv_wnd0 = ctx->s0.last_rwnd_remote - in_flight0;
 	int bytes_to_send0 = MIN(data_rest0, recv_wnd0);
+	if (bytes_to_send0 < 0) bytes_to_send0 = 0;
 
 	MTP_PRINT("data_rest0: %d, recv_wnd0: %d, bytes_to_send0: %d\n", 
 			data_rest0, recv_wnd0, bytes_to_send0);
@@ -952,6 +958,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 								 send_una1);
 	int recv_wnd1 = ctx->s1.last_rwnd_remote - in_flight1;
 	int bytes_to_send1 = MIN(data_rest1, recv_wnd1);
+	if (bytes_to_send1 < 0) bytes_to_send1 = 0;
 
 	MTP_PRINT("data_rest1: %d, recv_wnd1: %d, bytes_to_send1: %d\n", 
 			data_rest1, recv_wnd1, bytes_to_send1);
@@ -965,14 +972,42 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	MTP_PRINT("cwnd_size: %u, in_flight0: %u, in_flight1: %u, "
 			"bytes_to_send: %d\n", 
 			ctx->cwnd_size, in_flight0, in_flight1, total_bytes_to_send);
+	
+	if ((stream_id == 0 && data_rest0 == 0 && ev_ack_seq == stx->send_next)){
+		SBUF_UNLOCK(&sndvar->write_lock);
+		if (ctx->state != MTP_TCP_FIN_WAIT_1_ST &&
+		    ctx->state != MTP_TCP_CLOSING_ST) {
+			// TimerCancel(mtcp, cur_stream);
+			MTP_PRINT("THIS CASE, stream 0\n");
 
-	if ((stream_id == 0 && data_rest0 == 0 && ev_ack_seq == ctx->s0.send_next) ||
-		(stream_id == 1 && data_rest1 == 0 && ev_ack_seq == ctx->s1.send_next)) {
+			// Remove acked sequence from sending buffer
+			// This step is kinda target dependent (depending on the implementation of sending buffer)
+			uint32_t rmlen = MTP_SEQ_SUB(ev_ack_seq, stx->send_una, stx->send_una);
+			// MTP_PRINT("ack_net_ep: rmlen: %u, send_una: %u, ev_ack_seq: %u\n", 
+			// 		rmlen, ctx->send_una, ev_ack_seq);
+			
+			if(rmlen > 0) {
+				// MTP_PRINT("Removing %d bytes\n", rmlen);
+				//uint32_t offset = MTP_SEQ_SUB(ctx->send_una, ctx->init_seq, ctx->init_seq);
+				uint32_t offset = stx->send_una;
+				TxDataFlush(mtcp, cur_stream, offset, rmlen, stream_id);
+				// MTP_PRINT("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
+					// sndvar->sndbuf->head_seq, sndvar->sndbuf->len, sndvar->snd_wnd);
+				stx->send_una = ev_ack_seq;
+				ctx->num_rtx = 0;
+			}
+			
+			// MTP_PRINT("ack_net_ep before releasing lock\n");
+		}	
+		return;
+	}
+
+	if ((stream_id == 1 && data_rest1 == 0 && ev_ack_seq == stx->send_next)) {
 		SBUF_UNLOCK(&sndvar->write_lock);
 		if (ctx->state != MTP_TCP_FIN_WAIT_1_ST &&
 		    ctx->state != MTP_TCP_CLOSING_ST) {
 			TimerCancel(mtcp, cur_stream);
-			MTP_PRINT("THIS CASE\n");
+			MTP_PRINT("THIS CASE stream 1\n");
 
 			// Remove acked sequence from sending buffer
 			// This step is kinda target dependent (depending on the implementation of sending buffer)
@@ -996,6 +1031,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		else if (stream_id == 1){
 			// Send FIN
 			mtp_bp* bp = GetFreeBP(cur_stream);
+
+			MTP_PRINT("Sending FIN, Stream ID: %d\n", stream_id);
 
 			// MTP_PRINT("got bp\n");
 			// MTP_PRINT("index: %u\n", cur_stream->sndvar->mtp_bps_tail);
@@ -1214,8 +1251,11 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		struct tcp_send_buffer* next_stream_buf = sndvar->sndbuf1;
 		int next_bytes_to_send = bytes_to_send1;
 
-		if ( (sent_from_s0 > sent_from_s1 + MTP_QUIC_SCHED_CHUNK) ||
-			bytes_to_send0 <= 0){
+		bool cond1 = sent_from_s0 > sent_from_s1 && sent_from_s0 > sent_from_s1 + MTP_QUIC_SCHED_CHUNK;
+		bool cond2 = sent_from_s0 <= sent_from_s1 && sent_from_s1 <= sent_from_s0 + MTP_QUIC_SCHED_CHUNK;
+		bool cond3 = bytes_to_send0 <= 0;
+		
+		if (cond1 || cond2 || cond3){
 			first_stream = 1;
 			first_stream_ctx = &ctx->s1;
 			first_stream_buf = sndvar->sndbuf1;
