@@ -206,7 +206,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	int next_bytes_to_send = bytes_to_send1;
 
 	bool cond1 = sent_from_s0 > sent_from_s1 && sent_from_s0 > sent_from_s1 + MTP_QUIC_SCHED_CHUNK;
-	bool cond2 = sent_from_s0 <= sent_from_s1 && sent_from_s1 <= sent_from_s0 + MTP_QUIC_SCHED_CHUNK;
+	bool cond2 = sent_from_s0 < sent_from_s1 && sent_from_s1 < sent_from_s0 + MTP_QUIC_SCHED_CHUNK;
 	bool cond3 = bytes_to_send0 <= 0;
 
 	if (cond1 || cond2 || cond3){
@@ -1252,7 +1252,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		int next_bytes_to_send = bytes_to_send1;
 
 		bool cond1 = sent_from_s0 > sent_from_s1 && sent_from_s0 > sent_from_s1 + MTP_QUIC_SCHED_CHUNK;
-		bool cond2 = sent_from_s0 <= sent_from_s1 && sent_from_s1 <= sent_from_s0 + MTP_QUIC_SCHED_CHUNK;
+		bool cond2 = sent_from_s0 < sent_from_s1 && sent_from_s1 < sent_from_s0 + MTP_QUIC_SCHED_CHUNK;
 		bool cond3 = bytes_to_send0 <= 0;
 		
 		if (cond1 || cond2 || cond3){
