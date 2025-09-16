@@ -427,7 +427,7 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wvm,
 	// printf("Socket %d Total spent time: %lu us\n", sockid, tdiff);
 
 	// Mina TODO: the threshold is hard-coded for now.
-	if (record_res && wv->recv < 100000){
+	if (record_res && wv->recv < 200000){
 		int len = sprintf(res_buf, "%lu\n", tdiff);
 		int ret = write(res_fd, res_buf, len);
 		if (ret != len){
@@ -549,7 +549,7 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wvm, uint8_t
 #endif
 				wv->recv += rd;
 				// rd = 0;
-				
+
 				// printf("ERROR: Socket %u, Failed to parse response header.\n",
 				//        sockid);
 				continue;
