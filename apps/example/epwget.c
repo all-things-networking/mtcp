@@ -499,7 +499,8 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wvm, uint8_t
 			memcpy(wv->response + wv->resp_len, buf, copy_len);
 
 			// printf("resp_len: %d, copy_len: %d\n", wv->resp_len, copy_len);
-			// printf("response so far:\n%s\n", wv->response);
+			printf("stream %d ind %d response so far:\n%s\n", 
+					stream_id, wv->t_cur_ind,wv->response);
 			
 			wv->resp_len += copy_len;
 			wv->header_len = find_http_header(wv->response, wv->resp_len);
