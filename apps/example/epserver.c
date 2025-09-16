@@ -320,9 +320,9 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				// mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
 				ret = 1;
 				CleanServerVariable(svm, stream_id);
-			} else {
+			} else if (!sv->keep_alive) {
 				/* else, close connection */
-				// printf("Closing the connection\n");
+				printf("Close the connection, in send\n");
 				CloseConnection(ctx, sockid, svm);
 			}
 		}
@@ -619,6 +619,7 @@ RunServerThread(void *arg)
 				} else {
 					perror("mtcp_getsockopt");
 				}
+				printf("Close after error\n");
 				CloseConnection(ctx, events[i].data.sockid, 
 						&ctx->svars[events[i].data.sockid]);
 
@@ -630,11 +631,14 @@ RunServerThread(void *arg)
 
 				if (ret == 0) {
 					/* connection closed by remote host */
+					printf("Close after epoll in, ret = 0, stream %d\n",
+							events[i].stream_id);
 					CloseConnection(ctx, events[i].data.sockid, 
 							&ctx->svars[events[i].data.sockid]);
 				} else if (ret < 0) {
 					/* if not EAGAIN, it's an error */
 					if (errno != EAGAIN) {
+						printf("Close after epoll in, ret < 0, stream_id %d\n", events[i].stream_id);
 						CloseConnection(ctx, events[i].data.sockid, 
 								&ctx->svars[events[i].data.sockid]);
 					}

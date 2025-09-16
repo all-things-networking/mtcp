@@ -2658,6 +2658,7 @@ void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_strea
 void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 	struct mtp_ctx *ctx = cur_stream->mtp;
 
+	MTP_PRINT("Close called\n");
 	ctx->closed = TRUE;
 
 	if (ctx->state == MTP_TCP_CLOSED_ST) {
@@ -2696,6 +2697,7 @@ void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream)
 		ctx->state = MTP_TCP_LAST_ACK_ST;
 	}
 	// SEND FIN
+	MTP_PRINT("Sending FIN after close\n");
 	ctx->fin_sent = TRUE;
 
 	mtp_bp* bp = GetFreeBP(cur_stream);
@@ -2714,6 +2716,7 @@ void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream)
 	bp->hdr.syn = FALSE;
 	bp->hdr.ack = TRUE;
 	bp->hdr.fin = TRUE;
+	bp->hdr.urg_ptr = htons(1);
 
 	// options to calculate data offset
 

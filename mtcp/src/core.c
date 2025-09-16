@@ -1520,6 +1520,7 @@ mtcp_free_context(mctx_t mctx)
 #ifdef DUMP_STREAM
 				DumpStream(mtcp, mtcp->smap[i].stream);
 #endif
+				printf("Close from here?\n");
 				mtcp_close(mctx, i);
 			}
 		}
