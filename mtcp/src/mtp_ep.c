@@ -990,7 +990,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 				// MTP_PRINT("Removing %d bytes\n", rmlen);
 				//uint32_t offset = MTP_SEQ_SUB(ctx->send_una, ctx->init_seq, ctx->init_seq);
 				uint32_t offset = stx->send_una;
-				printf("ack net ep: Calling TxDataFlush for stream 0, offset: %u, rmlen: %u, stream_id: %u\n", 
+				MTP_PRINT("ack net ep: Calling TxDataFlush for stream 0, offset: %u, rmlen: %u, stream_id: %u\n", 
 						offset, rmlen, stream_id);
 				TxDataFlush(mtcp, cur_stream, offset, rmlen, stream_id);
 				// MTP_PRINT("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
@@ -1021,7 +1021,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 				// MTP_PRINT("Removing %d bytes\n", rmlen);
 				//uint32_t offset = MTP_SEQ_SUB(ctx->send_una, ctx->init_seq, ctx->init_seq);
 				uint32_t offset = stx->send_una;
-				printf("ack net ep: Calling TxDataFlush for stream 1, offset: %u, rmlen: %u, stream_id: %u\n", 
+				MTP_PRINT("ack net ep: Calling TxDataFlush for stream 1, offset: %u, rmlen: %u, stream_id: %u\n", 
 						offset, rmlen, stream_id);
 				TxDataFlush(mtcp, cur_stream, offset, rmlen, stream_id);
 				// MTP_PRINT("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
@@ -1248,7 +1248,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		// MTP_PRINT("Removing %d bytes\n", rmlen);
 		//uint32_t offset = MTP_SEQ_SUB(ctx->send_una, ctx->init_seq, ctx->init_seq);
 		uint32_t offset = stx->send_una;
-		printf("ack net ep 3: Calling TxDataFlush, offset: %u, rmlen: %u, stream_id: %u\n", 
+		MTP_PRINT("ack net ep 3: Calling TxDataFlush, offset: %u, rmlen: %u, stream_id: %u\n", 
 				offset, rmlen, stream_id);
 		TxDataFlush(mtcp, cur_stream, offset, rmlen, stream_id);
 		// MTP_PRINT("head ptr: %p, head seq: %d, len: %d, snd_wnd: %d\n", sndvar->sndbuf->head, 
@@ -2107,7 +2107,7 @@ void synack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 	AddtoGenList(mtcp, cur_stream, cur_ts);
 	
 	// MTP TODO: integrate into MTP
-	printf("This Write event\n");
+	MTP_PRINT("This Write event\n");
 	RaiseWriteEvent(mtcp, cur_stream, MTP_QUIC_SHARED);
 }
 
