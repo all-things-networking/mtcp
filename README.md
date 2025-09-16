@@ -37,7 +37,7 @@ Figure out the kind of NIC and driver using ```ethtool -i <interface_name>```
 ## Building mTCP and apps:
 
 ```
-   sudo apt install automake libgmp-dev
+   sudo apt install -y automake libgmp-dev
    aclocal && autoheader && automake -a -c && autoconf && ./configure
    make clean && make
 ```
