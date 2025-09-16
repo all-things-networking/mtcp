@@ -549,8 +549,9 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wvm, uint8_t
 #endif
 				wv->recv += rd;
 				// rd = 0;
-				printf("ERROR: Socket %u, Failed to parse response header.\n",
-				       sockid);
+				
+				// printf("ERROR: Socket %u, Failed to parse response header.\n",
+				//        sockid);
 				continue;
 				// ctx->stat.errors++;
 				// ctx->errors++;
