@@ -160,7 +160,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 							remaining_in_cwnd);
 	MTP_PRINT("cwnd_size: %u, in_flight0: %u, in_flight1: %u, "
 			"bytes_to_send: %d\n", 
-			ctx->cwnd_size, in_flight0, in_flight1, bytes_to_send);
+			ctx->cwnd_size, in_flight0, in_flight1, total_bytes_to_send);
 	
 	// MTP: maps to bytes_to_send
 	// int data_rest = sndvar->sndbuf->len - 
@@ -185,7 +185,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
         return;
 	}
 
-	MTP_PRINT("send_ep bytes to send: %d\n", bytes_to_send);
+	MTP_PRINT("send_ep bytes to send: %d\n", total_bytes_to_send);
 	// MTP: maps to packet blueprint creation
 	
 	// Decide which stream should go first
@@ -964,7 +964,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 
 	MTP_PRINT("cwnd_size: %u, in_flight0: %u, in_flight1: %u, "
 			"bytes_to_send: %d\n", 
-			ctx->cwnd_size, in_flight0, in_flight1, bytes_to_send);
+			ctx->cwnd_size, in_flight0, in_flight1, total_bytes_to_send);
 
 	if ((stream_id == 0 && data_rest0 == 0 && ev_ack_seq == ctx->s0.send_next) ||
 		(stream_id == 1 && data_rest1 == 0 && ev_ack_seq == ctx->s1.send_next)) {
@@ -1194,8 +1194,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	*/
 
 	// MTP TODO: check bytes to send is not zero
-	MTP_PRINT("ack_net_ep: window_avail: %u, bytes to send: %d\n", 
-						window_avail, bytes_to_send);
+	// MTP_PRINT("ack_net_ep: window_avail: %u, bytes to send: %d\n", 
+	// 					window_avail, bytes_to_send);
 
 	if (total_bytes_to_send > 0) {
 
@@ -1577,7 +1577,7 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	MTP_PRINT("data_net_ep: ev_seq: %u, ev_payloadlen: %d, last_rcvd_seq: %u, ctx->rwnd_size: %u\n", 
 			ev_seq, ev_payloadlen, last_rcvd_seq, stx->rwnd_size);
 	MTP_PRINT("MTP_SEQ_GT(last_rcvd_seq, ctx->recv_next + ctx->rwnd_size, ctx->recv_init_seq): %d\n", 
-			MTP_SEQ_GT(last_rcvd_seq, stx->recv_next + stx->rwnd_size, stx->recv_init_seq));
+			MTP_SEQ_GT(last_rcvd_seq, stx->recv_next + stx->rwnd_size, ctx->recv_init_seq));
 	MTP_PRINT("data_net_ep: MTP_SEQ_LT(last_rcvd_seq, ctx->recv_next, ctx->recv_init_seq): %d\n", 
 			MTP_SEQ_LT(last_rcvd_seq, stx->recv_next, ctx->recv_init_seq));
 	// if seq and segment length is lower than rcv_nxt or exceeds buffer, ignore and send ack
@@ -1612,7 +1612,7 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 	// ctx->recv_next = ctx->meta_rwnd->head_seq;
 
     RBPut(mtcp->rbm_rcv, rcvbuf, ev_payload, ev_payloadlen, ev_seq);
-	MTP_PRINT("recv buffer merged len: %u\n", rcvvar->rcvbuf->merged_len);
+	MTP_PRINT("recv buffer merged len: %u\n", rcvbuf->merged_len);
 	MTP_PRINT("my calculated merged len: %u, recv_next: %u, last_flushed: %u\n", 
 			MTP_SEQ_SUB(stx->recv_next, stx->last_flushed, stx->last_flushed) - 1, 
 			stx->recv_next, stx->last_flushed);
@@ -1650,7 +1650,7 @@ inline void send_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 		stream_id == 1 &&
 	    ctx->final_seq_remote == ctx->s1.recv_next) {
 		MTP_PRINT("data_net_ep: final_seq_remote: %u, recv_next: %u\n", 
-				ctx->final_seq_remote, ctx->recv_next);
+				ctx->final_seq_remote, ctx->s1.recv_next);
 		ctx->state = MTP_TCP_CLOSE_WAIT_ST;
 		ctx->s1.recv_next += 1;
 		MTP_PRINT("data_net_ep: raising read event for fin\n");
@@ -2724,7 +2724,7 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 	if (ctx->state == MTP_TCP_ESTABLISHED_ST) send_ack = TRUE;
 
 	MTP_PRINT("ev_seq: %u, ev_payload_len: %u, recv_next: %u\n",
-			ev_seq, ev_payloadlen, ctx->recv_next);
+			ev_seq, ev_payloadlen, ctx->s1.recv_next);
 
 	if (ctx->final_seq_remote == ctx->s1.recv_next){
 		ctx->s1.recv_next = ctx->s1.recv_next + 1;

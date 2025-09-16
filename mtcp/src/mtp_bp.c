@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <netinet/in.h>
 
-// #define ENABLE_MTP_PRINT 1
+#define ENABLE_MTP_PRINT 1
 
 #ifdef ENABLE_MTP_PRINT
 #define MTP_PRINT(f, m...) fprintf(stdout, f, ##m)
@@ -96,7 +96,7 @@ void print_MTP_bp(struct mtp_bp* bp){
            bp->hdr.fin, bp->hdr.syn, bp->hdr.rst, bp->hdr.psh,
            bp->hdr.ack, bp->hdr.urg);
     MTP_PRINT("Window: %u, Checksum: %u, Urg Ptr: %u\n",
-           ntohs(bp->hdr.window), bp->hdr.check, bp->hdr.urg_ptr);
+           ntohs(bp->hdr.window), bp->hdr.check, ntohs(bp->hdr.urg_ptr));
     
     MTP_PRINT("Options:\n");
     if (bp->opts.mss.valid) {

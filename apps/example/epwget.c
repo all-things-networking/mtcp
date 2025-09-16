@@ -283,29 +283,32 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 	// wv->recv = 0;
 	// wv->header_len = wv->file_len = 0;
 
-	// printf("coming here\n");
-
-	uint8_t stream_id = 0;
-	if (wv->sent_short) stream_id = 1;
-	struct wget_vars_st *wvst = &wv->short_wv;
-	if (stream_id == 1) wvst = &wv->long_wv;
+	// printf("coming here, stream id: %d\n", stream_id);
 
 	while ((!wv->not_first_time || wr == len) &&
 			wv->total_req_sent < total_requests){
 		wv->not_first_time = TRUE;
 
+		uint8_t stream_id = 0;
+		if (wv->sent_short) stream_id = 1;
+		struct wget_vars_st *wvst = &wv->short_wv;
+		if (stream_id == 1) wvst = &wv->long_wv;
+
+
 		if (wv->req_offset == 0){
 
-			// printf("setting up request\n");
+			
 			char* url_to_send;
 			// TODO: decide which request next
 			// Is it ok to rewrite this?
 
 			if (wv->sent_short){
 				url_to_send = url_large;
+				printf("setting up large request\n");
 			}
 			else {
 				url_to_send = url_short;
+				printf("setting short request\n");
 			}
 
 			if (wv->total_req_sent + 1 == total_requests){
@@ -329,23 +332,26 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
 		}
 
 		len = strlen(wv->last_request) - wv->req_offset;
-		// printf("last_request_len: %d, req_offset: %d, len: %d\n", 
-		// 		(int)strlen(wv->last_request), wv->req_offset, len);
+
+		printf("last_request_len: %d, req_offset: %d, len: %d\n", 
+				(int)strlen(wv->last_request), wv->req_offset, len);
 
 		wr = mtcp_write(ctx->mctx, sockid, wv->last_request + wv->req_offset, len,
 						stream_id);
-		// printf("wrote: %d\n", wr);
+		printf("wrote: %d\n", wr);
 
 		wv->req_offset += wr;
 		ctx->stat.writes += wr;
 
 		if (wv->req_offset == strlen(wv->last_request)) {
 			wv->total_req_sent++;
-			// printf("total requests sent so far: %u / %u\n", 
-			// 		wv->total_req_sent, total_requests);
+			printf("total requests sent so far for stream %d: %u / %u\n", 
+					stream_id, wv->total_req_sent, total_requests);
+
 			wv->req_offset = 0;
 			uint32_t st_ind = wvst->t_start_ind;
 			incr_ind(&wvst->t_start_ind);
+
 			// printf("t_start_ind: %u\n", wv->t_start_ind);
 
 			if (wv->sent_short) wv->sent_short = 0;
@@ -374,14 +380,14 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wvm,
 	}
 
 	TRACE_APP("Socket %d File download complete!\n", sockid);
-	// printf("Socket %d File download complete!\n", sockid);
+	printf("stream %d Socket %d File download complete! \n", stream_id, sockid);
 	uint32_t end_ind = wv->t_end_ind;
 	gettimeofday(&wv->t_end[end_ind], NULL);
 	
 	wvm->total_req_recvd++;
 
-	// printf("Total requests received so far: %u / %u\n", 
-	// 		wv->total_req_recvd, total_requests);
+	printf("Total requests received so far: %u / %u\n", 
+			wvm->total_req_recvd, total_requests);
 
 	incr_ind(&wv->t_end_ind);
 
@@ -393,7 +399,8 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wvm,
 
 	if (response_size == 0) {
 		response_size = wv->recv;
-		fprintf(stderr, "Response size set to %lu\n", response_size);
+		fprintf(stderr, "stream %d Response size set to %lu\n", 
+						stream_id, response_size);
 	} else {
 		if (wv->recv != response_size) {
 			// fprintf(stderr, "Response size mismatch! mine: %lu, theirs: %lu\n", 
@@ -401,7 +408,8 @@ DownloadComplete(thread_context_t ctx, int sockid, struct wget_vars *wvm,
 		}
 	}
 
-	// printf("response size: %ld\n", wv->recv);
+	printf("stream %d response size: %ld\n", 
+			stream_id, wv->recv);
 
 	uint32_t cur_ind = wv->t_cur_ind;
 	incr_ind(&wv->t_cur_ind);
@@ -481,8 +489,9 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wvm, uint8_t
 				ctx->stat.read_count, sockid, rd, wv->recv + rd,
 				wv->headerset, wv->header_len, wv->file_len);
 		
-		// printf("read[%lu]: Socket %d: mtcp_read ret: %d, total_recv: %lu\n",
-		// 		ctx->stat.read_count, sockid, rd, wv->recv + rd);
+		printf("read[%lu]: Socket %d, stream %d: mtcp_read ret: %d, total_recv: %lu\n",
+				ctx->stat.read_count, sockid, stream_id, 
+				rd, wv->recv + rd);
 
 		pbuf = buf;
 		if (!wv->headerset) {
@@ -512,10 +521,10 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wvm, uint8_t
 						"Header length: %u, File length: %lu (%luMB)\n", 
 						sockid, wv->header_len, 
 						wv->file_len, wv->file_len / 1024 / 1024);
-				// printf("Socket %d Parsed response header. "
-				// 		"Header length: %u, File length: %lu (%luMB)\n", 
-				// 		sockid, wv->header_len, 
-				// 		wv->file_len, wv->file_len / 1024 / 1024);
+				printf("Stream %d Parsed response header. "
+						"Header length: %u, File length: %lu (%luMB)\n", 
+						stream_id, wv->header_len, 
+						wv->file_len, wv->file_len / 1024 / 1024);
 
 				wv->headerset = TRUE;
 				// wv->recv += (rd - (wv->resp_len - wv->header_len));
@@ -596,10 +605,10 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wvm, uint8_t
 								"Header length: %u, File length: %lu (%luMB)\n", 
 								sockid, wv->header_len, 
 								wv->file_len, wv->file_len / 1024 / 1024);
-						// printf("Socket %d Parsed response header. "
-						// 		"Header length: %u, File length: %lu (%luMB)\n", 
-						// 		sockid, wv->header_len, 
-						// 		wv->file_len, wv->file_len / 1024 / 1024);
+						printf("Stream %d Parsed response header. "
+								"Header length: %u, File length: %lu (%luMB)\n", 
+								stream_id, wv->header_len, 
+								wv->file_len, wv->file_len / 1024 / 1024);
 
 						wv->headerset = TRUE;
 						// wv->recv += (rd - (wv->resp_len - wv->header_len));
