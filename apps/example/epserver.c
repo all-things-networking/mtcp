@@ -181,7 +181,8 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 	sent = 0;
 	ret = 1;
 
-	printf("stream %d starting to send for ind: %d\n", stream_id, cur_ind);
+	// printf("stream %d starting to send for ind: %d\n", stream_id, cur_ind);
+
 	while (ret > 0){
 		ret = 0;
 		if (!sv->rspheader_sent){
@@ -250,8 +251,9 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 						scode, StatusCodeToString(scode), t_str, sv->fsize, keepalive_str);
 				TRACE_APP("Socket %d HTTP Response: \n%s", sockid, sv->response);
 				// printf("response header size: %ld\n", strlen(sv->response));
-				printf("stream %d ind: %d response: %s\n", 
-				   stream_id, cur_ind, sv->response);
+				
+				// printf("stream %d ind: %d response: %s\n", 
+				//    stream_id, cur_ind, sv->response);
 			}
 
 			len = strlen(sv->response) - sv->resp_offset;
@@ -270,8 +272,10 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 			sv->resp_offset += local_sent;
 			sent += local_sent;
 			if (local_sent == len){
-				printf("stream %d finishsed sending resp header ind: %d\n", 
-						stream_id, cur_ind);
+				
+				// printf("stream %d finishsed sending resp header ind: %d\n", 
+				// 		stream_id, cur_ind);
+
 				sv->rspheader_sent = TRUE;
 				sv->resp_offset = 0;
 			}
@@ -295,8 +299,8 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				TRACE_APP("Connection closed with client.\n");
 				break;
 			}
-			printf("stream %d ind: %d: mtcp_write try: %d, ret: %d\n", 
-				   stream_id, cur_ind, len, local_sent);
+			// printf("stream %d ind: %d: mtcp_write try: %d, ret: %d\n", 
+			// 	   stream_id, cur_ind, len, local_sent);
 			
 			ret += local_sent;
 			sent += local_sent;
@@ -305,8 +309,9 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 
 		if (sv->total_sent >= fcache[sv->fidx].size) {
 			// struct mtcp_epoll_event ev;
-			printf("stream %d done with ind: %d\n", 
-					stream_id, cur_ind);
+			// printf("stream %d done with ind: %d\n", 
+			// 		stream_id, cur_ind);
+			
 			sv->done = TRUE;
 			finished++;
 
@@ -327,7 +332,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				CleanServerVariable(svm, stream_id);
 			} else if (!sv->keep_alive) {
 				/* else, close connection */
-				printf("Close the connection, in send\n");
+				// printf("Close the connection, in send\n");
 				CloseConnection(ctx, sockid, svm);
 			}
 		}
@@ -393,14 +398,17 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *svm,
 		}
 		else {
 			req[sv->request_len] = '\0';
-			printf("stream %d, request: %s\n", stream_id, req);
+			
+			// printf("stream %d, request: %s\n", stream_id, req);
+			
 			uint32_t new_bytes = sv->request_len - sv->recv_len;
 			rd -= new_bytes;
 			buff_offset += new_bytes;
 			sv->req_cnt++;
 			sv->recv_len = 0;
-			printf("stream %d got a full request, total req: %d\n", 
-					stream_id, sv->req_cnt);
+			
+			// printf("stream %d got a full request, total req: %d\n", 
+			// 		stream_id, sv->req_cnt);
 		}
 	}
 
@@ -412,7 +420,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *svm,
 		sv->epollout_active = TRUE;
 	}
 
-	printf("Calling send available for stream %d", stream_id);
+	// printf("Calling send available for stream %d", stream_id);
 	SendUntilAvailable(ctx, sockid, svm, stream_id);
 
 	return org_rd;
@@ -607,7 +615,8 @@ RunServerThread(void *arg)
 		for (i = 0; i < nevents; i++) {
 			if (events[i].data.sockid == listener) {
 				/* if the event is for the listener, accept connection */
-				printf("in accept event\n");
+
+				// printf("in accept event\n");
 				do_accept = TRUE;
 			} else if (events[i].events & MTCP_EPOLLERR) {
 				int err;
@@ -625,26 +634,28 @@ RunServerThread(void *arg)
 				} else {
 					perror("mtcp_getsockopt");
 				}
-				printf("Close after error\n");
+				// printf("Close after error\n");
 				CloseConnection(ctx, events[i].data.sockid, 
 						&ctx->svars[events[i].data.sockid]);
 
 			} else if (events[i].events & MTCP_EPOLLIN) {
-				printf("in read event for stream %d\n", events[i].stream_id);
+				// printf("in read event for stream %d\n", events[i].stream_id);
 				ret = HandleReadEvent(ctx, events[i].data.sockid, 
 						&ctx->svars[events[i].data.sockid],
 						 events[i].stream_id);
 
 				if (ret == 0) {
 					/* connection closed by remote host */
-					printf("Close after epoll in, ret = 0, stream %d\n",
-							events[i].stream_id);
+					// printf("Close after epoll in, ret = 0, stream %d\n",
+					// 		events[i].stream_id);
+
 					CloseConnection(ctx, events[i].data.sockid, 
 							&ctx->svars[events[i].data.sockid]);
 				} else if (ret < 0) {
 					/* if not EAGAIN, it's an error */
 					if (errno != EAGAIN) {
-						printf("Close after epoll in, ret < 0, stream_id %d\n", events[i].stream_id);
+						// printf("Close after epoll in, ret < 0, stream_id %d\n", events[i].stream_id);
+
 						CloseConnection(ctx, events[i].data.sockid, 
 								&ctx->svars[events[i].data.sockid]);
 					}
@@ -652,7 +663,8 @@ RunServerThread(void *arg)
 
 			} else if (events[i].events & MTCP_EPOLLOUT) {
 				struct server_vars *sv = &ctx->svars[events[i].data.sockid];
-				printf("in write event for stream %d\n", events[i].stream_id);
+
+				// printf("in write event for stream %d\n", events[i].stream_id);
 				// if (sv->rspheader_sent) {
 					SendUntilAvailable(ctx, events[i].data.sockid, sv,
 										events[i].stream_id);

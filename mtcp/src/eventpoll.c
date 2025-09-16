@@ -285,7 +285,7 @@ RaisePendingStreamEvents(mtcp_manager_t mtcp,
 		if (!sndvar->sndbuf1 || (sndvar->sndbuf1 && sndvar->snd_wnd1 > 0)) {
 			if (!(socket->events1 & MTCP_EPOLLOUT)) {
 				TRACE_EPOLL("Socket %d: Adding write event\n", socket->id);
-				printf("adding write event for stream 1\n");
+				// printf("adding write event for stream 1\n");
 				AddEpollEvent(ep, USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT, 1);
 			}
 		}
@@ -632,8 +632,8 @@ AddEpollEvent(struct mtcp_epoll *ep,
 	if (stream_id == 3) sockevents = socket->events3;
 	
 
-	printf("starting to register event %s for socket %d stream %d\n", EventToString(event), socket->id,
-													stream_id);
+	// printf("starting to register event %s for socket %d stream %d\n", EventToString(event), socket->id,
+	// 												stream_id);
 	if (sockevents & event) {
 		return 0;
 	}
@@ -664,8 +664,8 @@ AddEpollEvent(struct mtcp_epoll *ep,
 	else if (stream_id == 1) socket->events1 |= event;
 	else if (stream_id == 3) socket->events3 |= event;
 
-	printf("registered event %s for socket %d stream %d\n", EventToString(event), socket->id,
-													stream_id);
+	// printf("registered event %s for socket %d stream %d\n", EventToString(event), socket->id,
+	// 												stream_id);
 
 	eq->events[index].sockid = socket->id;
 	eq->events[index].ev.events = event;
