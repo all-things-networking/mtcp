@@ -67,8 +67,7 @@ struct file_cache
 	char *file;
 };
 /*----------------------------------------------------------------------------*/
-struct server_vars
-{
+struct server_vars_st {
 	char request[MAX_OUTSTANDING_REQ][HTTP_HEADER_LEN];
 	uint32_t first_req_ind;
 	uint32_t req_cnt;
@@ -89,6 +88,12 @@ struct server_vars
 	int fidx;						// file cache index
 	char fname[NAME_LIMIT];				// file name
 	long int fsize;					// file size
+};
+
+struct server_vars
+{
+	struct server_vars_st short_sv;
+	struct server_vars_st long_sv;
 };
 /*----------------------------------------------------------------------------*/
 struct thread_context
@@ -130,11 +135,15 @@ StatusCodeToString(int scode)
 }
 /*----------------------------------------------------------------------------*/
 void
-CleanServerVariable(struct server_vars *sv)
+CleanServerVariable(struct server_vars *svm, uint8_t stream_id)
 {
 	// sv->recv_len = 0;
 	// sv->request_len = 0;
 	// sv->total_read = 0;
+	struct server_vars_st *sv = &svm->short_sv;
+	if (stream_id == 1){
+		sv = &svm->long_sv;
+	}
 	sv->total_sent = 0;
 	sv->done = 0;
 	sv->rspheader_sent = 0;
@@ -149,8 +158,14 @@ CloseConnection(struct thread_context *ctx, int sockid, struct server_vars *sv)
 }
 /*----------------------------------------------------------------------------*/
 static int 
-SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *sv)
+SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *svm,
+				   uint8_t stream_id)
 {
+	struct server_vars_st *sv = &svm->short_sv;
+	if (stream_id == 1){
+		sv = &svm->long_sv;
+	}
+	
 	int ret;
 	int sent;
 	int len;
@@ -237,7 +252,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 
 			len = strlen(sv->response) - sv->resp_offset;
 			local_sent = mtcp_write(ctx->mctx, sockid, 
-							  sv->response + sv->resp_offset, len);
+							  sv->response + sv->resp_offset, len, stream_id);
 			if (local_sent < 0) {
 				TRACE_APP("Connection closed with client.\n");
 				break;
@@ -268,7 +283,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				break;
 			}
 			local_sent = mtcp_write(ctx->mctx, sockid,  
-					fcache[sv->fidx].file + sv->total_sent, len);
+					fcache[sv->fidx].file + sv->total_sent, len, stream_id);
 			// printf("Socket %d, mtcp_write returned: %d\n", sockid, ret);
 			if (local_sent < 0) {
 				TRACE_APP("Connection closed with client.\n");
@@ -300,11 +315,11 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				// ev.data.sockid = sockid;
 				// mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
 				ret = 1;
-				CleanServerVariable(sv);
+				CleanServerVariable(svm, stream_id);
 			} else {
 				/* else, close connection */
 				// printf("Closing the connection\n");
-				CloseConnection(ctx, sockid, sv);
+				CloseConnection(ctx, sockid, svm);
 			}
 		}
 	}
@@ -313,9 +328,14 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 }
 /*----------------------------------------------------------------------------*/
 static int 
-HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
+HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *svm,
+				uint8_t stream_id)
 {
 	char buf[HTTP_HEADER_LEN];
+	struct server_vars_st *sv = &svm->short_sv;
+	if (stream_id == 1){
+		sv = &svm->long_sv;
+	}
 	
 	
 	int rd;
@@ -329,7 +349,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 
 	/* HTTP request handling */
 	// printf("starting to read HTTP request\n");
-	rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN);
+	rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN, stream_id);
 	// printf("finished reading HTTP request, bytes read: %d\n", rd);
 	// buf[rd + 1] = '\0';
 	// printf("buf:%s\n", buf);
@@ -380,7 +400,7 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 		sv->epollout_active = TRUE;
 	}
 
-	SendUntilAvailable(ctx, sockid, sv);
+	SendUntilAvailable(ctx, sockid, svm, stream_id);
 
 	return org_rd;
 }
@@ -404,7 +424,8 @@ AcceptConnection(struct thread_context *ctx, int listener)
 		}
 
 		sv = &ctx->svars[c];
-		CleanServerVariable(sv);
+		CleanServerVariable(sv, 0);
+		CleanServerVariable(sv, 1);
 		TRACE_APP("New connection %d accepted.\n", c);
 		// printf("New connection %d accepted.\n", c);
 		ev.events = MTCP_EPOLLIN;
@@ -598,7 +619,8 @@ RunServerThread(void *arg)
 			} else if (events[i].events & MTCP_EPOLLIN) {
 				// printf("in read event\n");
 				ret = HandleReadEvent(ctx, events[i].data.sockid, 
-						&ctx->svars[events[i].data.sockid]);
+						&ctx->svars[events[i].data.sockid],
+						 events[i].stream_id);
 
 				if (ret == 0) {
 					/* connection closed by remote host */
@@ -615,7 +637,8 @@ RunServerThread(void *arg)
 			} else if (events[i].events & MTCP_EPOLLOUT) {
 				struct server_vars *sv = &ctx->svars[events[i].data.sockid];
 				// if (sv->rspheader_sent) {
-					SendUntilAvailable(ctx, events[i].data.sockid, sv);
+					SendUntilAvailable(ctx, events[i].data.sockid, sv,
+										events[i].stream_id);
 				// } else {
 				// 	TRACE_APP("Socket %d: Response header not sent yet.\n", 
 				// 			events[i].data.sockid);
