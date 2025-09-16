@@ -179,7 +179,7 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 	sent = 0;
 	ret = 1;
 
-	// printf("starting to send for ind: %d\n", cur_ind);
+	printf("stream %d starting to send for ind: %d\n", stream_id, cur_ind);
 	while (ret > 0){
 		ret = 0;
 		if (!sv->rspheader_sent){
@@ -265,7 +265,8 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 			sv->resp_offset += local_sent;
 			sent += local_sent;
 			if (local_sent == len){
-				// printf("finishsed sending resp header ind: %d\n", cur_ind);
+				printf("stream %d finishsed sending resp header ind: %d\n", 
+						stream_id, cur_ind);
 				sv->rspheader_sent = TRUE;
 				sv->resp_offset = 0;
 			}
@@ -289,7 +290,8 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 				TRACE_APP("Connection closed with client.\n");
 				break;
 			}
-			// printf("ind: %d: mtcp_write try: %d, ret: %d\n", cur_ind, len, local_sent);
+			printf("stream %d ind: %d: mtcp_write try: %d, ret: %d\n", 
+				   stream_id, cur_ind, len, local_sent);
 			
 			ret += local_sent;
 			sent += local_sent;
@@ -298,7 +300,8 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 
 		if (sv->total_sent >= fcache[sv->fidx].size) {
 			// struct mtcp_epoll_event ev;
-			// printf("done with ind: %d\n", cur_ind);
+			printf("stream %d done with ind: %d\n", 
+					stream_id, cur_ind);
 			sv->done = TRUE;
 			finished++;
 
@@ -383,12 +386,14 @@ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *svm,
 		}
 		else {
 			req[sv->request_len] = '\0';
-			// printf("request: %s\n", req);
+			printf("stream %d, request: %s\n", stream_id, req);
 			uint32_t new_bytes = sv->request_len - sv->recv_len;
 			rd -= new_bytes;
 			buff_offset += new_bytes;
 			sv->req_cnt++;
 			sv->recv_len = 0;
+			printf("stream %d got a full request, total req: %d\n", 
+					stream_id, sv->req_cnt);
 		}
 	}
 
