@@ -353,8 +353,8 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 			bp->payload.seg_rule_group_id = 1; 
 		}
 
-		MTP_PRINT("Generated bp:\n");
-		print_MTP_bp(bp);
+		// MTP_PRINT("Generated bp:\n");
+		// print_MTP_bp(bp);
 
 		first_stream_ctx->send_next += bytes_from_first;
 		MTP_PRINT("send next for stream %d: %u\n", first_stream, 
@@ -493,8 +493,8 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 			bp->payload.seg_rule_group_id = 1; 
 		}
 
-		MTP_PRINT("Generated bp:\n");
-		print_MTP_bp(bp);
+		// MTP_PRINT("Generated bp:\n");
+		// print_MTP_bp(bp);
 
 		next_stream_ctx->send_next += bytes_from_next;
 		MTP_PRINT("send next for stream %d: %u\n", next_stream, 
@@ -1349,8 +1349,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 				bp->payload.seg_rule_group_id = 1; 
 			} 
 
-			MTP_PRINT("Generated bp:\n");
-			print_MTP_bp(bp);
+			// MTP_PRINT("Generated bp:\n");
+			// print_MTP_bp(bp);
 
 			AddtoGenList(mtcp, cur_stream, cur_ts);	
 
@@ -1479,8 +1479,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 				bp->payload.seg_rule_group_id = 1; 
 			} 
 
-			MTP_PRINT("Generated bp:\n");
-			print_MTP_bp(bp);
+			// MTP_PRINT("Generated bp:\n");
+			// print_MTP_bp(bp);
 
 			// AddtoGenList(mtcp, cur_stream, cur_ts);	
 
