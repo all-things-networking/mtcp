@@ -629,9 +629,9 @@ DumpStream(mtcp_manager_t mtcp, tcp_stream *stream)
 				socket->epoll, socket->epoll & MTCP_EPOLLIN, 
 				socket->epoll & MTCP_EPOLLOUT, socket->epoll & MTCP_EPOLLERR, 
 				socket->epoll & MTCP_EPOLLRDHUP, socket->epoll & MTCP_EPOLLET, 
-				socket->events, socket->events & MTCP_EPOLLIN, 
-				socket->events & MTCP_EPOLLOUT, socket->events & MTCP_EPOLLERR, 
-				socket->events & MTCP_EPOLLRDHUP, socket->events & MTCP_EPOLLET);
+				socket->events0, socket->events0 & MTCP_EPOLLIN, 
+				socket->events0 & MTCP_EPOLLOUT, socket->events0 & MTCP_EPOLLERR, 
+				socket->events0 & MTCP_EPOLLRDHUP, socket->events0 & MTCP_EPOLLET);
 	} else {
 		thread_printf(mtcp, mtcp->log_fp, "Socket: (null)\n");
 	}

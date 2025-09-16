@@ -1632,7 +1632,8 @@ static inline void data_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev
 
 	if (ctx->state == MTP_TCP_ESTABLISHED_ST) {
 		// "add_data_seg" instruction
-		MTP_PRINT("data_net_ep: raising read event\n");
+		MTP_PRINT("data_net_ep: raising read event, stream id: %d\n",
+				stream_id);
 		RaiseReadEvent(mtcp, cur_stream, stream_id);
 	}
 }
