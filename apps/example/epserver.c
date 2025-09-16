@@ -310,7 +310,8 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 			sv->cur_req_ind = (sv->cur_req_ind + 1) % MAX_OUTSTANDING_REQ;
 			cur_ind = sv->cur_req_ind;
 
-			if (sv->keep_alive ||
+			if (
+				// sv->keep_alive ||
 				cur_ind != last_ind) {
 				// printf("in keep-alive\n");
 				/* if keep-alive connection, wait for the incoming request */
