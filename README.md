@@ -29,7 +29,7 @@ Figure out the kind of NIC and driver using ```ethtool -i <interface_name>```
 
    - TEST: use ``dpdk-devbind`` to find the PCI address of the PROPER interface (make sure you stay away from the management interface). Need to provide that to testpmd as input: ```sudo dpdk-testpmd -l 0-3 -n 4 -a <PCI address of the interface> -- -i```
      
-- For Mellanox, ConnectX-3 (```mlx4_core```) driver:
+- For Mellanox, ConnectX-3 (```mlx4_core```) driver: Folow the instructions in the Google Doc.
 
 - For Intel NICs:
 
