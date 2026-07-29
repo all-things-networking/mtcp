@@ -8,11 +8,7 @@
 #define NUM_BINS_LISTENERS	(1024)	     /* assuming that chaining won't happen excessively */
 #define TCP_AR_CNT 		(3)
 
-#ifdef USE_MTP
-typedef struct mtp_listen_ctx listen_ctx_t;
-#else
 typedef struct tcp_listener listen_ctx_t;
-#endif
 
 typedef struct hash_bucket_head {
 	tcp_stream *tqh_first;

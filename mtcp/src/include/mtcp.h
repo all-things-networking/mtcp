@@ -25,20 +25,10 @@
 
 //#include "mtp_bp.h"
 
-// TURN MTP ON/OFF BY COMMENTING OUT THIS LINE
-#define USE_MTP     1
 // #define ENABLE_MTP_PRINT  1
 // #define MTP_FIXED_RTO 1
 
-#ifdef USE_MTP
-#ifdef ENABLE_MTP_PRINT
-#define MTP_PRINT(f, m...) fprintf(stdout, f, ##m)
-#else
 #define MTP_PRINT(f, m...) (void)0
-#endif
-#else
-#define MTP_PRINT(f, m...) (void)0
-#endif
 
 
 
@@ -243,9 +233,6 @@ struct mtcp_manager
 	mem_pool_t rv_pool;			/* memory pool for recv variables */
 	mem_pool_t sv_pool;			/* memory pool for send variables */
 	mem_pool_t mv_pool;			/* memory pool for monitor variables */
-    #ifdef USE_MTP
-	mem_pool_t mtp_pool;		/* memory pool for MTP variables */
-    #endif
 
 	//mem_pool_t socket_pool;
 	sb_manager_t rbm_snd;
