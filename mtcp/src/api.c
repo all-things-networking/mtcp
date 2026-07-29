@@ -1511,21 +1511,12 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	}
 	
 	cur_stream = socket->stream;
-	#ifdef USE_MTP
-	if (!cur_stream || 
-			!(cur_stream->mtp->state == MTP_TCP_ESTABLISHED_ST || 
-			  cur_stream->state == TCP_ST_CLOSE_WAIT)) {
-		errno = ENOTCONN;
-		return -1;
-	}
-	#else
 	if (!cur_stream || 
 			!(cur_stream->state == TCP_ST_ESTABLISHED || 
 			  cur_stream->state == TCP_ST_CLOSE_WAIT)) {
 		errno = ENOTCONN;
 		return -1;
 	}
-	#endif 
 
 	if (len <= 0) {
 		if (socket->opts & MTCP_NONBLOCK) {
