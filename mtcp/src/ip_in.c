@@ -8,12 +8,10 @@
 #include "debug.h"
 #include "icmp.h"
 
-#include "mtp_net.h"
 
 #define ETH_P_IP_FRAG   0xF800
 #define ETH_P_IPV6_FRAG 0xF6DD
 
-#define MTP_IPPROTO_MTP 0xFD
 /*----------------------------------------------------------------------------*/
 inline int 
 ProcessIPv4Packet(mtcp_manager_t mtcp, uint32_t cur_ts, 

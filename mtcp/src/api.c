@@ -404,7 +404,6 @@ mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
 
 	socket = AllocateSocket(mctx, type, FALSE);
 	if (!socket) {
-		MTP_PRINT("Error\n");
 		errno = ENFILE;
 		return -1;
 	}
@@ -557,9 +556,7 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 {
 	mtcp_manager_t mtcp;
 
-	struct mtp_listen_ctx *mtp_listener;
 	struct tcp_listener *listener;
-	(void)mtp_listener;
 	(void)listener;
 
 	socket_map_t socket;
@@ -958,7 +955,6 @@ CloseListeningSocket(mctx_t mctx, int sockid)
 
 	free(listener);
 	mtcp->smap[sockid].listener = NULL;
-	mtcp->smap[sockid].listen_ctx = NULL;
 
 	return 0;
 }
@@ -988,7 +984,6 @@ mtcp_close(mctx_t mctx, int sockid)
 
 	TRACE_API("Socket %d: mtcp_close called.\n", sockid);
 
-	MTP_PRINT("socktype: %d\n", mtcp->smap[sockid].socktype);
 	switch (mtcp->smap[sockid].socktype) {
 	case MTCP_SOCK_STREAM:
 		ret = CloseStreamSocket(mctx, sockid);
@@ -1173,7 +1168,6 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	int event_remaining;
 	int ret;
 	
-	MTP_PRINT("mtcp_recv called: sockid %d, len %zu, flags %d\n", sockid, len, flags);
 	mtcp = GetMTCPManager(mctx);
         if (!mtcp) {
 		return -1;
@@ -1466,7 +1460,6 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 	if (sndvar->snd_wnd <= 0) {
 		TRACE_SNDBUF("%u Sending buffer became full!! snd_wnd: %u\n", 
 				cur_stream->id, sndvar->snd_wnd);
-		// MTP_PRINT("%u Sending buffer became full!! snd_wnd: %u\n", 
 		// 		cur_stream->id, sndvar->snd_wnd);
 	}
 
@@ -1529,9 +1522,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 	sndvar = cur_stream->sndvar;
 
-	// MTP_PRINT("mtcp_write before grabbing lock\n");
 	SBUF_LOCK(&sndvar->write_lock);
-	// MTP_PRINT("mtcp_write after grabbing lock\n");
 
 	ret = CopyFromUser(mtcp, cur_stream, buf, len);
 
@@ -1553,9 +1544,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 					USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLOUT);
 		}
 	}
-	// MTP_PRINT("mtcp_write before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
-	// MTP_PRINT("mtcp_write after releasing lock\n");
 
 	TRACE_API("Stream %d: mtcp_write() returning %d\n", cur_stream->id, ret);
 	return ret;
@@ -1618,9 +1607,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 	sndvar = cur_stream->sndvar;
 
-	// MTP_PRINT("mtcp_write before grabbing lock\n");
 	SBUF_LOCK(&sndvar->write_lock);
-	// MTP_PRINT("mtcp_write after grabbing lock\n");
 #if BLOCKING_SUPPORT
 	if (!(socket->opts & MTCP_NONBLOCK)) {
 		while (sndvar->snd_wnd <= 0) {
@@ -1640,14 +1627,11 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	// MTP TODO: add this to "application event parser"
 	ret = CopyFromUser(mtcp, cur_stream, buf, len);
 
-	// MTP_PRINT("mtcp_write before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
-	// MTP_PRINT("mtcp_write after releasing lock\n");
 
 	if (ret > 0 && !(sndvar->on_sendq || sndvar->on_send_list)) {
 		SQ_LOCK(&mtcp->ctx->sendq_lock);
 		sndvar->on_sendq = TRUE;
-		// MTP_PRINT("enqueue in send queue\n");
 		StreamEnqueue(mtcp->sendq, cur_stream);		/* this always success */
 		SQ_UNLOCK(&mtcp->ctx->sendq_lock);
 		mtcp->wakeup_flag = TRUE;

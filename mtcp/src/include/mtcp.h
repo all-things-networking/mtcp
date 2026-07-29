@@ -23,12 +23,8 @@
 #include "stat.h"
 #include "io_module.h"
 
-//#include "mtp_bp.h"
 
-// #define ENABLE_MTP_PRINT  1
-// #define MTP_FIXED_RTO 1
 
-#define MTP_PRINT(f, m...) (void)0
 
 
 
