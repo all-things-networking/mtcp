@@ -308,9 +308,7 @@ DestroyCtx(mtcp_manager_t mtcp, tcp_stream *stream, uint16_t sport)
 	
 	mtcp->flow_cnt--;
 
-    #ifdef USE_MTP
 	MPFreeChunk(mtcp->mtp_pool, stream->mtp);
-    #endif
 	MPFreeChunk(mtcp->rv_pool, stream->rcvvar);
 	MPFreeChunk(mtcp->sv_pool, stream->sndvar);
 	MPFreeChunk(mtcp->flow_pool, stream);

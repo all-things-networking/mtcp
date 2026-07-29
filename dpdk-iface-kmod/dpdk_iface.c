@@ -165,7 +165,8 @@ igb_net_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				adapter = netdev_priv(netdev);
 				adapter->netdev = netdev;
 				netdev_assign_netdev_ops(netdev);
-				memcpy(netdev->dev_addr, mac_addr, ETH_ALEN);
+				/* kernel 5.17+ made netdev->dev_addr const; use the helper. */
+				eth_hw_addr_set(netdev, mac_addr);
 				strcpy(netdev->name, IFACE_PREFIX"%d");
 				ret = register_netdev(netdev);
 				if (ret)

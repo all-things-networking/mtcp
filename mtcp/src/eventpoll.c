@@ -233,14 +233,9 @@ RaisePendingStreamEvents(mtcp_manager_t mtcp,
 	if (!stream)
 		return -1;
 	
-	#ifdef USE_MTP
 	if (stream->mtp->state < MTP_TCP_ESTABLISHED_ST){
 		return -1;
 	}
-	#else
-	if (stream->state < TCP_ST_ESTABLISHED)
-		return -1;
-	#endif
 
 	TRACE_EPOLL("Stream %d at state %s\n", 
 			stream->id, TCPStateToString(stream));

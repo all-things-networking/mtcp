@@ -33,10 +33,8 @@
 #include "libccp/ccp.h"
 #endif
 
-#ifdef USE_MTP
 #include "mtp_net.h"
 #include "mtp_ep.h"
-#endif
 
 #ifndef DISABLE_DPDK
 /* for launching rte thread */
@@ -502,36 +500,23 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 
 	/* connect handling */
 	while ((stream = StreamDequeue(mtcp->connectq))) {
-		#ifdef USE_MTP
 		struct mtp_ctx *ctx = stream->mtp;
 		MtpConnectChainPart2(mtcp, cur_ts, ctx->local_ip, ctx->remote_ip, 
 				ctx->local_port, ctx->remote_port, stream);
-		#else
-		AddtoControlList(mtcp, stream, cur_ts);
-		#endif
 	}
 
 	/* send queue handling */
 	while ((stream = StreamDequeue(mtcp->sendq))) {
 		// printf("dequeuing a send call\n");
 		
-		#ifdef USE_MTP
 		stream->sndvar->on_sendq = FALSE;
 		MtpSendChain(mtcp, cur_ts, stream);
-		#else
-		stream->sndvar->on_sendq = FALSE;
-		AddtoSendList(mtcp, stream);
-		#endif
 	}
 	
 	/* ack queue handling */
 	while ((stream = StreamDequeue(mtcp->ackq))) {
 		stream->sndvar->on_ackq = FALSE;
-		#ifdef USE_MTP
 		MtpReceiveChainPart2(mtcp, cur_ts, stream);
-		#else
-		EnqueueACK(mtcp, stream, cur_ts, ACK_OPT_AGGREGATE);
-		#endif
 	}
 
 	/* close handling */
@@ -541,74 +526,12 @@ HandleApplicationCalls(mtcp_manager_t mtcp, uint32_t cur_ts)
 		struct tcp_send_vars *sndvar = stream->sndvar;
 		sndvar->on_closeq = FALSE;
 
-		#ifdef USE_MTP
 		MTP_PRINT("Stream %u, port: %u, Calling close\n", 
 				   stream->id,
 				   ntohs(stream->mtp->local_port));
 		MtpCloseChain(mtcp, cur_ts, stream);
 		// printf("after MTP close chain\n");
 		(void) control;
-		#else		
-		if (sndvar->sndbuf) {
-			sndvar->fss = sndvar->sndbuf->head_seq + sndvar->sndbuf->len;
-		} else {
-			sndvar->fss = stream->snd_nxt;
-		}
-
-		if (CONFIG.tcp_timeout > 0)
-			RemoveFromTimeoutList(mtcp, stream);
-
-		if (stream->have_reset) {
-			handled++;
-			if (stream->state != TCP_ST_CLOSED) {
-				stream->close_reason = TCP_RESET;
-				stream->state = TCP_ST_CLOSED;
-				TRACE_STATE("Stream %d: TCP_ST_CLOSED\n", stream->id);
-				DestroyTCPStream(mtcp, stream);
-			} else {
-				TRACE_ERROR("Stream already closed.\n");
-			}
-
-		} else if (sndvar->on_control_list) {
-			sndvar->on_closeq_int = TRUE;
-			StreamInternalEnqueue(mtcp->closeq_int, stream);
-			delayed++;
-			if (sndvar->on_control_list)
-				control++;
-			if (sndvar->on_send_list)
-				send++;
-			if (sndvar->on_ack_list)
-				ack++;
-
-		} else if (sndvar->on_send_list || sndvar->on_ack_list) {
-			handled++;
-			if (stream->state == TCP_ST_ESTABLISHED) {
-				stream->state = TCP_ST_FIN_WAIT_1;
-				TRACE_STATE("Stream %d: TCP_ST_FIN_WAIT_1\n", stream->id);
-
-			} else if (stream->state == TCP_ST_CLOSE_WAIT) {
-				stream->state = TCP_ST_LAST_ACK;
-				TRACE_STATE("Stream %d: TCP_ST_LAST_ACK\n", stream->id);
-			}
-			stream->control_list_waiting = TRUE;
-
-		} else if (stream->state != TCP_ST_CLOSED) {
-			handled++;
-			if (stream->state == TCP_ST_ESTABLISHED) {
-				stream->state = TCP_ST_FIN_WAIT_1;
-				TRACE_STATE("Stream %d: TCP_ST_FIN_WAIT_1\n", stream->id);
-
-			} else if (stream->state == TCP_ST_CLOSE_WAIT) {
-				stream->state = TCP_ST_LAST_ACK;
-				TRACE_STATE("Stream %d: TCP_ST_LAST_ACK\n", stream->id);
-			}
-			//sndvar->rto = TCP_FIN_RTO;
-			//UpdateRetransmissionTimer(mtcp, stream, mtcp->cur_ts);
-			AddtoControlList(mtcp, stream, cur_ts);
-		} else {
-			TRACE_ERROR("Already closed connection!\n");
-		}
-		#endif
 	}
 
 	TRACE_ROUND("Handling close connections. cnt: %d\n", cnt);
@@ -721,11 +644,7 @@ WritePacketsToChunks(mtcp_manager_t mtcp, uint32_t cur_ts)
 	if (mtcp->g_sender->ack_list_cnt)
 		WriteTCPACKList(mtcp, mtcp->g_sender, cur_ts, thresh);
 	if (mtcp->g_sender->send_list_cnt)
-	#ifdef USE_MTP
 		MTP_ProcessSendEvents(mtcp, mtcp->g_sender, cur_ts, thresh);
-	#else
-		WriteTCPDataList(mtcp, mtcp->g_sender, cur_ts, thresh);
-	#endif
 
 	for (i = 0; i < CONFIG.eths_num; i++) {
 		assert(mtcp->n_sender[i] != NULL);
@@ -734,16 +653,11 @@ WritePacketsToChunks(mtcp_manager_t mtcp, uint32_t cur_ts)
 		if (mtcp->n_sender[i]->ack_list_cnt)
 			WriteTCPACKList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
 		if (mtcp->n_sender[i]->send_list_cnt)
-        #ifdef USE_MTP
            MTP_ProcessSendEvents(mtcp, mtcp->n_sender[i], cur_ts, thresh);
-        #else
-			WriteTCPDataList(mtcp, mtcp->n_sender[i], cur_ts, thresh);
-        #endif
 	}
 }
 
 /*----------------------------------------------------------------------------*/
-#ifdef USE_MTP
 static inline void 
 MTP_PacketGen(mtcp_manager_t mtcp, uint32_t cur_ts)
 {
@@ -768,7 +682,6 @@ MTP_PacketGen(mtcp_manager_t mtcp, uint32_t cur_ts)
         }
 	}
 }
-#endif
 
 /*----------------------------------------------------------------------------*/
 #if TESTING
@@ -804,11 +717,7 @@ static void
 InterruptApplication(mtcp_manager_t mtcp)
 {
 	int i;
-#ifdef USE_MTP
 	struct mtp_listen_ctx *listener = NULL;
-#else
-	struct tcp_listener *listener = NULL;
-#endif
 
 	/* interrupt if the mtcp_epoll_wait() is waiting */
 	if (mtcp->ep) {
@@ -914,11 +823,7 @@ RunMainLoop(struct mtcp_thread_context *ctx)
 			HandleApplicationCalls(mtcp, ts);
 		}
 
-        #ifdef USE_MTP
         MTP_PacketGen(mtcp,ts);
-        #else
-		WritePacketsToChunks(mtcp, ts);
-        #endif
 
 		/* send packets from write buffer */
 		/* send until tx is available */
@@ -1048,7 +953,6 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 		return NULL;
 	}
    
-    #ifdef USE_MTP
     sprintf(pool_name, "mtp_pool_%d", ctx->cpu);
 	mtcp->mtp_pool = MPCreate(pool_name, sizeof(struct mtp_ctx), 
 			sizeof(struct mtp_ctx) * CONFIG.max_concurrency);
@@ -1056,7 +960,6 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 		CTRACE_ERROR("Failed to allocate MTP context pool.\n");
 		return NULL;
 	}
-    #endif
  
 #else
 	mtcp->flow_pool = MPCreate(sizeof(tcp_stream),
@@ -1078,7 +981,6 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 		return NULL;
 	}
 
-    #ifdef USE_MTP
     sprintf(pool_name, "mtp_pool_%d", ctx->cpu);
 	mtcp->mtp_pool = MPCreate(pool_name, sizeof(struct mtp_ctx), 
 			sizeof(struct mtp_ctx) * CONFIG.max_concurrency);
@@ -1086,7 +988,6 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 		CTRACE_ERROR("Failed to allocate MTP context pool.\n");
 		return NULL;
 	}
-    #endif
 	
 #endif
 	mtcp->rbm_snd = SBManagerCreate(mtcp, CONFIG.sndbuf_size, CONFIG.max_num_buffers);
@@ -1095,11 +996,7 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 		return NULL;
 	}
 
-	#ifdef USE_MTP
 	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, 2 * CONFIG.max_num_buffers);
-	#else
-	mtcp->rbm_rcv = RBManagerCreate(mtcp, CONFIG.rcvbuf_size, CONFIG.max_num_buffers);
-	#endif
 	if (!mtcp->rbm_rcv) {
 		CTRACE_ERROR("Failed to create recv ring buffer.\n");
 		return NULL;
@@ -1596,9 +1493,7 @@ mtcp_free_context(mctx_t mctx)
 		DestroyMTCPSender(mtcp->n_sender[i]);
 	}
 
-	#ifdef USE_MTP
 	MPDestroy(mtcp->mtp_pool);
-	#endif
 	MPDestroy(mtcp->rv_pool);
 	MPDestroy(mtcp->sv_pool);
 	MPDestroy(mtcp->flow_pool);

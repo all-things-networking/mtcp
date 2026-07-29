@@ -7,9 +7,7 @@
 #include "ccp.h"
 #endif
 
-#ifdef USE_MTP
 #include "mtp_ep.h"
-#endif
 
 #ifndef MAX
 #define MAX(a, b) ((a)>(b)?(a):(b))
@@ -431,11 +429,7 @@ CheckRtmTimeout(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh)
 				// 	"rttvar: %u, rtt_seq: %u\n", 
 				// 	walk->rcvvar->srtt, walk->rcvvar->mdev, 
 				// 	walk->rcvvar->mdev_max, walk->rcvvar->rttvar, walk->rcvvar->rtt_seq);
-				#ifdef USE_MTP
 				MtpTimeoutChain(mtcp, cur_ts, walk);
-				#else
-				HandleRTO(mtcp, cur_ts, walk);
-				#endif
 				// printf("Stream %u: RTO, after rto: %u\n", 
 				// 		walk->id, walk->sndvar->rto);
 			} else {

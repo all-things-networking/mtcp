@@ -18,10 +18,8 @@
 #include "config.h"
 #include "debug.h"
 
-#ifdef USE_MTP
 #include "mtp_ep.h"
 #include "mtp_instr.h"
-#endif
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
@@ -479,9 +477,6 @@ int
 mtcp_listen(mctx_t mctx, int sockid, int backlog)
 {
 	mtcp_manager_t mtcp;
-#ifndef USE_MTP
-	struct tcp_listener *listener;
-#endif
 
 	mtcp = GetMTCPManager(mctx);
 	if (!mtcp) {
@@ -515,51 +510,7 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
 		return -1;
 	}
 
-#ifdef USE_MTP
 	return MtpListenChain(mtcp, sockid, backlog);
-#else
-	/* check whether we are not already listening on the same port */
-	if (ListenerHTSearch(mtcp->listeners, 
-			     &mtcp->smap[sockid].saddr.sin_port)) {
-		errno = EADDRINUSE;
-		return -1;
-	}
-
-	listener = (struct tcp_listener *)calloc(1, sizeof(struct tcp_listener));
-	if (!listener) {
-		/* errno set from the malloc() */
-		return -1;
-	}
-
-	listener->sockid = sockid;
-	listener->backlog = backlog;
-	listener->socket = &mtcp->smap[sockid];
-
-	if (pthread_cond_init(&listener->accept_cond, NULL)) {
-		/* errno set internally */
-		perror("pthread_cond_init of ctx->accept_cond\n");
-		free(listener);
-		return -1;
-	}
-	if (pthread_mutex_init(&listener->accept_lock, NULL)) {
-		/* errno set internally */
-		perror("pthread_mutex_init of ctx->accept_lock\n");
-		free(listener);
-		return -1;
-	}
-
-	listener->acceptq = CreateStreamQueue(backlog);
-	if (!listener->acceptq) {
-		free(listener);
-		errno = ENOMEM;
-		return -1;
-	}
-	
-	mtcp->smap[sockid].listener = listener;
-	ListenerHTInsert(mtcp->listeners, listener);
-
-	return 0;
-#endif
 }
 /*----------------------------------------------------------------------------*/
 int 
@@ -592,7 +543,6 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 		return -1;
 	}
 
-#ifdef USE_MTP
 	mtp_listener = mtcp->smap[sockid].listen_ctx;
 	bool non_block = (mtp_listener->socket->opts & MTCP_NONBLOCK) ? TRUE : FALSE;
 	MTP_PRINT("before MtpAcceptChain\n");
@@ -603,32 +553,6 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 	}
 	accepted = res->stream;
 	
-#else
-	listener = mtcp->smap[sockid].listener;
-
-	/* dequeue from the acceptq without lock first */
-	/* if nothing there, acquire lock and cond_wait */
-	accepted = StreamDequeue(listener->acceptq);
-	if (!accepted) {
-		if (listener->socket->opts & MTCP_NONBLOCK) {
-			errno = EAGAIN;
-			return -1;
-
-		} else {
-			pthread_mutex_lock(&listener->accept_lock);
-			while ((accepted = StreamDequeue(listener->acceptq)) == NULL) {
-				pthread_cond_wait(&listener->accept_cond, &listener->accept_lock);
-		
-				if (mtcp->ctx->done || mtcp->ctx->exit) {
-					pthread_mutex_unlock(&listener->accept_lock);
-					errno = EINTR;
-					return -1;
-				}
-			}
-			pthread_mutex_unlock(&listener->accept_lock);
-		}
-	}
-#endif
 
 	if (!accepted) {
 		TRACE_ERROR("[NEVER HAPPEN] Empty accept queue!\n");
@@ -651,19 +575,11 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 		socket->saddr.sin_addr.s_addr = accepted->daddr;
 	}
 
-#ifdef USE_MTP
 	if (!(mtp_listener->socket->epoll & MTCP_EPOLLET) &&
 	    !TAILQ_EMPTY(&mtp_listener->pending))
 		AddEpollEvent(mtcp->ep, 
 			      USR_SHADOW_EVENT_QUEUE,
 			      mtp_listener->socket, MTCP_EPOLLIN);
-#else
-	if (!(listener->socket->epoll & MTCP_EPOLLET) &&
-	    !StreamQueueIsEmpty(listener->acceptq))
-		AddEpollEvent(mtcp->ep, 
-			      USR_SHADOW_EVENT_QUEUE,
-			      listener->socket, MTCP_EPOLLIN);
-#endif
 
 	TRACE_API("Stream %d accepted.\n", accepted->id);
 
@@ -779,15 +695,7 @@ mtcp_connect(mctx_t mctx, int sockid,
 	socket = &mtcp->smap[sockid];
 	if (socket->stream) {
 		TRACE_API("Socket %d: stream already exist!\n", sockid);
-		#ifdef USE_MTP
 		errno = EALREADY;
-		#else
-		if (socket->stream->state >= TCP_ST_ESTABLISHED) {
-			errno = EISCONN;
-		} else {
-			errno = EALREADY;
-		}
-		#endif
 		return -1;
 	}
 
@@ -832,7 +740,6 @@ mtcp_connect(mctx_t mctx, int sockid,
 		is_dyn_bound = TRUE;
 	}
 
-	#ifdef USE_MTP
 	// MTP TODO: change connectq to get event instead of stream and 
 	// combine the two parts.
 	cur_stream = MtpConnectChainPart1(mtcp, mtcp->cur_ts, 
@@ -847,23 +754,6 @@ mtcp_connect(mctx_t mctx, int sockid,
 	cur_stream->socket = socket;
 	if (is_dyn_bound)
 		cur_stream->is_bound_addr = TRUE;
-	#else
-	cur_stream = CreateTCPStream(mtcp, socket, socket->socktype, 
-			socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, dip, dport);
-	if (!cur_stream) {
-		TRACE_ERROR("Socket %d: failed to create tcp_stream!\n", sockid);
-		errno = ENOMEM;
-		return -1;
-	}
-
-	if (is_dyn_bound)
-		cur_stream->is_bound_addr = TRUE;
-	cur_stream->sndvar->cwnd = 1;
-	cur_stream->sndvar->ssthresh = cur_stream->sndvar->mss * 10;
-
-	cur_stream->state = TCP_ST_SYN_SENT;
-	TRACE_STATE("Stream %d: TCP_ST_SYN_SENT\n", cur_stream->id);
-	#endif
 
 	SQ_LOCK(&mtcp->ctx->connect_lock);
 	ret = StreamEnqueue(mtcp->connectq, cur_stream);
@@ -938,33 +828,6 @@ CloseStreamSocket(mctx_t mctx, int sockid)
 
 	cur_stream->socket = NULL;
 
-	#ifndef USE_MTP
-	if (cur_stream->state == TCP_ST_CLOSED) {
-		TRACE_API("Stream %d at TCP_ST_CLOSED. destroying the stream.\n", 
-				cur_stream->id);
-		SQ_LOCK(&mtcp->ctx->destroyq_lock);
-		StreamEnqueue(mtcp->destroyq, cur_stream);
-		mtcp->wakeup_flag = TRUE;
-		SQ_UNLOCK(&mtcp->ctx->destroyq_lock);
-		return 0;
-
-	} else if (cur_stream->state == TCP_ST_SYN_SENT) {
-#if 1
-		SQ_LOCK(&mtcp->ctx->destroyq_lock);
-		StreamEnqueue(mtcp->destroyq, cur_stream);
-		SQ_UNLOCK(&mtcp->ctx->destroyq_lock);
-		mtcp->wakeup_flag = TRUE;
-#endif
-		return -1;
-
-	} else if (cur_stream->state != TCP_ST_ESTABLISHED && 
-			cur_stream->state != TCP_ST_CLOSE_WAIT) {
-		TRACE_API("Stream %d at state %s\n", 
-				cur_stream->id, TCPStateToString(cur_stream));
-		errno = EBADF;
-		return -1;
-	}
-	#endif
 	
 	SQ_LOCK(&mtcp->ctx->close_lock);
 	cur_stream->sndvar->on_closeq = TRUE;
@@ -985,33 +848,19 @@ static inline int
 CloseListeningSocket(mctx_t mctx, int sockid)
 {
 	mtcp_manager_t mtcp;
-#ifdef USE_MTP
 	struct mtp_listen_ctx *listener;
-#else
-	struct tcp_listener *listener;
-#endif
 
 	mtcp = GetMTCPManager(mctx);
 	if (!mtcp) {
 		return -1;
 	}
 
-#ifdef USE_MTP
 	listener = mtcp->smap[sockid].listen_ctx;
-#else
-	listener = mtcp->smap[sockid].listener;
-#endif
 	if (!listener) {
 		errno = EINVAL;
 		return -1;
 	}
 
-#ifndef USE_MTP
-	if (listener->acceptq) {
-		DestroyStreamQueue(listener->acceptq);
-		listener->acceptq = NULL;
-	}
-#endif
 
 	pthread_mutex_lock(&listener->accept_lock);
 	pthread_cond_signal(&listener->accept_cond);
@@ -1268,44 +1117,16 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	
 	/* stream should be in ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT */
 	cur_stream = socket->stream;
-	#ifdef USE_MTP
 		if (!cur_stream || 
 			!(cur_stream->mtp->state >= MTP_TCP_ESTABLISHED_ST)) {
 			MTP_PRINT("MTP not in correct state for read\n");
 			errno = ENOTCONN;
 			return -1;
 		}
-	#else
-        if (!cur_stream || 
-	    !(cur_stream->state >= TCP_ST_ESTABLISHED && 
-	      cur_stream->state <= TCP_ST_CLOSE_WAIT)) {
-		errno = ENOTCONN;
-		return -1;
-	}
-	#endif
 
 	rcvvar = cur_stream->rcvvar;
 	
-	#ifndef USE_MTP
-	/* if CLOSE_WAIT, return 0 if there is no payload */
-	if (cur_stream->state == TCP_ST_CLOSE_WAIT) {
-		if (!rcvvar->rcvbuf)
-			return 0;
-		
-		if (rcvvar->rcvbuf->merged_len == 0)
-			return 0;
-	}
 	
-	/* return EAGAIN if no receive buffer */
-	if (socket->opts & MTCP_NONBLOCK) {
-		if (!rcvvar->rcvbuf || rcvvar->rcvbuf->merged_len == 0) {
-			errno = EAGAIN;
-			return -1;
-		}
-	}
-	#endif
-	
-	#ifdef USE_MTP
 	if (flags == 0){
 		MTP_PRINT("MTP Receive Chain called: sockid %d, len %zu\n", sockid, len);
 		SBUF_LOCK(&rcvvar->read_lock);
@@ -1322,67 +1143,6 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 		MTP_PRINT("MTP Receive Chain returned: %d\n", ret);
 		(void)event_remaining;
 	}
-	#else
-	SBUF_LOCK(&rcvvar->read_lock);
-#if BLOCKING_SUPPORT
-	if (!(socket->opts & MTCP_NONBLOCK)) {
-		while (rcvvar->rcvbuf->merged_len == 0) {
-			if (!cur_stream || cur_stream->state != TCP_ST_ESTABLISHED) {
-				SBUF_UNLOCK(&rcvvar->read_lock);
-				errno = EINTR;
-				return -1;
-			}
-			pthread_cond_wait(&rcvvar->read_cond, &rcvvar->read_lock);
-		}
-	}
-#endif
-
-	switch (flags) {
-	case 0:
-		ret = CopyToUser(mtcp, cur_stream, buf, len);
-		break;
-	case MSG_PEEK:
-		ret = PeekForUser(mtcp, cur_stream, buf, len);
-		break;
-	default:
-		SBUF_UNLOCK(&rcvvar->read_lock);
-		ret = -1;
-		errno = EINVAL;
-		return ret;
-	}
-	
-	event_remaining = FALSE;
-        /* if there are remaining payload, generate EPOLLIN */
-	/* (may due to insufficient user buffer) */
-	if (socket->epoll & MTCP_EPOLLIN) {
-		if (!(socket->epoll & MTCP_EPOLLET) && rcvvar->rcvbuf->merged_len > 0) {
-			event_remaining = TRUE;
-		}
-	}
-        /* if waiting for close, notify it if no remaining data */
-	if (cur_stream->state == TCP_ST_CLOSE_WAIT && 
-	    rcvvar->rcvbuf->merged_len == 0 && ret > 0) {
-		event_remaining = TRUE;
-	}
-	
-	SBUF_UNLOCK(&rcvvar->read_lock);
-	
-	if (event_remaining) {
-		if (socket->epoll) {
-			AddEpollEvent(mtcp->ep, 
-				      USR_SHADOW_EVENT_QUEUE, socket, MTCP_EPOLLIN);
-#if BLOCKING_SUPPORT
-		} else if (!(socket->opts & MTCP_NONBLOCK)) {
-			if (!cur_stream->on_rcv_br_list) {
-				cur_stream->on_rcv_br_list = TRUE;
-				TAILQ_INSERT_TAIL(&mtcp->rcv_br_list, 
-						  cur_stream, rcvvar->rcv_br_link);
-				mtcp->rcv_br_list_cnt++;
-			}
-#endif
-		}
-	}
-#endif
 
 	TRACE_API("Stream %d: mtcp_recv() returning %d\n", cur_stream->id, ret);
         return ret;
@@ -1536,18 +1296,6 @@ CopyFromUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, const char *buf, int l
 		return -1;
 	}
 
-	#ifndef USE_MTP
-	/* allocate send buffer if not exist */
-	if (!sndvar->sndbuf) {
-		sndvar->sndbuf = SBInit(mtcp->rbm_snd, sndvar->iss + 1);
-		if (!sndvar->sndbuf) {
-			cur_stream->close_reason = TCP_NO_MEM;
-			/* notification may not required due to -1 return */
-			errno = ENOMEM;
-			return -1;
-		}
-	}
-	#endif
 
 	ret = SBPut(mtcp->rbm_snd, sndvar->sndbuf, buf, sndlen);
 	assert(ret == sndlen);
@@ -1705,7 +1453,6 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	}
 	
 	cur_stream = socket->stream;
-	#ifdef USE_MTP
 	if (!cur_stream || 
 			!(cur_stream->mtp->state == MTP_TCP_ESTABLISHED_ST || 
 			  cur_stream->mtp->state == TCP_ST_CLOSE_WAIT)) {
@@ -1714,14 +1461,6 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 		errno = ENOTCONN;
 		return -1;
 	}
-	#else
-	if (!cur_stream || 
-			!(cur_stream->state == TCP_ST_ESTABLISHED || 
-			  cur_stream->state == TCP_ST_CLOSE_WAIT)) {
-		errno = ENOTCONN;
-		return -1;
-	}
-	#endif 
 
 	if (len <= 0) {
 		if (socket->opts & MTCP_NONBLOCK) {
