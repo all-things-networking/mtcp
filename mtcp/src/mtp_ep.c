@@ -12,6 +12,7 @@
 #include "tcp_util.h"
 #include "socket.h"
 #include "mtp_instr.h"
+#include "evlog.h"
 #include "mtp_net.h"
 #include "mtp_seq.h"
 
@@ -116,6 +117,10 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 					   MTP_SEQ_SUB(ctx->send_next, ctx->send_una, ctx->send_una);
 
     int bytes_to_send = MIN(data_rest, window_avail);
+	EVLOG("DECIDE-send sid=%u seq=%u una=%u len=%d cwnd=%u pwnd=%u rwin=%d inflight=%d",
+	      cur_stream->id, ctx->send_next, ctx->send_una, bytes_to_send,
+	      ctx->cwnd_size, ctx->last_rwnd_remote, window_avail,
+	      MTP_SEQ_SUB(ctx->send_next, ctx->send_una, ctx->send_una));
 
 	MTP_PRINT("****************************\n");
 	MTP_PRINT("Stream %u in send ep\n", cur_stream->id);
@@ -772,6 +777,11 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
         if (data_rest < window_avail) bytes_to_send = data_rest;
         else bytes_to_send = window_avail;
     }
+
+	EVLOG("DECIDE-ack sid=%u seq=%u una=%u len=%d cwnd=%u pwnd=%u rwin=%d inflight=%d",
+	      cur_stream->id, ctx->send_next, ctx->send_una, (int)bytes_to_send,
+	      ctx->cwnd_size, ctx->last_rwnd_remote, (int)window_avail,
+	      MTP_SEQ_SUB(ctx->send_next, ctx->send_una, ctx->send_una));
 
 	// MTP TODO: check bytes to send is not zero
 	MTP_PRINT("ack_net_ep: window_avail: %u, bytes to send: %d\n", 

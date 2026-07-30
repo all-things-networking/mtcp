@@ -7,6 +7,7 @@
 #include "timer.h"
 #include "ip_out.h"
 #include "mtp_instr.h"
+#include "evlog.h"
 
 #define TCP_CALCULATE_CHECKSUM      TRUE
 #define VERIFY_RX_CHECKSUM          TRUE
@@ -320,6 +321,20 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	s_stream.daddr = iph->saddr;
 	s_stream.dport = mtph->source;
 
+    if (g_evlog) {
+        tcp_stream *ev_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream);
+        if (ev_stream && ev_stream->mtp) {
+            struct mtp_ctx *ev_ctx = ev_stream->mtp;
+            EVLOG("RX sid=%u seq=%u ack=%u len=%u win=%u f=%c%c%c una=%u nxt=%u cwnd=%u pwnd=%u sbuf=%u",
+                  ev_stream->id, mtph->seq, mtph->ack_seq, payload.len,
+                  (uint32_t)mtph->window,
+                  mtph->syn ? 'S' : '-', mtph->fin ? 'F' : '-', mtph->ack ? 'A' : '-',
+                  ev_ctx->send_una, ev_ctx->send_next,
+                  ev_ctx->cwnd_size, ev_ctx->last_rwnd_remote,
+                  ev_stream->sndvar->sndbuf ? ev_stream->sndvar->sndbuf->len : 0);
+        }
+    }
+
     if (mtph->syn && mtph->ack){
         uint32_t ev_init_seq = mtph->seq;
         uint32_t ev_ack_seq = mtph->ack_seq;
@@ -624,6 +639,14 @@ SendMTPPackets(struct mtcp_manager *mtcp,
 
                     // MTP_PRINT("setup checksum\n");
                     // update for next packet based on segementation rules
+                    EVLOG("TX sid=%u seq=%u len=%d f=%c%c%c nxt=%u una=%u cwnd=%u pwnd=%u",
+                          cur_stream->id, seq, pkt_len,
+                          bp->hdr.syn ? 'S' : '-', bp->hdr.fin ? 'F' : '-',
+                          bp->hdr.ack ? 'A' : '-',
+                          cur_stream->mtp->send_next, cur_stream->mtp->send_una,
+                          cur_stream->mtp->cwnd_size,
+                          cur_stream->mtp->last_rwnd_remote);
+
                     bytes_to_send -= pkt_len;
                     seq += pkt_len;
                     data_ptr += pkt_len;
@@ -656,6 +679,13 @@ SendMTPPackets(struct mtcp_manager *mtcp,
             }
 
             memcpy((uint8_t *)mtph, &(bp->hdr), MTP_HEADER_LEN);
+
+            EVLOG("TX sid=%u seq=%u len=%u f=%c%c%c nxt=%u una=%u cwnd=%u pwnd=%u",
+                  cur_stream->id, ntohl(bp->hdr.seq), payloadLen,
+                  bp->hdr.syn ? 'S' : '-', bp->hdr.fin ? 'F' : '-',
+                  bp->hdr.ack ? 'A' : '-',
+                  cur_stream->mtp->send_next, cur_stream->mtp->send_una,
+                  cur_stream->mtp->cwnd_size, cur_stream->mtp->last_rwnd_remote);
 
             // MTP_PRINT("Sent Seq 2: %u, size: %u\n", ntohl(mtph->seq), payloadLen);    
 
