@@ -1,6 +1,8 @@
 #ifndef MTCP_H
 #define MTCP_H
 
+#include "mtp_timer.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
@@ -286,6 +288,12 @@ struct mtcp_manager
 
 	/* lists related to timeout */
 	struct rto_hashstore* rto_store;
+	/* One list per timer the program declares, each kept in expiry order so the
+	 * sweep can stop at the first entry that is not due yet. The compiler emits
+	 * this array from the program's timer_t declarations. */
+	TAILQ_HEAD (mtp_timer_head, tcp_stream) mtp_timer_lists[MTP_TIMER_CNT];
+	int mtp_timer_list_cnt[MTP_TIMER_CNT];
+
 	TAILQ_HEAD (timewait_head, tcp_stream) timewait_list;
 	TAILQ_HEAD (timeout_head, tcp_stream) timeout_list;
 

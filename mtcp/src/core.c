@@ -32,6 +32,7 @@
 #include <fcntl.h>
 #include <string.h>
 #include "evlog.h"
+#include "mtp_instr.h"
 #if USE_CCP
 #include "ccp.h"
 #include "libccp/ccp.h"
@@ -809,7 +810,7 @@ RunMainLoop(struct mtcp_thread_context *ctx)
 			if (thresh == -1)
 				thresh = CONFIG.max_concurrency;
 
-			CheckRtmTimeout(mtcp, ts, thresh);
+			MtpCheckTimers(mtcp, ts, thresh);
 			CheckTimewaitExpire(mtcp, ts, CONFIG.max_concurrency);
 
 			if (CONFIG.tcp_timeout > 0 && ts != ts_prev) {
@@ -1090,6 +1091,13 @@ InitializeMTCPManager(struct mtcp_thread_context* ctx)
 	}
 		
 	mtcp->rto_store = InitRTOHashstore();
+	{
+		int tid;
+		for (tid = 0; tid < MTP_TIMER_CNT; tid++) {
+			TAILQ_INIT(&mtcp->mtp_timer_lists[tid]);
+			mtcp->mtp_timer_list_cnt[tid] = 0;
+		}
+	}
 	TAILQ_INIT(&mtcp->timewait_list);
 	TAILQ_INIT(&mtcp->timeout_list);
 

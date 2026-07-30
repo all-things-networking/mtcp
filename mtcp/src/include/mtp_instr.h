@@ -47,6 +47,6 @@ int FlushAndNotify(mtcp_manager_t mtcp, socket_map_t socket,
 void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id, uint32_t deadline);
 void TimerCancel(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id);
 void TimerRestart(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id, uint32_t deadline);
-bool TimerExpired(tcp_stream *stream, uint8_t timer_id, uint32_t cur_ts);
+void MtpCheckTimers(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh);
 
 #endif

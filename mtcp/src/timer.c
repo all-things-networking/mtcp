@@ -424,19 +424,7 @@ CheckRtmTimeout(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh)
 				TAILQ_REMOVE(rto_list, walk, sndvar->timer_link);
 				mtcp->rto_list_cnt--;
 				walk->on_rto_idx = -1;
-				{
-					/* A flow is on this list while any of its timers is armed,
-					 * so work out which have actually come due. An EP may re-arm,
-					 * which puts the flow back on the list. */
-					uint8_t tid;
-					for (tid = 0; tid < MTP_TIMER_CNT; tid++) {
-						if (!TimerExpired(walk, tid, cur_ts))
-							continue;
-						walk->mtp->timers[tid].armed = 0;
-						MtpTimeoutChain(mtcp, cur_ts, walk, tid);
-					}
-					continue;
-				}
+
 				// printf("Stream %u: RTO, before: rto: %u\n", 
 				// 		walk->id, walk->sndvar->rto);
 				

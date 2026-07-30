@@ -1,5 +1,6 @@
 #include "mtp_instr.h"
 #include "mtp_timer.h"
+#include "mtp_ep.h"
 #include "tcp_in.h"
 #include "tcp_out.h"
 #include "debug.h"
@@ -399,27 +400,26 @@ void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id,
     ctx->timers[timer_id].deadline = deadline;
     ctx->timers[timer_id].armed = 1;
 
-    /* The flow sits on one list while any of its timers is armed; the sweep
-     * works out which of them has actually expired. */
-    if (timer_id == MTP_TIMER_ACK_TIMEOUT)
-        stream->sndvar->ts_rto = deadline;
-    AddtoRTOList(mtcp, stream);
+    if (stream->on_mtp_timer[timer_id])
+        return;
+
+    /* Appended, not sorted: a given timer always runs for the same duration, so
+     * arming order is expiry order -- the same property the donor relies on. */
+    TAILQ_INSERT_TAIL(&mtcp->mtp_timer_lists[timer_id], stream,
+                      sndvar->mtp_timer_link[timer_id]);
+    mtcp->mtp_timer_list_cnt[timer_id]++;
+    stream->on_mtp_timer[timer_id] = 1;
 }
 
 void TimerCancel(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id) {
-    struct mtp_ctx *ctx = stream->mtp;
-    int i;
+    stream->mtp->timers[timer_id].armed = 0;
 
-    ctx->timers[timer_id].armed = 0;
-    if (timer_id == MTP_TIMER_ACK_TIMEOUT)
-        stream->sndvar->ts_rto = 0;
-
-    for (i = 0; i < MTP_TIMER_CNT; i++)
-        if (ctx->timers[i].armed)
-            return;                 /* something is still pending */
-
-    if (stream->on_rto_idx >= 0)
-        RemoveFromRTOList(mtcp, stream);
+    if (!stream->on_mtp_timer[timer_id])
+        return;
+    TAILQ_REMOVE(&mtcp->mtp_timer_lists[timer_id], stream,
+                 sndvar->mtp_timer_link[timer_id]);
+    mtcp->mtp_timer_list_cnt[timer_id]--;
+    stream->on_mtp_timer[timer_id] = 0;
 }
 
 void TimerRestart(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id,
@@ -428,8 +428,28 @@ void TimerRestart(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id,
     TimerStart(mtcp, stream, timer_id, deadline);
 }
 
-/* True when this timer is armed and due. */
-bool TimerExpired(tcp_stream *stream, uint8_t timer_id, uint32_t cur_ts) {
-    struct mtp_timer *t = &stream->mtp->timers[timer_id];
-    return t->armed && (int32_t)(cur_ts - t->deadline) >= 0;
+/* Sweeps one timer's list. Ordered, so it stops at the first entry not yet due. */
+void MtpCheckTimers(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh) {
+    uint8_t tid;
+
+    for (tid = 0; tid < MTP_TIMER_CNT; tid++) {
+        tcp_stream *walk, *next;
+        int cnt = 0;
+
+        for (walk = TAILQ_FIRST(&mtcp->mtp_timer_lists[tid]); walk; walk = next) {
+            if (++cnt > thresh)
+                break;
+            next = TAILQ_NEXT(walk, sndvar->mtp_timer_link[tid]);
+
+            if (!walk->mtp->timers[tid].armed) {
+                TimerCancel(mtcp, walk, tid);
+                continue;
+            }
+            if ((int32_t)(cur_ts - walk->mtp->timers[tid].deadline) < 0)
+                break;              /* ordered: nothing later is due either */
+
+            TimerCancel(mtcp, walk, tid);
+            MtpTimeoutChain(mtcp, cur_ts, walk, tid);
+        }
+    }
 }

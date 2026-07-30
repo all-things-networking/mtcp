@@ -156,6 +156,8 @@ struct tcp_send_vars
     TAILQ_ENTRY(tcp_stream) gen_link;
 
 	TAILQ_ENTRY(tcp_stream) timer_link;		/* timer link (rto list, tw list) */
+	/* one link per declared timer, so a flow can sit on several at once */
+	TAILQ_ENTRY(tcp_stream) mtp_timer_link[MTP_TIMER_CNT];
 	TAILQ_ENTRY(tcp_stream) timeout_link;	/* connection timeout link */
 
 	struct tcp_send_buffer *sndbuf;
@@ -266,6 +268,7 @@ typedef struct tcp_stream
 	uint8_t close_reason;	/* close reason */
 	uint8_t on_hash_table;
 	uint8_t on_timewait_list;
+	int8_t on_mtp_timer[MTP_TIMER_CNT];
 	uint8_t ht_idx;
 	uint8_t closed;
 	uint8_t is_bound_addr;

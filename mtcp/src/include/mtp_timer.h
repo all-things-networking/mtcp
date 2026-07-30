@@ -28,9 +28,16 @@ enum {
 	MTP_TIMER_CNT
 };
 
-/* Durations the program specifies for those timers, in mtcp ticks (ms). */
-#define MTP_TIMEWAIT_TICKS   2000   /* 2MSL */
-#define MTP_IDLE_TICKS      30000   /* reap a flow that has gone quiet */
+/* Durations the program specifies for those timers, in mtcp ticks.
+ * HZ is 1000 and TIME_TICK is 1000us, so one tick is 1ms.
+ *
+ * Both match the donor's configured values (mtcp.conf: tcp_timewait = 0,
+ * tcp_timeout = 30), so the comparison isolates programmability rather than a
+ * difference in how long each stack holds a flow. A zero TIME_WAIT still routes
+ * the flow through the timer, so it survives to the next sweep and can answer a
+ * retransmitted FIN -- it is not the same as destroying inline. */
+#define MTP_TIMEWAIT_TICKS      0   /* donor: tcp_timewait = 0 */
+#define MTP_IDLE_TICKS      30000   /* donor: tcp_timeout = 30s */
 
 /* ------------------------------- mechanism ------------------------------- */
 struct mtp_timer {
