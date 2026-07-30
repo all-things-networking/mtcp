@@ -1,3 +1,4 @@
+#include "mtp_timer.h"
 #ifndef MTP_INSTR_H
 #define MTP_INSTR_H
 
@@ -43,8 +44,9 @@ int FlushAndNotify(mtcp_manager_t mtcp, socket_map_t socket,
 				   tcp_stream* cur_stream, char *buf, int len);
 
 // timer_instr
-void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts);
-void TimerCancel(mtcp_manager_t mtcp, tcp_stream *stream);
-void TimerRestart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts);
+void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id, uint32_t deadline);
+void TimerCancel(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id);
+void TimerRestart(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id, uint32_t deadline);
+bool TimerExpired(tcp_stream *stream, uint8_t timer_id, uint32_t cur_ts);
 
 #endif

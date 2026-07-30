@@ -12,6 +12,7 @@
 #include "tcp_util.h"
 #include "socket.h"
 #include "mtp_instr.h"
+#include "mtp_timer.h"
 #include "evlog.h"
 #include "mtp_net.h"
 #include "mtp_seq.h"
@@ -253,7 +254,8 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	MTP_PRINT("send next: %u\n", ctx->send_next);
 
 	// MTP TODO: map to timer event with event input
-	TimerStart(mtcp, cur_stream, cur_ts);
+	TimerStart(mtcp, cur_stream, MTP_TIMER_ACK_TIMEOUT,
+			  cur_ts + cur_stream->sndvar->rto);
 
 	// MTP_PRINT("send_ep before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
@@ -379,7 +381,7 @@ static inline void conn_ack_ep ( mtcp_manager_t mtcp, int32_t cur_ts, uint32_t e
 		ctx->lwu_ack = ev_ack_seq;
         scratch->skip_ack_eps = TRUE;
 		// MTP TODO: timer
-        TimerCancel(mtcp, cur_stream);
+        TimerCancel(mtcp, cur_stream, MTP_TIMER_ACK_TIMEOUT);
 
         // MTP TODO: Raise an event to the listening socket
 		struct mtp_listen_ctx *listen_ctx = 
@@ -616,7 +618,7 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 		SBUF_UNLOCK(&sndvar->write_lock);
 		if (ctx->state != MTP_TCP_FIN_WAIT_1_ST &&
 		    ctx->state != MTP_TCP_CLOSING_ST) {
-			TimerCancel(mtcp, cur_stream);
+			TimerCancel(mtcp, cur_stream, MTP_TIMER_ACK_TIMEOUT);
 			MTP_PRINT("THIS CASE\n");
 			// MTP_PRINT("ack_net_ep before releasing lock\n");
 		}
@@ -906,7 +908,8 @@ static inline void ack_net_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_
 	}
 
 	// MTP TODO: match the mtp file in creating right "event" on timeout
-	TimerRestart(mtcp, cur_stream, cur_ts);
+	TimerRestart(mtcp, cur_stream, MTP_TIMER_ACK_TIMEOUT,
+				cur_ts + cur_stream->sndvar->rto);
 	// MTP_PRINT("ack_net_ep before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
 	// MTP_PRINT("ack_net_ep after releasing lock\n");
@@ -940,19 +943,18 @@ static inline void fin_ack_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 		}
 		
 		ctx->num_rtx = 0;
-		TimerCancel(mtcp, cur_stream);
+		TimerCancel(mtcp, cur_stream, MTP_TIMER_ACK_TIMEOUT);
 		if (ctx->state == MTP_TCP_FIN_WAIT_1_ST){
 			ctx->state = MTP_TCP_FIN_WAIT_2_ST;
 			MTP_PRINT("fin_ack_ep: state changed to FIN_WAIT_2\n");
 		}
 		else if (ctx->state == MTP_TCP_CLOSING_ST){
+			/* Wait out 2MSL so a retransmitted FIN still finds a context to
+			 * answer; the timer reaps the flow when it elapses. */
 			ctx->state = MTP_TCP_TIME_WAIT_ST;
-			// MTP TODO: do we need this?
-			// MTP TODO: fix
-			ctx->state = MTP_TCP_CLOSED_ST;
-			DestroyCtx(mtcp, cur_stream, ctx->local_port);
-			MTP_PRINT("fin_ack_ep: state changed to CLOSED\n");
-			//AddtoTimewaitList(mtcp, cur_stream, cur_ts);
+			TimerStart(mtcp, cur_stream, MTP_TIMER_TIMEWAIT,
+			           cur_ts + MTP_TIMEWAIT_TICKS);
+			MTP_PRINT("fin_ack_ep: state changed to TIME_WAIT\n");
 		}
 		else if (ctx->state == MTP_TCP_LAST_ACK_ST){
 			ctx->state = MTP_TCP_CLOSED_ST;
@@ -1550,7 +1552,8 @@ void timeout_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
 		
 			
 		// MTP_PRINT("ack_net_ep before releasing lock\n");
-		TimerRestart(mtcp, cur_stream, cur_ts);
+		TimerRestart(mtcp, cur_stream, MTP_TIMER_ACK_TIMEOUT,
+				cur_ts + cur_stream->sndvar->rto);
 		
 		SBUF_UNLOCK(&sndvar->write_lock);
 		// MTP_PRINT("ack_net_ep after releasing lock\n");
@@ -1651,7 +1654,7 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
 			return;
 		}
 
-		TimerCancel(mtcp, cur_stream);
+		TimerCancel(mtcp, cur_stream, MTP_TIMER_ACK_TIMEOUT);
 	
 		uint32_t prior_cwnd = sndvar->cwnd;
 		sndvar->snd_una++;
@@ -1668,6 +1671,10 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
     } else if(cur_stream->state == TCP_ST_ESTABLISHED) {
     */
     scratchpad scratch;
+
+	/* activity keeps the flow alive; the idle timer reaps it if this stops */
+	TimerRestart(mtcp, cur_stream, MTP_TIMER_IDLE, cur_ts + MTP_IDLE_TICKS);
+
 	timestamp_ep(mtcp, cur_ts, ev_ts, cur_stream, &scratch);
     conn_ack_ep(mtcp, cur_ts, ack_seq, seq, cur_stream, &scratch);
     rto_ep(mtcp, cur_ts, ack_seq, cur_stream, &scratch);
@@ -1680,6 +1687,9 @@ void MtpAckChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ack_seq,
 void MtpDataChain(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t seq, uint8_t *payload, 
 	int payloadlen, tcp_stream *cur_stream)
 {
+	/* activity keeps the flow alive; the idle timer reaps it if this stops */
+	TimerRestart(mtcp, cur_stream, MTP_TIMER_IDLE, cur_ts + MTP_IDLE_TICKS);
+
 	data_net_ep(mtcp, cur_ts, seq, payload, payloadlen, cur_stream);
     send_ack_ep(mtcp, cur_ts, cur_stream);
 }
@@ -1808,8 +1818,44 @@ void MtpSyNAckChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 }
 
-void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){
-	timeout_ep(mtcp, cur_ts, cur_stream);
+/* Reaps a flow whose TIME_WAIT has elapsed: destroy_ctx_instr. */
+static inline void timewait_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
+                               tcp_stream* cur_stream)
+{
+	struct mtp_ctx *ctx = cur_stream->mtp;
+
+	TimerCancel(mtcp, cur_stream, MTP_TIMER_TIMEWAIT);
+	ctx->state = MTP_TCP_CLOSED_ST;
+	DestroyCtx(mtcp, cur_stream, ctx->local_port);
+}
+
+/* Reaps a flow that has gone quiet, so a peer that never completes teardown
+ * cannot hold its context forever: destroy_ctx_instr. */
+static inline void idle_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
+                           tcp_stream* cur_stream)
+{
+	struct mtp_ctx *ctx = cur_stream->mtp;
+
+	TimerCancel(mtcp, cur_stream, MTP_TIMER_IDLE);
+	ctx->state = MTP_TCP_CLOSED_ST;
+	DestroyCtx(mtcp, cur_stream, ctx->local_port);
+}
+
+/* Runs the event processor the program bound to whichever timer expired. The
+ * compiler emits this mapping; the target only decides *when* to call it. */
+void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream,
+                     uint8_t timer_id){
+	switch (timer_id) {
+	case MTP_TIMER_ACK_TIMEOUT:
+		timeout_ep(mtcp, cur_ts, cur_stream);
+		break;
+	case MTP_TIMER_TIMEWAIT:
+		timewait_ep(mtcp, cur_ts, cur_stream);
+		break;
+	case MTP_TIMER_IDLE:
+		idle_ep(mtcp, cur_ts, cur_stream);
+		break;
+	}
 }
 
 void MtpCloseChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream){

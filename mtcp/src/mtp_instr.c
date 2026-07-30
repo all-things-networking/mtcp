@@ -1,4 +1,5 @@
 #include "mtp_instr.h"
+#include "mtp_timer.h"
 #include "tcp_in.h"
 #include "tcp_out.h"
 #include "debug.h"
@@ -391,21 +392,44 @@ int FlushAndNotify(mtcp_manager_t mtcp, socket_map_t socket,
  Operations for the "retransmission" timer
  Modified from UpdateRetransmissionTimer
  ***********************************************/
-void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts) {
-    stream->sndvar->ts_rto = cur_ts + stream->sndvar->rto;
-	// printf("TimerStart: stream %u, ts_rto: %u, rto %u, cur_ts: %d\n", stream->id, 
-		// stream->sndvar->ts_rto, stream->sndvar->rto, cur_ts);
+void TimerStart(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id,
+                uint32_t deadline) {
+    struct mtp_ctx *ctx = stream->mtp;
+
+    ctx->timers[timer_id].deadline = deadline;
+    ctx->timers[timer_id].armed = 1;
+
+    /* The flow sits on one list while any of its timers is armed; the sweep
+     * works out which of them has actually expired. */
+    if (timer_id == MTP_TIMER_ACK_TIMEOUT)
+        stream->sndvar->ts_rto = deadline;
     AddtoRTOList(mtcp, stream);
 }
 
-void TimerCancel(mtcp_manager_t mtcp, tcp_stream *stream) {
-	if (stream->on_rto_idx >= 0) {
+void TimerCancel(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id) {
+    struct mtp_ctx *ctx = stream->mtp;
+    int i;
+
+    ctx->timers[timer_id].armed = 0;
+    if (timer_id == MTP_TIMER_ACK_TIMEOUT)
+        stream->sndvar->ts_rto = 0;
+
+    for (i = 0; i < MTP_TIMER_CNT; i++)
+        if (ctx->timers[i].armed)
+            return;                 /* something is still pending */
+
+    if (stream->on_rto_idx >= 0)
         RemoveFromRTOList(mtcp, stream);
-    }
-    stream->sndvar->ts_rto = 0;
 }
 
-void TimerRestart(mtcp_manager_t mtcp, tcp_stream *stream, uint32_t cur_ts) {
-	TimerCancel(mtcp, stream);
-    TimerStart(mtcp, stream, cur_ts);
+void TimerRestart(mtcp_manager_t mtcp, tcp_stream *stream, uint8_t timer_id,
+                  uint32_t deadline) {
+    TimerCancel(mtcp, stream, timer_id);
+    TimerStart(mtcp, stream, timer_id, deadline);
+}
+
+/* True when this timer is armed and due. */
+bool TimerExpired(tcp_stream *stream, uint8_t timer_id, uint32_t cur_ts) {
+    struct mtp_timer *t = &stream->mtp->timers[timer_id];
+    return t->armed && (int32_t)(cur_ts - t->deadline) >= 0;
 }

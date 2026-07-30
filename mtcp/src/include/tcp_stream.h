@@ -176,7 +176,12 @@ struct tcp_send_vars
 };
 
 //#ifdef USE_MTP
+#include "mtp_timer.h"
+
 struct mtp_ctx {
+    /* one slot per timer the program declares; see mtp_timer.h */
+    struct mtp_timer timers[MTP_TIMER_CNT];
+
     uint32_t remote_ip;
     uint32_t local_ip;
     uint16_t remote_port;

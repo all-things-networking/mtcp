@@ -1,4 +1,6 @@
 #include "timer.h"
+#include "mtp_timer.h"
+#include "mtp_instr.h"
 #include "tcp_in.h"
 #include "tcp_out.h"
 #include "stat.h"
@@ -422,16 +424,22 @@ CheckRtmTimeout(mtcp_manager_t mtcp, uint32_t cur_ts, int thresh)
 				TAILQ_REMOVE(rto_list, walk, sndvar->timer_link);
 				mtcp->rto_list_cnt--;
 				walk->on_rto_idx = -1;
+				{
+					/* A flow is on this list while any of its timers is armed,
+					 * so work out which have actually come due. An EP may re-arm,
+					 * which puts the flow back on the list. */
+					uint8_t tid;
+					for (tid = 0; tid < MTP_TIMER_CNT; tid++) {
+						if (!TimerExpired(walk, tid, cur_ts))
+							continue;
+						walk->mtp->timers[tid].armed = 0;
+						MtpTimeoutChain(mtcp, cur_ts, walk, tid);
+					}
+					continue;
+				}
 				// printf("Stream %u: RTO, before: rto: %u\n", 
 				// 		walk->id, walk->sndvar->rto);
 				
-				// printf("srtt: %u, mdev: %u, mdev_max: %u, "
-				// 	"rttvar: %u, rtt_seq: %u\n", 
-				// 	walk->rcvvar->srtt, walk->rcvvar->mdev, 
-				// 	walk->rcvvar->mdev_max, walk->rcvvar->rttvar, walk->rcvvar->rtt_seq);
-				MtpTimeoutChain(mtcp, cur_ts, walk);
-				// printf("Stream %u: RTO, after rto: %u\n", 
-				// 		walk->id, walk->sndvar->rto);
 			} else {
 				TRACE_ERROR("Stream %d: not on rto list.\n", walk->id);
 #ifdef DUMP_STREAM
