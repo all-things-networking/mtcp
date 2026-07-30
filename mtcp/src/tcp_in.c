@@ -8,6 +8,7 @@
 #include "tcp_ring_buffer.h"
 #include "eventpoll.h"
 #include "debug.h"
+#include "evlog.h"
 #include "timer.h"
 #include "ip_in.h"
 #include "clock.h"
@@ -1291,6 +1292,14 @@ ProcessTCPPacket(mtcp_manager_t mtcp,
 				
 	cur_stream->last_active_ts = cur_ts;
 	UpdateTimeoutList(mtcp, cur_stream);
+
+	EVLOG("RX sid=%u seq=%u ack=%u len=%d win=%u f=%c%c%c una=%u nxt=%u cwnd=%u pwnd=%u sbuf=%u",
+	      cur_stream->id, seq, ack_seq, payloadlen,
+	      (uint32_t)cur_stream->sndvar->peer_wnd,
+	      tcph->syn ? 'S' : '-', tcph->fin ? 'F' : '-', tcph->ack ? 'A' : '-',
+	      cur_stream->sndvar->snd_una, cur_stream->snd_nxt,
+	      cur_stream->sndvar->cwnd, cur_stream->sndvar->peer_wnd,
+	      cur_stream->sndvar->sndbuf ? cur_stream->sndvar->sndbuf->len : 0);
 
 	/* Process RST: process here only if state > TCP_ST_SYN_SENT */
 	if (tcph->rst) {

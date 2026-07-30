@@ -8,6 +8,7 @@
 #include "eventpoll.h"
 #include "timer.h"
 #include "debug.h"
+#include "evlog.h"
 #if RATE_LIMIT_ENABLED || PACING_ENABLED
 #include "pacing.h"
 #endif
@@ -334,6 +335,12 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 	
 	cur_stream->snd_nxt += payloadlen;
 
+	EVLOG("TX sid=%u seq=%u len=%u f=%c%c%c nxt=%u una=%u cwnd=%u pwnd=%u",
+	      cur_stream->id, ntohl(tcph->seq), payloadlen,
+	      tcph->syn ? 'S' : '-', tcph->fin ? 'F' : '-', tcph->ack ? 'A' : '-',
+	      cur_stream->snd_nxt, cur_stream->sndvar->snd_una,
+	      cur_stream->sndvar->cwnd, cur_stream->sndvar->peer_wnd);
+
 	if (tcph->syn || tcph->fin) {
 		cur_stream->snd_nxt++;
 		payloadlen++;
@@ -541,9 +548,16 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
 
 		remaining_window = MIN(sndvar->cwnd, sndvar->peer_wnd)
 			               - (seq - sndvar->snd_una);
+		EVLOG("DECIDE sid=%u seq=%u una=%u len=%u cwnd=%u pwnd=%u rwin=%d inflight=%u",
+		      cur_stream->id, seq, sndvar->snd_una, len,
+		      sndvar->cwnd, sndvar->peer_wnd, remaining_window,
+		      seq - sndvar->snd_una);
 		/* if there is no space in the window */
 		if (remaining_window <= 0 ||
 		    (remaining_window < sndvar->mss && seq - sndvar->snd_una > 0)) {
+			EVLOG("BAIL sid=%u why=window rwin=%d mss=%u inflight=%u",
+			      cur_stream->id, remaining_window, sndvar->mss,
+			      seq - sndvar->snd_una);
 			/* if peer window is full, send ACK and let its peer advertises new one */
 			if (sndvar->peer_wnd <= sndvar->cwnd) {
 #if 0

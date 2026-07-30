@@ -28,6 +28,7 @@
 #include "ip_out.h"
 #include "timer.h"
 #include "debug.h"
+#include "evlog.h"
 #if USE_CCP
 #include "ccp.h"
 #include "libccp/ccp.h"
@@ -1595,12 +1596,39 @@ mtcp_setconf(const struct mtcp_conf *conf)
 	return 0;
 }
 
+
 /*----------------------------------------------------------------------------*/
-int 
+/* Per-event trace state (see evlog.h). Defined here rather than in a new file
+ * so the source list in the Makefile stays untouched. */
+FILE          *g_evlog     = NULL;
+long           g_evlog_n   = 0;
+long           g_evlog_max = 200000;
+struct timeval g_evlog_t0;
+
+void
+evlog_init(void)
+{
+	const char *path = getenv("EVLOG_PATH");
+	const char *max  = getenv("EVLOG_MAX");
+
+	if (!path)
+		return;
+	g_evlog = fopen(path, "w");
+	if (!g_evlog)
+		return;
+	if (max)
+		g_evlog_max = atol(max);
+	gettimeofday(&g_evlog_t0, NULL);
+	setvbuf(g_evlog, NULL, _IOFBF, 1 << 20);
+}
+/*----------------------------------------------------------------------------*/
+int
 mtcp_init(const char *config_file)
 {
 	int i;
 	int ret;
+
+	evlog_init();
 
 	/* getting cpu and NIC */
 	/* set to max cpus only if user has not arbitrarily set it to lower # */
