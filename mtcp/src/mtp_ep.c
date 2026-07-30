@@ -1986,10 +1986,15 @@ void MtpFinChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 			MTP_PRINT("Stream %d: TCP_ST_CLOSING\n", cur_stream->id);
 
 		} else if (ctx->state == MTP_TCP_FIN_WAIT_2_ST) {
+			/* The active closer ends up here. Same as the CLOSING path: wait out
+			 * TIME_WAIT on a timer so a retransmitted FIN still finds a context,
+			 * then let the timer reap the flow. Previously nothing armed a timer
+			 * on this path, so flows that closed this way were never reaped. */
 			send_ack = TRUE;
 			ctx->state = MTP_TCP_TIME_WAIT_ST;
+			TimerStart(mtcp, cur_stream, MTP_TIMER_TIMEWAIT,
+			           cur_ts + MTP_TIMEWAIT_TICKS);
 			MTP_PRINT("Stream %d: TCP_ST_TIME_WAIT\n", cur_stream->id);
-			//AddtoTimewaitList(mtcp, cur_stream, cur_ts);
 		}
 	}
 	if (send_ack)
