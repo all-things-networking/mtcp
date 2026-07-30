@@ -28,6 +28,9 @@
 #include "ip_out.h"
 #include "timer.h"
 #include "debug.h"
+#include <stdarg.h>
+#include <fcntl.h>
+#include <string.h>
 #include "evlog.h"
 #if USE_CCP
 #include "ccp.h"
@@ -1590,26 +1593,92 @@ mtcp_setconf(const struct mtcp_conf *conf)
 /*----------------------------------------------------------------------------*/
 /* Per-event trace state (see evlog.h). Defined here rather than in a new file
  * so the source list in the Makefile stays untouched. */
-FILE          *g_evlog     = NULL;
+#define EVLOG_LINE 192
+
+int            g_evlog_on  = 0;
 long           g_evlog_n   = 0;
-long           g_evlog_max = 200000;
 struct timeval g_evlog_t0;
+
+static FILE   *evlog_fp;                /* stream mode */
+static long    evlog_max = 200000;
+static char   *evlog_ring;              /* ring mode: slots * EVLOG_LINE */
+static long    evlog_slots;
+static long    evlog_pos;
+static char    evlog_path[256];
+
+/* Written from a signal handler, so it uses write(2) rather than stdio and
+ * touches only already-formatted bytes. */
+static void
+evlog_dump(int sig)
+{
+	long start, i;
+	int fd;
+
+	(void)sig;
+	fd = open(evlog_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (fd < 0)
+		return;
+	start = (evlog_pos > evlog_slots) ? evlog_pos - evlog_slots : 0;
+	for (i = start; i < evlog_pos; i++) {
+		const char *e = evlog_ring + (i % evlog_slots) * EVLOG_LINE;
+		size_t len = strnlen(e, EVLOG_LINE);
+		if (write(fd, e, len) < 0 || write(fd, "\n", 1) < 0)
+			break;
+	}
+	close(fd);
+}
+
+void
+evlog_emit(const char *fmt, ...)
+{
+	char buf[EVLOG_LINE];
+	va_list ap;
+	int n;
+
+	n = snprintf(buf, sizeof(buf), "%ld %ld ", g_evlog_n, evlog_us());
+	if (n < 0 || n >= (int)sizeof(buf))
+		return;
+	va_start(ap, fmt);
+	vsnprintf(buf + n, sizeof(buf) - n, fmt, ap);
+	va_end(ap);
+	g_evlog_n++;
+
+	if (evlog_ring) {
+		memcpy(evlog_ring + (evlog_pos % evlog_slots) * EVLOG_LINE,
+		       buf, EVLOG_LINE);
+		evlog_pos++;
+	} else if (evlog_fp && g_evlog_n < evlog_max) {
+		fprintf(evlog_fp, "%s\n", buf);
+	}
+}
 
 void
 evlog_init(void)
 {
 	const char *path = getenv("EVLOG_PATH");
 	const char *max  = getenv("EVLOG_MAX");
+	const char *ring = getenv("EVLOG_RING");
 
 	if (!path)
 		return;
-	g_evlog = fopen(path, "w");
-	if (!g_evlog)
-		return;
-	if (max)
-		g_evlog_max = atol(max);
+	snprintf(evlog_path, sizeof(evlog_path), "%s", path);
 	gettimeofday(&g_evlog_t0, NULL);
-	setvbuf(g_evlog, NULL, _IOFBF, 1 << 20);
+
+	if (ring && atol(ring) > 0) {
+		evlog_slots = atol(ring);
+		evlog_ring = calloc(evlog_slots, EVLOG_LINE);
+		if (!evlog_ring)
+			return;
+		signal(SIGUSR1, evlog_dump);
+	} else {
+		evlog_fp = fopen(path, "w");
+		if (!evlog_fp)
+			return;
+		if (max)
+			evlog_max = atol(max);
+		setvbuf(evlog_fp, NULL, _IOFBF, 1 << 20);
+	}
+	g_evlog_on = 1;
 }
 /*----------------------------------------------------------------------------*/
 int

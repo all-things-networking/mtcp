@@ -321,7 +321,7 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
 	s_stream.daddr = iph->saddr;
 	s_stream.dport = mtph->source;
 
-    if (g_evlog) {
+    if (g_evlog_on) {
         tcp_stream *ev_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream);
         if (ev_stream && ev_stream->mtp) {
             struct mtp_ctx *ev_ctx = ev_stream->mtp;
