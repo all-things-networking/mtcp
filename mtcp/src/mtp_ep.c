@@ -1838,7 +1838,14 @@ static inline void idle_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	TimerCancel(mtcp, cur_stream, MTP_TIMER_IDLE);
 	ctx->state = MTP_TCP_CLOSED_ST;
-	DestroyCtx(mtcp, cur_stream, ctx->local_port);
+
+	/* from mTCP CheckConnectionTimeout: a flow the application still holds is
+	 * reported to it rather than pulled out from under it; only an orphan is
+	 * destroyed here. */
+	if (cur_stream->socket)
+		RaiseErrorEvent(mtcp, cur_stream);
+	else
+		DestroyCtx(mtcp, cur_stream, ctx->local_port);
 }
 
 /* Runs the event processor the program bound to whichever timer expired. The
