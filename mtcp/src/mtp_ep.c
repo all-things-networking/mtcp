@@ -257,6 +257,15 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 	TimerStart(mtcp, cur_stream, MTP_TIMER_ACK_TIMEOUT,
 			  cur_ts + cur_stream->sndvar->rto);
 
+	/* Anything left over gets another look on the next pass rather than waiting
+	 * for the peer to ack. The donor re-decides per segment inside
+	 * WriteTCPDataList -- it bails ~21k times across a run with no loss of rate,
+	 * because a bail there costs one loop iteration. MTP_ProcessSendEvents
+	 * dequeues a flow once, so without this a deferred remainder costs a whole
+	 * round trip, which is what made deferring a few bytes expensive. */
+	if (data_rest > bytes_to_send)
+		AddtoSendList(mtcp, cur_stream);
+
 	// MTP_PRINT("send_ep before releasing lock\n");
 	SBUF_UNLOCK(&sndvar->write_lock);
 	// MTP_PRINT("send_ep after releasing lock\n");
