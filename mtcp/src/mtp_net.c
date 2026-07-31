@@ -360,6 +360,13 @@ int MTP_ProcessTransportPacket(mtcp_manager_t mtcp,
         return 0;
     }
 
+    if (mtph->rst){
+        tcp_stream *rst_stream = StreamHTSearch(mtcp->tcp_flow_table, &s_stream);
+        if (rst_stream)
+            rst_ep(mtcp, cur_ts, mtph->ack_seq, rst_stream);
+        return 0;
+    }
+
     if (mtph->ack){
 
         uint32_t ev_ack_seq = mtph->ack_seq;

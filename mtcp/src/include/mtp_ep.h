@@ -62,6 +62,8 @@ void MtpSyNAckChain(mtcp_manager_t mtcp, uint32_t cur_ts,
 					struct tcp_opt_timestamp* ev_ts, 
 					tcp_stream* cur_stream);
 
+void rst_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_ack_seq,
+            tcp_stream *cur_stream);
 void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream,
                      uint8_t timer_id);
 

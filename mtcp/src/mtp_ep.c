@@ -146,9 +146,7 @@ static inline void send_ep(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream *cur
 			bytes_to_send, data_rest, window_avail);
 
 	if (bytes_to_send <= 0) {
-		// MTP_PRINT("send_ep before releasing lock\n");
 		SBUF_UNLOCK(&sndvar->write_lock);
-		// MTP_PRINT("send_ep after releasing lock\n");
         return;
 	}
 
@@ -1876,6 +1874,48 @@ static inline void idle_ep(mtcp_manager_t mtcp, uint32_t cur_ts,
 
 /* Runs the event processor the program bound to whichever timer expired. The
  * compiler emits this mapping; the target only decides *when* to call it. */
+/*----------------------------------------------------------------------------*/
+/* from mTCP ProcessRST. A reset tears the connection down; which states are
+ * destroyed outright and which are reported to the application follows the
+ * donor exactly, so a reset produces the same observable behaviour on both. */
+void rst_ep(mtcp_manager_t mtcp, uint32_t cur_ts, uint32_t ev_ack_seq,
+            tcp_stream *cur_stream)
+{
+	struct mtp_ctx *ctx = cur_stream->mtp;
+
+	if (ctx->state <= MTP_TCP_SYN_SENT_ST)
+		return;                 /* handled where the handshake is */
+
+	if (ctx->state == MTP_TCP_SYNACK_SENT_ST) {
+		if (ev_ack_seq == ctx->send_next) {
+			ctx->state = MTP_TCP_CLOSED_ST;
+			DestroyCtx(mtcp, cur_stream, ctx->local_port);
+		}
+		return;
+	}
+
+	/* the application has already closed: just tear it down */
+	if (ctx->state == MTP_TCP_FIN_WAIT_1_ST ||
+	    ctx->state == MTP_TCP_FIN_WAIT_2_ST ||
+	    ctx->state == MTP_TCP_LAST_ACK_ST ||
+	    ctx->state == MTP_TCP_CLOSING_ST ||
+	    ctx->state == MTP_TCP_TIME_WAIT_ST) {
+		ctx->state = MTP_TCP_CLOSED_ST;
+		DestroyCtx(mtcp, cur_stream, ctx->local_port);
+		return;
+	}
+
+	/* still open as far as the application is concerned: tell it */
+	if (ctx->state >= MTP_TCP_ESTABLISHED_ST &&
+	    ctx->state <= MTP_TCP_CLOSE_WAIT_ST) {
+		ctx->state = MTP_TCP_CLOSED_ST;
+		if (cur_stream->socket)
+			RaiseErrorEvent(mtcp, cur_stream);
+		else
+			DestroyCtx(mtcp, cur_stream, ctx->local_port);
+	}
+}
+/*----------------------------------------------------------------------------*/
 void MtpTimeoutChain(mtcp_manager_t mtcp, uint32_t cur_ts, tcp_stream* cur_stream,
                      uint8_t timer_id){
 	switch (timer_id) {
