@@ -1,0 +1,923 @@
+/**************  event declarations ***************/
+
+event SEND : INCOMING::APP_EVENT {
+    uint32 data_size;
+}
+
+event RECV: INCOMING::APP_EVENT {
+    uint32 data_size;
+    addr_t user_buf_addr;
+}
+
+event SYN : INCOMING::NET_EVENT {
+    uint32 remote_ip;
+    uint16 remote_port;
+    uint32 init_seq;
+    uint16 rwnd_size;
+    bool sack_permit;
+    bool wscale_valid;
+    uint8 wscale;
+    bool mss_valid;
+    uint16 mss;
+}
+
+event SYNACK : INCOMING::NET_EVENT {
+    uint32 init_seq;
+    uint16 rwnd_size;
+    bool sack_permit;
+    bool wscale_valid;
+    uint8 wscale;
+    bool mss_valid;
+    uint16 mss;
+}
+
+
+event ACK : INCOMING::NET_EVENT {
+    uint32 ack_seq;
+    uint32 rwnd_size;
+    uint32 seq;
+    tcp_opt_timestamp ts;
+}
+
+event DATA : INCOMING::NET_EVENT {
+    uint32 data_len;
+    uint32 seq_num;
+    addr_t hold_addr;
+}
+
+event MISS_ACK : TIMER_EVENT {
+}
+
+event LISTEN: INCOMING::APP_EVENT{
+    uint32 ip_addr;
+    uint16 port;
+    uint32 pending_cap;
+}
+
+// TODO: update event processor
+event ACCEPT: INCOMING::APP_EVENT{
+    bool non_block;
+}
+
+event CONNECT: INCOMING::APP_EVENT{
+    uint32 local_ip;
+    uint32 remote_ip;
+    uint16 local_port;
+    uint16 remote_port;
+}
+
+
+/**************  TCP packet blueprint  ***************/
+opt_t tcp_opt_mss {
+    uint8 kind = 2;
+    uint8 len = 4;
+    uint32 value;
+}
+
+opt_t tcp_opt_sack_permit {
+    uint8 kind = 4;
+    uint8 len = 2;
+    uint16 value;
+}
+
+opt_t tcp_opt_timestamp {
+    uint8 kind = 8;
+    uint8 len = 10;
+    uint32 value1;
+    uint32 value2;
+}
+
+opt_t tcp_opt_wscale {
+    uint8 kind = 2;
+    uint8 len = 3;
+    uint8 value;
+}
+
+opt_t tcp_opt_nop {
+    uint8 kind = 1;
+}
+
+opt_union tcp_opt_type{
+    tcp_opt_mss,
+    tcp_opt_sack_permit, 
+    tcp_opt_timestamp,
+    tcp_opt_wscale,
+    tcp_opt_nop
+}
+
+opt_list tcp_options {
+    uint32 len = data_offset - 20; 
+    type_select = 8;
+    list<tcp_opt_type> opts; 
+}
+
+pkt_bp TCPBP {
+    uint16 src_port;
+    uint16 dest_port;
+    uint32 seq;
+    uint32 ack_seq;
+    uint4  data_offset;
+    uint4  reserved;
+    bool   is_cwr;
+    bool   is_ece;
+    bool   is_urg;
+    bool   is_ack;
+    bool   push;
+    bool   rst;
+    bool   is_syn;
+    bool   is_fin;
+    uint16 rwnd_size;
+    checksum16_t checksum;
+    uint16 urg_ptr;
+    opt_list<(data_offset - 5)*32, 8, tcp_opt_type> tcp_opts;
+    data_t data;
+}
+
+/****************** contexts and other structs **************/
+context tcp_listen_context {
+    uint32 local_ip;
+    uint32 local_port;
+    uint8  state;
+    uint32 pending_cap;
+    list<accept_res> pending;
+}
+
+context tcp_context {
+    uint32 remote_ip;
+    uint32 local_ip;
+    uint16 remote_port;
+    uint16 local_port;
+    addr_t buf_addr;
+    bool remote_sack_permit;
+    
+    uint8 state;
+    uint32 SMSS = 1460;
+    uint32 eff_SMSS;
+
+    // sender vars
+    uint32 init_seq;
+    uint32 last_ack = 429496729;
+    uint8 duplicate_acks = 0;
+    uint32 flightsize_dupl = 0;
+    uint32 ssthresh = 0;
+    uint32 cwnd_size = 3 * SMSS;
+    uint8 wscale = 7;
+
+    uint32 RTO = ONE_SEC;
+    int64 SRTT = 0;
+    uint32 RTTVAR = 0;
+    bool first_rto = 1;
+
+    uint32 send_una = 0;
+    uint32 send_next = 0;
+    uint32 data_end = 0;
+    uint32 remote_wscale = 0;
+    uint32 last_rwnd_size = 16959;
+    uint32 lwu_seq;
+    uint32 lwu_ack; 
+
+    bool first_send_req = true;
+
+    uint32 num_rtx = 0;
+    uint32 max_num_rtx = 0;
+
+    // receiver vars
+    uint32 recv_init_seq;
+    uint32 rwnd_size = 16959;
+    //uint32 snd_wl1;		// segment seq number for last window update
+	//uint32 snd_wl2;		// segment ack number for last window update
+    uint32 recv_next;
+    uint32 last_flushed;
+    bool first_data_rcvd = true;
+    //list<sent_pkt_info> data_recv_info_array(500);
+    //uint32 data_recv_array_head = 0;
+    //uint32 data_recv_array_tail = 0;
+
+    timer_t ack_timeout;
+
+    addr_t read_from_addr;
+    addr_t write_to_addr;
+
+    sliding_wnd meta_rwnd;
+    buffer_id_t bid;
+
+    // timestamps
+    uint32 ts_recent;
+	uint32 ts_lastack_rcvd;
+	uint32 ts_last_ts_upd;
+}
+
+interm_output interm_out {
+    bool change_cwnd;
+    bool skip_ack_eps;
+}
+
+/****************** extracting events out of packets ********************/
+net_to_transp ntt_module {
+    net_header IPheader {
+        uint4 hdr_len;
+        uint16 tot_len;
+        uint16 identification;
+        uint3 flags;
+        uint8 ttl;
+        uint8 protocol;
+        uint16 hdrChecksum;
+        uint32 src_ip;
+        uint32 dst_ip;
+    }
+
+    list<event_t> parse_net_packet(pkt_t p, IPheader i) { 
+        list<event_t> out;
+        TCPBP pkt_bp;
+        p.extract(pkt_bp);
+
+        if (i.tot_len < ((i->hdr_len + pkt_bp.data_offset) << 2)) return;
+        // TODO: validate checksum
+        if (pkt_bp.is_syn && !pkt_bp.is_ack){
+           SYN event;
+           event.remote_ip = i.src_ip;
+           event.remote_port = pkt_bp.src_port;
+           event.init_seq = pkt_bp.seq;
+           event.rwnd_size = pkt_bp.rwnd_size;
+           event.sack_permit = op_list["tcp_opt_sack_permit"].valid();
+           event.mss_valid = opt_list[tcp_opt_mss].valid();
+           if (event.mss_valid){
+                event.mss = op_list[tcp_opt_mss].value;
+           }
+           event.wscale_valid = opt_list[tcp_opt_wscale].valid();
+           if (event.wscale_valid){
+                event.wscale = op_list[tcp_opt_wscale].value;
+           }  
+           flow_id id(i.dst_ip, p.dst_port);
+           set_flow_id(event, id);
+           out.add(event);
+           return out
+        }
+
+        flow_id id(i.src_ip, i.dst_ip, p.src_port, p.dst_port);
+
+        if (pkt_bp.is_syn && pkt_bp.is_ack){
+            SYNACK event;
+            event.init_seq = pkt_bp.seq;
+            event.rwnd_size = pkt_bp.rwnd_size;
+            set_flow_id(event, id);
+            out.add(event);
+            return out;
+        }            
+        
+        if(len(pkt_bp.data) > 0) {
+            DATA event;
+            event.seq_num = pkt_bp.seq;
+            event.hold_addr = pkt_bp.data.addr;
+            event.data_len = len(pkt_bp.data);
+            set_flow_id(event, id);
+            out.add(event);
+        }
+        if(pkt_bp.is_ack == 1) {
+            ACK event;
+            event.ack_seq = pkt_bp.ack_seq;
+            event.rwnd_size = pkt_bp.rwnd_size;
+            event.seq = pkt_bp.seq;
+            // TODO: Fix this
+            event.ts = pkt_bp.tcp_opts[tcp_opt_timestamp];
+            set_flow_id(event, id);
+            out.add(event);
+        }
+        return out;
+    }
+}
+
+/************************ event processor declarations **************************/
+list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out scratch);
+list<instr_t> flush_ep (RECV ev, tcp_context ctx, interm_out scratch);
+
+void timestamp_ep(ACK ev, tcp_context ctx, interm_out scratch);
+list<instr_t> conn_ack_ep (ACK ev, tcp_context ctx, interm_out scratch);
+void rto_ep (ACK ev, tcp_context ctx, interm_out scratch);
+void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out scratch);
+void slows_congc_ep (ACK ev, tcp_context ctx, interm_out scratch);
+list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out scratch);
+
+
+list<instr_t> data_net_ep (DATA ev, tcp_context ctx, interm_out scratch);
+list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out scratch);
+list<instr_t> app_feedback_ep (DATA ev, tcp_context ctx, interm_out scratch);
+
+list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out scratch);
+
+list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out scratch);
+list<instr_t> synack_ep (SYNACK ev, tcp_context ctx, interm_out scratch);
+
+list<instr_t> listen_ep (LISTEN ev, null_context ctx, interm_out scratch);
+list<instr_t> accept_ep (LISTEN ev, tcp_listen_context ctx, interm_out scratch);
+list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out scratch);
+
+/*************************** dispatcher ************************/
+dispatch disp_table {
+    SEND      -> {send_ep};
+    RECV      -> {flush_ep};
+    ACK       -> {timestamp_ep, conn_ack_ep, rto_ep, fast_retr_rec_ep, 
+                  slows_congc_ep, ack_net_ep};
+    DATA      -> {data_net_ep, send_ack};
+    MISS_ACK   -> {ack_timeout_ep};
+    
+    LISTEN    -> {listen_ep};
+    ACCEPT    -> {accept_ep};
+    CONNECT   -> {connect_ep};
+    SYN       -> {syn_ep};
+}
+
+/************************* event processor definitions ****************************/
+
+list<instr_t> send_ep (SEND ev, tcp_context ctx, interm_out scratch) {
+    list<instr_t> out;
+
+    if (ctx.state != 5) return out; // ESTABLISHED_ST
+
+    if (ctx.first_send_req){
+        instr_t instr = new_tx_ordered_data(INF, get_flow_id(ev));
+        ctx.first_send_req = false;
+        out.add(instr);
+    }
+
+    ctx.data_end = ctx.data_end + ev.data_size;
+    instr_t instr = add_tx_data_seg();
+
+    uint32 data_rest = ctx.data_end - ctx.send_next;
+    uint32 effective_window = ctx.cwnd_size;
+    if(effective_window > ctx.last_rwnd_size)
+        effective_window = ctx.last_rwnd_size;
+
+    uint32 bytes_to_send = 0;
+
+    if(ctx.send_una + effective_window < ctx.send_next)
+        return;
+    else {
+        uint32 window_avail = 0;
+        if (ctx.send_una + effective_window > ctx.send_next)
+            window_avail = ctx.send_una + effective_window - ctx.send_next;
+        
+        if(data_rest < window_avail)
+            bytes_to_send = data_rest;
+        else
+            bytes_to_send = window_avail;
+    }
+
+    if (bytes_to_send <= 0) return;
+
+    TCPBP bp;
+    bp.src_port = ctx.src_port;
+    bp.dest_port = ctx.dest_port;
+    bp.seq_num = ctx.send_next;
+    bp.is_ack = 0;
+    // bp.checksum = CRC16_t();
+    addr_t addr = ctx.buf_addr + ctx.send_next - ctx.init_seq;
+    bp.data = unseg_data(addr, bytes_to_send, SMSS, [TCPBP::seq_num, ctx.send_next, prev.hdr.seq_no + prev.payload_len]);
+
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+    out.add(instr);
+
+    ctx.send_next = ctx.send_next + bytes_to_send;
+
+    MISS_ACK time_ev;
+    instr_t instr = timer_start_instr(ack_timeout, nanoseconds(ctx.RTO), time_ev); 
+    out.add(instr); 
+
+    return out;
+}
+
+list<instr_t> listen_ep (LISTEN ev, null_context ctx, interm_out scratch) {
+   list<instr_t> out;
+   instr_t instr = new_ctx_instr(tcp_listen_context,
+                                 local_ip = ev.ip_addr,
+                                 local_port = ev.port,
+                                 state = 0, // LISTEN_STATE
+                                 pending_cap = ev.pending_cap);
+    out.add(instr);
+    return out; 
+}
+
+
+list<instr_t> accept_ep (ACCEPT ev, tcp_listen_context ctx, interm_out scratch) {
+    list<instr_t> out;
+
+    // Wait until the condition met, then return accpet_conn_instr
+    if (len(ctx.pending) == 0) {
+        wait_until(ev, len(ctx.pending) > 0);
+    }
+    accept_res res = ctx.pending.remove();
+    instr_t instr = notify(res); // let target allocate socket
+    out.add(instr);
+
+    if (ctx.state == 0)
+        ctx.state = 1; // ACCEPT_ST;
+
+    // This is an alternative version 
+    // (braces indicate that inside steps are executed only when waiting condition is met)
+    /* 
+    wait_until(ev, len(ctx.pending) > 0) {
+        accept_res acc = ctx.pending.remove();
+        instr_t instr = accept_conn_instr(acc); // allocate socket
+        out.add(instr);
+
+        if (ctx.state == 0)
+            ctx.state = 1; // ACCEPT_ST;
+    }
+    */
+
+    return out;
+}
+
+
+list<instr_t> connect_ep (CONNECT ev, null_context ctx, interm_out scratch){
+    list<instr_t> out;
+
+    uint32 init_seq = rand();
+
+    TCBBP bp;
+    bp.src_port = ev.local_port;
+    bp.dst_port = ev.remote_port;
+    bp.is_syn = true;
+    bp.is_ack = false;
+    bp.seq = init_seq;
+    instr_t instr = pkt_gen_instr(ev.local_ip, ev.remote_ip, bp);
+    out.add(instr);
+
+    instr = new_ctx_instr(tcp_context, 
+                          remote_ip = ev.remote_ip, 
+                          local_ip = ev.local_ip,
+                          remote_port = ev.remote_port,
+                          local_port = ev.local_port,
+                          init_seq = init_seq,
+                          send_next = init_seq + 1,
+                          state = 3 // SYN_SENT_ST;
+                          );
+    out.add(instr);
+    return out;
+}
+
+list<instr_t> syn_ep (SYN ev, tcp_listen_context ctx, interm_out scratch) {
+    list<instr_t> out;
+
+    if (ctx.state != 0)
+        return out;
+    
+    if (len(ctx.pending) < ctx.pending_cap) {
+        accept_res acc;
+        // set conditional variable according to target
+        ctx.pending.add(acc);
+    } else {
+        return out;
+    }
+
+    uint32 init_seq = rand();
+
+    TCBBP bp;
+    bp.src_port = ctx.local_port;
+    bp.dst_port = ctx.remote_port;
+    bp.is_syn = true;
+    bp.is_ack = true;
+    bp.ack_seq = ev.init_seq + 1;
+    bp.seq = init_seq;
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ev.remote_ip, bp);
+    out.add(instr);
+
+    uint8 wscale = 0;
+    if (ev.wscale_valid) wscale = ev.wscale;
+
+    uint16 mss = 1460;
+    if (ev.mss_valid) mss = ev.mss;
+
+    instr = new_ctx_instr(tcp_context, 
+                          remote_ip = ev.remote_ip, 
+                          local_ip = ctx.local_ip,
+                          remote_port = ev.remote_port,
+                          local_port = ctx.local_port,
+                          sack_permit = ev.sack_permit,
+                          SMSS = mss,
+                          init_seq = init_seq,
+                          send_next = init_seq + 1,
+                          recv_init_seq = ev.init_seq,
+                          recv_next = ev.init_seq + 1,
+                          last_flushed = ev.init_seq;
+                          last_rwnd_size = ev.rwnd_size,
+                          wscale_remote = wscale,
+                          state = 2 // SYNACK_SENT_ST;
+                          );
+    out.add(instr);
+
+    return out;
+    
+}
+
+list<instr_t> synack_ep (SYNACK ev, tcp_context ctx, interm_out scratch) {
+    list<instr_t> out;
+
+    if (ctx.state != 3) // SYN_SENT_ST;
+        return out;
+
+    ctx.state = 5; //ESTABLISHED_ST
+    ctx.recv_init_seq = ev.init_seq;
+    ctx.recv_next = ev.init_seq + 1;
+    ctx.last_rwnd_size = ev.rwnd_size;
+    ctx.last_flushed = ev.init_seq;
+
+    TCBBP bp;
+    bp.src_port = ctx.local_port;
+    bp.dst_port = ctx.remote_port;
+    bp.is_ack = true;
+    bp.ack_seq = ev.init_seq + 1;
+    bp.seq = ctx.init_seq;
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+    out.add(instr);
+
+    return out;
+}
+
+void timestamp_ep(ACK ev, tcp_context ctx, interm_out scratch)
+{
+	if (valid_opt(ev.ts)) {
+		ctx.ts_recent = ev.ts.value1;
+		ctx.ts_lastack_rcvd = ev.ts.value2;
+		ctx.ts_last_ts_upd = now();
+	}
+}
+
+list<instr_t> conn_ack_ep (ACK ev, tcp_context ctx, interm_out scratch) {
+    list<instr_t> out;
+
+    if (ctx.state == SYNACK_SENT_ST &&
+        ev.ack_seq == ctx.init_seq + 1){
+        ctx.state == 5; // ESTABLISHED_ST
+        ctx.send_una = ctx.send_una + 1;
+        ctx.send_next = ev.ack_seq;
+        ctx.last_ack = ev.ack_seq;
+        
+        if (ctx.cwnd_size == 1){
+            ctx.cwnd_size = 2 * ctx.SMSS;
+        }
+        else {
+            ctx.cwnd_size = ctx.SMSS;
+        }
+        ctx.lwu_seq = ev.seq;
+        ctx.lwu_ack = ev.ack_seq;
+        scratch.skip_ack_eps = true;
+        instr_t instr = timer_cancel_instr(ack_timeout);
+        out.add(instr);
+
+        // TODO: fill out
+        instr = notify();
+        out.add(instr);
+    }
+    else {
+        scratch.skip_ack_eps = false;
+    }
+
+    return out;
+}
+
+
+void rto_ep (ACK ev, tcp_context ctx, interm_out scratch) {
+    if(scratch.skip_ack_eps)
+        return;
+    
+    if (ctx.state != 5) return; //ESTABLISHED_ST
+
+    if(ev.ack_seq < ctx.send_una || ctx.send_next < ev.ack_seq) {
+        scratch.skip_ack_eps = 1;
+        return;
+    }
+
+    uint32 granularity_g = 1;
+    uint32 RTT = 100000000;
+
+    if(ctx.first_rto) {
+        ctx.SRTT = RTT;
+        ctx.RTTVAR = RTT / 2;
+        if(granularity_g >= 4 * ctx.RTTVAR)
+            ctx.RTO = ctx.SRTT + granularity_g;
+        else
+            ctx.RTO = ctx.SRTT + 4 * ctx.RTTVAR;
+        
+        ctx.first_rto = false;
+    } else {
+        ctx.RTTVAR = (1 - 1/4) * ctx.RTTVAR + 1/4 * abs(ctx.SRTT - RTT);
+        ctx.SRTT = (1 - 1/8) * ctx.SRTT + 1/8 * RTT;
+        if(granularity_g >= 4 * ctx.RTTVAR)
+            ctx.RTO = ctx.SRTT + granularity_g;
+        else
+            ctx.RTO = ctx.SRTT + 4 * ctx.RTTVAR;
+    }
+}
+
+void fast_retr_rec_ep (ACK ev, tcp_context ctx, interm_out scratch) {
+    if(scratch.skip_ack_eps)
+        return;
+    
+    if (ctx.state != 5) return; //ESTABLISHED_ST
+    
+    scratch.change_cwnd = 1;
+
+    if(ev.ack_seq == ctx.last_ack) {
+        ctx.duplicate_acks = ctx.duplicate_acks + 1;
+
+        scratch.change_cwnd = 0;
+
+        if(ctx.duplicate_acks == 1) {
+            ctx.flightsize_dupl = ctx.send_next - ctx.send_una;
+        }
+
+        if(ctx.duplicate_acks == 3) {
+
+            uint32 opt1 = ctx.flightsize_dupl / 2;
+            uint32 opt2 = 2 * ctx.SMSS;
+            if(opt1 >= opt2)
+                ctx.ssthresh = opt1;
+            else
+                ctx.ssthresh = opt2;
+
+            ctx.cwnd_size = ctx.ssthresh + ctx.SMSS;
+        }
+        
+        if(ctx.duplicate_acks != 3) {
+            ctx.cwnd_size = ctx.cwnd_size + ctx.SMSS;
+        }
+
+    } else {
+        if(ctx.duplicate_acks >= 3) {
+            ctx.cwnd_size = ctx.ssthresh;
+        }
+
+        ctx.duplicate_acks = 0;
+        ctx.last_ack = ev.ack_seq;
+    }
+}
+
+void slows_congc_ep (ACK ev, tcp_context ctx, interm_out scratch) {
+    if(scratch.skip_ack_eps)
+        return;
+
+    if (ctx.state != 5) return; //ESTABLISHED_ST
+    
+    if(scratch.change_cwnd) {
+        // calculate how many packets have been acked
+        uint32 rmlen = ev.ack_seq - ctx.send_una;
+        uint16 packets = rmlen / ctx.eff_SMSS;
+        if (packets * ctx.eff_SMSS > rmlen) {
+            packets = packets + 1;
+        }
+
+        if(ctx.cwnd_size < ctx.ssthresh) {
+            ctx.cwnd_size = ctx.cwnd_size + ctx.SMSS * packets;
+        }
+        else {
+            uint32 add_cwnd = packets * ctx.SMSS * ctx.SMSS / ctx.cwnd_size;
+            ctx.cwnd_size = ctx.cwnd_size + add_cwnd;
+        }
+    }
+}
+
+
+list<instr_t> ack_net_ep (ACK ev, tcp_context ctx, interm_out scratch) {
+    list<instr_t> out;
+
+    if(scratch.skip_ack_eps)
+        return out;
+
+    if (ctx.state != 5) return out; //ESTABLISHED_ST
+
+    // Update window, and allow user to start writing 
+    // if peer just has space to receive packets
+    uint32 rwindow = window << ctx->wscale_remote;
+    // MTP TODO: sequence type
+    if (ctx.lwu_seq < ev.seq ||
+        (ctx.lwu_seq == ev.seq && ctx.lwu_ack < ev.ack_seq) ||
+        (ctx.lwu_ack == ev.ack_seq && rwindow > ctx.last_rwnd_remote)){
+        uint32_t rwindow_prev = ctx.last_rwnd_remote;
+        ctx.last_rwnd_remote = rwindow;
+        ctx.lwu_seq = ev.seq;
+        ctx.lwu_ack = ev.ack_seq;
+        if (rwindow_prev < (ctx.send_next - ctx.send_una) &&
+            ctx.last_rwnd_remote >= (ctx.send_next - ctx.send_una)){
+            // TODO: fix
+            instr_t instr = notify_instr();
+            out.add(instr);
+        }
+    }
+    
+    uint32 data_rest = ctx.data_end - ctx.send_next;
+    if(data_rest == 0 && ev.ack_seq == ctx.send_next) {
+        instr_t instr = timer_cancel_instr(ack_timeout);
+        out.add(instr);
+        return out;
+    }
+
+    uint32 effective_window = ctx.cwnd_size;
+    if(ctx.last_rwnd_size < effective_window)
+        effective_window = ctx.last_rwnd_size;
+
+    uint32 bytes_to_send = 0;
+
+    if(ctx.duplicate_acks == 3) {
+        bytes_to_send = ctx.eff_SMSS;
+        if(bytes_to_send > effective_window)
+            bytes_to_send = effective_window;
+
+        TCPBP bp;
+        bp.src_port = ctx.src_port;
+        bp.dest_port = ctx.dest_port;
+        bp.seq_num = ctx.send_una;
+        bp.is_ack = 0;
+        // bp.checksum = CRC16_t();
+        // TODO: options
+        addr_t addr = tx_data_addr(get_flow_id(ev), ctx.send_una - ctx.init_seq);
+        bp.data = seg_data(addr, bytes_to_send);
+
+        instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+        out.add(instr);
+
+        return out;
+    }
+
+    uint32 window_avail = 0;
+    uint32 window_end = ev.ack_seq + effective_window;
+    if (window_end > ctx.send_next)
+        window_avail = window_end - ctx.send_next;
+
+    if(window_avail == 0)
+        bytes_to_send = 0;
+    else {
+        if(data_rest < window_avail) {
+            bytes_to_send = data_rest;
+        } else {
+            bytes_to_send = window_avail;
+        }
+    }
+
+    TCPBP bp;
+    bp.src_port = ctx.src_port;
+    bp.dest_port = ctx.dest_port;
+    bp.seq_num = ctx.send_next;
+    bp.is_ack = 0;
+    // bp.checksum = CRC16_t();
+    addr_t addr = tx_data_addr(get_flow_id(ev), ctx.send_next - ctx.init_seq);
+    bp.data = unseg_data(addr, bytes_to_send, ctx->eff_SMSS, [TCPBP::seq_num, ctx.send_next, prev.hdr.seq_no + prev.payload_len]);
+
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+    out.add(instr);
+
+    ctx.send_next = ctx.send_next + bytes_to_send;
+
+    // Remove acked data from sending buffer
+    // The implementation of sending buffer is more target dependent
+    uint32 rmlen = ev.ack_seq - ctx.send_una;
+    if (rmlen > 0) {
+        uint32 offset = ctx.send_una - ctx.init_seq;
+        instr_t instr = tx_data_flush(get_flow_id(ev), offset, rmlen);
+        out.add(instr);
+        ctx.send_una = ev.ack_seq;
+        ctx.num_rtx = 0;
+    }
+
+    MISS_ACK time_ev;
+    instr_t instr = timer_restart_instr(ack_timeout, nanoseconds(ctx.RTO), time_ev);
+    out.add(instr);
+
+    return out;
+}
+
+
+list<instr_t> data_net_ep (DATA ev, tcp_context ctx, interm_out scratch) {
+    list<instr_t> out;
+    
+    if (ctx.first_data_rcvd){
+        instr_t instr = new_rx_ordered_data(INF, get_flow_id(ev));
+        ctx.first_data_rcvd = false;
+        out.add(instr); 
+    }
+
+    if((ctx.rwnd_size == 0 && ev.data_len > 0) ||
+    (ev.seq_num > ctx.recv_next + ctx.rwnd_size) ||
+    (ev.seq_num + ev.data_len - 1 < ctx.recv_next))
+        return;
+
+    uint32 data_end = ev.seq_num + ev.data_len;
+    ctx.meta_rwnd.set(ev.seq_num, data_end);
+    ctx.meta_rwnd.slide();
+    ctx.recv_next = ctx.meta_rwnd.head();
+
+    instr_t instr = add_data_seg(ev.hold_addr, ev.data_len, get_flow_id(ev), ev.seq_num - ctx.recv_init_seq);
+    out.add(instr);
+
+    return out;
+}
+
+list<instr_t> send_ack (DATA ev, tcp_context ctx, interm_out scratch) {
+    list<instr_t> out;
+
+    TCPBP bp;
+    bp.src_port = ctx.src_port;
+    bp.dest_port = ctx.dest_port;
+    bp.seq_num = ctx.send_next;
+    bp.is_ack = 1;
+    bp.ack_seq = ctx.recv_next;
+    bp.wnd_size = ctx.rwnd_size;
+    // bp.checksum = CRC16_t();
+
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+    out.add(instr);
+
+    return out;
+}
+
+list<instr_t> flush_ep (RECV ev, tcp_context ctx, interm_out scratch) {
+    list<instr_t> out;
+
+    uint32 data_avail = ctx.rcv_next - ctx.last_flushed - 1;
+    if (data_avail > ev.data_size){
+        data_avail = ev.data_size;
+    }
+    instr_t instr = flush_and_notify(get_flow_id(ev), data_avail, ev.user_buf_addr);
+    ctx.last_flushed += data_avail;
+
+    out.add(instr);
+
+    return out;
+}
+
+list<instr_t> ack_timeout_ep (MISS_ACK ev, tcp_context ctx, interm_out scratch) {
+    list<instr_t> out;
+
+    if (ctx.num_rtx < TCP_MAX_RTX){
+        ctx.num_rtx = ctx.num_rtx + 1;
+    }
+
+    if (ctx.num_rtx > ctx.max_num_rtx){
+        ctx->max_num_rtx = ctx->num_rtx;
+    }
+
+    uint8 backoff;
+    if (ctx.state >= TCP_ESTABLISHED_ST) {
+		backoff = MIN(ctx.num_rtx, TCP_MAX_BACKOFF);
+
+		uint32 rto_prev = ctx.rto;
+		ctx.rto = ((ctx.srtt >> 3) + ctx.rttvar) << backoff;
+		if (ctx.rto <= 0) {
+			ctx.rto = rto_prev;
+		}
+	} else if (ctx.state >= TCP_SYN_SENT_ST) {
+		/* if there is no rtt measured, update rto based on the previous one */
+		if (ctx.num_rtx < TCP_MAX_BACKOFF) {
+			ctx.rto <<= 1;
+		}
+	}
+
+    uint32 wnd = ctx.cwnd_size;
+    if (ctx.last_rwnd_remote < wnd) wnd = ctx.last_rwnd_remote;
+    ctx.ssthresh = wnd / 2;
+    if (ctx.ssthresh < 2 * ctx.SMSS){
+        ctx.ssthresh = ctx.SMSS;
+    }
+    
+    uint32 data_rest = ctx.data_end - ctx.send_una;
+    uint32 effective_window = ctx.cwnd_size;
+    if(effective_window > ctx.last_rwnd_size)
+        effective_window = ctx.last_rwnd_size;
+    
+    uint32 bytes_to_send = 0;
+
+    if(ctx.send_una + effective_window < ctx.send_next) {
+        if(data_rest < effective_window)
+            bytes_to_send = data_rest;
+        else
+            bytes_to_send = effective_window;
+    } else {
+        uint32 window_avail = ctx.send_una + effective_window - ctx.send_next;
+        if(data_rest < window_avail)
+            bytes_to_send = data_rest;
+        else
+            bytes_to_send = window_avail;
+    }
+    if(bytes_to_send > SMSS)
+        bytes_to_send = SMSS;
+
+    TCPBP bp;
+    bp.src_port = ctx.src_port;
+    bp.dest_port = ctx.dest_port;
+    bp.seq_num = ctx.send_una;
+    bp.is_ack = 0;
+    bp.wnd_size = ctx.rwnd_size;
+    // bp.checksum = CRC16_t();
+    addr_t addr = ctx.buf_addr + ctx.send_una - ctx.init_seq;
+    bp.data = seg_data(addr, bytes_to_send);
+
+    instr_t instr = pkt_gen_instr(ctx.local_ip, ctx.remote_ip, bp);
+    out.add(instr);
+
+    MISS_ACK time_ev;
+
+    instr_t instr = timer_restart_instr(ack_timeout, nanosecond(ctx.RTO));
+    out.add(instr);
+
+    return out;
+}
