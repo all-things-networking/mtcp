@@ -1,0 +1,32 @@
+#ifndef SCHEDULER_H
+#define SCHEDULER_H
+/*
+ * The target's main loop.
+ *
+ * Increment 1 builds the shape and none of the content: read a burst, hand
+ * every packet down the infrastructure's receive path, flush the transmit
+ * burst, take the clock once. The generation list, the timing wheel, the
+ * application queues and run-to-completion dispatch are increment 2, and each
+ * has a place marked below.
+ *
+ * The clock is read once per iteration and every timestamp in the stack for
+ * that iteration is that one value. Both references do this and it is
+ * parity-relevant, so it is here from the first version rather than added when
+ * something needs it (docs/DESIGN.md §3.5).
+ *
+ * Named `scheduler` and not `sched` — the design calls the file sched.c — for a
+ * dull but real reason: this directory is on the include path, and a header
+ * called sched.h shadows the system <sched.h> that pthread.h pulls in. The
+ * failure is a wall of errors inside libc headers that says nothing about the
+ * cause.
+ */
+#include "infra.h"
+
+/* Runs until the context is asked to stop (SIGINT, or `ctx->exit`), or until
+ * `max_ticks` milliseconds have passed if `max_ticks` is non-zero. The bound
+ * exists because rule 5 says a hang is a failing test: a bring-up check that
+ * cannot end on its own is a bring-up check that takes the node off the
+ * network when it goes wrong. */
+void SchedRun(struct core_ctx *core, uint32_t max_ticks);
+
+#endif /* SCHEDULER_H */
