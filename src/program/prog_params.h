@@ -1,5 +1,7 @@
 #ifndef PROG_PARAMS_H
 #define PROG_PARAMS_H
+
+#include <stdint.h>
 /*
  * The program's compile-time sizes, and later its parity parameter freeze.
  *
@@ -19,6 +21,23 @@
  * configuration rather than from a standard.
  */
 
+/*
+ * THE FLOW KEY (docs/DECISIONS.md D-11).
+ *
+ * A program-defined type, compiled straight into the target. TCP always keys on
+ * a four-tuple; Homa always keys on a four-tuple plus an RPC id. Which one it is
+ * varies per protocol and is fixed within a protocol, so it is a compile-time
+ * shape and not a runtime decision — the target's source names the type and
+ * never its fields or its size, and a TCP build costs exactly what mTCP costs,
+ * with no wider key and nothing indirect on the receive path.
+ *
+ * Network byte order, as it came off the wire.
+ */
+typedef struct {
+	uint32_t local_ip, remote_ip;
+	uint16_t local_port, remote_port;
+} flowkey_t;
+
 /* Largest event the parser emits. The target carries events as opaque bytes,
  * so this is purely an allocation size. */
 #define PROG_EVENT_MAX		64
@@ -32,5 +51,18 @@
 
 /* Timer slots per flow. */
 #define PROG_TIMER_COUNT	4
+
+/*
+ * Per-core program state, above the flow. Zero means the protocol has none,
+ * which is TCP's answer.
+ *
+ * Homa's is a host-wide byte budget and two ordered indices over RPCs, and the
+ * state of a grant round that spans up to nine packet arrivals. Its own
+ * implementation keeps all of it in one header of file-scope statics — which is
+ * a correctness bug the moment there is more than one stack thread, and is why
+ * the target hands this out per core rather than leaving the program to declare
+ * a static.
+ */
+#define PROG_GLOBAL_SIZE	0
 
 #endif /* PROG_PARAMS_H */

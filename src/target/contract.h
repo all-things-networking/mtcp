@@ -58,28 +58,25 @@ typedef struct { flow_t *f; uint16_t idx; } bufid_t;
  * within one iteration is the same number (§3.5). */
 typedef uint32_t tick_t;
 
-/* The four-tuple, in network byte order, as it came off the wire. The target
- * hashes it and compares it; it does not interpret it.
+/*
+ * The flow key is `flowkey_t`, and it is DEFINED BY THE PROGRAM, in the header
+ * included above. The target names the type, stores it, hands it to the
+ * program's hash and compare, and never reads a field or assumes a size.
  *
- * OPEN — C's B1, from writing Homa against this contract. Homa keys on the
- * four-tuple PLUS an RPC id, and many concurrent RPCs share one four-tuple:
- * that is the point of Homa. A fixed struct here means adding a field to target
- * source for a protocol, which is the QUIC-Lite failure this design exists to
- * avoid.
+ * docs/DECISIONS.md D-11. C's B1: Homa keys on the four-tuple plus an RPC id,
+ * and many concurrent RPCs share one four-tuple — that is the point of Homa. A
+ * struct fixed in target source would have to grow a field for a protocol,
+ * which is exactly the QUIC-Lite failure this design exists to avoid.
  *
- * The fix is the one already applied to the header image — make the key opaque
- * and program-sized, with the program supplying hash and compare. It is a few
- * lines TODAY, because nothing is built on it; it is a rewrite of the flow
- * table, the hash and the dispatcher AFTER increment 2. It is not free: it puts
- * an indirect call on the receive fast path, which is the path §2.2 was
- * optimising by cutting four lookups to one.
- *
- * So it is a decision, not an omission, and it has a deadline: before the flow
- * table lands. Left as it is until the lead rules on scope. */
-typedef struct {
-	uint32_t local_ip, remote_ip;
-	uint16_t local_port, remote_port;
-} flowkey_t;
+ * The alternative considered and rejected was an opaque byte array with the
+ * program supplying hash and compare through a pointer, which would have put an
+ * indirect call on the receive path — the path §2.2 was optimising by cutting
+ * four lookups to one. That trade was false. Which key a build uses varies per
+ * protocol and is FIXED WITHIN a protocol, so it is a compile-time shape:
+ * nothing has to be discovered while packets are arriving. Target source stays
+ * identical across protocol builds, the generated header differs, and a TCP
+ * build costs what mTCP costs.
+ */
 
 /*============================================================================*
  * 2. Events (§2.2)
@@ -109,6 +106,29 @@ flow_t *TgtCtxNew(const flowkey_t *k, uint16_t nstreams_tx, uint16_t nstreams_rx
 		  uint8_t size_class);
 void    TgtCtxDestroy(flow_t *f);
 void   *TgtCtxState(flow_t *f);
+
+/*
+ * The program's state ABOVE the flow: PROG_GLOBAL_SIZE bytes per core,
+ * allocated and zeroed by the target, opaque to it. Returns NULL when the
+ * program declares no such state, which is TCP's answer and costs a build with
+ * PROG_GLOBAL_SIZE == 0 exactly nothing.
+ *
+ * C's B2 and B4, and it turns out they are one thing. Homa's grant scheduler is
+ * a host-wide byte budget and a cross-flow ranking, and its grant round is a
+ * state machine spread over up to nine packet arrivals for different flows.
+ * Neither fits in a per-flow context or a per-packet scratchpad — but neither
+ * needs a new lifetime either, because Homa's own implementation already keeps
+ * both in one header of file-scope statics, round state included.
+ *
+ * Why the target hands it out rather than the program declaring a static: a
+ * static is shared by every stack thread, which is wrong the moment there is
+ * more than one core, and memory is the target's under §2.8 rule 1. Per core,
+ * shared-nothing, like everything else here.
+ *
+ * This also answers the objection to J2 — that a declarable epilogue is only
+ * useful if it can carry state across packets. It can; this is where.
+ */
+void   *TgtGlobalState(void);
 
 /*============================================================================*
  * 4. Instructions — byte streams (§2.4b)
@@ -339,7 +359,10 @@ void TgtNotify(flow_t *f, notify_kind_t k);
  *============================================================================*/
 /*
  * The target calls into the program through these and nothing else. They are
- * declared here and nowhere else, so the set is countable.
+ * declared here and nowhere else, so the set is countable — and the count has
+ * grown from the design's five to seven, because the flow key became the
+ * program's (D-11) and brought its hash and compare with it. Countable is the
+ * property that matters; five was never the property.
  */
 
 /*
@@ -411,59 +434,116 @@ void ProgSegFixup(uint8_t *hdr, uint16_t hdr_len, uint8_t seg_rule_group,
 int ProgCsumVerify(const struct iphdr *iph, const uint8_t *l4, uint16_t len);
 int ProgCsumOffloadKind(void);
 
+/*
+ * Hash and compare for the program's flow key. Direct calls to generated
+ * symbols, not pointers: mTCP's own flow table calls HashFlow and EqualFlow the
+ * same way, so this is the donor's cost and not a new one.
+ *
+ * Note this makes SEVEN generated symbols where §2.8 rule 4 says five. The
+ * count in the design was written before the key became the program's.
+ */
+unsigned int ProgKeyHash(const flowkey_t *k);
+int          ProgKeyEqual(const flowkey_t *a, const flowkey_t *b);
+
 /*============================================================================*
- * 8. What this contract CANNOT express — the absence register
+ * 8. The absence register — what is missing, and whose problem it is
  *============================================================================*/
 /*
  * MTP is positive-only: a program can say what it does and cannot say what it
- * does not. The one rule this whole effort runs under turns on exactly that —
- * "if one stack is missing a mechanism the other has, the two are not running
- * the same protocol" — so a contract that cannot be audited against a checklist
- * cannot be used to check that rule by inspection. This section is the
- * checklist, for the contract itself.
+ * does not. The one rule this effort runs under turns on exactly that — "if one
+ * stack is missing a mechanism the other has, the two are not running the same
+ * protocol" — so a contract that cannot be audited against a checklist cannot
+ * be used to check that rule by inspection. This is the checklist, for the
+ * contract itself.
  *
- * All five below are from C writing Homa's MTP program against this file
- * (docs/DECISIONS.md D-09; docs/phase-d/programs/homa.mtp.notes.md). They are
- * one question wearing five hats: DOES THE CONTRACT ADMIT STATE AND SCHEDULING
- * ABOVE THE FLOW? TCP never asks. Homa cannot be written without it.
+ * All of it comes from C writing Homa's MTP program against this file
+ * (docs/DECISIONS.md D-09; docs/phase-d/programs/homa.mtp.notes.md). C's
+ * headline was "the contract survives the packet layer and not the scheduler".
  *
- *   B2  No state above the flow. Every instruction here is flow-scoped, and
- *       ProgDispatch() always supplies exactly one context. Homa's grant
- *       scheduler is a host-wide byte budget and a cross-flow ranking; four of
- *       its nine processors take no flow at all. Host-level resource
- *       arbitration is not expressible.
+ * That reading is now revised, and the revision matters:
  *
- *   B3  No collection instruction. Homa keeps two ordered indices and needs
- *       insert, remove-returning-the-element, successor lookup on a composite
- *       key, minimum over a DIFFERENT key from the sort key, and hand-kept
- *       cross-index back-pointers — 200 lines of array walking inside what is
- *       meant to be compiler output.
+ *     IF SOMETHING VARIES PER PROTOCOL BUT IS FIXED WITHIN A PROTOCOL, IT IS A
+ *     COMPILE-TIME SHAPE, NOT A RUNTIME DECISION. REACH FOR GENERATION BEFORE
+ *     INDIRECTION.
  *
- *   B4  No lifetime between "one packet" and "one flow". A grant round is a
- *       state machine spread across up to nine packet arrivals, for different
- *       flows. The scratchpad is one packet (J2) and the context is one flow;
- *       there is no third scope.
+ * The charter licensed this all along — rule 4 says rebuilding everything per
+ * protocol is expected, and the test is a diff of target source between two
+ * protocol builds, not a shared binary — and the paper says the same for the
+ * XDP target, where the compiler generates the parser and the dispatcher rather
+ * than the target branching at runtime.
  *
- *   B7  No socket instruction. One Homa socket owns up to 500 flows and a new
- *       flow must be bound to a slot in it. Nothing here binds them, and this
- *       is the one place where "keep the donor's socket API unmodified" — a
- *       rule-1 requirement — and "survive a second protocol" pull against each
- *       other.
+ * Applying it to C's five, one at a time and checked rather than assumed:
  *
- *   B11 No transmit scheduling key. §3.2 makes ordering across flows the
- *       target's business and picks FIFO. For Homa, which flow transmits next
- *       IS the protocol. (Homa's own tree wants SRPT and does not implement it,
- *       so this one is intent rather than working code.)
+ * ---- dissolved: compile-time shapes, and the contract now carries them ------
  *
- * None of the five is closed here, and none should be closed quietly: each is a
- * design revision and a scope decision, not an omission to be patched. What is
- * NOT defensible is leaving the contract looking more general than it is, which
- * is why they are written down in the file they are about.
+ *   B1  the flow key. CLOSED, D-11. Program-defined type, compiled in, no
+ *       indirection, target source unchanged across builds. See §1 above.
  *
- * Limits of that evidence, so nobody reads a clean result where there is no
+ *   B2  state above the flow. CLOSED by TgtGlobalState() (§3 above), which is
+ *       two lines and exactly parallel to TgtCtxState. Whether a protocol has
+ *       cross-flow state, and how much, is fixed per protocol.
+ *
+ *   B4  the decision round that outlives the packet. CLOSED, and it turned out
+ *       not to need a third scratchpad lifetime at all: Homa's own round state
+ *       (MTP_granting_idx, MTP_finish_grant_choose) already sits among its
+ *       file-scope globals, so B4 is B2 wearing a second hat. Checked against
+ *       C's citations rather than assumed.
+ *
+ * ---- dissolved: a COMPILER gap, and no contract change at all ---------------
+ *
+ *   B3  ordered collections. Which indices a protocol keeps is fixed per
+ *       protocol, and a generated index lives entirely in the program,
+ *       operating on the program's own state. The target needs nothing — the
+ *       reason it looked like a contract problem is that Homa's implementation
+ *       had no other option than an ad-hoc target instruction (CreateHomaCtx),
+ *       which is a missing language feature, not a missing instruction.
+ *
+ *       One thing the contract does owe it, and now states: the program owns
+ *       context destruction (§2.8 rule 2), so a program-held index can be
+ *       maintained without the target destroying a flow out from under it. That
+ *       is what makes a program-side collection of flow_t safe, together with
+ *       the rule in §7 that a program may hold a flow_t.
+ *
+ * ---- NOT dissolved: genuine holes, and generation does not reach them -------
+ *
+ *   B11 transmit ordering. The POLICY is fixed per protocol — TCP FIFO, Homa
+ *       SRPT — so the declaration is a shape. The MECHANISM is not reached by
+ *       that, because the ordered structure is the target's own (§3.2's
+ *       gen_list) and rule 4 requires target SOURCE to be identical across
+ *       builds. So the choices are: always use an ordered structure and key it
+ *       from the program, which makes TCP pay for an insert it does not need on
+ *       a path parity is measured on; or generate part of the scheduler, which
+ *       moves the target/program boundary rather than filling a hole in it.
+ *       A design question, still open, and not an omission to patch.
+ *       (Homa's own tree wants SRPT and does not implement it, so nothing is
+ *       blocked on it today.)
+ *
+ *   B7  a socket owning many flows. The count is a shape and could be
+ *       generated. What cannot be is the application-facing half: Homa needs
+ *       mtcp_epoll_wait to say WHICH flow, and its branch grew a fifth
+ *       parameter on AddEpollEvent to do it. The applications are the donor's,
+ *       unmodified, because rule 1 says the workload must be the same workload
+ *       — so this is where protocol independence and parity pull against each
+ *       other directly. Neither generation nor an instruction resolves that;
+ *       a decision does.
+ *
+ *   B9  a blueprint addressed to a different flow than the one being
+ *       dispatched. Genuinely dynamic within one protocol — the flow is chosen
+ *       by the scheduler at runtime, so it is a value and not a shape. Handled,
+ *       in §5 above.
+ *
+ * So the position is: of C's five scheduler breakages, three are compile-time
+ * shapes (two now closed in this file, one purely the compiler's), and two are
+ * real. "The contract does not survive the scheduler" is closer to "the
+ * COMPILER does not exist yet", which is a much better place to be and is what
+ * the paper claims.
+ *
+ * Limits of the evidence, so nobody reads a clean result where there is no
  * test: the Homa branch C read has no timers, no retransmission and no pacer,
  * and it never coalesces. So §3.5's timing wheel and §2.6's merge semantics are
- * untested by it, and anything about loss response is untested by it.
+ * untested by it, and anything about loss response is untested by it. And none
+ * of the above has been compiled for a second protocol, which is the only test
+ * rule 4 actually specifies.
  */
 
 #endif /* CONTRACT_H */
