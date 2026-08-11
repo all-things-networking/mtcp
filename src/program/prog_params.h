@@ -1,68 +1,132 @@
 #ifndef PROG_PARAMS_H
 #define PROG_PARAMS_H
-
-#include <stdint.h>
 /*
- * The program's compile-time sizes, and later its parity parameter freeze.
+ * Compiler output: this program's compile-time sizes and its parity parameter
+ * freeze. Hand-written today in the form `mtpc` would emit.
  *
- * This is compiler output. Today it is hand-written in the form a compiler
- * would emit, because the compiler comes after the target works — but nothing
- * outside src/program/ may assume that, and nothing here is shared with the
- * target beyond the four sizes below, which the target needs in order to
- * allocate.
- *
- * Rule 4 permits protocol identity HERE and nowhere else. Rebuilding the whole
- * tree for another protocol is expected; what is forbidden is the target or the
+ * Rule 4 permits protocol identity HERE and nowhere else. Rebuilding the tree
+ * for another protocol is expected; what is forbidden is the target or the
  * infrastructure knowing which protocol it was built for.
  *
- * Increment 1 declares only the sizes and the IP protocol number, because
- * increment 1 has no processors. docs/DESIGN.md §7.2 is the parameter freeze
- * that lands here next, every value taken from the donor's running
- * configuration rather than from a standard.
+ * Conforms to MTP contract v4. Every value below is from the DONOR'S RUNNING
+ * CONFIGURATION (rule 1) rather than from a standard or from memory, and the
+ * ones that look like bugs are reproduced on purpose with the reason attached.
  */
+#include <stdint.h>
 
-/*
- * THE FLOW KEY (docs/DECISIONS.md D-11).
- *
- * A program-defined type, compiled straight into the target. TCP always keys on
- * a four-tuple; Homa always keys on a four-tuple plus an RPC id. Which one it is
- * varies per protocol and is fixed within a protocol, so it is a compile-time
- * shape and not a runtime decision — the target's source names the type and
- * never its fields or its size, and a TCP build costs exactly what mTCP costs,
- * with no wider key and nothing indirect on the receive path.
- *
- * Network byte order, as it came off the wire.
- */
-typedef struct {
-	uint32_t local_ip, remote_ip;
-	uint16_t local_port, remote_port;
-} flowkey_t;
+#include "prog_types.h"
 
-/* Largest event the parser emits. The target carries events as opaque bytes,
- * so this is purely an allocation size. */
-#define PROG_EVENT_MAX		64
-
-/* Per-flow program state. The target allocates it and zeroes it (G12). */
-#define PROG_CTX_SIZE		512
-
-/* Largest serialised header image a blueprint carries. 20 bytes of fixed
- * header plus at most 20 bytes of options on a SYN. */
+/* Largest serialised header image a blueprint carries: 20 bytes of fixed header
+ * plus at most 20 bytes of options on a SYN. */
 #define PROG_HDR_MAX		64
 
-/* Timer slots per flow. */
-#define PROG_TIMER_COUNT	4
+/*============================================================================*
+ * The advertised window — a RULE, not a number
+ *============================================================================*/
+/*
+ * Written out here because the target's read accessors were withdrawn (see
+ * contract.h §1), and this is the one place that withdrawal could have taken
+ * something parity needs with it. It does not. The rule is expressible from
+ * state the program already holds, and writing it out is how we know.
+ *
+ * WHAT THE DONOR DOES. `rcv_wnd` is a per-flow VARIABLE initialised to
+ * TCP_INITIAL_WINDOW = 14600 (tcp_stream.c:325), recomputed from the buffer at
+ * exactly two points and at no others:
+ *
+ *   1. when received payload is merged in order   (tcp_in.c:659)
+ *   2. when the application drains the buffer     (api.c:1141)
+ *
+ * and the recomputed value is `rcvbuf->size - merged_len`, where merged_len is
+ * the in-order bytes held but not yet taken by the application.
+ *
+ * The wire sequence that produces, and which the M1b calibration observed:
+ *
+ *   14600  unscaled, on the SYN and SYN-ACK   (scaling is not yet in effect)
+ *   14592  on every non-SYN until the first payload arrives
+ *          (the field carries 14600 >> 7 = 114, which the peer reads as 14592)
+ *    2048  = 262144 >> 7, once payload has been merged and drained
+ *
+ * WHY THIS IS NOT tgt_rx_free(). A target that answers every packet with the
+ * buffer's free space advertises 2048 from the first ACK and NEVER EMITS 14592
+ * at all — a divergence in the first RTT of every connection, on the most
+ * parity-visible number there is, with no protocol logic wrong anywhere. What
+ * is frozen is WHEN the value is recomputed, not the value.
+ *
+ * HOW IT IS EXPRESSED WITH NO ACCESSOR. Both quantities are already the
+ * program's own state:
+ *
+ *   recv_next   the program advances it when a segment merges in order — it is
+ *               the same variable the cumulative ACK is built from
+ *   delivered   the program accumulates the RETURN VALUE of
+ *               mtp_rx_flush_and_notify(), which is the byte count actually
+ *               handed to the application
+ *
+ * so  merged_len == recv_next - delivered,  and the rule is
+ *
+ *   rcv_wnd = PARITY_RCVBUF_SIZE - (recv_next - delivered)
+ *
+ * recomputed at the donor's two points and nowhere else. The wire field is
+ * `rcv_wnd` unscaled on a SYN, and `rcv_wnd >> PARITY_WSCALE` on everything
+ * else.
+ *
+ * A CONSEQUENCE WORTH THE CR PROCESS. Recompute point 2 fires when the
+ * APPLICATION drains. MTP_LANG §7a says `recv` on a stream socket is
+ * runtime-served — the byte copy happens with no program event — and that a
+ * program overrides it "only for receiver-driven transports". A TCP program
+ * that never learns the application drained cannot reproduce the donor's second
+ * recompute point, and therefore cannot reproduce the window-reopen ACK at all.
+ *
+ * So this program BINDS `recv` in its app_parser, and parity is the reason. The
+ * capability is already in v4 — CR-7 permits it — but the rationale's "only for
+ * receiver-driven transports" is too narrow, and that is worth reporting back:
+ * a stream transport that has to match a donor needs it too.
+ */
+#define PARITY_RCVBUF_SIZE	262144	/* the donor's running rcvbuf */
+#define PARITY_INITIAL_WINDOW	14600	/* tcp_stream.c:325 */
+#define PARITY_WSCALE		7	/* sent always */
+
+/*============================================================================*
+ * The rest of the parity freeze (docs/DESIGN.md §7.2)
+ *============================================================================*/
+#define PARITY_MSS_ADVERTISED	1460
+#define PARITY_MSS_PAYLOAD	1448	/* mss - CalculateOptionLength(ACK), computed
+					 * inline at tcp_out.c:566. There is no
+					 * `eff_mss` in the donor to grep for. */
+#define PARITY_ISN		0	/* always. REPRODUCE, DO NOT CORRECT. */
+#define PARITY_INIT_CWND	2920	/* 2 * MSS */
+#define PARITY_SSTHRESH_ACTIVE	14600	/* MSS * 10 */
+#define PARITY_DUPACK_THRESH	3
+#define PARITY_INITIAL_RTO_MS	500
+#define PARITY_MAX_RTX		16
+#define PARITY_MAX_SYN_RETRY	7	/* SYN_SENT only; timer.c:267-269 */
 
 /*
- * Per-core program state, above the flow. Zero means the protocol has none,
- * which is TCP's answer.
+ * D-01. mTCP never assigns ssthresh on the passive-open path, so the server —
+ * the machine under test — runs with ssthresh == 0 and has no slow start at
+ * all. Reproduced, because rule 1 says parameters come from the donor's running
+ * configuration and not from a standard.
  *
- * Homa's is a host-wide byte budget and two ordered indices over RPCs, and the
- * state of a grant round that spans up to nine packet arrivals. Its own
- * implementation keeps all of it in one header of file-scope statics — which is
- * a correctness bug the moment there is more than one stack thread, and is why
- * the target hands this out per core rather than leaving the program to declare
- * a static.
+ * The flag gates three assignments as ONE UNIT, and the reason is subtle: only
+ * ssthresh has a live consequence today, but snd_wl1's divergence is masked
+ * *conditional on* the ISN freeze above. Lift the ISN to a random value and
+ * snd_wl1 activates silently, with nothing in the diff pointing at the ISN
+ * change that caused it.
  */
-#define PROG_GLOBAL_SIZE	0
+#define PARITY_OPENING_TRAJECTORY	1
+#define PARITY_SSTHRESH_PASSIVE		0
+
+/*
+ * Never set. Tested at tcp_out.c:172,265 and passed by no caller. Recorded
+ * because the program now builds the header, so a flag bit can diverge with no
+ * protocol logic wrong.
+ */
+#define PARITY_SET_PSH		0
+
+/* There is no RTO floor and no RTO ceiling in the donor. Effective RTO here is
+ * ~3 ms — MEASURED, docs/RESULTS.md 2026-08-07, not assumed. Reproducing this
+ * needs a clock the language does not yet expose; see CR-4, which we support
+ * for this reason. */
+#define PARITY_RTO_MIN_MS	0
+#define PARITY_RTO_MAX_MS	0
 
 #endif /* PROG_PARAMS_H */

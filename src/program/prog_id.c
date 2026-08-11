@@ -14,6 +14,7 @@
 #include <stdlib.h>
 
 #include "upcall.h"
+#include "contract.h"
 #include "prog_params.h"
 
 /* 6 — the protocol whose parity this effort is measured against. Named as a

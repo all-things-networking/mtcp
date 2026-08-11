@@ -22,6 +22,7 @@
  * on every build — a header with no compiler in front of it stops being
  * checkable code and goes back to being prose. */
 #include "contract.h"
+#include "internal.h"
 #include "eth_in.h"
 #include "debug.h"
 
