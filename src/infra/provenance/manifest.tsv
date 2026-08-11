@@ -1,0 +1,44 @@
+# Seeded infrastructure — where each file came from.
+#
+# donor_path <TAB> dest (relative to src/infra/) <TAB> residual_sha256 <TAB> reason
+#
+# `residual_sha256` is the sha256 of `diff -u <donor after rename.sed> <ours>`.
+# The sha of an empty diff is the well-known sha256 of the empty string,
+# e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855, which is
+# written here as `-` for legibility. tools/check_infra_provenance.sh recomputes
+# it; `-v` prints the diff itself. A file that drifts fails the check until the
+# change is deliberately re-recorded here with a reason.
+#
+# The donor is mtcp-donor @ 7fbb223c, read out of this repository's own object
+# store, so nothing here depends on where anyone's checkout lives.
+mtcp/src/include/config.h	config.h	9061f304bcd60c15e9c8a5f68856685c1411c7fa1a50a4cb3c5cf1b428dc391f	includes infra.h for MAX_DEVICES; mTCP relies on mtcp.h having been included first
+mtcp/src/config.c	config.c	516c20f1a444f1cb8c219076ae44e0dbe5239b1d19be995d9c3b74019ddd0848	the two protocol-named keys are handed to the program (rule 4, DESIGN.md §7.2); the psio and onvm I/O arms are dropped; PrintConfiguration no longer prints timers it does not own
+mtcp/src/include/cpu.h	cpu.h	b2577fcf10e8ee94d7f858f20448980a5b816b9564d071450ff0bdf62229bd96	declares core_affinitize, which mTCP declares in its public socket API header
+mtcp/src/cpu.c	cpu.c	0da0394f85476f5bd38727766dfa40a1007f9b6b976bb983277245256f988988	includes infra.h + cpu.h in place of mtcp_api.h; drops an rte-internal core.h include
+mtcp/src/include/memory_mgt.h	memory_mgt.h	-	seeded unchanged
+mtcp/src/memory_mgt.c	memory_mgt.c	-	seeded unchanged
+mtcp/src/include/logger.h	logger.h	-	seeded unchanged
+mtcp/src/logger.c	logger.c	-	seeded unchanged
+mtcp/src/include/debug.h	debug.h	fb4ca432ffc619bbdaa02f3edbfa8f9909588fbc84463f80b5aa59e9c2e014d8	includes netinet/ip.h directly; mTCP gets struct iphdr via tcp_in.h
+mtcp/src/debug.c	debug.c	5fc7af4b731049a247c339f2e721b7b897780f4b2b1b3a7150ded626c64f9cf2	the packet dumpers stop at IP. Decoding the L4 header is the program's knowledge, and mTCP does it here in three places
+mtcp/src/include/stat.h	stat.h	-	seeded unchanged
+mtcp/src/include/io_module.h	io_module.h	fa48753cf70e6d2d6cf5762be27df974802e9557e8364a1670a4bd13837d1a94	psio/netmap/onvm registrations dropped; adds struct l4_csum_req so the PMD glue can be asked for a checksum without being told the header shape
+mtcp/src/io_module.c	io_module.c	b7c158f470e2e02587d029bbc3b73431da6413e2670105b366156f06d753b9fa	psio, netmap and onvm arms of SetNetEnv dropped with their includes; the EAL hugepage sizing takes TRANSPORT_PER_FLOW_BYTES instead of naming the transport's structs
+dpdk-iface-kmod/dpdk_iface_common.h	dpdk_iface_common.h	-	seeded unchanged (mtcp/src/include/ has it as a symlink to this path)
+mtcp/src/dpdk_module.c	dpdk_module.c	53f9bc2bb0fec6db0c7e47e793fd43c09db3e07239af4d91ef199e8b1f9d5503	dev_ioctl no longer casts to struct tcphdr — the two L4 checksum commands take offsets (rule 4); the ENABLELRO segment walk is dropped (LRO is off in the donor's build)
+mtcp/src/include/rss.h	rss.h	-	seeded unchanged
+mtcp/src/rss.c	rss.c	-	seeded unchanged
+mtcp/src/include/addr_pool.h	addr_pool.h	8d444fcc7b7bfcdb9367f69e15b7673fce7102ab2a09edc374383e255ba66cc5	carries INPORT_ANY, which mTCP puts in its public socket API header
+mtcp/src/addr_pool.c	addr_pool.c	-	seeded unchanged
+mtcp/src/include/eth_in.h	eth_in.h	-	seeded unchanged
+mtcp/src/eth_in.c	eth_in.c	-	seeded unchanged
+mtcp/src/include/eth_out.h	eth_out.h	6223ba7cde8154ad58f9671fe80961b219878862793b958ea9419db558541b67	drops the tcp_stream.h include; nothing in it needs a flow
+mtcp/src/eth_out.c	eth_out.c	-	seeded unchanged
+mtcp/src/include/ip_in.h	ip_in.h	848a9728db93f5bcbc31af14868187da92b5a827391389e945a174b2fb54cfda	includes ip_csum.h, since ip_fast_csum comes from ps.h which is not carried
+mtcp/src/ip_in.c	ip_in.c	fa6a991c2d7ea10ca6bf1f1b45ada26dc3d72550a4e74521090870095ea9c7ce	the IP protocol switch compares against the program's number and calls the target, instead of naming IPPROTO_TCP and ProcessTCPPacket
+mtcp/src/include/ip_out.h	ip_out.h	5e23f0cf29160ac23d25d081ad3c9e2f549905891bbb30d21002f8757976b997	IPOutput takes the four fields it used to read out of a tcp_stream, plus the protocol number (rule 4)
+mtcp/src/ip_out.c	ip_out.c	291eaba1e09d65e8fb8d54e8a70e7686c3d5159abd15cdca5320a31e96d92e77	same, and the checksum-offload switch compares against the program's protocol number
+mtcp/src/include/arp.h	arp.h	-	seeded unchanged
+mtcp/src/arp.c	arp.c	-	seeded unchanged
+mtcp/src/include/icmp.h	icmp.h	-	seeded unchanged
+mtcp/src/icmp.c	icmp.c	-	seeded unchanged
