@@ -1,0 +1,36 @@
+# Protocol-named tokens that src/infra/ or src/target/ REFERENCES but does not
+# define. One per line, bare token, with the reason above it.
+#
+# Rule 4 forbids protocol identity in symbols THIS TREE defines. It does not,
+# and cannot, forbid calling somebody else's API whose author named it after a
+# protocol. Removing these would mean not using the NIC's checksum offload or
+# not reading an IP header, which changes behaviour — and rule 1 says behaviour
+# is what is being held constant.
+#
+# Every entry here is reported by check_rule4.sh, on purpose: the list is meant
+# to be short and to be read, not to grow quietly. Nothing may be added to make
+# a failure go away without the reason being written down.
+
+# DPDK: the transmit-offload capability bit and the mbuf flag for it. Asked for
+# by dev_ioctl on behalf of the program's ProgCsumOffloadKind(); the PMD glue
+# passes the flag through and never inspects an L4 header (see the l4_csum_req
+# comment in src/infra/io_module.h, which is where mTCP's `struct tcphdr` cast
+# used to be).
+RTE_ETH_TX_OFFLOAD_TCP_CKSUM
+RTE_ETH_RX_OFFLOAD_TCP_CKSUM
+RTE_MBUF_F_TX_TCP_CKSUM
+
+# DPDK: the RSS hash-function selector. Which header fields the NIC hashes to
+# pick a receive queue. Taken from the donor's port configuration unchanged,
+# because the queue a packet lands on is throughput-visible and re-deriving it
+# would put a difference under every measurement.
+RTE_ETH_RSS_TCP
+
+# DPDK: large-receive-offload capability, tested when configuring the port.
+# LRO is off in the donor's build and this only ever reads the capability.
+RTE_ETH_RX_OFFLOAD_TCP_LRO
+
+# DPDK: a `static const` mask template that rte_flow.h defines in the header,
+# so every object that includes it carries a copy. Defined in our .o files and
+# written by DPDK; nothing in this tree names it or uses it.
+rte_flow_item_tcp_mask

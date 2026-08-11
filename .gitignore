@@ -1,0 +1,9 @@
+# generated; nothing here is source
+build/
+bin/
+*.o
+*.d
+*.a
+
+# run artefacts
+log_*
