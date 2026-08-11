@@ -23,6 +23,9 @@
 #include "config.h"
 #include "arp.h"
 #include "debug.h"
+#ifndef DISABLE_DPDK
+#include <rte_ethdev.h>	/* the port's own counters, at teardown — see below */
+#endif
 
 #define LOG_FILE_NAME "log"
 #define MAX_FILE_NAME 1024
@@ -178,10 +181,52 @@ fail:
 	return NULL;
 }
 /*----------------------------------------------------------------------------*/
+/*
+ * What the PORT counted, as against what we counted.
+ *
+ * These two numbers answer different questions and confusing them costs hours.
+ * `nstat` says how many packets this stack took off the receive queue; this
+ * says how many the NIC accepted and how many it dropped before we got there.
+ * A zero here and a zero there means the packets never reached the port. A
+ * non-zero here and a zero there means we are not draining the queue we think
+ * we are.
+ *
+ * mTCP has no equivalent — it reports only its own counters — which is why the
+ * first zero-receive result in this tree could not be attributed by reading the
+ * log. It is cheap and it runs once, at teardown.
+ */
+static void
+ReportPortCounters(void)
+{
+#ifndef DISABLE_DPDK
+	int i;
+
+	for (i = 0; i < CONFIG.eths_num; i++) {
+		struct rte_eth_stats st;
+		uint16_t portid = CONFIG.eths[i].ifindex;
+
+		if (rte_eth_stats_get(portid, &st) != 0)
+			continue;
+		TRACE_INFO("port %u (%s): promisc=%d allmulti=%d "
+			   "ipackets=%lu ibytes=%lu imissed=%lu "
+			   "ierrors=%lu rx_nombuf=%lu opackets=%lu\n",
+			   portid, CONFIG.eths[i].dev_name,
+			   rte_eth_promiscuous_get(portid),
+			   rte_eth_allmulticast_get(portid),
+			   (unsigned long)st.ipackets, (unsigned long)st.ibytes,
+			   (unsigned long)st.imissed, (unsigned long)st.ierrors,
+			   (unsigned long)st.rx_nombuf,
+			   (unsigned long)st.opackets);
+	}
+#endif
+}
+/*----------------------------------------------------------------------------*/
 void
 InfraCoreDestroy(struct core_ctx *core)
 {
 	struct thread_ctx *ctx = core->ctx;
+
+	ReportPortCounters();
 
 	core->iom->destroy_handle(ctx);		/* from mTCP core.c:1524 */
 
