@@ -44,7 +44,7 @@ echo "client $CLI: $(link_state "$CLI")"
 	cp $here/conf/aqua/upcheck.conf tcpserver.conf 2>/dev/null
 	cp $here/bin/$BIN . || exit 1
 	rm -f run.log
-	sudo nohup timeout \$(( MS/1000 + 20 )) ./$BIN $ARGS -t $MS > run.log 2>&1 &
+	sudo MTP_DUMP_TX=4 nohup timeout \$(( MS/1000 + 20 )) ./$BIN $ARGS -t $MS > run.log 2>&1 &
 	for w in \$(seq 1 300); do
 		grep -q 'RUN WINDOW OPENS' run.log 2>/dev/null && exit 0
 		sleep 0.1

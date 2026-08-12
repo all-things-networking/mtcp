@@ -10,6 +10,8 @@
  * for the not — and the two drifted apart; there is only one here so they
  * cannot.
  */
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 
@@ -23,6 +25,49 @@
 static inline uint16_t ring_next(uint16_t i)
 {
 	return (uint16_t)((i + 1) % BP_RING_DEPTH);
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * Dump the frame we just built, at the moment we hand it over.
+ *
+ * Inert unless MTP_DUMP_TX is set, and capped, so an instrumented binary is
+ * safe to benchmark — the same discipline D-03 imposes on the references.
+ *
+ * This exists because a kernel-side capture cannot see this target's traffic in
+ * either direction: with a bifurcated driver, packets steered to the DPDK queue
+ * never reach the netdev tcpdump attaches to. The peer's capture is the only
+ * wire view, and it cannot show a frame that was addressed somewhere the peer
+ * is not. This can.
+ */
+static void
+dump_tx(const uint8_t *eth, uint16_t total)
+{
+	static int budget = -1;
+	uint16_t i;
+
+	if (budget < 0) {
+		const char *e = getenv("MTP_DUMP_TX");
+
+		budget = e ? atoi(e) : 0;
+	}
+	if (budget <= 0)
+		return;
+	budget--;
+
+	fprintf(stderr, "TX %u bytes:", total);
+	for (i = 0; i < total; i++)
+		fprintf(stderr, "%s%02x", (i % 16) ? " " : "\n  ", eth[i]);
+	fprintf(stderr, "\n  dst_mac=%02x:%02x:%02x:%02x:%02x:%02x "
+		"src_mac=%02x:%02x:%02x:%02x:%02x:%02x ethertype=%02x%02x\n",
+		eth[0], eth[1], eth[2], eth[3], eth[4], eth[5],
+		eth[6], eth[7], eth[8], eth[9], eth[10], eth[11],
+		eth[12], eth[13]);
+	fprintf(stderr, "  saddr=%u.%u.%u.%u daddr=%u.%u.%u.%u proto=%u "
+		"sport=%u dport=%u flags=0x%02x\n",
+		eth[26], eth[27], eth[28], eth[29],
+		eth[30], eth[31], eth[32], eth[33], eth[23],
+		(eth[34] << 8) | eth[35], (eth[36] << 8) | eth[37], eth[47]);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -117,6 +162,9 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 			return -1;
 		}
 	}
+
+	dump_tx(l4 - IP_HEADER_LEN - ETHERNET_HEADER_LEN,
+		(uint16_t)(l4len + IP_HEADER_LEN + ETHERNET_HEADER_LEN));
 
 	t->tx_packets++;
 	t->tx_bytes += l4len + IP_HEADER_LEN + ETHERNET_HEADER_LEN;

@@ -263,8 +263,19 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 		 * must reach this burst. */
 		tgt_drain(core);
 
-		for (tx_inf = 0; tx_inf < CONFIG.eths_num; tx_inf++)
-			core->iom->send_pkts(ctx, tx_inf);
+		/*
+		 * What the burst actually accepted, as against what we handed
+		 * it. tx_packets counts frames BUILT inside emit_segment; this
+		 * counts frames the driver took. A frame that is built and not
+		 * sent is sitting in the transmit buffer, and nothing about
+		 * its contents matters until that is ruled out.
+		 */
+		for (tx_inf = 0; tx_inf < CONFIG.eths_num; tx_inf++) {
+			int sent = core->iom->send_pkts(ctx, tx_inf);
+
+			if (sent > 0)
+				TransportOf(core)->tx_bursted += sent;
+		}
 
 		core->iom->select(ctx);
 
@@ -294,12 +305,13 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 		 * refused, whether the drain ran, and whether a packet was
 		 * ever handed to the interface. */
 		TRACE_INFO("CPU %d: tx: packets=%lu bytes=%lu drains=%lu "
-			   "ring-full=%lu forced-drains=%lu\n", ctx->cpu,
+			   "ring-full=%lu forced-drains=%lu bursted=%lu\n", ctx->cpu,
 			   (unsigned long)t->tx_packets,
 			   (unsigned long)t->tx_bytes,
 			   (unsigned long)t->ring_drain_calls,
 			   (unsigned long)t->bp_full,
-			   (unsigned long)t->forced_drains);
+			   (unsigned long)t->forced_drains,
+			   (unsigned long)t->tx_bursted);
 	}
 	TRACE_INFO("CPU %d: rx classes: arp=%lu ipv4=%lu(proto-match=%lu other=%lu) "
 		   "other_ethertype=%lu\n", ctx->cpu,
