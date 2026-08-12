@@ -355,8 +355,18 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 
 	switch (op->kind) {
 	case MTP_APP_BIND:
-		prog_listener.ip = op->local.ip;
-		prog_listener.port = op->local.port;
+		/*
+		 * The op's endpoint is in NETWORK order, as the schema
+		 * declares; this program works in host order once past the
+		 * parser. Converting here rather than at the comparison site
+		 * keeps the one representation choice in one place — the two
+		 * being out of step is what made the listener never match and
+		 * swallowed every SYN silently.
+		 */
+		prog_listener.ip = op->local.ip;	/* stays network order:
+							 * compared against
+							 * iph->daddr, which is */
+		prog_listener.port = ntohs(op->local.port);
 		return 0;
 	case MTP_APP_LISTEN:
 		prog_listener.listening = 1;
