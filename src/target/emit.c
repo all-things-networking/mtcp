@@ -117,6 +117,22 @@ emit_bp(struct core_ctx *core, struct flow *f, struct bp *bp)
 	uint32_t total = bp->payload.len;
 	uint16_t mss = bp->seg_size;
 
+	/*
+	 * A blueprint the emitter does not know how to segment must be LOUD.
+	 * The prototype silently drops one whose segmentation-rule group is
+	 * anything but 1 — the head advances, nothing is emitted, no error
+	 * (mtp_net.c:500-506 and :635 on 55056faf). Latent there because only
+	 * group 1 is ever set, which is exactly the kind of default that stops
+	 * being latent the day a second rule exists.
+	 */
+	if (total && !mss) {
+		TRACE_ERROR("blueprint of %u payload bytes with no segment "
+			    "size: dropping it would be silent, so this is "
+			    "the error instead\n", total);
+		assert(0);
+		return 0;
+	}
+
 	/* one path: a non-segmented blueprint is a one-segment blueprint */
 	if (!mss || total <= mss) {
 		bp->seg_count = 1;
@@ -124,6 +140,22 @@ emit_bp(struct core_ctx *core, struct flow *f, struct bp *bp)
 		return emit_segment(core, f, bp, 0, (uint16_t)total);
 	}
 
+	/*
+	 * THE CURSOR IS LOAD-BEARING, NOT A STYLE CHOICE. Do not "simplify" it
+	 * into the prototype's shape.
+	 *
+	 * On a partial drain the prototype REWRITES THE BLUEPRINT IN PLACE —
+	 * new seq, reduced len, advanced data pointer — and leaves it at the
+	 * head (mtp_net.c:522-529 on mina-mtp 55056faf). That is only safe
+	 * there because its send buffer is not a true ring: the retained raw
+	 * pointer stays valid across the break.
+	 *
+	 * Ours IS a true ring (§0a, D-06), so an advanced raw pointer can be
+	 * on the wrong side of a wrap by the time the drain resumes. The
+	 * blueprint therefore stays immutable and the progress lives in
+	 * seg_off, which is an offset and cannot go stale. Rewriting in place
+	 * here would look correct and would fail on the first wrap.
+	 */
 	bp->seg_count = (uint32_t)((total + mss - 1) / mss);
 	while (bp->seg_off < total) {
 		uint16_t len = (uint16_t)(total - bp->seg_off < mss
@@ -131,6 +163,7 @@ emit_bp(struct core_ctx *core, struct flow *f, struct bp *bp)
 
 		if (emit_segment(core, f, bp, bp->seg_off, len) < 0)
 			return -1;	/* rewound: seg_off is where we stopped */
+
 		bp->seg_off += len;
 		bp->seg_idx++;
 	}
@@ -182,26 +215,37 @@ tgt_drain(struct core_ctx *core)
 				 * place at the head, which is the
 				 * re-insertion.
 				 *
-				 * This matches the prototype exactly, checked
-				 * against the code rather than remembered:
-				 * MTP_PacketGenList (mtp_net.c:840-847 @
-				 * eac02d19) does TAILQ_INSERT_HEAD and then
-				 * `break`, with the comment "since there is no
-				 * available write buffer, break". Its
-				 * skip-and-continue branch at :848-854 is dead
-				 * code — SendMTPPackets never returns the -1
-				 * that would reach it.
+				 * PROVISIONAL — do not settle this without the
+				 * checkpoint. Rule 2 names per-flow scheduling
+				 * as needing a written design and a yes, and
+				 * this is that.
 				 *
-				 * Inherited with it, and worth knowing: an ARP
-				 * miss also makes IPOutput return NULL
-				 * (ip_out.c:123-135) and is indistinguishable
-				 * here, so one unresolved destination stalls
-				 * the whole walk for an iteration. True of the
-				 * prototype too. Acceptable at M1's single
-				 * connection; it is on the list for the
-				 * multi-flow work, where it is a
-				 * head-of-line block with a 1 s ARP retry
-				 * behind it.
+				 * It matches the PROTOTYPE: MTP_PacketGenList
+				 * does TAILQ_INSERT_HEAD then `break`, with
+				 * the comment "since there is no available
+				 * write buffer, break" (mtp_net.c:803-810 on
+				 * mina-mtp 55056faf — the unmodified
+				 * prototype; the same text sits at :840-847 on
+				 * mtp-dpdk-clean, and that is the branch we
+				 * were warned not to attribute decisions to).
+				 *
+				 * It does NOT match the DONOR, and that is the
+				 * open question. mTCP runs three lists with
+				 * three policies: control inserts at the HEAD
+				 * and breaks, data inserts at the TAIL and
+				 * breaks, and ACKs do not stop the walk at
+				 * all. We have one gen_list and one policy, so
+				 * this is a trajectory-level parity
+				 * difference — and it fires on
+				 * transmit-buffer-full, which a 64-mbuf burst
+				 * hits constantly, not on some rare path.
+				 *
+				 * Not an ARP question. B established that mTCP
+				 * collapses four distinct NULL conditions into
+				 * one bare NULL and then into a single -2, so
+				 * failing to tell an ARP miss from a full
+				 * buffer is shared inherited debt rather than
+				 * a divergence.
 				 */
 				return;
 			}
