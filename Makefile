@@ -71,9 +71,13 @@ bin/upcheck: apps/upcheck/upcheck.c $(LIB)
 TEST_SRCS := $(wildcard tests/test_*.c)
 TESTS     := $(patsubst tests/%.c,bin/%,$(TEST_SRCS))
 
-bin/test_%: tests/test_%.c src/program/prog_app.c
+# Off-testbed sources only: no infra, so no DPDK. If a test needs the target's
+# packet path it belongs somewhere else, and that somewhere does not exist yet.
+TESTABLE := src/program/prog_app.c src/target/flow_table.c
+
+bin/test_%: tests/test_%.c $(TESTABLE)
 	@mkdir -p $(dir $@)
-	$(CC) -g -O0 -Wall -Werror -Isrc/target -Isrc/program $^ -o $@
+	$(CC) -g -O0 -Wall -Werror -Isrc/target -Isrc/program -Isrc/infra $^ -o $@
 
 test: $(TESTS)
 	@for t in $(TESTS); do ./$$t || exit 1; done
