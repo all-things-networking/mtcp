@@ -29,4 +29,9 @@
  * network when it goes wrong. */
 void SchedRun(struct core_ctx *core, uint32_t max_ticks);
 
+/* The per-core transport state — the flow table and the listener table. Set up
+ * before the loop runs and torn down after it. */
+int  TransportCoreInit(struct core_ctx *core);
+void TransportCoreFini(struct core_ctx *core);
+
 #endif /* SCHEDULER_H */

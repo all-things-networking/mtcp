@@ -25,6 +25,7 @@
 #include "infra.h"
 #include "bringup.h"
 #include "scheduler.h"
+#include "flow_table.h"
 #include "arp.h"
 #include "config.h"
 
@@ -68,6 +69,11 @@ main(int argc, char **argv)
 		return 1;
 	}
 
+	if (TransportCoreInit(core) < 0) {
+		fprintf(stderr, "upcheck: transport state allocation failed\n");
+		return 1;
+	}
+
 	fprintf(stderr, "upcheck: cpu %d up on %d interface(s); running %u ms\n",
 		cpu, CONFIG.eths_num, ms);
 
@@ -83,6 +89,7 @@ main(int argc, char **argv)
 
 	SchedRun(core, ms);
 
+	TransportCoreFini(core);
 	InfraCoreDestroy(core);
 	InfraDestroy();
 

@@ -24,21 +24,123 @@
 #include "contract.h"
 #include "internal.h"
 #include "eth_in.h"
+#include "flow_table.h"
 #include "debug.h"
+
+/*----------------------------------------------------------------------------*/
+/*
+ * The per-core transport state. Hangs off core_ctx->transport, which the
+ * infrastructure allocates nothing for and never dereferences.
+ *
+ * Per core and shared-nothing, deliberately. A file-scope static would be the
+ * same mistake the kernel effort's Homa branch makes with its scheduler
+ * globals: correct with one stack thread and wrong with two, silently.
+ */
+struct transport {
+	struct flow_table	*flows;
+	struct listener_table	*listeners;
+};
+
+static struct transport *
+tstate(struct core_ctx *core)
+{
+	return (struct transport *)core->transport;
+}
+
+int
+TransportCoreInit(struct core_ctx *core)
+{
+	struct transport *t = calloc(1, sizeof(*t));
+
+	if (!t)
+		return -1;
+	t->flows = FlowTableCreate();
+	t->listeners = ListenerTableCreate();
+	if (!t->flows || !t->listeners) {
+		FlowTableDestroy(t->flows);
+		ListenerTableDestroy(t->listeners);
+		free(t);
+		return -1;
+	}
+	core->transport = t;
+	return 0;
+}
+
+void
+TransportCoreFini(struct core_ctx *core)
+{
+	struct transport *t = tstate(core);
+
+	if (!t)
+		return;
+	FlowTableDestroy(t->flows);
+	ListenerTableDestroy(t->listeners);
+	free(t);
+	core->transport = NULL;
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * The context store, as contract.h declares it (CR-3). These are the generic
+ * reference realisation; the compiler will emit typed accessors over the
+ * program's own context struct and these become their model, exactly as the
+ * kernel effort keeps mtp_ctx_store.c.
+ *
+ * Single core today, so the store is reached through g_core[0]. That is a
+ * placeholder and it is the one line that has to change when a second stack
+ * thread exists — flagged rather than left to be discovered.
+ */
+void *
+mtp_new_ctx(const flowkey_t *key, size_t ctx_size)
+{
+	return FlowTableInsert(tstate(g_core[0])->flows, key, ctx_size);
+}
+
+void *
+mtp_ctx_lookup(const flowkey_t *key)
+{
+	return FlowTableLookup(tstate(g_core[0])->flows, key);
+}
+
+int
+mtp_del_ctx(const flowkey_t *key)
+{
+	return FlowTableRemove(tstate(g_core[0])->flows, key);
+}
 
 /*----------------------------------------------------------------------------*/
 /*
  * The infrastructure's upcall: a packet arrived whose IP protocol number is
  * the one the program claims.
  *
- * Increment 1 counts it and drops it. Increment 2 replaces the body with
- * ProgParse() -> one flow-table lookup -> ProgDispatch(), which is P6 with P6's
- * cost fixed: the prototype's dispatcher re-looks-up per flag branch and pays
- * up to four hash lookups per packet. One lookup per packet is the design, and
- * writing the stub as a single function with a single lookup site is how it
- * stays that way.
+ * Counts it and drops it: the program's parser and dispatch do not exist yet.
+ * When they do, the body is one call to mtp_program_net_input(), because under
+ * v4 the parser, the store accessors and the dispatch are ALL generated and the
+ * target does not own a dispatcher. That is a change from our design, which had
+ * the target parse, look up and then call one program entry point.
+ *
+ * LOOKUP COUNT, stated honestly because it is a parity claim. The generated
+ * dispatcher does ONE flow-table lookup per packet — against the prototype,
+ * whose dispatcher re-looks-up per flag branch and pays up to four. A packet
+ * that misses and is a passive open costs TWO: the flow lookup, then the
+ * listener lookup. Claiming one everywhere would be wrong, and it is the SYN
+ * path, which is once per connection rather than once per packet.
  */
 static uint64_t transport_packets;
+
+/*
+ * What the receive path did with each packet, by class.
+ *
+ * mTCP counts packets in and packets in error and nothing between, so a packet
+ * that arrives and is then dropped somewhere in eth_in/ip_in is invisible — it
+ * looks exactly like a packet that never arrived. That ambiguity cost real time
+ * on the first zero-receive result, so the classes are counted here rather than
+ * reconstructed from a hex dump later.
+ */
+static struct {
+	uint64_t arp, ipv4, other_ethertype;
+	uint64_t ip_to_transport, ip_other_proto;
+} rxc;
 
 /*
  * Per-flow footprint, for the EAL's hugepage reservation (see upcall.h).
@@ -85,8 +187,22 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 				uint8_t *pktbuf;
 
 				pktbuf = core->iom->get_rptr(ctx, rx_inf, i, &len);
-				if (pktbuf != NULL)
+				if (pktbuf != NULL) {
+					uint16_t et = (uint16_t)((pktbuf[12] << 8) | pktbuf[13]);
+
+					if (et == 0x0806)
+						rxc.arp++;
+					else if (et == 0x0800) {
+						rxc.ipv4++;
+						if (len >= 24 && pktbuf[23] == TRANSPORT_IP_PROTO)
+							rxc.ip_to_transport++;
+						else
+							rxc.ip_other_proto++;
+					} else
+						rxc.other_ethertype++;
+
 					ProcessPacket(core, rx_inf, ts, pktbuf, len);
+				}
 #ifdef NETSTAT
 				else
 					core->nstat.rx_errors[rx_inf]++;
@@ -121,4 +237,10 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 		   0UL,
 #endif
 		   (unsigned long)transport_packets);
+	TRACE_INFO("CPU %d: rx classes: arp=%lu ipv4=%lu(proto-match=%lu other=%lu) "
+		   "other_ethertype=%lu\n", ctx->cpu,
+		   (unsigned long)rxc.arp, (unsigned long)rxc.ipv4,
+		   (unsigned long)rxc.ip_to_transport,
+		   (unsigned long)rxc.ip_other_proto,
+		   (unsigned long)rxc.other_ethertype);
 }
