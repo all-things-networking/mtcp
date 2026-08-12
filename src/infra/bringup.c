@@ -213,6 +213,15 @@ ReportPortCounters(void)
 		struct rte_eth_stats st;
 		uint16_t portid = CONFIG.eths[i].ifindex;
 
+		struct rte_eth_dev_info di;
+
+		if (rte_eth_dev_info_get(portid, &di) == 0)
+			TRACE_INFO("port %u offload capability: ipv4_cksum=%d "
+				   "l4_cksum=%d (tx_offload_capa=0x%llx)\n", portid,
+				   !!(di.tx_offload_capa & RTE_ETH_TX_OFFLOAD_IPV4_CKSUM),
+				   !!(di.tx_offload_capa & RTE_ETH_TX_OFFLOAD_TCP_CKSUM),
+				   (unsigned long long)di.tx_offload_capa);
+
 		if (rte_eth_stats_get(portid, &st) != 0)
 			continue;
 		TRACE_INFO("port %u (%s) [UNRELIABLE, see bringup.c]: "

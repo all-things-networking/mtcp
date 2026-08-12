@@ -101,8 +101,21 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 			.l4_csum_offset = (uint16_t)bp->offload_csum_off,
 		};
 
-		core->iom->dev_ioctl(core->ctx, f->nif_out,
-				     PKT_TX_L3L4_CSUM, &req);
+		/*
+		 * LOUD. dev_ioctl returns -1 when the NIC does not advertise
+		 * the capability, and ignoring that means the packet leaves
+		 * with whatever the program left in the checksum field — a
+		 * silent-drop default of exactly the kind we said we would not
+		 * inherit, and one that looks like a packet that never left.
+		 */
+		if (core->iom->dev_ioctl(core->ctx, f->nif_out,
+					 PKT_TX_L3L4_CSUM, &req) < 0) {
+			TRACE_ERROR("the NIC refused the transport-checksum "
+				    "offload this packet asked for; it would "
+				    "go out unsummed and be dropped by the "
+				    "peer, so it is not sent\n");
+			return -1;
+		}
 	}
 
 	t->tx_packets++;
