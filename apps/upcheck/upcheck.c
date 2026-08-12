@@ -33,7 +33,16 @@ int
 main(int argc, char **argv)
 {
 	const char *conf = "upcheck.conf";
-	uint32_t ms = 2000;
+	/*
+	 * No default. Every failing run of the zero-receive investigation
+	 * started upcheck with the old 2000 ms default and sent traffic seconds
+	 * later, after it had already exited — which produced a clean "ARP
+	 * arrives, IPv4 never does" signature, because -a probes at startup and
+	 * lands inside the window while everything else lands outside it. Two
+	 * days of a bug that did not exist. -t is now mandatory.
+	 */
+	uint32_t ms = 0;
+	int have_ms = 0;
 	struct core_ctx *core;
 	uint32_t arp_target = 0;
 	int cpu = 0;
@@ -42,20 +51,29 @@ main(int argc, char **argv)
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-f") && i + 1 < argc)
 			conf = argv[++i];
-		else if (!strcmp(argv[i], "-t") && i + 1 < argc)
+		else if (!strcmp(argv[i], "-t") && i + 1 < argc) {
 			ms = (uint32_t)atoi(argv[++i]);
+			have_ms = 1;
+		}
 		else if (!strcmp(argv[i], "-c") && i + 1 < argc)
 			cpu = atoi(argv[++i]);
 		else if (!strcmp(argv[i], "-a") && i + 1 < argc)
 			ParseIPAddress(&arp_target, argv[++i]);
 		else {
 			fprintf(stderr,
-				"usage: %s [-f conf] [-t ms] [-c cpu] [-a peer-ip]\n"
-				"       -t 0 runs until SIGINT\n"
+				"usage: %s -t <ms> [-f conf] [-c cpu] [-a peer-ip]\n"
+				"       -t is REQUIRED; -t 0 runs until SIGINT\n"
 				"       -a sends one ARP request for peer-ip\n",
 				argv[0]);
 			return 2;
 		}
+	}
+
+	if (!have_ms) {
+		fprintf(stderr, "upcheck: -t <ms> is required. Traffic sent "
+			"outside the run window looks exactly like traffic "
+			"that never arrived.\n");
+		return 2;
 	}
 
 	if (InfraInit(conf) < 0) {
@@ -74,8 +92,13 @@ main(int argc, char **argv)
 		return 1;
 	}
 
-	fprintf(stderr, "upcheck: cpu %d up on %d interface(s); running %u ms\n",
-		cpu, CONFIG.eths_num, ms);
+	if (ms)
+		fprintf(stderr, "upcheck: cpu %d up on %d interface(s); "
+			"RUN WINDOW OPENS NOW, %u ms\n", cpu, CONFIG.eths_num, ms);
+	else
+		fprintf(stderr, "upcheck: cpu %d up on %d interface(s); "
+			"RUN WINDOW OPENS NOW, until SIGINT\n",
+			cpu, CONFIG.eths_num);
 
 	if (arp_target) {
 		/* cur_ts is normally taken once per loop iteration; the loop has
@@ -93,6 +116,6 @@ main(int argc, char **argv)
 	InfraCoreDestroy(core);
 	InfraDestroy();
 
-	fprintf(stderr, "upcheck: clean exit\n");
+	fprintf(stderr, "upcheck: RUN WINDOW CLOSED after %u ms; clean exit\n", ms);
 	return 0;
 }

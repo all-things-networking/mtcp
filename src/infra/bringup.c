@@ -194,6 +194,14 @@ fail:
  * mTCP has no equivalent — it reports only its own counters — which is why the
  * first zero-receive result in this tree could not be attributed by reading the
  * log. It is cheap and it runs once, at teardown.
+ *
+ * *** THESE COUNTERS UNDER-REPORT ON THIS NIC AND ARE NOT AUTHORITATIVE. ***
+ * Measured 2026-08-12 (docs/RESULTS.md): ipackets read 0 in a run where the
+ * stack's own classification counted 27, and 4 in a run where it counted 25.
+ * They are worth printing because imissed and ierrors have no equivalent
+ * upstack, but a zero here means nothing on its own. THE RECEIVE-PATH
+ * CLASSIFICATION IN scheduler.c IS THE AUTHORITY — it is what resolved the
+ * zero-receive investigation, and these counters are what nearly buried it.
  */
 static void
 ReportPortCounters(void)
@@ -207,7 +215,8 @@ ReportPortCounters(void)
 
 		if (rte_eth_stats_get(portid, &st) != 0)
 			continue;
-		TRACE_INFO("port %u (%s): promisc=%d allmulti=%d "
+		TRACE_INFO("port %u (%s) [UNRELIABLE, see bringup.c]: "
+			   "promisc=%d allmulti=%d "
 			   "ipackets=%lu ibytes=%lu imissed=%lu "
 			   "ierrors=%lu rx_nombuf=%lu opackets=%lu\n",
 			   portid, CONFIG.eths[i].dev_name,
