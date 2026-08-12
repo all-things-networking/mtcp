@@ -121,10 +121,23 @@ struct bp {
 	bool		inherit_base;
 
 	uint32_t	prio;		/* from pkt_gen, passed through to the outer header */
-	uint32_t	offload;
+	uint32_t	offload;	/* non-zero: ask the NIC for the L4 sum */
+	uint16_t	offload_csum_off; /* where the sum goes, from the program */
 
 	uint16_t	hdr_len;
 	uint8_t		hdr[PROG_HDR_MAX];
+
+	/*
+	 * Drain-time scratch. Lives in the blueprint rather than on the stack
+	 * because a drain can stop half way — the transmit buffer fills — and
+	 * has to resume at the same segment on the next iteration.
+	 */
+	uint32_t	seg_off;	/* bytes of payload already emitted */
+	uint32_t	seg_idx;
+	uint32_t	seg_count;
+	uint8_t		prev_hdr_valid;
+	uint16_t	prev_paylen;
+	uint8_t		prev_hdr[PROG_HDR_MAX];
 };
 
 /*

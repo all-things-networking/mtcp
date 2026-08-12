@@ -25,6 +25,8 @@
 #include "internal.h"
 #include "eth_in.h"
 #include "flow_table.h"
+#include "flow.h"
+#include "target_core.h"
 #include "debug.h"
 
 /*----------------------------------------------------------------------------*/
@@ -36,17 +38,6 @@
  * same mistake the kernel effort's Homa branch makes with its scheduler
  * globals: correct with one stack thread and wrong with two, silently.
  */
-struct transport {
-	struct flow_table	*flows;
-	struct listener_table	*listeners;
-};
-
-static struct transport *
-tstate(struct core_ctx *core)
-{
-	return (struct transport *)core->transport;
-}
-
 int
 TransportCoreInit(struct core_ctx *core)
 {
@@ -56,23 +47,22 @@ TransportCoreInit(struct core_ctx *core)
 		return -1;
 	t->flows = FlowTableCreate();
 	t->listeners = ListenerTableCreate();
-	if (!t->flows || !t->listeners) {
-		FlowTableDestroy(t->flows);
-		ListenerTableDestroy(t->listeners);
-		free(t);
+	core->transport = t;
+	if (!t->flows || !t->listeners || FlowPoolInit(core) < 0) {
+		TransportCoreFini(core);
 		return -1;
 	}
-	core->transport = t;
 	return 0;
 }
 
 void
 TransportCoreFini(struct core_ctx *core)
 {
-	struct transport *t = tstate(core);
+	struct transport *t = TransportOf(core);
 
 	if (!t)
 		return;
+	FlowPoolFini(core);
 	FlowTableDestroy(t->flows);
 	ListenerTableDestroy(t->listeners);
 	free(t);
@@ -93,19 +83,19 @@ TransportCoreFini(struct core_ctx *core)
 void *
 mtp_new_ctx(const flowkey_t *key, size_t ctx_size)
 {
-	return FlowTableInsert(tstate(g_core[0])->flows, key, ctx_size);
+	return FlowTableInsert(TransportOf(g_core[0])->flows, key, ctx_size);
 }
 
 void *
 mtp_ctx_lookup(const flowkey_t *key)
 {
-	return FlowTableLookup(tstate(g_core[0])->flows, key);
+	return FlowTableLookup(TransportOf(g_core[0])->flows, key);
 }
 
 int
 mtp_del_ctx(const flowkey_t *key)
 {
-	return FlowTableRemove(tstate(g_core[0])->flows, key);
+	return FlowTableRemove(TransportOf(g_core[0])->flows, key);
 }
 
 /*----------------------------------------------------------------------------*/

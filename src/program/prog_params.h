@@ -117,6 +117,11 @@
  */
 #define PARITY_SET_PSH		0
 
+/* Where the transport checksum sits within this program's header. The target
+ * asks the NIC to compute it and needs the offset; it never learns what is
+ * being summed. */
+#define PROG_L4_CSUM_OFFSET	16
+
 /* There is no RTO floor and no RTO ceiling in the donor. Effective RTO here is
  * ~3 ms — MEASURED, docs/RESULTS.md 2026-08-07, not assumed. Reproducing this
  * needs a clock the language does not yet expose; see CR-4, which we support

@@ -341,6 +341,16 @@ int  mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms);
 /* One timer expiry -> the bound event -> dispatch. */
 void mtp_program_timer(struct mtp_timer *t, uint32_t now_ms);
 
+/*
+ * Per-segment header fixup, at the target's segmentation point.
+ *
+ * CR-1 took the seg rules off the pkt_gen path: they are baked into generated
+ * code that the target calls once per produced segment. The kernel calls it at
+ * the GSO split; we call it in the drain. One generated symbol, the rules
+ * inside it, and the target passing a view of the segment and knowing no field.
+ */
+void mtp_program_segment(const struct mtp_seg_view *v);
+
 /* The IP protocol number this program answers to. */
 extern const uint8_t TRANSPORT_IP_PROTO;
 

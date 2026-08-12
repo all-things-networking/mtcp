@@ -30,6 +30,9 @@ struct tcp_ctx {
 	 */
 	uint32_t rcv_wnd;
 
+	/* --- endpoints, for building outbound headers -------------------- */
+	uint16_t loc_port, rem_port;
+
 	/* --- the data units, embedded, per CR-3 -------------------------- */
 	struct mtp_data_unit *tx;
 	struct mtp_data_unit *rx;
@@ -41,5 +44,7 @@ struct tcp_ctx {
 void     tcp_on_payload_merged(struct tcp_ctx *c, uint32_t new_recv_next);
 void     sock_recv(struct tcp_ctx *c, uint32_t delivered_now);
 uint16_t tcp_window_field(const struct tcp_ctx *c, int is_syn);
+uint16_t tcp_build_header(uint8_t *out, const struct tcp_ctx *c, uint32_t seq,
+			  uint8_t flags, uint32_t ts_val, uint32_t ts_ecr);
 
 #endif /* PROG_CTX_H */
