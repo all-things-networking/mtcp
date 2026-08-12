@@ -15,11 +15,16 @@
 
 CC      = gcc
 
-DPDK_CFLAGS := $(shell pkg-config --cflags libdpdk)
-DPDK_LIBS   := $(shell pkg-config --libs libdpdk)
+DPDK_CFLAGS := $(shell pkg-config --cflags libdpdk 2>/dev/null)
+DPDK_LIBS   := $(shell pkg-config --libs libdpdk 2>/dev/null)
+# Only the library and the apps need DPDK. `make test` and `make check`
+# deliberately do not, so the gates run on the orchestrator too.
+NEEDS_DPDK := $(filter-out test check clean,$(or $(MAKECMDGOALS),all))
+ifneq ($(NEEDS_DPDK),)
 ifeq ($(DPDK_CFLAGS),)
 $(error pkg-config could not find libdpdk. Build on a node with the DPDK \
 environment — docs/DPDK_HANDOFF.md §4 — not on the orchestrator)
+endif
 endif
 
 # from mTCP mtcp/src/Makefile:44-54 @7fbb223c, unchanged. -O0 comes after the
@@ -45,7 +50,7 @@ LIB_OBJS     := $(patsubst %.c,build/%.o,$(LIB_SRCS))
 LIB  = build/libmtp.a
 APPS = bin/upcheck
 
-.PHONY: all clean check
+.PHONY: all clean check test
 all: $(APPS)
 
 $(LIB): $(LIB_OBJS)
@@ -60,8 +65,21 @@ bin/upcheck: apps/upcheck/upcheck.c $(LIB)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $< -o $@ $(LIB) $(LIBS)
 
+# Tests that need neither a NIC nor DPDK, so they run on any node — including
+# the orchestrator, which has no rte_config.h. A test that only runs on the
+# testbed is a test that stops being run.
+TEST_SRCS := $(wildcard tests/test_*.c)
+TESTS     := $(patsubst tests/%.c,bin/%,$(TEST_SRCS))
+
+bin/test_%: tests/test_%.c src/program/prog_app.c
+	@mkdir -p $(dir $@)
+	$(CC) -g -O0 -Wall -Werror -Isrc/target -Isrc/program $^ -o $@
+
+test: $(TESTS)
+	@for t in $(TESTS); do ./$$t || exit 1; done
+
 # The gates. A rule with no test is a rule that gets broken quietly.
-check:
+check: test
 	tools/check_rule4.sh
 	tools/check_infra_provenance.sh
 

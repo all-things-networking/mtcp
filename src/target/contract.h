@@ -285,12 +285,12 @@ int mtp_notify(flow_t *f, const struct mtp_notif *msg);
  * kernel puts a `struct msghdr *` in the handle; ours is an mtp_tx_addr,
  * because the handle's type is realisation and the schema is the contract.
  *
- * ONE NOTE FOR THE CR PROCESS. CR-7 says `recv` on a stream socket is
- * runtime-served and that a program overrides it "only for receiver-driven
- * transports". Parity with mTCP requires a stream program to override it: the
- * donor recomputes its advertised window when the application drains, and a
- * program that is never told the application drained cannot reproduce that.
- * See prog_params.h, where the rule is written out.
+ * A NOTE WE WITHDREW. We read §7a's remark that a stream socket's `recv` is
+ * runtime-served as a rule narrower than parity allows. It is not a rule: an
+ * app op is an event like any other, and a program binds the ops it needs. Our
+ * program binds `recv` because it needs the application-drain event to
+ * recompute the advertised window at the donor's second recompute point — see
+ * prog_app.c. Nothing about the language changes.
  */
 enum mtp_app_op_kind {
 	MTP_APP_SEND = 1,
@@ -380,17 +380,21 @@ extern const uint8_t TRANSPORT_IP_PROTO;
  *   B11 transmit ordering. `set_queue_prio` is queue-level; Homa wants SRPT
  *       ordering of flows by a per-flow key. Not the same thing.
  *
- * And four raised by this target, in the conflict report (D-16):
+ * And raised by this target, recorded in docs/LANGUAGE-NEEDS.md. Nothing is
+ * filed into the kernel repository; the lead mediates.
  *
- *   CR-A when a pkt_gen payload reference is resolved, and what may invalidate
- *        it. The contract is silent on a guarantee BOTH targets depend on and
- *        each satisfies differently — the kernel by page refcounts taken inside
- *        the call, this target by clamping release against the oldest live
- *        blueprint. Neither is wrong; the silence is.
- *   CR-B declarable merge semantics, without which packet CONTENT is
+ *   N-A  CLOSED 2026-08-12, and it was never a language gap. The lead: the
+ *        payload reference stays valid until the program flushes that range
+ *        with tx_flush_and_notify. So the guarantee is PROGRAM-CONTROLLED and
+ *        the language already implied it — we failed to read it out. The two
+ *        targets satisfy it by different routes, and for this one it is what
+ *        makes deferring packet generation to a batched drain safe. Our target
+ *        now ASSERTS the program's compliance rather than enforcing it; see
+ *        internal.h §3 for why the difference matters.
+ *   N-B  declarable merge semantics, without which packet CONTENT is
  *        target-determined and the design law is broken.
- *   CR-C scratchpad lifetime across one packet's event list.
- *   CR-D support for CR-4 (now_ns), which parity needs because mTCP's RTO is a
+ *   N-C  scratchpad lifetime across one packet's event list.
+ *   N-D  support for CR-4 (now_ns), which parity needs because mTCP's RTO is a
  *        live estimator with no floor and no ceiling.
  *
  * Limits of the evidence: the Homa branch C read has no timers, no

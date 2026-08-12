@@ -156,37 +156,83 @@ struct bp *tgt_bp_last(flow_t *f);
 void       tgt_bp_commit(flow_t *f, struct bp *bp);
 
 /*============================================================================*
- * 3. The release clamp — what replaces the kernel's page refcount
+ * 3. Payload lifetime — an ASSERTION, not a clamp
  *============================================================================*/
 /*
- * mTCP is safe not because of its buffer but because NO POINTER INTO THE BUFFER
- * OUTLIVES A LOCK HOLD: it re-derives the pointer and copies from it inside one
- * hold of write_lock. P1 takes the lock off the generation path, so that
- * property has to be REPLACED rather than re-added. Three things together do
- * it:
+ * N-A, answered by the lead 2026-08-12:
  *
- *   1. the drain reads nothing but the blueprint's own snapshot (P1, above);
- *   2. bytes never move — the true ring removes the memmove;
- *   3. RELEASE-CLAMPING: mtp_tx_flush_and_notify will not advance a unit's head
- *      past the oldest live blueprint that references it, where live means
- *      committed and not yet fully drained, and where a zero-length payload
- *      holds no reference.
+ *   "The payload reference is referring to some part of the send buffer. It
+ *    will stay valid until the program asks the target to flush the send buffer
+ *    with the respective tx_flush_and_notify instruction."
  *
- * The kernel gets the same guarantee for free because its payload reference is
- * a page refcount taken inside pkt_gen. Ours has to be enforced, because our
- * reference is a raw pointer into a ring whose head moves. Same invariant, two
- * realisations — which is the argument for CR-A: the contract states neither,
- * and a program cannot tell the difference, but a target that assumed the
- * kernel's discipline and deferred like ours would corrupt payloads.
+ * So the guarantee is PROGRAM-CONTROLLED. A reference handed to pkt_gen stays
+ * valid until the program flushes that range, and the target must not move a
+ * unit's head for any other reason — which ours does not, because the head
+ * moves only on tx_flush_and_notify. This was never a language gap; we failed
+ * to read it out of the language we had.
  *
- * Liveness is tracked PER UNIT, not per flow-ring, so a blueprint built while
- * dispatching one flow still pins the unit of the flow it names.
+ * The two targets satisfy it by different routes. The kernel resolves inside
+ * pkt_gen and takes page refcounts, so the question never arises. We defer to a
+ * batched drain, and THIS GUARANTEE IS WHAT MAKES THE DEFERRAL SAFE.
  *
- * The clamp records a counter and a debug build asserts it did not bite. If it
- * bites regularly the program is releasing too eagerly, and that is worth
- * knowing rather than hiding.
+ * WHAT THAT CHANGES. This was written as a mechanism: the target would silently
+ * refuse to advance the head past the oldest live blueprint. Under the answer
+ * above that is wrong twice over — it declines a tx_flush_and_notify the
+ * program legitimately issued, and it ABSORBS a program that flushed bytes it
+ * still referenced instead of reporting it. C flagged exactly this in review
+ * and could not settle it: "I cannot rule out that it hides a program bug
+ * rather than preventing one." It does.
+ *
+ * So: same bookkeeping, opposite disposition. The oldest live reference per
+ * unit is still tracked, and it is now what an ASSERTION reads.
+ *
+ *   debug   build: assert loudly and name the range and the blueprint.
+ *   release build: undefined. The program is wrong; we do not paper over it.
+ *
+ * Liveness is per unit, not per flow-ring, so a blueprint built while
+ * dispatching one flow still counts against the unit of the flow it names.
  */
-uint64_t tgt_clamp_count(void);
+void tgt_tx_assert_flushable(struct mtp_data_unit *u, uint64_t upto);
+
+/*
+ * IS OUR PROGRAM ABLE TO TRIP IT? Analysed, not assumed — and the answer
+ * differs by milestone, which is why it is written here rather than in a
+ * commit message.
+ *
+ * A correct TCP program mostly cannot: it flushes up to send_una and references
+ * from send_una onward, so the reference sits AT the head and a flush never
+ * crosses it (C established this).
+ *
+ * The reachable case is a queued retransmission whose original is acknowledged
+ * before the retransmission drains. Whether it is reachable turns entirely on
+ * where retransmissions are generated relative to the receive burst:
+ *
+ *   M1: NOT REACHABLE. The only retransmission source is the RTO, and timers
+ *       fire after the whole receive burst is processed and immediately before
+ *       the drain (§4). No tx_flush_and_notify can run between the commit and
+ *       the drain — the application thread appends, it does not flush.
+ *
+ *   M2: REACHABLE, as soon as fast retransmit lands. Three duplicate ACKs at
+ *       packet k of a burst commit a retransmission blueprint; a cumulative ACK
+ *       at packet k+1..63 of the SAME burst then covers that range and the ack
+ *       processor flushes it. The blueprint is still in the ring. That is an
+ *       ordinary reordering-recovery pattern, not a corner case.
+ *
+ * THE FIX WHEN IT LANDS IS TARGET-SIDE, and worth stating now because the
+ * obvious program-side fix does not work. "Cancel the pending retransmission"
+ * requires the program to know it has one pending, and the ring is invisible to
+ * the program by construction. The program's mental model — the reference is
+ * consumed when pkt_gen returns — is true in the kernel and false here.
+ *
+ * So the target closes it, invisibly, by draining before it can happen: if a
+ * flush would cross the oldest live reference, drain the ring first and then
+ * flush. Nothing is declined, no instruction changes meaning, and the only cost
+ * is one forced early drain in a case that is already rare. It does cut a
+ * coalescing run short, so it is on the list of things to count.
+ *
+ * The test for it is named and specified and CANNOT RUN YET: there is no send
+ * path in increment 1. It is the first test the send path owes.
+ */
 
 /*============================================================================*
  * 4. Scheduling (DESIGN §3)

@@ -69,17 +69,12 @@
  * `rcv_wnd` unscaled on a SYN, and `rcv_wnd >> PARITY_WSCALE` on everything
  * else.
  *
- * A CONSEQUENCE WORTH THE CR PROCESS. Recompute point 2 fires when the
- * APPLICATION drains. MTP_LANG §7a says `recv` on a stream socket is
- * runtime-served — the byte copy happens with no program event — and that a
- * program overrides it "only for receiver-driven transports". A TCP program
- * that never learns the application drained cannot reproduce the donor's second
- * recompute point, and therefore cannot reproduce the window-reopen ACK at all.
- *
- * So this program BINDS `recv` in its app_parser, and parity is the reason. The
- * capability is already in v4 — CR-7 permits it — but the rationale's "only for
- * receiver-driven transports" is too narrow, and that is worth reporting back:
- * a stream transport that has to match a donor needs it too.
+ * WHERE POINT 2 COMES FROM. It fires when the APPLICATION drains, so the
+ * program needs an event for that, so it BINDS `recv` in its app_parser
+ * (prog_app.c). No language change is involved and none was needed: an app op
+ * is an event like any other and a program binds the ops it needs. We briefly
+ * read §7a's remark about stream sockets as a rule restricting that; it is a
+ * description of the example program, and the reading is withdrawn.
  */
 #define PARITY_RCVBUF_SIZE	262144	/* the donor's running rcvbuf */
 #define PARITY_INITIAL_WINDOW	14600	/* tcp_stream.c:325 */
