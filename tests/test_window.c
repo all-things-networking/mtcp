@@ -90,10 +90,12 @@ test_window_only_moves_at_two_points(void)
 /*
  * SKIPPED, and it must stay visible until it can run.
  *
- * The payload-lifetime assertion (src/target/internal.h §3): a
- * tx_flush_and_notify over a range a committed-but-undrained blueprint still
- * references is a program error. The lead settled N-A — the reference is valid
- * until the program flushes it — so the target asserts rather than clamping.
+ * The payload-lifetime invariant (src/target/internal.h §3). N-A: a payload
+ * reference is valid until the program flushes that range, so a program can
+ * flush whenever it likes and is never in violation. Because we defer packet
+ * generation, we may still hold the reference when it does — so we drain before
+ * honouring such a flush, and assert afterwards that our own drain ran. The
+ * assertion checks the target, never the program.
  *
  * Reachability, by analysis:
  *   M1  not reachable. The only retransmission source is the RTO, and timers

@@ -388,9 +388,11 @@ extern const uint8_t TRANSPORT_IP_PROTO;
  *        with tx_flush_and_notify. So the guarantee is PROGRAM-CONTROLLED and
  *        the language already implied it — we failed to read it out. The two
  *        targets satisfy it by different routes, and for this one it is what
- *        makes deferring packet generation to a batched drain safe. Our target
- *        now ASSERTS the program's compliance rather than enforcing it; see
- *        internal.h §3 for why the difference matters.
+ *        makes deferring packet generation to a batched drain safe. The
+ *        residual difficulty is OURS, not the language's: deferral means we may
+ *        still hold a reference when the program flushes, so we need it to live
+ *        longer than the contract promises and we drain to get that. See
+ *        internal.h §3.
  *   N-B  declarable merge semantics, without which packet CONTENT is
  *        target-determined and the design law is broken.
  *   N-C  scratchpad lifetime across one packet's event list.

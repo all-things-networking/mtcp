@@ -177,24 +177,34 @@ void       tgt_bp_commit(flow_t *f, struct bp *bp);
  *
  * WHAT THAT CHANGES. This was written as a mechanism: the target would silently
  * refuse to advance the head past the oldest live blueprint. Under the answer
- * above that is wrong twice over — it declines a tx_flush_and_notify the
- * program legitimately issued, and it ABSORBS a program that flushed bytes it
- * still referenced instead of reporting it. C flagged exactly this in review
- * and could not settle it: "I cannot rule out that it hides a program bug
- * rather than preventing one." It does.
+ * above that is wrong, because it declines a tx_flush_and_notify the program
+ * legitimately issued — and the program is ALWAYS legitimate here. Validity
+ * ends when the program flushes; the program flushing IS what ends it. There is
+ * no way for a program to be in violation and no program model enters into it.
  *
- * So: same bookkeeping, opposite disposition. The oldest live reference per
- * unit is still tracked, and it is now what an ASSERTION reads.
+ * SO THE PROBLEM IS ENTIRELY OURS. Because we defer packet generation to a
+ * batched drain, at the moment the program flushes we may still be holding that
+ * reference in an undrained blueprint. WE NEED THE REFERENCE TO LIVE LONGER
+ * THAN THE CONTRACT PROMISES. The kernel never meets this because the packet is
+ * gone before pkt_gen returns.
  *
- *   debug   build: assert loudly and name the range and the blueprint.
- *   release build: undefined. The program is wrong; we do not paper over it.
+ * The fix is unchanged: before honouring a flush that would cross a live
+ * reference, DRAIN. Nothing is declined, no instruction changes meaning, and
+ * the cost is one forced early drain in a rare case — which does cut a
+ * coalescing run short, so it goes on the list of things to count.
  *
- * Liveness is per unit, not per flow-ring, so a blueprint built while
- * dispatching one flow still counts against the unit of the flow it names.
- */
-void tgt_tx_assert_flushable(struct mtp_data_unit *u, uint64_t upto);
-
-/*
+ * What the bookkeeping is for, then, is not catching a bad program. It is
+ * catching US: after the drain there must be no live reference into the flushed
+ * range, and tgt_tx_assert_flushable() checks that our own drain-before-flush
+ * actually ran. A firing assertion means a bug in this file, not in the .mtp.
+ *
+ * (An earlier version of this comment said the guarantee placed an obligation
+ * on the program that the program could not discharge, because it cannot see
+ * the ring. That was wrong and the lead caught it. It is worth leaving the
+ * correction visible: the failure mode was turning "our implementation has a
+ * problem" into "the abstraction has a gap", which is a flattering direction to
+ * be wrong in and therefore one to check twice.)
+ *
  * IS OUR PROGRAM ABLE TO TRIP IT? Analysed, not assumed — and the answer
  * differs by milestone, which is why it is written here rather than in a
  * commit message.
@@ -218,17 +228,8 @@ void tgt_tx_assert_flushable(struct mtp_data_unit *u, uint64_t upto);
  *       processor flushes it. The blueprint is still in the ring. That is an
  *       ordinary reordering-recovery pattern, not a corner case.
  *
- * THE FIX WHEN IT LANDS IS TARGET-SIDE, and worth stating now because the
- * obvious program-side fix does not work. "Cancel the pending retransmission"
- * requires the program to know it has one pending, and the ring is invisible to
- * the program by construction. The program's mental model — the reference is
- * consumed when pkt_gen returns — is true in the kernel and false here.
- *
- * So the target closes it, invisibly, by draining before it can happen: if a
- * flush would cross the oldest live reference, drain the ring first and then
- * flush. Nothing is declined, no instruction changes meaning, and the only cost
- * is one forced early drain in a case that is already rare. It does cut a
- * coalescing run short, so it is on the list of things to count.
+ * THE FIX IS TARGET-SIDE because the problem is target-side: the program did
+ * nothing wrong by flushing a range it had acknowledged. We drain first.
  *
  * The test for it is named and specified and CANNOT RUN YET: there is no send
  * path in increment 1. It is the first test the send path owes.
