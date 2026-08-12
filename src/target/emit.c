@@ -137,6 +137,22 @@ emit_bp(struct core_ctx *core, struct flow *f, struct bp *bp)
 	return 0;
 }
 
+/*
+ * Liveness ends when the LAST byte of the blueprint is in an mbuf, so the
+ * release is here — once per blueprint, after emit_bp has succeeded — and not
+ * inside emit_segment.
+ *
+ * A blueprint with no payload took no reference and releases none. Getting
+ * that backwards would decrement a count nobody incremented, which the FIFO in
+ * tx_stream.c would then read as the wrong oldest base.
+ */
+static void
+release_bp(struct bp *bp)
+{
+	if (bp->payload.len && bp->unit)
+		tgt_tx_ref_release(bp->unit);
+}
+
 /*----------------------------------------------------------------------------*/
 void
 tgt_drain(struct core_ctx *core)
@@ -152,15 +168,44 @@ tgt_drain(struct core_ctx *core)
 
 			if (emit_bp(core, f, bp) < 0) {
 				/*
-				 * From the prototype: the transmit buffer is
-				 * full, so re-insert at the HEAD, leave the
-				 * partially consumed blueprint rewound, and
-				 * break so the burst can flush. The flow is
-				 * already at the head of the list here, so
-				 * breaking is the re-insertion.
+				 * The transmit buffer is full. Leave this flow
+				 * on the list with its partially consumed
+				 * blueprint rewound (seg_off is where we
+				 * stopped) and ABANDON THE REST OF THE WALK
+				 * for this iteration, so the burst can flush.
+				 *
+				 * Abandoning the remaining flows rather than
+				 * skipping this one is deliberate: a full
+				 * interface buffer has no room for the next
+				 * flow either, so continuing would be a walk
+				 * that fails once per flow. The flow keeps its
+				 * place at the head, which is the
+				 * re-insertion.
+				 *
+				 * This matches the prototype exactly, checked
+				 * against the code rather than remembered:
+				 * MTP_PacketGenList (mtp_net.c:840-847 @
+				 * eac02d19) does TAILQ_INSERT_HEAD and then
+				 * `break`, with the comment "since there is no
+				 * available write buffer, break". Its
+				 * skip-and-continue branch at :848-854 is dead
+				 * code — SendMTPPackets never returns the -1
+				 * that would reach it.
+				 *
+				 * Inherited with it, and worth knowing: an ARP
+				 * miss also makes IPOutput return NULL
+				 * (ip_out.c:123-135) and is indistinguishable
+				 * here, so one unresolved destination stalls
+				 * the whole walk for an iteration. True of the
+				 * prototype too. Acceptable at M1's single
+				 * connection; it is on the list for the
+				 * multi-flow work, where it is a
+				 * head-of-line block with a 1 s ARP retry
+				 * behind it.
 				 */
 				return;
 			}
+			release_bp(bp);
 			bp->seg_off = 0;
 			bp->prev_hdr_valid = 0;
 			f->ring_head = ring_next(f->ring_head);

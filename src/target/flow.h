@@ -39,6 +39,7 @@ struct flow {
 	/* the generation list (P5) */
 	TAILQ_ENTRY(flow) gen_link;
 	uint8_t		 on_gen_list;
+	uint8_t		 scratch_out;	/* a tgt_bp_new() awaiting its commit */
 };
 
 /*

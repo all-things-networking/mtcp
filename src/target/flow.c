@@ -119,6 +119,14 @@ tgt_bp_new(flow_t *f)
 	 * sites and not one does. */
 	if (ring_next(f->ring_tail) == f->ring_head)
 		return NULL;
+
+	/* Two tgt_bp_new() with no commit between them is a contract violation,
+	 * not a silent overwrite: the second would hand back the same scratch
+	 * slot and the first caller's header would vanish under it. Cheap to
+	 * assert, and otherwise it surfaces as a corrupted packet weeks later. */
+	assert(!f->scratch_out);
+	f->scratch_out = 1;
+
 	return &f->ring[f->ring_tail];
 }
 
@@ -137,6 +145,7 @@ void
 tgt_bp_commit(flow_t *f, struct bp *bp)
 {
 	assert(bp == &f->ring[f->ring_tail]);
+	f->scratch_out = 0;
 	f->ring_tail = ring_next(f->ring_tail);
 	tgt_sched_enqueue(f);
 }
@@ -156,9 +165,11 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 {
 	struct bp *bp = tgt_bp_new(f);
 
-	if (!bp)
+	if (!bp) {
+		TransportOf(g_core[0])->bp_full++;
 		return -1;		/* ring full: the program declines to
 					 * emit and the flow stays schedulable */
+	}
 	assert(hdr_len <= PROG_HDR_MAX);
 
 	memset(bp, 0, sizeof(*bp));
@@ -174,8 +185,11 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		 * stays valid until the program flushes this range, which is
 		 * the guarantee that makes deferral safe (internal.h §3). */
 		if (tgt_tx_ref(payload->u, payload->off, payload->len,
-			       &bp->payload) < 0)
+			       &bp->payload) < 0) {
+			f->scratch_out = 0;	/* abandoned, not committed */
 			return -1;
+		}
+		bp->unit = payload->u;
 	}
 
 	tgt_bp_commit(f, bp);

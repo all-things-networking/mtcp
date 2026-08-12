@@ -30,10 +30,19 @@ struct mtp_data_unit {
 	uint64_t	 head_seq;	/* first byte still held */
 	uint64_t	 tail_seq;	/* one past the last byte held */
 
-	/* the oldest committed-and-undrained blueprint referencing this unit,
-	 * and how many there are. This is what internal.h §3's assertion reads
-	 * and what tells the flush whether it must drain first. */
-	uint64_t	 live_ref_base;
+	/*
+	 * The bases of every committed-and-undrained blueprint referencing this
+	 * unit, oldest first. This is what internal.h §3's assertion reads and
+	 * what tells the flush whether it must drain first.
+	 *
+	 * A FIFO rather than a single low-water mark, because a single mark
+	 * cannot be raised when the oldest reference is released — it only ever
+	 * knows how to fall. References are taken in increasing sequence order
+	 * and released in the same order (the ring drains FIFO), so a ring of
+	 * bases is exact and costs one slot per blueprint.
+	 */
+	uint64_t	 ref_base[BP_RING_DEPTH];
+	uint16_t	 ref_head, ref_tail;
 	uint32_t	 live_refs;
 };
 
@@ -49,11 +58,38 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 {
 	memset(u, 0, sizeof(*u));
 	u->size = size;
-	/* the donor's running sndbuf, from its configuration. A byte stream
-	 * gets the configured buffer; a message gets its own length rounded up,
-	 * which is the same instruction parameterised by data. */
-	u->cap = (uint32_t)CONFIG.sndbuf_size;
+
+	/*
+	 * The donor's running sndbuf, from its configuration.
+	 *
+	 * `size` is read only to reject what is not yet built: a bounded unit —
+	 * a message, which is how Homa and QUIC use this instruction — would
+	 * size its buffer from its own length. That path does not exist. TCP
+	 * passes MTP_SIZE_INF and gets the configured buffer, and anything else
+	 * fails loudly rather than silently getting a TCP-shaped buffer.
+	 */
+	assert(size == MTP_SIZE_INF);
+
+	/*
+	 * off_of() masks with cap-1, so the capacity must be a power of two.
+	 * The donor's running config is 262144 = 2^18 and config.c only
+	 * enforces >= 64, so `sndbuf = 100000` is an ordinary thing to write
+	 * and would silently corrupt every wrap. Round up and say so.
+	 */
+	u->cap = 1;
+	while (u->cap < (uint32_t)CONFIG.sndbuf_size)
+		u->cap <<= 1;
+	if (u->cap != (uint32_t)CONFIG.sndbuf_size)
+		TRACE_CONFIG("sndbuf %d is not a power of two; the transmit "
+			     "ring uses %u. Set sndbuf to a power of two to "
+			     "keep the buffer size the donor is measured "
+			     "with.\n", CONFIG.sndbuf_size, u->cap);
+
 	u->buf = malloc(u->cap);
+	if (!u->buf) {
+		TRACE_ERROR("could not allocate a %u byte transmit ring\n", u->cap);
+		u->cap = 0;
+	}
 }
 
 int
@@ -103,14 +139,14 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 	struct core_ctx *core = g_core[0];	/* single core; see scheduler.c */
 	uint64_t upto = u->head_seq + len;
 
-	if (u->live_refs && upto > u->live_ref_base) {
+	if (u->live_refs && upto > u->ref_base[u->ref_head]) {
 		TransportOf(core)->forced_drains++;
 		tgt_drain(core);
 	}
 
 	/* Now our own invariant must hold. This never accuses the program: a
 	 * failure here means the drain above did not do its job. */
-	assert(!u->live_refs || upto <= u->live_ref_base);
+	assert(!u->live_refs || upto <= u->ref_base[u->ref_head]);
 
 	if (upto > u->tail_seq)
 		upto = u->tail_seq;
@@ -153,15 +189,32 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out)
 		out->wrap_data = u->buf;
 	}
 
-	if (!u->live_refs || seq < u->live_ref_base)
-		u->live_ref_base = seq;
+	assert(u->live_refs < BP_RING_DEPTH);
+	u->ref_base[u->ref_tail] = seq;
+	u->ref_tail = (uint16_t)((u->ref_tail + 1) % BP_RING_DEPTH);
 	u->live_refs++;
 	return 0;
 }
 
+/*
+ * Liveness ENDS when the drain has copied the blueprint's last byte into an
+ * mbuf — internal.h §3 — so this is called once per blueprint, from the drain,
+ * after its final segment and not per segment.
+ *
+ * Nothing called it for one commit, which is worth recording rather than
+ * quietly fixing: live_refs only ever rose, so the oldest base stayed pinned at
+ * the first byte the flow ever sent. In a debug build the first flush past the
+ * first data packet would have tripped an assertion written to catch the
+ * target; with NDEBUG it would have taken the forced-drain branch on every
+ * flush for ever, cutting every coalescing run short. It would have passed
+ * traffic and benchmarked cleanly while handing back the mechanism the whole
+ * comparison rests on.
+ */
 void
 tgt_tx_ref_release(struct mtp_data_unit *u)
 {
-	if (u->live_refs)
-		u->live_refs--;
+	if (!u->live_refs)
+		return;
+	u->ref_head = (uint16_t)((u->ref_head + 1) % BP_RING_DEPTH);
+	u->live_refs--;
 }
