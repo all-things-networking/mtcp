@@ -15,7 +15,25 @@
 #include "contract.h"
 #include "prog_params.h"
 
+/* TCP connection states. M1c exercises passive open through teardown. */
+#define TCP_CLOSED	0
+#define TCP_LISTEN	1
+#define TCP_SYN_RCVD	2
+#define TCP_ESTABLISHED	3
+#define TCP_CLOSE_WAIT	4
+#define TCP_LAST_ACK	5
+
 struct tcp_ctx {
+	/*
+	 * The target's handle for this flow, placed here by the target when it
+	 * creates the context. The compiler emits the context struct, so it can
+	 * put a target handle in it; the program passes it back to pkt_gen and
+	 * notify and never looks inside.
+	 */
+	flow_t  *f;
+
+	uint8_t  state;
+
 	/* --- receive side, sequence space ------------------------------- */
 	uint32_t recv_next;	/* next in-order sequence expected; the cumulative ACK */
 	uint32_t delivered;	/* what the application has taken, accumulated from
@@ -32,6 +50,16 @@ struct tcp_ctx {
 
 	/* --- endpoints, for building outbound headers -------------------- */
 	uint16_t loc_port, rem_port;
+
+	/* --- send side, sequence space ----------------------------------- */
+	uint32_t send_una;	/* oldest unacknowledged */
+	uint32_t send_next;	/* next to send */
+	uint32_t write_end;	/* highest app byte appended */
+	uint32_t send_wnd;	/* the peer's advertised window */
+	uint32_t cwnd, ssthresh;
+
+	/* --- the peer's timestamp, echoed in ours ------------------------ */
+	uint32_t ts_recent;
 
 	/* --- the data units, embedded, per CR-3 -------------------------- */
 	struct mtp_data_unit *tx;

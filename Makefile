@@ -47,8 +47,12 @@ PROGRAM_SRCS := $(wildcard src/program/*.c)
 LIB_SRCS     := $(INFRA_SRCS) $(TARGET_SRCS) $(PROGRAM_SRCS)
 LIB_OBJS     := $(patsubst %.c,build/%.o,$(LIB_SRCS))
 
+# --start-group around the archive: the target calls generated program symbols
+# and the program calls target instructions, so the two reference each other and
+# a single pass over the archive misses the second direction. The mutual
+# reference is the boundary working as intended, not a layering problem.
 LIB  = build/libmtp.a
-APPS = bin/upcheck
+APPS = bin/upcheck bin/tcpserver
 
 .PHONY: all clean check test
 all: $(APPS)
@@ -63,7 +67,11 @@ build/%.o: %.c
 
 bin/upcheck: apps/upcheck/upcheck.c $(LIB)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $< -o $@ $(LIB) $(LIBS)
+	$(CC) $(CFLAGS) $< -o $@ -Wl,--start-group $(LIB) -Wl,--end-group $(LIBS)
+
+bin/tcpserver: apps/tcpserver/tcpserver.c $(LIB)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $< -o $@ -Wl,--start-group $(LIB) -Wl,--end-group $(LIBS)
 
 # Tests that need neither a NIC nor DPDK, so they run on any node — including
 # the orchestrator, which has no rte_config.h. A test that only runs on the

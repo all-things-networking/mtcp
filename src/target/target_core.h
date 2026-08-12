@@ -40,6 +40,7 @@ struct transport {
 	uint64_t		 tx_packets, tx_bytes;
 	uint64_t		 forced_drains;
 	uint64_t		 bp_full, ring_drain_calls;
+	uint64_t		 notifies[4];
 };
 
 static inline struct transport *TransportOf(struct core_ctx *core)

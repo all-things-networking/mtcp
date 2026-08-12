@@ -83,7 +83,33 @@ TransportCoreFini(struct core_ctx *core)
 void *
 mtp_new_ctx(const flowkey_t *key, size_t ctx_size)
 {
-	return FlowTableInsert(TransportOf(g_core[0])->flows, key, ctx_size);
+	struct core_ctx *core = g_core[0];
+	struct transport *t = TransportOf(core);
+	struct flow *f;
+	void *ctx;
+	uint32_t saddr = 0, daddr = 0;
+
+	/* L3 addressing comes from the packet being dispatched, never from the
+	 * program: its key is a shape it may not read. */
+	if (t->cur_iph) {
+		saddr = t->cur_iph->daddr;	/* ours is the packet's dest */
+		daddr = t->cur_iph->saddr;
+	}
+
+	ctx = FlowTableInsert(t->flows, key, ctx_size);
+	if (!ctx)
+		return NULL;
+	f = FlowCreate(core, key, saddr, daddr);
+	if (!f) {
+		FlowTableRemove(t->flows, key);
+		return NULL;
+	}
+	f->ctx = ctx;
+
+	/* The compiler places its target handle first in the generated context
+	 * struct; the program passes it back to pkt_gen and never looks in. */
+	*(flow_t **)ctx = f;
+	return ctx;
 }
 
 void *
@@ -96,6 +122,27 @@ int
 mtp_del_ctx(const flowkey_t *key)
 {
 	return FlowTableRemove(TransportOf(g_core[0])->flows, key);
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * mtp_notify — the program tells the application something happened; the target
+ * decides how to deliver it.
+ *
+ * The kernel maps each kind onto sk_data_ready and friends. Ours will map them
+ * onto the epoll shim, which does not exist yet, so for now the kinds are
+ * counted and the last one is kept. That is enough for the handshake — a
+ * completed passive open raises STATE and nothing is waiting on it — and it is
+ * a placeholder that is honest about being one rather than a silent no-op.
+ */
+int
+mtp_notify(flow_t *f, const struct mtp_notif *msg)
+{
+	struct transport *t = TransportOf(g_core[0]);
+
+	(void)f;
+	t->notifies[msg->kind & 3]++;
+	return 0;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -146,9 +193,20 @@ int
 TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 	       struct iphdr *iph, int ip_len)
 {
-	(void)core; (void)cur_ts; (void)ifidx; (void)iph; (void)ip_len;
+	const uint8_t *l4 = (const uint8_t *)iph + (iph->ihl << 2);
+	uint16_t l4_len = (uint16_t)(ip_len - (iph->ihl << 2));
+
+	(void)ifidx;
 
 	transport_packets++;
+
+	/* The packet being dispatched, so a context created during it can be
+	 * given its L3 addressing. The program's key is a shape the target may
+	 * not read and an address is below the transport boundary. */
+	TransportOf(core)->cur_iph = iph;
+	mtp_program_net_input(l4, l4_len, iph, cur_ts);
+	TransportOf(core)->cur_iph = NULL;
+
 	return TRUE;
 }
 /*----------------------------------------------------------------------------*/
@@ -200,9 +258,10 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 			}
 		}
 
-		/* increment 2: timers, then the generation list drain, then the
-		 * application queues — all of them between here and the flush,
-		 * because a blueprint committed now must reach this burst. */
+		/* Timers and the application queues land here, between the
+		 * burst and the drain, because a blueprint committed by either
+		 * must reach this burst. */
+		tgt_drain(core);
 
 		for (tx_inf = 0; tx_inf < CONFIG.eths_num; tx_inf++)
 			core->iom->send_pkts(ctx, tx_inf);

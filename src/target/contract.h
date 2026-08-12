@@ -298,6 +298,10 @@ enum mtp_app_op_kind {
 	MTP_APP_CONNECT,
 	MTP_APP_BIND,
 	MTP_APP_CLOSE,
+	/* Additions to the kernel target's set. CR-7 makes the schema the
+	 * target's, and a passive-open protocol needs both. DESIGN.md §17.1. */
+	MTP_APP_LISTEN,
+	MTP_APP_ACCEPT,
 };
 
 struct mtp_endpoint {		/* network byte order */

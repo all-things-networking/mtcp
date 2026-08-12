@@ -112,3 +112,263 @@ tcp_build_header(uint8_t *out, const struct tcp_ctx *c, uint32_t seq,
 	out[TCPH_DOFF] = (uint8_t)((hdr_len / 4) << 4);
 	return hdr_len;
 }
+
+/*============================================================================*
+ * The parser, the processors, and the dispatch
+ *============================================================================*
+ *
+ * All generated in the form `mtpc` would emit. The `.mtp` source is
+ * mtp/tcp.mtp; every processor below carries the section it comes from.
+ *
+ * M1c scope (docs/PLAN.md §6.1): passive open, bulk send under cwnd/rwnd, ACK
+ * generation, FIN teardown, RTO. Not here: fast retransmit, SACK, PAWS,
+ * zero-window probe, RST emission, out-of-order reassembly, reaping.
+ */
+/*
+ * The listening endpoint, in the program's global state.
+ *
+ * `context` granularity is declared in `deploy`; this is the `global` one. It
+ * is deliberately NOT the target's listener table: matching a listener is
+ * protocol policy — G8 is "match on (ip, port), not port alone", which is a
+ * statement about TCP — and the target has no business holding it.
+ *
+ * mTCP matches on port alone, so a socket bound to one address answers for
+ * every address on the host. Matched on both here.
+ */
+static struct {
+	uint32_t ip;
+	uint16_t port;
+	uint8_t  listening;
+} prog_listener;
+
+#define TCP_FIN	0x01
+#define TCP_SYN	0x02
+#define TCP_RST	0x04
+#define TCP_ACK	0x10
+
+/* Everything the parser pulls out of one packet. This is the program's event
+ * in the compiler's flattened form. */
+struct tcp_ev {
+	uint32_t seq, ack;
+	uint16_t sport, dport, window;
+	uint8_t  flags, hdr_len;
+	uint32_t ts_val, ts_ecr;
+	const uint8_t *payload;
+	uint32_t payload_len;
+};
+
+/*
+ * Options. The prototype's parser has two defects that must not reappear here,
+ * and moving parsing into the program is exactly what makes them easy to
+ * re-create: its option struct is an uninitialised stack local and its
+ * extractor only ever sets valid=TRUE, so an ABSENT option reads stack garbage;
+ * and the end-of-list kind falls into a default branch that moves the index
+ * backwards and never terminates.
+ *
+ * So: the block is initialised, and kind 0 terminates explicitly.
+ */
+static void
+parse_options(struct tcp_ev *e, const uint8_t *o, uint32_t len)
+{
+	uint32_t i = 0;
+
+	e->ts_val = 0;
+	e->ts_ecr = 0;
+
+	while (i < len) {
+		uint8_t kind = o[i];
+
+		if (kind == 0)			/* end of list — terminates */
+			return;
+		if (kind == 1) {		/* NOP */
+			i++;
+			continue;
+		}
+		if (i + 1 >= len)
+			return;
+		if (o[i + 1] < 2)		/* a zero/one length would loop */
+			return;
+		if (kind == 8 && o[i + 1] == 10 && i + 10 <= len) {
+			memcpy(&e->ts_val, o + i + 2, 4);
+			memcpy(&e->ts_ecr, o + i + 6, 4);
+			e->ts_val = ntohl(e->ts_val);
+			e->ts_ecr = ntohl(e->ts_ecr);
+		}
+		i += o[i + 1];
+	}
+}
+
+static int
+parse_packet(const uint8_t *l4, uint16_t len, struct tcp_ev *e)
+{
+	uint16_t w;
+
+	if (len < 20)
+		return -1;
+
+	memcpy(&w, l4 + 0, 2); e->sport = ntohs(w);
+	memcpy(&w, l4 + 2, 2); e->dport = ntohs(w);
+	memcpy(&e->seq, l4 + TCPH_SEQ, 4); e->seq = ntohl(e->seq);
+	memcpy(&e->ack, l4 + TCPH_ACK, 4); e->ack = ntohl(e->ack);
+	e->hdr_len = (uint8_t)((l4[TCPH_DOFF] >> 4) * 4);
+	e->flags = l4[TCPH_FLAGS];
+	memcpy(&w, l4 + TCPH_WINDOW, 2); e->window = ntohs(w);
+
+	if (e->hdr_len < 20 || e->hdr_len > len)
+		return -1;
+
+	parse_options(e, l4 + 20, (uint32_t)(e->hdr_len - 20));
+	e->payload = l4 + e->hdr_len;
+	e->payload_len = (uint32_t)(len - e->hdr_len);
+	return 0;
+}
+
+/*
+ * The flow key, CANONICALISED so both directions resolve one context (CR-5).
+ *
+ * The target cannot do this: it may not read a field of the key, and only this
+ * program knows that v0/v2 are the local half. An inbound packet's destination
+ * is our local endpoint; an application operation's `local` is the same thing.
+ * Build them in the same order and the two directions meet.
+ */
+static flowkey_t
+key_of_inbound(uint32_t loc_ip, uint32_t rem_ip, uint16_t loc_port,
+	       uint16_t rem_port)
+{
+	flowkey_t k;
+
+	memset(&k, 0, sizeof(k));	/* the target compares BYTES */
+	k.v0 = loc_ip; k.v1 = rem_ip; k.v2 = loc_port; k.v3 = rem_port;
+	return k;
+}
+
+/*----------------------------------------------------------------------------*/
+/* mtp/tcp.mtp §proc_passive_open — a SYN with no context and a listener. */
+static void
+proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	uint16_t hdr_len;
+	struct mtp_tx_payload none = { 0 };
+
+	c->state = TCP_SYN_RCVD;
+	c->recv_next = e->seq + 1;		/* the SYN consumes one byte */
+	c->ts_recent = e->ts_val;
+	c->send_wnd = e->window;
+
+	/*
+	 * D-01, behind PARITY_OPENING_TRAJECTORY. mTCP never assigns ssthresh
+	 * on the passive-open path, so the server runs with ssthresh == 0, the
+	 * slow-start test is false from the first ACK, and it does congestion
+	 * avoidance from cwnd = 2*MSS. Reproduced knowingly.
+	 *
+	 * The flag gates snd_wl1 and last_ack_seq too, which have no live
+	 * consequence TODAY only because the ISN is frozen at 0 — lift that and
+	 * snd_wl1's divergence activates with nothing in the diff pointing at
+	 * the cause.
+	 */
+	c->send_una = PARITY_ISN;
+	c->send_next = PARITY_ISN;
+	c->cwnd = PARITY_INIT_CWND;
+	c->ssthresh = PARITY_OPENING_TRAJECTORY ? PARITY_SSTHRESH_PASSIVE
+					        : PARITY_SSTHRESH_ACTIVE;
+
+	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_SYN | TCP_ACK,
+				   now, c->ts_recent);
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0)
+		c->send_next++;			/* the SYN-ACK consumes one */
+}
+
+/* mtp/tcp.mtp §proc_open_done — the ACK that completes a passive open. */
+static void
+proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e)
+{
+	if (c->state != TCP_SYN_RCVD || !(e->flags & TCP_ACK))
+		return;
+	if (e->ack != c->send_next)
+		return;
+	c->send_una = e->ack;
+	c->send_wnd = e->window;
+	c->ts_recent = e->ts_val;
+	c->state = TCP_ESTABLISHED;
+	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_STATE });
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * The generated dispatch: a static switch on event type calling the processors
+ * directly, not a runtime table. One flow-table lookup per packet — two on a
+ * passive open, where the flow lookup misses and the listener table is
+ * consulted, which is once per connection rather than once per packet.
+ */
+int
+mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
+		      uint32_t now_ms)
+{
+	struct tcp_ev e;
+	struct tcp_ctx *c;
+	flowkey_t k;
+
+	if (parse_packet(l4, len, &e) < 0)
+		return -1;
+
+	k = key_of_inbound(iph->daddr, iph->saddr, e.dport, e.sport);
+
+	c = mtp_ctx_lookup(&k);				/* lookup 1 */
+	if (!c) {
+		if (!(e.flags & TCP_SYN) || (e.flags & TCP_ACK))
+			return 0;			/* no context, not an open */
+		/* G8: both halves must match. A miss is a miss — never a null
+		 * context handed onward, which is how the prototype turns a
+		 * missed lookup into a crash. */
+		if (!prog_listener.listening ||
+		    prog_listener.port != e.dport ||
+		    prog_listener.ip != iph->daddr)
+			return 0;
+		c = mtp_new_ctx(&k, sizeof(*c));
+		if (!c)
+			return -1;
+		c->rcv_wnd = PARITY_INITIAL_WINDOW;
+		c->loc_port = e.dport;
+		c->rem_port = e.sport;
+		proc_passive_open(c, &e, now_ms);
+		return 0;
+	}
+
+	proc_open_done(c, &e);
+	return 0;
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * app_parser socket { bind -> sock_bind; listen -> sock_listen; }
+ *
+ * CR-7: the target defines the interface's op schema and the program maps the
+ * ops it needs into its own events. There is no built-in listen; this program
+ * binds it because it is a passive-open protocol. DESIGN.md §17.1 has the
+ * schema.
+ */
+int
+mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
+{
+	(void)now_ms;
+
+	switch (op->kind) {
+	case MTP_APP_BIND:
+		prog_listener.ip = op->local.ip;
+		prog_listener.port = op->local.port;
+		return 0;
+	case MTP_APP_LISTEN:
+		prog_listener.listening = 1;
+		return 0;
+	default:
+		return -1;		/* an op this program does not bind */
+	}
+}
+
+/* No timers are armed until the RTO lands, so nothing reaches this yet. */
+void
+mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
+{
+	(void)t; (void)now_ms;
+}
