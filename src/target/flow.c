@@ -178,6 +178,15 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	bp->seg_size = (uint16_t)mss;
 	bp->prio = prio;
 	bp->offload = offload;
+	/*
+	 * Where the NIC writes the transport checksum, from the program's
+	 * header layout. Never setting this left it zero, so the pseudo-header
+	 * seed landed on the FIRST TWO BYTES of the header — the source port —
+	 * and every frame went out with a checksum where its source port
+	 * should be. The header was built correctly and corrupted afterwards,
+	 * which is why both probes read 9999 and the wire read 5201.
+	 */
+	bp->offload_csum_off = PROG_L4_CSUM_OFFSET;
 
 	if (payload && payload->len) {
 		bp->base_seq = payload->off;
