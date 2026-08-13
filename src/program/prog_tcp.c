@@ -691,6 +691,32 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 */
 	if (!recv_side_open(c))
 		return;
+
+	/*
+	 * D-25 piece 3 — ANSWER THE PEER'S WINDOW PROBE. Not optional, and easy
+	 * to miss because it is receive-side work that exists only to serve the
+	 * other end's send-side mechanism.
+	 *
+	 * The donor probes with a pure ACK at seq = snd_nxt - 1, deliberately
+	 * OUTSIDE our receive window, so that we are obliged to respond. If we
+	 * do not, the donor as sender never learns our window reopened and the
+	 * stall simply moves to the other end of the connection — the same bug
+	 * with the roles swapped, which is exactly the sort of thing that would
+	 * be found late and blamed on the sender.
+	 *
+	 * One byte behind what we expect next is the signature; nothing else
+	 * legitimately arrives there.
+	 */
+	if (e->seq + 1 == c->recv_next) {
+		uint8_t phdr[PROG_HDR_MAX];
+		struct mtp_tx_payload none = { 0 };
+		uint16_t plen = tcp_build_header(phdr, c, c->send_next, TCP_ACK,
+						 now, c->ts_recent);
+
+		mtp_pkt_gen(c->f, phdr, plen, &none, 0, 0, 1);
+		return;
+	}
+
 	if (!e->payload_len)
 		return;
 	if (e->seq != c->recv_next)
