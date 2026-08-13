@@ -343,7 +343,84 @@ static uint64_t transport_packets;
 static struct {
 	uint64_t arp, ipv4, other_ethertype;
 	uint64_t ip_to_transport, ip_other_proto;
+	/* D-22: csum_seen says the hardware answered at all, which is a
+	 * different fact from the count of frames it condemned. Without the
+	 * first, a zero in the second reads as "no corruption" when it may mean
+	 * "nothing was ever checked". */
+	uint64_t csum_bad;
+	int      csum_seen;
 } rxc;
+
+/*----------------------------------------------------------------------------*/
+/*
+ * D-22 — should this frame be dropped for a failed layer-4 checksum?
+ *
+ * THE DONOR WOULD ACCEPT IT. Its only reader of the flag is inside `#if 0` and
+ * its software fallback is switched off by a capability test that succeeds on
+ * this NIC, so a corrupt segment with an intact header reaches its application.
+ * We diverge deliberately, and the divergence is unobservable under rule 1:
+ * it can only be seen on a frame that fails its checksum, which does not occur
+ * on a clean link, so no packet count, size, acknowledgement or trajectory
+ * differs. Recorded as D-22, and the reason lives with the decision.
+ *
+ * Nothing here names a protocol: the question is "did the hardware verify the
+ * layer-4 payload checksum", which is a property of the offload, not of TCP.
+ */
+static int
+rx_csum_rejects(struct core_ctx *core, int ifidx, int index)
+{
+	int verdict;
+
+	if (!core->iom->rx_csum_verdict)
+		return 0;
+	verdict = core->iom->rx_csum_verdict(core->ctx, ifidx, index);
+	if (verdict == 1)
+		rxc.csum_seen = 1;
+
+	/*
+	 * THE INJECTOR. This check can never fire in normal operation, which
+	 * puts it on the dormant list with the standing expectation that
+	 * something latent sits underneath. MTP_CORRUPT_NTH_RX=n condemns every
+	 * nth frame the hardware passed, so the drop path is demonstrated
+	 * rather than assumed — the analogue of MTP_DROP_NTH_DATA, and built
+	 * with the mechanism rather than after it.
+	 */
+	if (verdict == 1) {
+		const char *n = getenv("MTP_CORRUPT_NTH_RX");
+
+		if (n && atoi(n) > 0) {
+			static uint64_t seen;
+
+			if (++seen % (uint64_t)atoi(n) == 0) {
+				fprintf(stderr, "MTP_CORRUPT_NTH_RX: condemning "
+					"frame %lu — the transport must never "
+					"see it\n", (unsigned long)seen);
+				return 1;
+			}
+		}
+	}
+	/*
+	 * REQUIRE A POSITIVE VERDICT — do not merely avoid a negative one.
+	 * MEASURED, because the reading and the measurement disagreed here.
+	 *
+	 * B's trace said mlx4 sets only the GOOD bits and never BAD; the first
+	 * implementation therefore mapped "neither" to "the hardware did not
+	 * answer" and trusted the frame. A real corrupt SYN put on the wire by
+	 * tools/corrupt_sender.py came back with l4 flags of exactly 0x0 while
+	 * its uncorrupted twin came back 0x100 (GOOD) — so on this driver
+	 * ABSENCE OF GOOD IS THE ONLY REPRESENTATION OF BAD, and a check that
+	 * waits for an explicit condemnation waits for ever. Both SYNs were
+	 * answered. The trap has a second side and only the wire showed it.
+	 *
+	 * Which is why this is applied ONLY to frames carrying the program's
+	 * own IP protocol. A frame the device did not parse for layer 4 — ARP,
+	 * ICMP — reports the same 0x0, and a rule reading that as corruption
+	 * would drop address resolution and take the node off the network. The
+	 * scope is the caller's, in the classification, where the protocol
+	 * match has already been made.
+	 */
+	return verdict != 1;
+}
 
 /*
  * Per-flow footprint, for the EAL's hugepage reservation (see upcall.h).
@@ -404,6 +481,7 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 			for (i = 0; i < recv_cnt; i++) {
 				uint16_t len;
 				uint8_t *pktbuf;
+				int drop_csum = 0;
 
 				pktbuf = core->iom->get_rptr(ctx, rx_inf, i, &len);
 				if (pktbuf != NULL) {
@@ -413,14 +491,22 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 						rxc.arp++;
 					else if (et == 0x0800) {
 						rxc.ipv4++;
-						if (len >= 24 && pktbuf[23] == TRANSPORT_IP_PROTO)
+						if (len >= 24 && pktbuf[23] == TRANSPORT_IP_PROTO) {
 							rxc.ip_to_transport++;
-						else
+							/* D-22: judged only here.
+							 * See rx_csum_rejects. */
+							drop_csum = rx_csum_rejects(
+								core, rx_inf, i);
+						} else
 							rxc.ip_other_proto++;
 					} else
 						rxc.other_ethertype++;
 
-					ProcessPacket(core, rx_inf, ts, pktbuf, len);
+					if (drop_csum)
+						rxc.csum_bad++;
+					else
+						ProcessPacket(core, rx_inf, ts,
+							      pktbuf, len);
 				}
 #ifdef NETSTAT
 				else
@@ -504,6 +590,11 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 		   (unsigned long)t->drain_depth[2],
 		   (unsigned long)t->drain_depth[3],
 		   (unsigned long)t->drain_depth[4]);
+	TRACE_INFO("CPU %d: receive checksum: hardware verdict available=%s, "
+		   "frames dropped as corrupt=%lu%s\n", ctx->cpu,
+		   rxc.csum_seen ? "yes" : "NO (frames are trusted)",
+		   (unsigned long)rxc.csum_bad,
+		   getenv("MTP_CORRUPT_NTH_RX") ? " [INJECTOR ON]" : "");
 	TRACE_INFO("CPU %d: readiness: notify readable=%lu writable=%lu "
 		   "state=%lu error=%lu; polls=%lu entries returned=%lu\n",
 		   ctx->cpu,

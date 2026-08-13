@@ -69,6 +69,21 @@ typedef struct io_module_func {
 	int32_t	  (*select)(struct thread_ctx *ctx);
 	void	  (*destroy_handle)(struct thread_ctx *ctx);
 	int32_t	  (*dev_ioctl)(struct thread_ctx *ctx, int nif, int cmd, void *argp);
+	/*
+	 * OURS, not the donor's. The verdict the hardware reached on the frame
+	 * get_rptr() just returned, for the layer-4 payload checksum:
+	 *
+	 *    1  computed, and it is correct
+	 *    0  computed, and it is NOT correct
+	 *   -1  not computed — no capability, or this path does not offer one
+	 *
+	 * Three values and not two, because "not correct" and "no answer" are
+	 * different facts and collapsing them is trap 2 of D-22: on mlx4 a bad
+	 * checksum leaves the field UNKNOWN, which is zero, so a caller that
+	 * reads absence as failure drops every frame on any NIC that does not
+	 * compute it.
+	 */
+	int32_t	  (*rx_csum_verdict)(struct thread_ctx *ctx, int ifidx, int index);
 } io_module_func __attribute__((aligned(__WORDSIZE)));
 /*----------------------------------------------------------------------------*/
 /* set I/O module context */

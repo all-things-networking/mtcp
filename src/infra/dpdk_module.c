@@ -569,20 +569,64 @@ dpdk_get_rptr(struct thread_ctx *ctxt, int ifidx, int index, uint16_t *len)
 	/* enqueue the pkt ptr in mbuf */
 	dpc->rmbufs[ifidx].m_table[index] = m;
 
-#if 0
-	/* verify checksum values from ol_flags */
-	if ((m->ol_flags & (PKT_RX_L4_CKSUM_BAD | PKT_RX_IP_CKSUM_BAD)) != 0) {
-		TRACE_ERROR("%s(%p, %d, %d): mbuf with invalid checksum: "
-			    "%p(%lu);\n",
-			    __func__, ctxt, ifidx, index, m, m->ol_flags);
-		pktbuf = NULL;
-	}
-#endif /*0*/
+	/*
+	 * The donor's own consumer of this flag sat here inside `#if 0`, and
+	 * D-22 records why it stayed there: it tested RTE_MBUF_F_RX_L4_CKSUM_BAD,
+	 * a bit mlx4 never sets, so enabling it would have been a no-op. The
+	 * verdict is reported through rx_csum_verdict() instead, and the drop
+	 * decision belongs to the caller rather than to the fetch.
+	 */
 #ifdef ENABLELRO
 	dpc->cur_rx_m = m;
 #endif /* ENABLELRO */
 
 	return pktbuf;
+}
+static int g_rx_csum_offload_on[RTE_MAX_ETHPORTS];
+
+/*----------------------------------------------------------------------------*/
+/*
+ * D-22. Whether the port was configured with receive checksum offload AND the
+ * device reports it, decided once at configure time rather than per packet.
+ *
+ * Gating on the capability is trap 2: RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN is zero,
+ * so on a NIC that does not compute the flag every frame looks not-good and a
+ * naive test drops the entire link. The same shape as the donor's own gate on
+ * its software fallback, for the same reason.
+ */
+int32_t
+dpdk_rx_csum_verdict(struct thread_ctx *ctxt, int ifidx, int index)
+{
+	struct dpdk_private_context *dpc;
+	struct rte_mbuf *m;
+	uint64_t v;
+
+	if (ifidx < 0 || ifidx >= RTE_MAX_ETHPORTS || !g_rx_csum_offload_on[ifidx])
+		return -1;
+
+	dpc = (struct dpdk_private_context *)ctxt->io_private_context;
+	m = dpc->pkts_burst[index];
+	if (!m)
+		return -1;
+
+	/*
+	 * TEST FOR _GOOD, NEVER FOR _BAD (D-22 trap 1). mlx4's
+	 * rxq_cq_to_ol_flags sets only the GOOD bits; a bad checksum leaves
+	 * UNKNOWN. Testing _BAD is how the donor's dead check would have failed
+	 * silently on this hardware.
+	 */
+	v = m->ol_flags & RTE_MBUF_F_RX_L4_CKSUM_MASK;
+	if (getenv("MTP_TRACE_CSUM"))
+		fprintf(stderr, "CSUM ol_flags=0x%lx l4=0x%lx (GOOD=0x%lx "
+			"BAD=0x%lx UNKNOWN=0x%lx NONE=0x%lx)\n",
+			(unsigned long)m->ol_flags, (unsigned long)v,
+			(unsigned long)RTE_MBUF_F_RX_L4_CKSUM_GOOD,
+			(unsigned long)RTE_MBUF_F_RX_L4_CKSUM_BAD,
+			(unsigned long)RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN,
+			(unsigned long)RTE_MBUF_F_RX_L4_CKSUM_NONE);
+	if (v == RTE_MBUF_F_RX_L4_CKSUM_UNKNOWN)
+		return -1;	/* the flag was not computed for this frame */
+	return v == RTE_MBUF_F_RX_L4_CKSUM_GOOD ? 1 : 0;
 }
 /*----------------------------------------------------------------------------*/
 int32_t
@@ -767,6 +811,21 @@ dpdk_load_module(void)
 			printf("rss key len is %u for driver_name: %s\n", port_conf.rx_adv_conf.rss_conf.rss_key_len,
 							dev_info[portid].driver_name);
 			
+			/*
+			 * D-22: record whether the device actually offers L4
+			 * receive checksum, so rx_csum_verdict() can answer
+			 * "not computed" rather than "not good". Asked of the
+			 * DEVICE, not of what we requested — requesting an
+			 * offload the device lacks is silently dropped by some
+			 * PMDs, and we would then read absence as failure.
+			 */
+			/* the aggregate, not the per-protocol bit: naming one
+			 * would put a protocol identity in the source (rule 4)
+			 * to learn something the aggregate already answers. */
+			g_rx_csum_offload_on[portid] =
+				!!(dev_info[portid].rx_offload_capa &
+				   RTE_ETH_RX_OFFLOAD_CHECKSUM);
+
 			ret = rte_eth_dev_configure(portid, CONFIG.num_cores, CONFIG.num_cores, &port_conf);
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE, "Cannot configure device: err=%d, port=%u, cores: %d\n",
@@ -970,6 +1029,7 @@ io_module_func dpdk_module_func = {
 	.get_wptr   		   = dpdk_get_wptr,
 	.recv_pkts		   = dpdk_recv_pkts,
 	.get_rptr	   	   = dpdk_get_rptr,
+	.rx_csum_verdict           = dpdk_rx_csum_verdict,
 	.select			   = dpdk_select,
 	.destroy_handle		   = dpdk_destroy_handle,
 	.dev_ioctl		   = dpdk_dev_ioctl
@@ -985,6 +1045,7 @@ io_module_func dpdk_module_func = {
 	.get_wptr   		   = NULL,
 	.recv_pkts		   = NULL,
 	.get_rptr	   	   = NULL,
+	.rx_csum_verdict           = NULL,
 	.select			   = NULL,
 	.destroy_handle		   = NULL,
 	.dev_ioctl		   = NULL
