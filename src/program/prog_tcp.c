@@ -369,6 +369,9 @@ static uint64_t g_refuse[REF__N];
  * sws-holdoff is then a correct response to a window we are keeping shut
  * ourselves.
  */
+enum { TMR_RTO, TMR_TIMEWAIT, TMR_PROBE, TMR__N };
+static uint64_t g_tmr[TMR__N];
+
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
        RXS_ACK_ADVANCED, RXS__N };
 static uint64_t g_rx[RXS__N];
@@ -387,6 +390,23 @@ prog_report_refusals(void)
 	for (i = 0; i < REF__N; i++)
 		fprintf(stderr, "send decision %-17s %llu\n", n[i],
 			(unsigned long long)g_refuse[i]);
+	{
+		/*
+		 * SPLIT BY KIND, because "timers fired" aggregates mechanisms
+		 * and the fingerprint recorded 0 when the wheel held only the
+		 * retransmission timeout. TIME_WAIT and the probe now share
+		 * that counter, so the same digits mean different things
+		 * before and after D-24 — the 2047 problem again, in a counter
+		 * rather than a window value.
+		 */
+		static const char *tn[TMR__N] = { "retransmission", "TIME_WAIT",
+						  "window-probe" };
+		int j;
+
+		for (j = 0; j < TMR__N; j++)
+			fprintf(stderr, "timer fired  %-17s %llu\n", tn[j],
+				(unsigned long long)g_tmr[j]);
+	}
 	for (i = 0; i < RXS__N; i++)
 		fprintf(stderr, "recv path     %-17s %llu\n", r[i],
 			(unsigned long long)g_rx[i]);
@@ -1106,15 +1126,18 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 	 * happens, and it is the donor's behaviour rather than an omission.
 	 */
 	if (t == &c->probe) {
+		g_tmr[TMR_PROBE]++;
 		send_window_probe(c, now_ms);
 		return;
 	}
 	if (t == &c->tw) {
+		g_tmr[TMR_TIMEWAIT]++;
 		c->state = TCP_CLOSED;
 		mtp_del_ctx(&c->key);
 		return;
 	}
 
+	g_tmr[TMR_RTO]++;
 	if (++c->rtx_count > PARITY_MAX_RTX) {
 		c->state = TCP_CLOSED;		/* G11: closed at 16 */
 		mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_ERROR });
