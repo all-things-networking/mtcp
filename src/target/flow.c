@@ -203,6 +203,22 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 					 * or echo on a merged segment is what
 					 * building this on the wrong axis
 					 * would produce */
+					if (getenv("MTP_TRACE_EV")) {
+						/* the exact question: whose
+						 * sequence does the merged
+						 * segment carry? */
+						uint32_t oldseq, newseq;
+
+						memcpy(&oldseq, last->hdr + 4, 4);
+						memcpy(&newseq, hdr + 4, 4);
+						fprintf(stderr,
+							"EV mergehdr old_seq=%u new_seq=%u "
+							"old_base=%llu new_base=%llu inherit=%d\n",
+							ntohl(oldseq), ntohl(newseq),
+							(unsigned long long)last->base_seq,
+							(unsigned long long)payload->off,
+							inherit);
+					}
 					memcpy(last->hdr, hdr, hdr_len);
 					last->hdr_len = hdr_len;
 					if (!inherit)
