@@ -216,11 +216,15 @@ ReportPortCounters(void)
 		struct rte_eth_dev_info di;
 
 		if (rte_eth_dev_info_get(portid, &di) == 0)
-			TRACE_INFO("port %u offload capability: ipv4_cksum=%d "
-				   "l4_cksum=%d (tx_offload_capa=0x%llx)\n", portid,
+			TRACE_INFO("port %u offload capability: "
+				   "TX ipv4=%d l4=%d (capa=0x%llx) / "
+				   "RX ipv4=%d l4=%d (capa=0x%llx)\n", portid,
 				   !!(di.tx_offload_capa & RTE_ETH_TX_OFFLOAD_IPV4_CKSUM),
 				   !!(di.tx_offload_capa & RTE_ETH_TX_OFFLOAD_TCP_CKSUM),
-				   (unsigned long long)di.tx_offload_capa);
+				   (unsigned long long)di.tx_offload_capa,
+				   !!(di.rx_offload_capa & RTE_ETH_RX_OFFLOAD_IPV4_CKSUM),
+				   !!(di.rx_offload_capa & RTE_ETH_RX_OFFLOAD_TCP_CKSUM),
+				   (unsigned long long)di.rx_offload_capa);
 
 		if (rte_eth_stats_get(portid, &st) != 0)
 			continue;
