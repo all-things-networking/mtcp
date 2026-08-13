@@ -105,10 +105,16 @@ test_window_only_moves_at_two_points(void)
  *       packet k of a burst commit a retransmission, and a cumulative ACK later
  *       in the SAME burst covers that range and flushes it.
  *
- * This cannot be written as a running test yet — there is no send path, no
- * ring and no drain in increment 1. It is the first test the send path owes,
- * and the scenario is fully specified above so it does not have to be
- * rediscovered.
+ * STILL SKIPPED, and the reason has changed. The send path now exists, so the
+ * race is constructible in principle — but tx_stream.c reaches infra.h and
+ * therefore DPDK, and these tests deliberately build without it so they run on
+ * any node. Linking the ring into an off-testbed test needs the unit's storage
+ * separated from the target's core context, which is a refactor and not a
+ * test.
+ *
+ * Two honest options, neither done: separate that dependency, or accept this
+ * one test being on-testbed only. The second is worse — a test that only runs
+ * on the testbed stops being run, which is why the others are built this way.
  */
 static void
 test_flush_over_live_reference(void)

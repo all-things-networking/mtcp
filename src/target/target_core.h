@@ -39,7 +39,7 @@ struct transport {
 	/* counters that answer questions logs otherwise cannot */
 	uint64_t		 tx_packets, tx_bytes, tx_bursted;
 	uint64_t		 forced_drains;
-	uint64_t		 bp_full, ring_drain_calls;
+	uint64_t		 bp_full, ring_drain_calls, merges;
 	uint64_t		 notifies[4];
 };
 

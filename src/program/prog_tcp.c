@@ -515,3 +515,40 @@ tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len, uint32_t now)
 	tcp_gen_seg(c, now);
 	return wrote;
 }
+
+/*============================================================================*
+ * mtp/tcp.mtp §coalesce — what a merged packet keeps
+ *============================================================================*/
+/*
+ * Two classes, which is all TCP needs and is exactly the prototype's three
+ * merges once they are put on the right axis:
+ *
+ *   data     inherit_base = true.  The older sequence and payload origin, the
+ *                                  newer acknowledgement, window and timestamp.
+ *   pure ack inherit_base = false. Both contributions are empty, so the emitted
+ *                                  acknowledgement carries the LATEST cumulative
+ *                                  value — which is the whole mechanism behind
+ *                                  the difference report's D4.
+ *
+ * The key is the flags byte, so a data segment never merges with a pure
+ * acknowledgement and a SYN or FIN never merges with anything: a control packet
+ * consumes sequence space and merging it would lose that.
+ */
+void
+mtp_program_coalesce(const uint8_t *hdr, uint16_t hdr_len,
+		     uint8_t *class, uint32_t *key, bool *inherit_base)
+{
+	uint8_t flags = hdr[TCPH_FLAGS];
+
+	(void)hdr_len;
+
+	/* anything consuming sequence space stands alone */
+	if (flags & (TCP_SYN | TCP_FIN | TCP_RST)) {
+		*class = 0;
+		return;
+	}
+
+	*class = 1;
+	*key = flags;
+	*inherit_base = true;
+}

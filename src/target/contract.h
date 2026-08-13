@@ -389,6 +389,27 @@ void mtp_program_timer(struct mtp_timer *t, uint32_t now_ms);
  */
 void mtp_program_segment(const struct mtp_seg_view *v);
 
+/*
+ * May two adjacent pending packets be merged, and what does the merge keep?
+ *
+ * A STOPGAP, and it is N-B. v4 has no way to declare merge semantics, so
+ * without this the target would decide what a merged packet CONTAINS — and
+ * then packet content is target-determined and the design law is broken. This
+ * keeps the decision in generated code until the language can express it.
+ *
+ * `class` 0 means never merge. Two pending packets merge only if their classes
+ * are equal and non-zero and their keys are equal; the key is compared and
+ * never interpreted. `inherit_base` says whether the merged packet keeps the
+ * OLDER contribution's sequence origin.
+ *
+ * The axis is base inheritance, NOT header age: the prototype's data merge
+ * keeps the older sequence and payload pointer and takes the NEWER
+ * acknowledgement, window and timestamp. Building it the other way puts a stale
+ * cumulative acknowledgement and a stale echo on every merged segment.
+ */
+void mtp_program_coalesce(const uint8_t *hdr, uint16_t hdr_len,
+			  uint8_t *class, uint32_t *key, bool *inherit_base);
+
 /* The IP protocol number this program answers to. */
 extern const uint8_t TRANSPORT_IP_PROTO;
 

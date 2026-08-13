@@ -163,7 +163,58 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	    const struct mtp_tx_payload *payload,
 	    uint32_t mss, uint32_t prio, uint32_t offload)
 {
-	struct bp *bp = tgt_bp_new(f);
+	struct bp *bp;
+	uint8_t cls = 0;
+	uint32_t key = 0;
+	bool inherit = false;
+
+	/*
+	 * COALESCING (P2, D-06). Merge with the last pending blueprint when the
+	 * program says the two are mergeable. This is the first time the true
+	 * ring and coalescing have existed together anywhere: both sibling
+	 * branches carrying the Appendix D ring have data merging switched off,
+	 * so the combination the paper values at 21 against 15.22 Gbps has
+	 * never actually run.
+	 *
+	 * WHETHER two blueprints are adjacent is the target's business — it
+	 * depends on batch boundaries. WHAT a merged one contains is the
+	 * program's, or packet content is target-determined.
+	 */
+	mtp_program_coalesce(hdr, hdr_len, &cls, &key, &inherit);
+	if (cls) {
+		struct bp *last = tgt_bp_last(f);
+
+		if (last && last->coalesce_class == cls &&
+		    last->coalesce_key == key && !f->scratch_out) {
+			uint64_t end = last->base_seq + last->payload.len;
+
+			/* contiguous only: a gap would silently fabricate
+			 * payload the program never asked to send */
+			if (payload && payload->len && last->payload.len &&
+			    payload->off == end) {
+				payref_t ext;
+
+				if (tgt_tx_ref(payload->u, last->base_seq,
+					       last->payload.len + payload->len,
+					       &ext) == 0) {
+					tgt_tx_ref_release(last->unit);
+					last->payload = ext;
+					/* the NEWER header: stale ack, window
+					 * or echo on a merged segment is what
+					 * building this on the wrong axis
+					 * would produce */
+					memcpy(last->hdr, hdr, hdr_len);
+					last->hdr_len = hdr_len;
+					if (!inherit)
+						last->base_seq = payload->off;
+					TransportOf(g_core[0])->merges++;
+					return 0;
+				}
+			}
+		}
+	}
+
+	bp = tgt_bp_new(f);
 
 	if (!bp) {
 		TransportOf(g_core[0])->bp_full++;
@@ -187,6 +238,9 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	 * which is why both probes read 9999 and the wire read 5201.
 	 */
 	bp->offload_csum_off = PROG_L4_CSUM_OFFSET;
+	bp->coalesce_class = cls;
+	bp->coalesce_key = key;
+	bp->inherit_base = inherit;
 
 	if (payload && payload->len) {
 		bp->base_seq = payload->off;

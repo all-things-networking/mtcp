@@ -216,6 +216,30 @@ app_parser socket {
 //   visible because that is the failure the charter warns about: a
 //   plausible-sounding explanation carried into code.
 //
+//   USE THE PROTOTYPE'S MECHANISM, NOT THE DONOR'S (C, on 55056faf). Both
+//   reach the same economy — one acknowledgement per teardown carrying the
+//   FIN-inclusive ack_seq, no duplicate — but by different means. mTCP's
+//   suppression is EMERGENT: ack_cnt is dropped because rcv_nxt has moved past
+//   head_seq + merged_len and nothing restores it, so reproducing it faithfully
+//   would mean reproducing mTCP's counter arithmetic to obtain a side effect.
+//   The prototype has an explicit state guard instead — an unconditional early
+//   return at the top of the acknowledgement processor once the context is in
+//   CLOSE_WAIT (mtp_ep.c:1028-1033), with the same guard on the data path at
+//   :959. One state test, it says what it means, and it is checkable by
+//   reading. Copy that.
+//
+//   TWO ORDERING DETAILS THAT ARE THE MECHANISM, easy to get backwards:
+//     - the FIN chain sets its acknowledge flag BEFORE the state transition
+//       (mtp_ep.c:1912, transition at :1921), so the flag survives into
+//       CLOSE_WAIT and the acknowledgement that matters is still emitted. That
+//       is how one guard suppresses duplicates without suppressing the
+//       acknowledgement of the FIN itself.
+//     - out of order is covered: a FIN arriving ahead of a gap does not
+//       transition, and a later segment filling the hole makes the
+//       acknowledgement processor perform the transition itself and fall
+//       through to emit, because the guard was evaluated before it. Either
+//       route emits exactly once.
+//
 //   And do NOT copy the donor's state lists. EnqueueACK's expected set
 //   (tcp_out.c:1082-1086) is four states; to_ack's is those four PLUS
 //   TIME_WAIT. Neither is a superset of the other's intent, so at least one is
