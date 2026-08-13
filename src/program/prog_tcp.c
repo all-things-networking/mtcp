@@ -15,6 +15,8 @@
  *     seg_rule seg_seq(x) [ TCPBP::seq_no, x, prev.hdr.seq_no + prev.payload_len ]
  */
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
 
@@ -429,6 +431,12 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	if ((int32_t)acked <= 0)
 		return;			/* duplicate or stale */
 
+	if (getenv("MTP_TRACE_SEQ"))
+		fprintf(stderr, "ACK  ack=%u una=%u next=%u acked=%u%s\n",
+			e->ack, c->send_una, c->send_next, acked,
+			(int32_t)(c->send_next - e->ack) < 0
+			? "  <<< ack PAST send_next" : "");
+
 	c->send_una = e->ack;
 	estimate_rtt(c, now, e->ts_ecr);
 	mtp_tx_flush_and_notify(&c->tx, acked);
@@ -703,6 +711,9 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 
 	/* retransmit from the oldest unacknowledged byte, not the unsent tail
 	 * (G13 — the prototype sizes this from the wrong end) */
+	if (getenv("MTP_TRACE_SEQ"))
+		fprintf(stderr, "RTO  rewind next %u -> una %u\n",
+			c->send_next, c->send_una);
 	c->send_next = c->send_una;
 	tcp_gen_seg(c, now_ms);
 }
@@ -802,6 +813,12 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 
 	pay.u   = &c->tx;
 	pay.off = c->send_next - c->snd_base;	/* into the unit, not the stream */
+
+	if (getenv("MTP_TRACE_SEQ"))
+		fprintf(stderr, "SEND una=%u next=%u base=%u off=%llu len=%u "
+			"inflight=%u\n", c->send_una, c->send_next, c->snd_base,
+			(unsigned long long)pay.off, to_send,
+			c->send_next - c->send_una);
 	pay.len = to_send;
 
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0) {
