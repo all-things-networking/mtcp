@@ -136,6 +136,26 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	uint16_t l4len = (uint16_t)(bp->hdr_len + seg_len);
 	uint8_t *l4;
 
+	/*
+	 * Dropped BEFORE the frame is staged, and that placement is the whole
+	 * point. The first version checked after the frame was built — which
+	 * reads better, because header, fixup, payload copy and checksum all
+	 * run — but by then IPOutput has already claimed a slot in the
+	 * interface's transmit buffer and returning early does not unstage it.
+	 * The segment went out anyway. The knob logged a drop, the wire showed
+	 * an unbroken sequence space, and the retransmission timer correctly
+	 * did nothing while appearing not to work.
+	 *
+	 * Fourth time this week the apparatus lied rather than the code. The
+	 * trade is real — this no longer exercises the build path for the
+	 * dropped segment — and a correct instrument that tests less is worth
+	 * more than a thorough one that reports fiction.
+	 */
+	if (drop_this_one(seg_len)) {
+		t->tx_dropped_for_test++;
+		return 0;
+	}
+
 	/* IPOutput resolves the route once per flow (the nif_out cache) and
 	 * returns NULL if the destination is not in the ARP table, having
 	 * queued an ARP request. mTCP retries the packet later and so do we:
@@ -214,14 +234,6 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 				    "peer, so it is not sent\n");
 			return -1;
 		}
-	}
-
-	/* Dropped AFTER the frame is fully built, so everything upstream —
-	 * header, fixup, payload copy, checksum request — runs exactly as it
-	 * would have. Only the wire misses it. */
-	if (drop_this_one(seg_len)) {
-		t->tx_dropped_for_test++;
-		return 0;
 	}
 
 	dump_tx(l4 - IP_HEADER_LEN - ETHERNET_HEADER_LEN,
