@@ -81,7 +81,7 @@ TESTS     := $(patsubst tests/%.c,bin/%,$(TEST_SRCS))
 
 # Off-testbed sources only: no infra, so no DPDK. If a test needs the target's
 # packet path it belongs somewhere else, and that somewhere does not exist yet.
-TESTABLE := src/program/prog_app.c src/target/flow_table.c
+TESTABLE := src/program/prog_app.c src/target/flow_table.c src/target/tx_stream.c
 
 bin/test_%: tests/test_%.c $(TESTABLE)
 	@mkdir -p $(dir $@)

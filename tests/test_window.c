@@ -87,40 +87,7 @@ test_window_only_moves_at_two_points(void)
 	      "window field moved on a pure ACK: %u", tcp_window_field(&c, 0));
 }
 
-/*
- * SKIPPED, and it must stay visible until it can run.
- *
- * The payload-lifetime invariant (src/target/internal.h §3). N-A: a payload
- * reference is valid until the program flushes that range, so a program can
- * flush whenever it likes and is never in violation. Because we defer packet
- * generation, we may still hold the reference when it does — so we drain before
- * honouring such a flush, and assert afterwards that our own drain ran. The
- * assertion checks the target, never the program.
- *
- * Reachability, by analysis:
- *   M1  not reachable. The only retransmission source is the RTO, and timers
- *       fire after the whole receive burst and immediately before the drain,
- *       so nothing can flush between commit and drain.
- *   M2  reachable as soon as fast retransmit lands: three duplicate ACKs at
- *       packet k of a burst commit a retransmission, and a cumulative ACK later
- *       in the SAME burst covers that range and flushes it.
- *
- * STILL SKIPPED, and the reason has changed. The send path now exists, so the
- * race is constructible in principle — but tx_stream.c reaches infra.h and
- * therefore DPDK, and these tests deliberately build without it so they run on
- * any node. Linking the ring into an off-testbed test needs the unit's storage
- * separated from the target's core context, which is a refactor and not a
- * test.
- *
- * Two honest options, neither done: separate that dependency, or accept this
- * one test being on-testbed only. The second is worse — a test that only runs
- * on the testbed stops being run, which is why the others are built this way.
- */
-static void
-test_flush_over_live_reference(void)
-{
-	printf("  SKIP flush-over-live-reference: needs the send path (M2)\n");
-}
+/* The payload-lifetime race lives in tests/test_tx_stream.c, where it runs. */
 
 int
 main(void)
@@ -128,7 +95,6 @@ main(void)
 	printf("test_window:\n");
 	test_window_sequence();
 	test_window_only_moves_at_two_points();
-	test_flush_over_live_reference();
 
 	printf("%s\n", failures ? "FAILED" : "  all checks passed");
 	return failures != 0;

@@ -23,8 +23,12 @@
 #include <stdbool.h>
 
 #include "contract.h"
-#include "infra.h"
-#include "prog_params.h"	/* PROG_HDR_MAX — the ring is sized from the program's
+#include "prog_params.h"
+
+/* Forward-declared rather than including infra.h: the ring and the blueprint
+ * must not reach the DPDK layer, or the parts of the target that could be
+ * tested without a NIC stop being testable. */
+struct core_ctx;	/* PROG_HDR_MAX — the ring is sized from the program's
 				 * largest header, which is a compile-time shape */
 
 /*============================================================================*
@@ -91,6 +95,17 @@ typedef struct {
  * live range. Returning a plausible pointer near the base is precisely how the
  * out-of-bounds case in the sweep happens.
  */
+/*
+ * Initialise a transmit unit's storage.
+ *
+ * The capacity is a PARAMETER, not a global. The ring reading CONFIG was the
+ * coupling: a byte ring has no business knowing a configuration system exists,
+ * and the caller reading it makes the round-up-to-a-power-of-two decision
+ * visible at the call site instead of buried three frames down.
+ */
+int tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
+		     void (*drain)(void *), void *drain_arg);
+
 int tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len,
 	       payref_t *out);
 

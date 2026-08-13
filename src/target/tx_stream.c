@@ -13,9 +13,18 @@
 #include <string.h>
 #include <assert.h>
 
-#include "flow.h"
-#include "target_core.h"
-#include "debug.h"
+#include <stdio.h>
+
+#include "contract.h"
+#include "internal.h"
+
+/*
+ * No infra.h, no target_core.h, and therefore no DPDK. The ring depends on
+ * nothing above it: its capacity arrives as a parameter and its forced drain as
+ * a callback. That is the right shape regardless — a byte ring should not know
+ * about a configuration system or a per-core context — and it is what lets
+ * tests/test_tx_stream.c exercise the payload-lifetime race on any node.
+ */
 
 /*
  * Opaque to the program and to contract.h. The generated context embeds a
@@ -26,7 +35,6 @@
  * value, so the type has to be complete where the program can see it (D-19).
  * Its CONTENTS are ours — the true ring — and are not the kernel target's. */
 
-#define BP_RING_DEPTH_CHECK (MTP_MAX_LIVE_REFS == BP_RING_DEPTH)
 
 static inline uint32_t off_of(const struct mtp_data_unit *u, uint64_t seq)
 {
@@ -35,11 +43,14 @@ static inline uint32_t off_of(const struct mtp_data_unit *u, uint64_t seq)
 }
 
 /*----------------------------------------------------------------------------*/
-void
-mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
+int
+tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
+		 void (*drain)(void *), void *drain_arg)
 {
 	memset(u, 0, sizeof(*u));
 	u->size = size;
+	u->drain = drain;
+	u->drain_arg = drain_arg;
 
 	/*
 	 * The donor's running sndbuf, from its configuration.
@@ -51,6 +62,7 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 	 * fails loudly rather than silently getting a TCP-shaped buffer.
 	 */
 	assert(size == MTP_SIZE_INF);
+	(void)size;
 
 	/*
 	 * off_of() masks with cap-1, so the capacity must be a power of two.
@@ -59,22 +71,15 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 	 * and would silently corrupt every wrap. Round up and say so.
 	 */
 	/* one live reference per blueprint slot, so the two must agree */
-	assert(BP_RING_DEPTH_CHECK);
+	
 
-	u->cap = 1;
-	while (u->cap < (uint32_t)CONFIG.sndbuf_size)
-		u->cap <<= 1;
-	if (u->cap != (uint32_t)CONFIG.sndbuf_size)
-		TRACE_CONFIG("sndbuf %d is not a power of two; the transmit "
-			     "ring uses %u. Set sndbuf to a power of two to "
-			     "keep the buffer size the donor is measured "
-			     "with.\n", CONFIG.sndbuf_size, u->cap);
-
+	u->cap = cap;
 	u->buf = malloc(u->cap);
 	if (!u->buf) {
-		TRACE_ERROR("could not allocate a %u byte transmit ring\n", u->cap);
 		u->cap = 0;
+		return -1;
 	}
+	return 0;
 }
 
 int
@@ -121,13 +126,10 @@ mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len)
 int
 mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 {
-	struct core_ctx *core = g_core[0];	/* single core; see scheduler.c */
 	uint64_t upto = u->head_seq + len;
 
-	if (u->live_refs && upto > u->ref_base[u->ref_head]) {
-		TransportOf(core)->forced_drains++;
-		tgt_drain(core);
-	}
+	if (u->live_refs && upto > u->ref_base[u->ref_head] && u->drain)
+		u->drain(u->drain_arg);
 
 	/* Now our own invariant must hold. This never accuses the program: a
 	 * failure here means the drain above did not do its job. */
@@ -174,9 +176,9 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out)
 		out->wrap_data = u->buf;
 	}
 
-	assert(u->live_refs < BP_RING_DEPTH);
+	assert(u->live_refs < MTP_MAX_LIVE_REFS);
 	u->ref_base[u->ref_tail] = seq;
-	u->ref_tail = (uint16_t)((u->ref_tail + 1) % BP_RING_DEPTH);
+	u->ref_tail = (uint16_t)((u->ref_tail + 1) % MTP_MAX_LIVE_REFS);
 	u->live_refs++;
 	return 0;
 }
@@ -200,6 +202,6 @@ tgt_tx_ref_release(struct mtp_data_unit *u)
 {
 	if (!u->live_refs)
 		return;
-	u->ref_head = (uint16_t)((u->ref_head + 1) % BP_RING_DEPTH);
+	u->ref_head = (uint16_t)((u->ref_head + 1) % MTP_MAX_LIVE_REFS);
 	u->live_refs--;
 }

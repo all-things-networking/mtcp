@@ -27,6 +27,7 @@
 #include "flow_table.h"
 #include "flow.h"
 #include "target_core.h"
+#include "internal.h"
 #include "debug.h"
 
 /*----------------------------------------------------------------------------*/
@@ -122,6 +123,45 @@ int
 mtp_del_ctx(const flowkey_t *key)
 {
 	return FlowTableRemove(TransportOf(g_core[0])->flows, key);
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * The contract's unit initialiser. It lives here rather than in tx_stream.c
+ * because THIS is where the configuration and the per-core context are
+ * visible: the ring itself takes its capacity as a parameter and its forced
+ * drain as a callback, and depends on neither.
+ *
+ * The round up to a power of two is at the call site on purpose. off_of() masks
+ * with cap-1, and sndbuf is a value from the DONOR'S RUNNING CONFIGURATION, so
+ * silently using a different size is a parity change and not merely a buffer
+ * change. It says so out loud when it happens.
+ */
+static void
+drain_this_core(void *arg)
+{
+	struct core_ctx *core = arg;
+
+	TransportOf(core)->forced_drains++;
+	tgt_drain(core);
+}
+
+void
+mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
+{
+	struct core_ctx *core = g_core[0];	/* single core; see above */
+	uint32_t cap = 1;
+
+	while (cap < (uint32_t)CONFIG.sndbuf_size)
+		cap <<= 1;
+	if (cap != (uint32_t)CONFIG.sndbuf_size)
+		TRACE_CONFIG("sndbuf %d is not a power of two; the transmit "
+			     "ring uses %u. Set sndbuf to a power of two to "
+			     "keep the buffer size the donor is measured "
+			     "with.\n", CONFIG.sndbuf_size, cap);
+
+	if (tgt_tx_unit_init(u, size, cap, drain_this_core, core) < 0)
+		TRACE_ERROR("could not allocate a %u byte transmit ring\n", cap);
 }
 
 /*----------------------------------------------------------------------------*/

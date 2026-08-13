@@ -96,6 +96,13 @@ struct mtp_data_unit {
 	uint64_t	 ref_base[MTP_MAX_LIVE_REFS];
 	uint16_t	 ref_head, ref_tail;
 	uint32_t	 live_refs;
+
+	/* How the unit forces a drain when a flush would cross a live
+	 * reference (internal.h §3). A callback rather than a reach into the
+	 * per-core state, so the ring depends on nothing above it — which is
+	 * also what lets it be tested without a NIC. */
+	void		(*drain)(void *arg);
+	void		 *drain_arg;
 };
 
 /* A reference to application data to be transmitted. The kernel target uses an
