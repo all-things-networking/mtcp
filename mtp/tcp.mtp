@@ -188,27 +188,39 @@ app_parser socket {
 // §proc_recv              in-order payload; merges, recomputes the window
 // §send_ack               acknowledgement generation.
 //
-//   THE POST-FIN SUPPRESSION (D-20, from B). Once a FIN has been accepted, a
-//   pending pure-acknowledgement obligation must NOT produce a packet.
+//   THE POST-FIN SUPPRESSION IS PER-PATH, NOT PER-CONNECTION (D-20, corrected).
 //
-//   In the donor this looks like an anomaly handler and is not: the sequence
-//   test at tcp_out.c:875-879 can only fail once a FIN has advanced rcv_nxt
-//   past the merged data, and that sum is invariant under application reads —
-//   so it holds for a connection's whole life and then fails permanently from
-//   the moment a FIN is accepted. It is de-duplication. Nothing is lost when it
-//   fires, because the control walk has already put an acknowledgement carrying
-//   the same ack_seq on the wire.
+//   The invariant: once a FIN is accepted, the DATA-acknowledgement path stops
+//   producing acknowledgements for that stream, permanently. The CONTROL path
+//   does not.
+//
+//   Pure acknowledgements after a FIN are REQUIRED and the donor sends them,
+//   from the control path: CLOSE_WAIT at tcp_out.c:632-634 ("Send ACK for the
+//   FIN here"), FIN_WAIT_2 at :655-657, TIME_WAIT at :675-677. The CLOSE_WAIT
+//   one is what acknowledges the peer's FIN. Suppress it and teardown stalls
+//   and the peer retransmits its FIN.
+//
+//   What stops is only the data path. In the donor the sequence test at
+//   tcp_out.c:875-879 can only fail once a FIN has advanced rcv_nxt past the
+//   merged data, and that sum is invariant under application reads, so it holds
+//   for a connection's whole life and then fails permanently from the moment a
+//   FIN is accepted. It is de-duplication within that path, not silence.
 //
 //   REPRODUCE THE EFFECT, NOT THE STRUCTURE. "The control walk got there first"
-//   is not a mechanism available to us — we have one queue, not three. What has
-//   to hold is the observable: one fewer pure acknowledgement per teardown.
-//   Not reproducing it is a packet-count difference in "acknowledgements
-//   returned", which is rule 1 and which a throughput comparison never shows.
+//   is not a mechanism available to us — we have one queue, not three — so what
+//   has to hold is the observable, and the observable is per-path.
+//
+//   An earlier version of this note said "one fewer pure acknowledgement per
+//   teardown", from a wrong reading of D-20. Built to that, teardown would have
+//   stalled and looked like a teardown bug rather than a wrong premise. Left
+//   visible because that is the failure the charter warns about: a
+//   plausible-sounding explanation carried into code.
 //
 //   And do NOT copy the donor's state lists. EnqueueACK's expected set
 //   (tcp_out.c:1082-1086) is four states; to_ack's is those four PLUS
 //   TIME_WAIT. Neither is a superset of the other's intent, so at least one is
-//   an oversight. Implement suppress-after-FIN, not either list.
+//   an oversight. Implement the per-path rule, not either list.
+//
 // §gen_seg                the send decision, under min(cwnd, peer window)
 // §proc_fin               teardown
 // §proc_timeout           retransmission timeout, with backoff

@@ -14,6 +14,7 @@
  *
  *     seg_rule seg_seq(x) [ TCPBP::seq_no, x, prev.hdr.seq_no + prev.payload_len ]
  */
+#include <stdbool.h>
 #include <string.h>
 #include <arpa/inet.h>
 
@@ -166,6 +167,8 @@ struct tcp_ev {
 	uint16_t sport, dport, window;
 	uint8_t  flags, hdr_len;
 	uint32_t ts_val, ts_ecr;
+	uint8_t  wscale;
+	bool     has_wscale;
 	const uint8_t *payload;
 	uint32_t payload_len;
 };
@@ -187,6 +190,8 @@ parse_options(struct tcp_ev *e, const uint8_t *o, uint32_t len)
 
 	e->ts_val = 0;
 	e->ts_ecr = 0;
+	e->wscale = 0;
+	e->has_wscale = false;
 
 	while (i < len) {
 		uint8_t kind = o[i];
@@ -206,6 +211,10 @@ parse_options(struct tcp_ev *e, const uint8_t *o, uint32_t len)
 			memcpy(&e->ts_ecr, o + i + 6, 4);
 			e->ts_val = ntohl(e->ts_val);
 			e->ts_ecr = ntohl(e->ts_ecr);
+		}
+		if (kind == 3 && o[i + 1] == 3 && i + 3 <= len) {
+			e->wscale = o[i + 2];
+			e->has_wscale = true;
 		}
 		i += o[i + 1];
 	}
@@ -267,6 +276,16 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	c->state = TCP_SYN_RCVD;
 	c->recv_next = e->seq + 1;		/* the SYN consumes one byte */
 	c->ts_recent = e->ts_val;
+
+	/*
+	 * The peer's window scale, from ITS SYN. It applies to every window it
+	 * advertises AFTER the handshake and not to the SYN's own field, which
+	 * is unscaled — so this records the shift and the SYN's window is taken
+	 * raw. Reading a later window raw sent 502 bytes where the peer had
+	 * offered 64256 and the congestion window should have bounded the send
+	 * at 2920, which is a throughput difference with no visible cause.
+	 */
+	c->snd_wscale = e->has_wscale ? e->wscale : 0;
 	c->send_wnd = e->window;
 
 	/*
@@ -301,7 +320,7 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	if (e->ack != c->send_next)
 		return;
 	c->send_una = e->ack;
-	c->send_wnd = e->window;
+	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
 	c->ts_recent = e->ts_val;
 	c->state = TCP_ESTABLISHED;
 	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_STATE });

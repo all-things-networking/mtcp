@@ -56,7 +56,8 @@ struct tcp_ctx {
 	uint32_t send_una;	/* oldest unacknowledged */
 	uint32_t send_next;	/* next to send */
 	uint32_t write_end;	/* highest app byte appended */
-	uint32_t send_wnd;	/* the peer's advertised window */
+	uint32_t send_wnd;	/* the peer's advertised window, ALREADY SCALED */
+	uint8_t  snd_wscale;	/* the shift the peer asked for on its SYN */
 	uint32_t cwnd, ssthresh;
 
 	/* --- the peer's timestamp, echoed in ours ------------------------ */
