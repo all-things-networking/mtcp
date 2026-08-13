@@ -17,7 +17,18 @@
 # without its IPv4 for ~35 s, and two failures were already misdiagnosed before
 # that was understood.
 #
-#   usage: tools/wire_run.sh <server-node> <client-node> <binary> <window-ms> -- <args...>
+#   usage: WIRE_CLIENT='<cmd>' tools/wire_run.sh <server> <client> <binary> <ms> -- <args>
+#
+# WIRE_CLIENT is whatever should run on the client node INSIDE the window —
+# a real client, a curl, a probe. It defaults to the connectivity probe below.
+#
+# It takes an arbitrary command because the first time something needed to run
+# that the built-in probe did not cover, the answer was to launch the server by
+# hand instead, and that reintroduced every artefact this script exists to
+# remove: an unattributable run, from an ad-hoc launch, minutes after the same
+# binary had worked through here. When doing it properly is more typing than
+# doing it wrong, it gets done wrong — so the correct thing has to be the easy
+# thing.
 #
 set -uo pipefail
 
@@ -52,11 +63,15 @@ echo "client $CLI: $(link_state "$CLI")"
 	echo 'TIMED OUT waiting for the run window'; exit 1" || {
 	echo "FAILED: the window never opened"; exit 1; }
 
-echo "window open; probing from $CLI"
-"${S[@]}" "$CLI" 'ping -c 6 -i 0.2 -W 1 10.7.0.12 >/dev/null 2>&1
+DEFAULT_CLIENT='ping -c 6 -i 0.2 -W 1 10.7.0.12 >/dev/null 2>&1
 	timeout 2 bash -c "echo > /dev/tcp/10.7.0.12/9999" >/dev/null 2>&1
 	arping -c 2 -I ens2 10.7.0.12 >/dev/null 2>&1
 	true'
+CLIENT=${WIRE_CLIENT:-$DEFAULT_CLIENT}
+
+echo "window open; on $CLI: ${CLIENT%%$'\n'*}"
+"${S[@]}" "$CLI" "$CLIENT"
+echo "client done"
 
 sleep $(( MS/1000 + 3 ))
 "${S[@]}" "$SRV" "cd $RD && grep -oE 'rx classes:.*|promisc=[0-9]+ .*' run.log
