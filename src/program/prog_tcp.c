@@ -400,6 +400,29 @@ estimate_rtt(struct tcp_ctx *c, uint32_t now, uint32_t ts_ecr)
 		return;
 	m = now - ts_ecr;		/* in 1 ms ticks */
 
+	/*
+	 * A SAMPLE OF AT LEAST ONE TICK, which is what the donor's recorded
+	 * state says it takes. differences.md §1.1 has the donor sitting at
+	 * srtt = 8, rttvar = 2 — and those are exactly this function's
+	 * first-sample initialisation (m << 3, m << 1) with m = 1, not m = 0.
+	 * The round trip here is at most 0.229 ms, so a same-tick echo gives
+	 * m = 0, srtt = 0, rttvar = 0 and a timeout of 0 that the wheel floors
+	 * at one tick — a THIRD of the donor's three, and we retransmit on an
+	 * idle link where it does not.
+	 *
+	 * This is a floor on the SAMPLE, not on the RTO. The RTO still has
+	 * none, which is the property both stacks share and which we reproduce
+	 * deliberately.
+	 *
+	 * The donor's srtt is scaled by eight, which is why the timeout is
+	 * (srtt >> 3) + rttvar: one tick from the smoothed term plus two from
+	 * the variance term. `srtt = 8` is not eight milliseconds, and an
+	 * estimator that computed "the same thing" directly in milliseconds
+	 * would be simpler than the original — which is the tell.
+	 */
+	if (m == 0)
+		m = 1;
+
 	if (!c->srtt) {
 		c->srtt = m << 3;
 		c->rttvar = m << 1;
