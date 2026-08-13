@@ -362,6 +362,12 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 		   (unsigned long)t->tx_hist_short,
 		   t->tx_hist_short_mode,
 		   (unsigned long)t->tx_hist_short_mode_n);
+	TRACE_INFO("CPU %d: blueprints pending per drain: 1=%lu 2=%lu 3=%lu "
+		   "4+=%lu  (>1 is what coalescing needs)\n", ctx->cpu,
+		   (unsigned long)t->drain_depth[1],
+		   (unsigned long)t->drain_depth[2],
+		   (unsigned long)t->drain_depth[3],
+		   (unsigned long)t->drain_depth[4]);
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,
 		   (unsigned long)TimerFires());
 	}

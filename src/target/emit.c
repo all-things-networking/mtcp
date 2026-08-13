@@ -384,6 +384,25 @@ tgt_drain(struct core_ctx *core)
 
 	t->ring_drain_calls++;
 
+	/*
+	 * How many blueprints were pending when the drain ran.
+	 *
+	 * Coalescing merges BLUEPRINTS, and one send decision produces one
+	 * blueprint, so two pending in a single iteration requires two send
+	 * decisions in one iteration — which requires two acknowledgements in
+	 * one receive burst. That is the whole of whether P2 can fire, and it
+	 * is countable rather than arguable.
+	 */
+	TAILQ_FOREACH(f, &t->gen_list, gen_link) {
+		uint32_t n = (uint32_t)((f->ring_tail + BP_RING_DEPTH
+					 - f->ring_head) % BP_RING_DEPTH);
+
+		if (n < 4)
+			t->drain_depth[n]++;
+		else
+			t->drain_depth[4]++;
+	}
+
 	TAILQ_FOREACH_SAFE(f, &t->gen_list, gen_link, tmp) {
 		while (f->ring_head != f->ring_tail) {
 			struct bp *bp = &f->ring[f->ring_head];
