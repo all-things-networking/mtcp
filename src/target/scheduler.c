@@ -355,6 +355,13 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 			   (unsigned long)t->forced_drains,
 			   (unsigned long)t->tx_bursted,
 			   (unsigned long)t->merges);
+	TRACE_INFO("CPU %d: payload sizes: zero=%lu full=%lu short=%lu "
+		   "(commonest short=%u seen %lu)\n", ctx->cpu,
+		   (unsigned long)t->tx_hist_zero,
+		   (unsigned long)t->tx_hist_full,
+		   (unsigned long)t->tx_hist_short,
+		   t->tx_hist_short_mode,
+		   (unsigned long)t->tx_hist_short_mode_n);
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,
 		   (unsigned long)TimerFires());
 	}

@@ -98,5 +98,5 @@ if ! "${S[@]}" "$SRV" "cd $RD 2>/dev/null && grep -q 'RUN WINDOW CLOSED' run.log
 fi
 
 echo "run: $SRV:$RD"
-"${S[@]}" "$SRV" "cd $RD && grep -oE 'rx classes:.*|tx: .*|timers fired: .*|promisc=[0-9]+ .*' run.log
+"${S[@]}" "$SRV" "cd $RD && grep -oE 'rx classes:.*|tx: .*|payload sizes:.*|timers fired: .*|promisc=[0-9]+ .*' run.log
 	sudo rm -rf /dev/hugepages/* /var/run/dpdk/* 2>/dev/null || true"

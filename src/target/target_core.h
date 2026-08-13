@@ -41,6 +41,9 @@ struct transport {
 	uint64_t		 forced_drains;
 	uint64_t		 bp_full, ring_drain_calls, merges;
 	uint64_t		 tx_dropped_for_test;
+	uint64_t		 tx_hist_zero, tx_hist_full, tx_hist_short;
+	uint32_t		 tx_hist_short_mode;
+	uint64_t		 tx_hist_short_mode_n;
 	uint64_t		 notifies[4];
 };
 

@@ -20,6 +20,7 @@
 #include "eth_out.h"
 #include "ip_out.h"
 #include "io_module.h"
+#include "prog_params.h"
 #include "debug.h"
 
 static inline uint16_t ring_next(uint16_t i)
@@ -238,6 +239,24 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 
 	dump_tx(l4 - IP_HEADER_LEN - ETHERNET_HEADER_LEN,
 		(uint16_t)(l4len + IP_HEADER_LEN + ETHERNET_HEADER_LEN));
+
+	/*
+	 * Payload-size histogram. The donor's shape is 99.75% full-size with
+	 * one short tail per connection (B, bench/results/2026-08-13-donor-
+	 * segmentation), so a second mode here names a segmentation bug in one
+	 * run rather than an argument.
+	 */
+	if (seg_len == 0)
+		t->tx_hist_zero++;
+	else if (seg_len >= PARITY_MSS_PAYLOAD)
+		t->tx_hist_full++;
+	else {
+		t->tx_hist_short++;
+		if (t->tx_hist_short_mode == 0 || seg_len == t->tx_hist_short_mode) {
+			t->tx_hist_short_mode = seg_len;
+			t->tx_hist_short_mode_n++;
+		}
+	}
 
 	t->tx_packets++;
 	t->tx_bytes += l4len + IP_HEADER_LEN + ETHERNET_HEADER_LEN;
