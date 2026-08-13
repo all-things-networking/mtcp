@@ -23,6 +23,13 @@
 #define TCP_ESTABLISHED	3
 #define TCP_CLOSE_WAIT	4
 #define TCP_LAST_ACK	5
+/* the active-close path — DESIGN-CLOSE.md §4. Absent until 2026-08-13, which
+ * is why we could not initiate a close at all against a peer that never
+ * closes first. */
+#define TCP_FIN_WAIT_1	6
+#define TCP_FIN_WAIT_2	7
+#define TCP_CLOSING	8	/* simultaneous close */
+#define TCP_TIME_WAIT	9
 
 struct tcp_ctx {
 	/*
@@ -112,6 +119,13 @@ struct tcp_ctx {
 	 * for this. A one-shot server sets it when it hands over its object.
 	 */
 	bool     app_closed;
+	/* TIME_WAIT's own timer. A SECOND timer object on one flow, which is
+	 * the first time the wheel has held more than one — A4 leaving the
+	 * dormant list, with the standing expectation attached. */
+	struct mtp_timer tw;
+	/* our own copy of the key, so a timer that outlives the packet path can
+	 * still name the context to destroy (D-24) */
+	flowkey_t key;
 	bool     rx_open;
 	bool     fin_consumed;	/* the peer's FIN took a sequence number */	/* new_tx_ordered_data issued (lazily, as the
 				 * donor allocates its send buffer lazily) */

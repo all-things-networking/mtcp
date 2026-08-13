@@ -76,6 +76,13 @@
  * read §7a's remark about stream sockets as a rule restricting that; it is a
  * description of the example program, and the reading is withdrawn.
  */
+/*
+ * The donor's running configuration: tcp_timewait = 0. Zero is a real value
+ * here and not "unset" — D-24: the state must be ENTERED AND LEFT even at zero,
+ * because it is the place the final acknowledgement is owed from.
+ */
+#define PARITY_TIMEWAIT_MS	0
+
 #define PARITY_RCVBUF_SIZE	262144	/* the donor's running rcvbuf */
 #define PARITY_INITIAL_WINDOW	14600	/* tcp_stream.c:325 */
 #define PARITY_WSCALE		7	/* sent always */

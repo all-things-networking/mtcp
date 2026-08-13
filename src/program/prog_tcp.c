@@ -349,6 +349,36 @@ send_side_open(const struct tcp_ctx *c)
 	return c->state == TCP_ESTABLISHED || c->state == TCP_CLOSE_WAIT;
 }
 
+/*
+ * Our receive path is open. Not the mirror of send_side_open: after WE close,
+ * the peer has not, and its data keeps arriving and keeps needing
+ * acknowledgement (D-20, per-path — the same rule from the other side).
+ */
+static bool
+recv_side_open(const struct tcp_ctx *c)
+{
+	return c->state == TCP_ESTABLISHED ||
+	       c->state == TCP_FIN_WAIT_1 ||
+	       c->state == TCP_FIN_WAIT_2;
+}
+
+/*
+ * THE THIRD ROW, and the one symmetry would miss (DESIGN-CLOSE.md §3).
+ *
+ * An acknowledgement of our own sequence space must be processed in states
+ * where NEITHER direction is open — FIN_WAIT_1 and CLOSING exist precisely to
+ * wait for the acknowledgement of our FIN, so gating proc_ack on
+ * send_side_open() would make it impossible to ever leave them. That is this
+ * bug reproduced in a new state, which is why this is a table of three and not
+ * a pair of predicates.
+ */
+static bool
+conn_exists(const struct tcp_ctx *c)
+{
+	return c->state != TCP_CLOSED && c->state != TCP_LISTEN &&
+	       c->state != TCP_SYN_RCVD;
+}
+
 /* mtp/tcp.mtp §proc_open_done — the ACK that completes a passive open. */
 static void
 proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
@@ -514,7 +544,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	uint32_t acked;
 
-	if (!send_side_open(c) || !(e->flags & TCP_ACK))
+	if (!conn_exists(c) || !(e->flags & TCP_ACK))
 		return;
 
 	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
@@ -604,7 +634,7 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * arithmetic — reproducing that would mean reproducing the arithmetic
 	 * to obtain a side effect.
 	 */
-	if (c->state != TCP_ESTABLISHED)
+	if (!recv_side_open(c))
 		return;
 	if (!e->payload_len)
 		return;
@@ -641,6 +671,24 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 /*----------------------------------------------------------------------------*/
 /*
+ * D-24. The acknowledgement of the peer's FIN has already been committed to the
+ * target by the caller; this is the state that OWES it, held open across the
+ * iteration in which it drains. Skipping the state does not skip a wait — it
+ * removes the place that acknowledgement is owed from, which is why zero is a
+ * real duration here and not an argument for having no state.
+ *
+ * The GUARD is what is being reproduced, not the timer value.
+ */
+static void
+enter_time_wait(struct tcp_ctx *c)
+{
+	c->state = TCP_TIME_WAIT;
+	c->tw.ctx = c;
+	mtp_timer_start(&c->tw, (uint64_t)PARITY_TIMEWAIT_MS * 1000000ULL);
+}
+
+
+/*
  * mtp/tcp.mtp §proc_fin — the peer closes.
  *
  * The acknowledgement of the peer's FIN comes from the CONTROL path and must
@@ -663,7 +711,7 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	if (!(e->flags & TCP_FIN))
 		return;
-	if (c->state != TCP_ESTABLISHED)
+	if (!recv_side_open(c))
 		return;
 	if (e->seq != c->recv_next)
 		return;			/* a FIN ahead of a gap does not
@@ -678,7 +726,18 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 				   c->ts_recent);
 	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1);
 
-	c->state = TCP_CLOSE_WAIT;
+	/*
+	 * DESIGN-CLOSE.md §4. Where the peer's FIN takes us depends on whether
+	 * we have already sent ours; CLOSING is the simultaneous close, one row
+	 * and worth it — leaving it out wedges exactly the way the missing
+	 * active close did.
+	 */
+	if (c->state == TCP_FIN_WAIT_1)
+		c->state = TCP_CLOSING;
+	else if (c->state == TCP_FIN_WAIT_2)
+		enter_time_wait(c);
+	else
+		c->state = TCP_CLOSE_WAIT;
 	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_STATE });
 }
 
@@ -708,8 +767,21 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 		fprintf(stderr, "GENFIN now=%u send_next=%u snd_base=%u "
 			"write_end=%u\n", now, c->send_next, c->snd_base,
 			c->write_end);
-	if (c->state != TCP_CLOSE_WAIT || !c->app_closed)
+	/*
+	 * DESIGN-CLOSE.md §3. The condition is that the APPLICATION has closed
+	 * and everything it handed us has been sent. Whether we then go to
+	 * LAST_ACK or FIN_WAIT_1 is a CONSEQUENCE of whether the peer closed
+	 * first, not a precondition for closing at all.
+	 *
+	 * The old gate was `state == CLOSE_WAIT`, which encoded "the peer closed
+	 * first" as a requirement. Against a peer that never closes first — any
+	 * mTCP peer, and so every peer we will ever measure against — the object
+	 * was delivered and the connection then hung forever with no FIN.
+	 */
+	if (!c->app_closed)
 		return;
+	if (c->state != TCP_ESTABLISHED && c->state != TCP_CLOSE_WAIT)
+		return;			/* already closing, or not yet open */
 	if (c->send_next - c->snd_base != c->write_end)
 		return;			/* G10: not ahead of unsent data */
 
@@ -717,7 +789,8 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 				   TCP_ACK | TCP_FIN, now, c->ts_recent);
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0) {
 		c->send_next++;		/* the FIN consumes one byte */
-		c->state = TCP_LAST_ACK;
+		c->state = (c->state == TCP_CLOSE_WAIT) ? TCP_LAST_ACK
+							: TCP_FIN_WAIT_1;
 	}
 }
 
@@ -768,12 +841,35 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	proc_fin(c, &e, now_ms);
 	gen_fin(c, now_ms);
 
-	/* the final acknowledgement of our FIN */
-	if (c->state == TCP_LAST_ACK && (e.flags & TCP_ACK) &&
-	    e.ack == c->send_next) {
-		c->state = TCP_CLOSED;
-		mtp_del_ctx(&k);
+	/*
+	 * The acknowledgement of OUR FIN. Runs after proc_fin, so a packet
+	 * carrying both the peer's FIN and the acknowledgement of ours takes
+	 * FIN_WAIT_1 -> CLOSING here and then CLOSING -> TIME_WAIT, which is
+	 * DESIGN-CLOSE.md §4's "peer FIN and ack of ours -> TIME_WAIT" row
+	 * without needing a row of its own.
+	 */
+	if ((e.flags & TCP_ACK) && e.ack == c->send_next) {
+		if (c->state == TCP_LAST_ACK) {
+			c->state = TCP_CLOSED;
+			mtp_del_ctx(&k);
+		} else if (c->state == TCP_FIN_WAIT_1) {
+			c->state = TCP_FIN_WAIT_2;
+		} else if (c->state == TCP_CLOSING) {
+			enter_time_wait(c);
+		}
 	}
+
+	/*
+	 * TIME_WAIT's EXIT IS DELIBERATELY NOT IMPLEMENTED — DESIGN-CLOSE.md §5
+	 * is open pending B on what the donor does at tcp_timewait = 0, and
+	 * specifically on what retransmits the final acknowledgement if it is
+	 * lost. Destroying the context here would be committing to reading (1)
+	 * by default, which is the reading A2 already got wrong once.
+	 *
+	 * The context therefore persists for the rest of the run. That is
+	 * correct for a bounded experiment and wrong for a server, and it is
+	 * written here rather than left to be noticed.
+	 */
 	return 0;
 }
 
@@ -891,6 +987,26 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 
 	if (!c || c->state == TCP_CLOSED)
 		return;
+
+	/*
+	 * D-24 — TIME_WAIT expiring. Reproduces the DONOR'S GUARD, not its
+	 * timer value: even at tcp_timewait = 0 the state must be entered and
+	 * left, because skipping it does not skip a wait, it removes the place
+	 * the final acknowledgement is owed from. The acknowledgement was
+	 * committed to the target in the iteration that entered this state, so
+	 * by the time this fires it has drained and the context can go.
+	 *
+	 * NOTHING RETRANSMITS THAT ACKNOWLEDGEMENT, deliberately: the donor does
+	 * not. If it is lost the stream is already gone, the peer's retransmitted
+	 * FIN finds no flow-table entry and is answered with a bare RST, and
+	 * teardown completes on that instead. That is wire-observable when it
+	 * happens, and it is the donor's behaviour rather than an omission.
+	 */
+	if (t == &c->tw) {
+		c->state = TCP_CLOSED;
+		mtp_del_ctx(&c->key);
+		return;
+	}
 
 	if (++c->rtx_count > PARITY_MAX_RTX) {
 		c->state = TCP_CLOSED;		/* G11: closed at 16 */

@@ -94,6 +94,25 @@ mtp_timer_start(struct mtp_timer *t, uint64_t ns)
 		ticks = TIMER_MAX_TICKS;
 	}
 
+	/*
+	 * A ZERO INTERVAL BECOMES ONE TICK, SILENTLY — recorded 2026-08-13
+	 * because DESIGN-CLOSE.md §5 may depend on it and it has never run.
+	 *
+	 * This is the third appearance of a legal zero read as a sentinel: the
+	 * RTO floor treated a computed zero as "unset", and `ticks ? ticks : 1`
+	 * treats a requested zero as "the caller meant the minimum". For a
+	 * retransmission timeout that is right — a zero-tick RTO is a busy
+	 * loop. For TIME_WAIT at the donor's tcp_timewait = 0 it may be a
+	 * DIVERGENCE, because one tick is not immediately.
+	 *
+	 * Left as it is rather than changed, because which behaviour is correct
+	 * depends on B's answer about the donor at zero, and changing it now
+	 * would be choosing without knowing. What is NOT acceptable is that it
+	 * is silent, so it says so when it happens.
+	 */
+	if (!ticks && getenv("MTP_TRACE_SEQ"))
+		fprintf(stderr, "ARM  zero interval rounded up to one tick "
+			"— see DESIGN-CLOSE.md §5\n");
 	t->deadline = wheel_now + (ticks ? ticks : 1);
 	t->armed = 1;
 
