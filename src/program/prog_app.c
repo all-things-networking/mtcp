@@ -50,7 +50,23 @@
 static void
 recompute_rcv_wnd(struct tcp_ctx *c)
 {
-	c->rcv_wnd = PARITY_RCVBUF_SIZE - (uint32_t)(c->recv_next - c->delivered);
+	/*
+	 * G14. A FIN CONSUMES A SEQUENCE NUMBER AND IS NOT DATA, so once one
+	 * has been accepted `recv_next` is one ahead of anything the
+	 * application can ever take. Counting that byte as held advertises a
+	 * window one short for the rest of the connection — and, because it is
+	 * exactly one, it is indistinguishable on the wire from the legitimate
+	 * "one byte held and undrained" case.
+	 *
+	 * The program knows the stream ended; the target cannot, which is why
+	 * the difference report puts this on the program's side.
+	 */
+	uint32_t held = (uint32_t)(c->recv_next - c->delivered);
+
+	if (c->fin_consumed && held)
+		held--;
+
+	c->rcv_wnd = PARITY_RCVBUF_SIZE - held;
 }
 
 /*

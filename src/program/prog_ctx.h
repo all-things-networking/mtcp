@@ -106,7 +106,8 @@ struct tcp_ctx {
 	struct mtp_data_unit tx;
 	struct mtp_data_unit rx;
 	bool     tx_open;
-	bool     rx_open;	/* new_tx_ordered_data issued (lazily, as the
+	bool     rx_open;
+	bool     fin_consumed;	/* the peer's FIN took a sequence number */	/* new_tx_ordered_data issued (lazily, as the
 				 * donor allocates its send buffer lazily) */
 };
 

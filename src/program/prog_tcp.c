@@ -647,6 +647,7 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 					 * the hole performs it (C) */
 
 	c->recv_next = e->seq + 1;	/* the FIN consumes one byte */
+	c->fin_consumed = true;		/* ...which is not data: G14 */
 
 	/* built before the transition, deliberately */
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
