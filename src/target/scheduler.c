@@ -98,6 +98,26 @@ TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max)
 		out[n].kinds = f->ready_kinds;
 		f->ready_kinds = 0;
 		n++;
+
+		/*
+		 * LEVEL-TRIGGERED, AND IT IS THE TARGET'S. While the unit still
+		 * holds unread bytes the flow goes back on the list, so a
+		 * partial read cannot lose the remainder.
+		 *
+		 * Structural rather than conventional: if the program had to
+		 * re-issue, a program that forgot would produce the
+		 * edge-triggered stall — intermittent, load-dependent, and
+		 * presenting as a window-management divergence through
+		 * `delivered`. Every program would also implement the same
+		 * re-issue identically, which is the signature of something
+		 * that belongs here. Rule 4 asks the target not to know
+		 * protocols; it does not ask it to be minimal.
+		 */
+		if (f->rx_unit && f->rx_unit->tail_seq > f->rx_unit->head_seq) {
+			f->ready_kinds |= (1u << MTP_NOTIF_READABLE);
+			TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
+			f->on_ready_list = 1;
+		}
 	}
 	return n;
 }
@@ -142,13 +162,19 @@ mtp_new_ctx(const flowkey_t *key, size_t ctx_size)
 	/* The compiler places its target handle first in the generated context
 	 * struct; the program passes it back to pkt_gen and never looks in. */
 	*(flow_t **)ctx = f;
+	t->cur_flow = f;	/* for instructions that carry no flow */
 	return ctx;
 }
 
 void *
 mtp_ctx_lookup(const flowkey_t *key)
 {
-	return FlowTableLookup(TransportOf(g_core[0])->flows, key);
+	struct transport *t = TransportOf(g_core[0]);
+	void *ctx = FlowTableLookup(t->flows, key);
+
+	if (ctx)
+		t->cur_flow = *(struct flow **)ctx;
+	return ctx;
 }
 
 int
@@ -183,10 +209,19 @@ mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 {
 	uint32_t cap = 1;
 
+	struct transport *t = TransportOf(g_core[0]);
+
 	while (cap < (uint32_t)CONFIG.rcvbuf_size)
 		cap <<= 1;
 	if (tgt_rx_unit_init(u, size, cap, 0) < 0)
 		TRACE_ERROR("could not allocate a %u byte receive ring\n", cap);
+
+	/* Record it against the flow being dispatched, so the target can see
+	 * its OWN bookkeeping — occupancy — when deciding whether to re-present
+	 * READABLE. The unit's layout is the target's under D-19; this is not
+	 * reading program state. */
+	if (t->cur_flow)
+		t->cur_flow->rx_unit = u;
 }
 
 void
@@ -304,6 +339,7 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 	TransportOf(core)->cur_iph = iph;
 	mtp_program_net_input(l4, l4_len, iph, cur_ts);
 	TransportOf(core)->cur_iph = NULL;
+	TransportOf(core)->cur_flow = NULL;
 
 	return TRUE;
 }
