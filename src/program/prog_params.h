@@ -83,6 +83,10 @@
  */
 #define PARITY_TIMEWAIT_MS	0
 
+/* D-25 piece 2: the donor probes a closed window at 500 ms since the last
+ * acknowledgement it SENT, with no backoff. */
+#define PARITY_PROBE_MS		500
+
 #define PARITY_RCVBUF_SIZE	262144	/* the donor's running rcvbuf */
 #define PARITY_INITIAL_WINDOW	14600	/* tcp_stream.c:325 */
 #define PARITY_WSCALE		7	/* sent always */

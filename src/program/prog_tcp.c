@@ -392,6 +392,8 @@ prog_report_refusals(void)
 			(unsigned long long)g_rx[i]);
 }
 
+static void send_window_probe(struct tcp_ctx *c, uint32_t now);
+
 static bool
 send_side_open(const struct tcp_ctx *c)
 {
@@ -1103,6 +1105,10 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 	 * teardown completes on that instead. That is wire-observable when it
 	 * happens, and it is the donor's behaviour rather than an omission.
 	 */
+	if (t == &c->probe) {
+		send_window_probe(c, now_ms);
+		return;
+	}
 	if (t == &c->tw) {
 		c->state = TCP_CLOSED;
 		mtp_del_ctx(&c->key);
@@ -1127,6 +1133,48 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 	c->send_next = c->send_una;
 	tcp_gen_seg(c, now_ms);
 }
+
+/*
+ * mtp/tcp.mtp SS-probe -- D-25 piece 2, the closed-window probe.
+ *
+ * WHAT IT IS FOR, AND IT IS NOT WHAT THE STALL TURNED OUT TO BE. The rx-driven
+ * retry recovers a window whose reopening is ANNOUNCED; this recovers one whose
+ * announcement is LOST. No retry can substitute for a message that never
+ * arrives, and no run so far has produced that case -- which is exactly why
+ * this would be easy to skip now that the symptom is gone. An absence that
+ * currently produces the donor's behaviour is not agreement with the donor (A2).
+ *
+ * The donor's mechanism, from B:
+ *   - a PURE ACK, zero payload, at seq = snd_nxt - 1. Deliberately OUTSIDE the
+ *     peer's receive window, so the peer must answer it -- and it works against
+ *     a non-mTCP peer because the standard requires an acknowledgement to an
+ *     unacceptable segment.
+ *   - gated on peer_wnd <= cwnd AND more than 500 ms since the last ACK WE
+ *     SENT. Not received.
+ *   - NO BACKOFF: the probe carries an ACK, so it resets its own clock.
+ *
+ * wack_sent is NOT reproduced: dead code in the donor, a per-call local on a
+ * branch that returns immediately, so the predicate is just the timing.
+ */
+static void
+send_window_probe(struct tcp_ctx *c, uint32_t now)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	struct mtp_tx_payload none = { 0 };
+	uint16_t hdr_len;
+
+	if (c->send_wnd > c->cwnd)
+		return;
+	if (now - c->last_ack_sent_ms <= PARITY_PROBE_MS)
+		return;
+
+	hdr_len = tcp_build_header(hdr, c, c->send_next - 1, TCP_ACK, now,
+				   c->ts_recent);
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0)
+		c->last_ack_sent_ms = now;
+	mtp_timer_start(&c->probe, (uint64_t)PARITY_PROBE_MS * 1000000ULL);
+}
+
 
 /*============================================================================*
  * mtp/tcp.mtp §gen_seg — the send decision
@@ -1226,6 +1274,11 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 
 	if (to_send == 0) {
 		g_refuse[why]++;
+		if (why == REF_WINDOW) {
+			c->probe.ctx = c;
+			mtp_timer_start(&c->probe,
+					(uint64_t)PARITY_PROBE_MS * 1000000ULL);
+		}
 		if (why == REF_WINDOW && getenv("MTP_TRACE_SEQ"))
 			fprintf(stderr, "REFUSE window cwnd=%u peer=%u una=%u "
 				"next=%u inflight=%u write_end=%u\n", c->cwnd,
