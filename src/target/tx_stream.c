@@ -170,10 +170,18 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 	if (getenv("MTP_TRACE_REF")) {
 		static uint64_t flushes;
 
+		/* head/tail as well as live_refs: enough to say whether a
+		 * region sits at a wrap, at a flush boundary, or at neither,
+		 * without a mechanism having to be true first. */
 		if (!(++flushes % 8) || u->live_refs)
-			fprintf(stderr, "FLUSHN n=%llu upto=%llu live=%u\n",
+			fprintf(stderr, "FLUSHN n=%llu upto=%llu live=%u "
+				"head=%llu tail=%llu held=%llu cap=%u\n",
 				(unsigned long long)flushes,
-				(unsigned long long)upto, u->live_refs);
+				(unsigned long long)upto, u->live_refs,
+				(unsigned long long)u->head_seq,
+				(unsigned long long)u->tail_seq,
+				(unsigned long long)(u->tail_seq - u->head_seq),
+				u->cap);
 	}
 	if (getenv("MTP_TRACE_REF") && u->live_refs) {
 		uint64_t lo = u->ref_base[u->ref_head];
