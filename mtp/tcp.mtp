@@ -165,7 +165,37 @@ app_parser socket {
     listen  -> sock_listen;
     recv    -> sock_recv;
     send    -> sock_send;
+    close   -> sock_close;
 }
+
+// §sock_recv
+// ---------------------------------------------------------------------------
+// The application drains. This is RECOMPUTE POINT 2 of §window_rule and the
+// only reason `recv` is bound at all: `delivered` advances by what the flush
+// instruction reports it handed over — not by what the application asked for,
+// which may be more — and the advertised window reopens by exactly that much.
+//
+// The count comes from the instruction's return value rather than from a target
+// accessor, which is what lets the program own `delivered` without the target
+// exposing its unit's occupancy.
+
+// §sock_close
+// ---------------------------------------------------------------------------
+// The application has no more to send. THIS, AND NOT THE PEER'S FIN, IS WHAT
+// RELEASES OUR OWN FIN.
+//
+// D-20's per-path rule reaches teardown here. A peer's FIN closes the PEER's
+// path; ours stays open until this arrives, so CLOSE_WAIT is a state in which
+// the program still accepts writes, still generates segments, and still
+// processes returning acknowledgements. Gating any of those three on
+// ESTABLISHED alone silently discards a response to a request whose FIN
+// arrived with it — which is a request/response server's ordinary case, and
+// was invisible for as long as the object was posted before any connection
+// existed.
+//
+// §gen_fin is then tried immediately rather than waiting for the next packet,
+// because if the peer has already finished, no further packet will arrive to
+// carry the attempt.
 
 // §window_rule
 // ---------------------------------------------------------------------------
