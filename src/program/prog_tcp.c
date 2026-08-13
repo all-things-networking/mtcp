@@ -687,23 +687,66 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 {
 	uint8_t hdr[PROG_HDR_MAX];
 	struct mtp_tx_payload pay;
-	uint32_t inflight, avail, win, usable, to_send;
+	uint32_t win, to_send;
 	uint16_t hdr_len;
 
 	if (c->state != TCP_ESTABLISHED)
 		return;
 
-	inflight = c->send_next - c->send_una;
-	/* write_end is a unit offset; send_next is a sequence. Bridge once. */
-	avail    = c->write_end - (c->send_next - c->snd_base);
-	win      = c->cwnd < c->send_wnd ? c->cwnd : c->send_wnd;
-	usable   = win > inflight ? win - inflight : 0;
+	win = c->cwnd < c->send_wnd ? c->cwnd : c->send_wnd;
 
-	/* the donor's bail, with the donor's constant */
-	if (usable < PARITY_MSS_ADVERTISED && inflight > 0)
-		return;
+	/*
+	 * THE DONOR'S LOOP PREDICATE, not a restatement of it.
+	 *
+	 *     remaining_window = MIN(cwnd, peer_wnd) - (seq - snd_una)
+	 *     if (remaining_window <= 0 ||
+	 *         (remaining_window < mss && seq - snd_una > 0)) bail
+	 *     len     = MIN(len, remaining_window)
+	 *     pkt_len = MIN(len, mss - 12)
+	 *
+	 * Two things a rounding rule would lose, and both matter:
+	 *
+	 *   `seq - snd_una > 0` IS AN ESCAPE. With nothing in flight the rule
+	 *   does not apply and the donor sends whatever fits, down to one byte.
+	 *   Rounding down to a multiple of the payload maximum with no escape
+	 *   withholds the last partial segment for ever whenever the buffer
+	 *   does not refill — which is the end of every object. Nine short
+	 *   segments traded for a transfer that never completes.
+	 *
+	 *   The predicate is on unused WINDOW, not on the amount available to
+	 *   send: `len` does not appear in it. The two coincide in the common
+	 *   case and come apart when the window binds rather than the data.
+	 *
+	 * We run the loop to decide HOW MUCH, then issue one pkt_gen and let
+	 * the target segment (P4) — so the program never learns how it split,
+	 * which is what makes the per-byte recurrence safe.
+	 */
+	{
+		uint32_t seq = c->send_next;
 
-	to_send = usable < avail ? usable : avail;
+		to_send = 0;
+		for (;;) {
+			uint32_t inflight_here = seq - c->send_una;
+			int32_t rw = (int32_t)win - (int32_t)inflight_here;
+			uint32_t avail_here, len, pkt;
+
+			if (rw <= 0)
+				break;
+			if (rw < PARITY_MSS_ADVERTISED && inflight_here > 0)
+				break;
+
+			avail_here = c->write_end - (seq - c->snd_base);
+			if (!avail_here)
+				break;
+
+			len = avail_here < (uint32_t)rw ? avail_here : (uint32_t)rw;
+			pkt = len < PARITY_MSS_PAYLOAD ? len : PARITY_MSS_PAYLOAD;
+
+			to_send += pkt;
+			seq += pkt;
+		}
+	}
+
 	if (to_send == 0)
 		return;
 
