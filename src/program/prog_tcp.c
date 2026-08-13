@@ -1377,7 +1377,13 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			c->send_next - c->send_una);
 	pay.len = to_send;
 
-	g_emit[EM_DATA]++;
+	/*
+	 * Below the high-water mark is a retransmission, whoever asked. Marking
+	 * the CALLER did not work: the timeout rewinds and its own send is
+	 * refused, so the re-emission happens later from the acknowledgement
+	 * path — the rewind and the re-send are separated in time.
+	 */
+	g_emit[c->send_next < c->send_high ? EM_DATA_RTX : EM_DATA]++;
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0) {
 		c->send_next += to_send;
 		if (c->send_next > c->send_high)
