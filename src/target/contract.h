@@ -62,7 +62,41 @@ typedef struct flow flow_t;
  */
 #define MTP_SIZE_INF	(~0ULL)		/* unbounded byte stream */
 
-struct mtp_data_unit;			/* opaque; see internal.h */
+/*
+ * A COMPLETE type, and the generated context embeds one by value (D-19). CR-3's
+ * context store assumes that — the kernel target's `mtp_data_unit.h` is a
+ * public struct and its generated context declares `struct mtp_data_unit tx;`
+ * — and declaring it opaque here forced the program to hold a pointer to
+ * storage no instruction allocates. The initialiser initialises; it does not
+ * allocate.
+ *
+ * ONLY THE BOUNDARY CONFORMS. The FIELDS BELOW ARE OURS and are not the kernel
+ * target's: it holds an sk_buff_head and an rb_root because that suits Linux;
+ * this holds a true ring because that is the donor's shape and what §7.2's
+ * numbers rest on. Two targets, one boundary, different realisations — do not
+ * "conform" the contents to the kernel's, they are not contract.
+ *
+ * The program may not read or write a field of this struct. It is complete so
+ * the context can embed it, not so the program can reach into it; access is
+ * through the instructions and nothing else, and tools/check_wiring.sh enforces
+ * that on src/program/.
+ */
+#define MTP_MAX_LIVE_REFS	64	/* == the blueprint ring depth */
+
+struct mtp_data_unit {
+	uint8_t		*buf;
+	uint32_t	 cap;		/* a power of two: the ring's wrap mask */
+	uint64_t	 size;		/* MTP_SIZE_INF, or a message length */
+
+	uint64_t	 head_seq;	/* first byte still held */
+	uint64_t	 tail_seq;	/* one past the last byte held */
+
+	/* bases of every committed-and-undrained blueprint referencing this
+	 * unit, oldest first — internal.h §3 */
+	uint64_t	 ref_base[MTP_MAX_LIVE_REFS];
+	uint16_t	 ref_head, ref_tail;
+	uint32_t	 live_refs;
+};
 
 /* A reference to application data to be transmitted. The kernel target uses an
  * iov_iter because that is what its socket layer already carries; ours is a

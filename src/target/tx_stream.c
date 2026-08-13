@@ -22,29 +22,11 @@
  * pointer to one of these per unit it declares, so a protocol has exactly as
  * many as it needs and no signature widens.
  */
-struct mtp_data_unit {
-	uint8_t		*buf;
-	uint32_t	 cap;		/* a power of two: the ring's wrap mask */
-	uint64_t	 size;		/* MTP_SIZE_INF, or a message length */
+/* struct mtp_data_unit is in contract.h: the generated context embeds one by
+ * value, so the type has to be complete where the program can see it (D-19).
+ * Its CONTENTS are ours — the true ring — and are not the kernel target's. */
 
-	uint64_t	 head_seq;	/* first byte still held */
-	uint64_t	 tail_seq;	/* one past the last byte held */
-
-	/*
-	 * The bases of every committed-and-undrained blueprint referencing this
-	 * unit, oldest first. This is what internal.h §3's assertion reads and
-	 * what tells the flush whether it must drain first.
-	 *
-	 * A FIFO rather than a single low-water mark, because a single mark
-	 * cannot be raised when the oldest reference is released — it only ever
-	 * knows how to fall. References are taken in increasing sequence order
-	 * and released in the same order (the ring drains FIFO), so a ring of
-	 * bases is exact and costs one slot per blueprint.
-	 */
-	uint64_t	 ref_base[BP_RING_DEPTH];
-	uint16_t	 ref_head, ref_tail;
-	uint32_t	 live_refs;
-};
+#define BP_RING_DEPTH_CHECK (MTP_MAX_LIVE_REFS == BP_RING_DEPTH)
 
 static inline uint32_t off_of(const struct mtp_data_unit *u, uint64_t seq)
 {
@@ -76,6 +58,9 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 	 * enforces >= 64, so `sndbuf = 100000` is an ordinary thing to write
 	 * and would silently corrupt every wrap. Round up and say so.
 	 */
+	/* one live reference per blueprint slot, so the two must agree */
+	assert(BP_RING_DEPTH_CHECK);
+
 	u->cap = 1;
 	while (u->cap < (uint32_t)CONFIG.sndbuf_size)
 		u->cap <<= 1;

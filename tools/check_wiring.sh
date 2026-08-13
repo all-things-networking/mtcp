@@ -71,6 +71,16 @@ while IFS= read -r ref; do
 	fi
 done < <(grep -rhoE 'mtp/[a-z0-9_]+\.mtp §[a-z0-9_]+' src/ 2>/dev/null | sort -u)
 
+# --- 3b. the program may not reach into a data unit -------------------------
+# struct mtp_data_unit is complete so the generated context can EMBED one
+# (D-19), not so the program can read its fields. Access is instruction-only.
+while IFS= read -r hit; do
+	echo "BOUNDARY $hit"
+	echo "         src/program/ may not touch a data unit's fields; the type"
+	echo "         is complete so the context can embed it, not to be read"
+	fail=1
+done < <(grep -rnE '\b(tx|rx)\.(buf|cap|size|head_seq|tail_seq|ref_base|ref_head|ref_tail|live_refs)\b' src/program 2>/dev/null || true)
+
 # --- 4. the pending list must not decay into a silencer ----------------------
 # An exception carries the milestone that must consume it. Once that milestone
 # has landed the exception is no longer a schedule, it is the very thing this

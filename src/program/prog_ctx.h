@@ -11,6 +11,7 @@
  * rule written so far. The rest arrives with the transport.
  */
 #include <stdint.h>
+#include <stdbool.h>
 
 #include "contract.h"
 #include "prog_params.h"
@@ -62,8 +63,14 @@ struct tcp_ctx {
 	uint32_t ts_recent;
 
 	/* --- the data units, embedded, per CR-3 -------------------------- */
-	struct mtp_data_unit *tx;
-	struct mtp_data_unit *rx;
+	/* Embedded BY VALUE (D-19): the context owns the storage and
+	 * new_tx_ordered_data initialises it. The ring buffer inside is still
+	 * allocated lazily on first write, which IS the donor's shape — mTCP
+	 * takes its send buffer from a pool on first send, not at accept. */
+	struct mtp_data_unit tx;
+	struct mtp_data_unit rx;
+	bool     tx_open;	/* new_tx_ordered_data issued (lazily, as the
+				 * donor allocates its send buffer lazily) */
 };
 
 /* from the program's `context` initialiser */
@@ -74,5 +81,8 @@ void     sock_recv(struct tcp_ctx *c, uint32_t delivered_now);
 uint16_t tcp_window_field(const struct tcp_ctx *c, int is_syn);
 uint16_t tcp_build_header(uint8_t *out, const struct tcp_ctx *c, uint32_t seq,
 			  uint8_t flags, uint32_t ts_val, uint32_t ts_ecr);
+void     tcp_gen_seg(struct tcp_ctx *c, uint32_t now);
+int      tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len,
+		      uint32_t now);
 
 #endif /* PROG_CTX_H */

@@ -92,6 +92,23 @@ main(int argc, char **argv)
 		return 1;
 	}
 
+	/* post the object to serve. One fixed object, as epserver serves one
+	 * file, which is what M1d compares against. */
+	{
+		static uint8_t obj[65536];
+		size_t i;
+
+		for (i = 0; i < sizeof(obj); i++)
+			obj[i] = (uint8_t)i;
+		op.kind = MTP_APP_SEND;
+		op.data.base = obj;
+		op.data.len = sizeof(obj);
+		op.len = sizeof(obj);
+		mtp_program_app_op(&op, 0);
+		fprintf(stderr, "tcpserver: serving a %zu byte object\n",
+			sizeof(obj));
+	}
+
 	fprintf(stderr, "tcpserver: listening on %s:%u; RUN WINDOW OPENS NOW, ",
 		bind_ip, port);
 	if (ms)

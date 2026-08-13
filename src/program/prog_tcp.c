@@ -139,6 +139,19 @@ static struct {
 	uint32_t ip;
 	uint16_t port;
 	uint8_t  listening;
+
+	/*
+	 * The object the application has posted to serve. A one-shot server
+	 * hands it over once and every accepted connection receives it; that
+	 * is what epserver does with a file, and it is enough to drive bulk
+	 * send.
+	 *
+	 * It arrives through the app interface as a SEND op, not as something
+	 * this program invented — the bytes are the application's and the
+	 * program only decides when they go.
+	 */
+	const void *obj;
+	uint32_t    obj_len;
 } prog_listener;
 
 #define TCP_FIN	0x01
@@ -281,7 +294,7 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 /* mtp/tcp.mtp §proc_open_done — the ACK that completes a passive open. */
 static void
-proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e)
+proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	if (c->state != TCP_SYN_RCVD || !(e->flags & TCP_ACK))
 		return;
@@ -292,6 +305,10 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e)
 	c->ts_recent = e->ts_val;
 	c->state = TCP_ESTABLISHED;
 	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_STATE });
+
+	/* the application posted an object before listening; serve it */
+	if (prog_listener.obj_len)
+		tcp_app_send(c, prog_listener.obj, prog_listener.obj_len, now);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -335,7 +352,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		return 0;
 	}
 
-	proc_open_done(c, &e);
+	proc_open_done(c, &e, now_ms);
 	return 0;
 }
 
@@ -371,6 +388,13 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 	case MTP_APP_LISTEN:
 		prog_listener.listening = 1;
 		return 0;
+	case MTP_APP_SEND:
+		/* posted before any connection exists: the object every
+		 * accepted connection is served. A real accept/send pair
+		 * arrives with the application queues. */
+		prog_listener.obj = op->data.base;
+		prog_listener.obj_len = op->len;
+		return 0;
 	default:
 		return -1;		/* an op this program does not bind */
 	}
@@ -381,4 +405,94 @@ void
 mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 {
 	(void)t; (void)now_ms;
+}
+
+/*============================================================================*
+ * mtp/tcp.mtp §gen_seg — the send decision
+ *============================================================================*/
+/*
+ * One pkt_gen for the whole sendable run; the target segments it and the seg
+ * rule assigns each segment's sequence number. That is P4 — deferred
+ * segmentation — and it is why the recurrence in §seg_rule has to be per BYTE:
+ * the program does not know, and must not need to know, how the run was split.
+ *
+ * G2, the sender-side silly-window rule, is the DONOR'S and not the
+ * prototype's rounding: refuse a sub-MSS segment when anything is in flight.
+ * And it is reproduced with the donor's constants — the window is compared
+ * against 1460 while a segment consumes 1448.
+ *
+ * That mismatch is NOT why an RTO sends one segment; B withdrew its own earlier
+ * agreement with that explanation. After an RTO cwnd is 1460, the first segment
+ * consumes 1448, and the remaining 12 is below either threshold, so the bail
+ * fires identically whichever constant is used. One segment per RTO follows
+ * from cwnd == MSS while a segment consumes MSS - 12, and nothing else. The
+ * mismatch is observable only when min(cwnd, peer_wnd) - inflight lands in
+ * [1448, 1460).
+ */
+void
+tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	struct mtp_tx_payload pay;
+	uint32_t inflight, avail, win, usable, to_send;
+	uint16_t hdr_len;
+
+	if (c->state != TCP_ESTABLISHED)
+		return;
+
+	inflight = c->send_next - c->send_una;
+	avail    = c->write_end - c->send_next;
+	win      = c->cwnd < c->send_wnd ? c->cwnd : c->send_wnd;
+	usable   = win > inflight ? win - inflight : 0;
+
+	/* the donor's bail, with the donor's constant */
+	if (usable < PARITY_MSS_ADVERTISED && inflight > 0)
+		return;
+
+	to_send = usable < avail ? usable : avail;
+	if (to_send == 0)
+		return;
+
+	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
+				   c->ts_recent);
+
+	pay.u   = &c->tx;
+	pay.off = c->send_next;
+	pay.len = to_send;
+
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0)
+		c->send_next += to_send;
+}
+
+/*
+ * mtp/tcp.mtp §record_data — application data arrives.
+ *
+ * The send buffer is created lazily, on first write, which is the donor's
+ * behaviour (its eager-allocation counterpart is the prototype's and is an
+ * unjudged difference, not a gap). write_end is the program's own mirror of how
+ * much it has appended — the target has no accessor to ask, and §2.4b's
+ * withdrawal rests on exactly this working.
+ */
+int
+tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len, uint32_t now)
+{
+	struct mtp_tx_addr addr;
+	int wrote;
+
+	if (c->state != TCP_ESTABLISHED)
+		return -1;
+
+	if (!c->tx_open) {
+		mtp_new_tx_ordered_data(&c->tx, MTP_SIZE_INF);
+		c->tx_open = true;
+	}
+
+	addr.base = data;
+	addr.len = len;
+	wrote = mtp_add_tx_data(&c->tx, addr, len);
+	if (wrote > 0)
+		c->write_end += (uint32_t)wrote;
+
+	tcp_gen_seg(c, now);
+	return wrote;
 }
