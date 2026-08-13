@@ -15,3 +15,13 @@ PARITY_RTO_MIN_MS       increment 2 piece 5 — the donor has no floor; the
 PARITY_RTO_MAX_MS       increment 2 piece 5 — likewise, no ceiling
 PARITY_MAX_RTX          increment 2 piece 5 — G11, the flow is closed at 16
 PARITY_MAX_SYN_RETRY    M2 — SYN_SENT only, and this target has no active open
+
+# Not a constant, but the same defect class and it belongs on the same
+# schedule: mtp/tcp.mtp declares an absence_register and NOTHING CHECKS IT
+# against the body. A program could implement something it declared absent, or
+# omit something it did not, and no gate would notice.
+#   ABSENCE_REGISTER_UNCHECKED   the compiler — docs/PLAN.md §8, after the
+#                                target works. Until then it is a review item,
+#                                which is what the prototype's tcp.mtp also
+#                                relied on and why it went five branches
+#                                without describing the running system.

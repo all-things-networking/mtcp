@@ -71,5 +71,20 @@ while IFS= read -r ref; do
 	fi
 done < <(grep -rhoE 'mtp/[a-z0-9_]+\.mtp §[a-z0-9_]+' src/ 2>/dev/null | sort -u)
 
+# --- 4. the pending list must not decay into a silencer ----------------------
+# An exception carries the milestone that must consume it. Once that milestone
+# has landed the exception is no longer a schedule, it is the very thing this
+# gate exists to catch, so a constant that IS now read must come off the list.
+while IFS= read -r line; do
+	case $line in ''|'#'*) continue ;; esac
+	name=${line%%[[:space:]]*}
+	uses=$(grep -rhow "$name" src apps tests 2>/dev/null | wc -l)
+	if [ "$uses" -gt 1 ]; then
+		echo "STALE    $name is on tools/wiring_pending.txt but is now read;"
+		echo "         its milestone has landed, so take it off the list"
+		fail=1
+	fi
+done < tools/wiring_pending.txt
+
 [ "$fail" = 0 ] && echo "wiring: OK — nothing declared without being connected."
 exit "$fail"
