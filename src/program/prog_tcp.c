@@ -437,6 +437,26 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 			(int32_t)(c->send_next - e->ack) < 0
 			? "  <<< ack PAST send_next" : "");
 
+	/*
+	 * An acknowledgement past send_next, and BOTH halves of the donor's
+	 * guard — before send_una moves, which is the ordering that makes the
+	 * comparison meaningful.
+	 *
+	 * This is the NORMAL outcome of a successful recovery, not an edge
+	 * case: after a retransmission fills a hole the receiver has been
+	 * holding later data out of order, so its cumulative acknowledgement
+	 * jumps past everything we rewound send_next to.
+	 *
+	 * Both halves or neither. Taking `snd_nxt = ack_seq` alone would match
+	 * the donor's sequence numbers exactly while diverging on its
+	 * congestion trajectory — which is the observable rule 1 names, and
+	 * which the packet count and the size histogram would both pass.
+	 */
+	if ((int32_t)(e->ack - c->send_next) > 0) {
+		c->send_next = e->ack;
+		c->cwnd = c->ssthresh;
+	}
+
 	c->send_una = e->ack;
 	estimate_rtt(c, now, e->ts_ecr);
 	mtp_tx_flush_and_notify(&c->tx, acked);

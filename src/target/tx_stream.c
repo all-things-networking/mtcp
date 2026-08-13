@@ -214,6 +214,20 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out)
 		out->wrap_data = u->buf;
 	}
 
+	/*
+	 * THE RING'S PREMISE, CHECKED RATHER THAN DOCUMENTED. The flush reads
+	 * ref_base[ref_head] as the minimum, which is exact only while
+	 * references arrive in increasing sequence order. A retransmission is
+	 * the first path that can take one BELOW an outstanding reference, and
+	 * nothing would notice: the head would hold a larger sequence, the
+	 * flush would conclude the range is clear, and bytes would move under a
+	 * live reference.
+	 *
+	 * A stated assumption that a later mechanism can invalidate is the
+	 * shape that keeps biting here, and this one is already identified —
+	 * so it is asserted, not merely written down.
+	 */
+	assert(!u->live_refs || seq >= u->ref_base[u->ref_head]);
 	assert(u->live_refs < MTP_MAX_LIVE_REFS);
 	u->ref_base[u->ref_tail] = seq;
 	u->ref_tail = (uint16_t)((u->ref_tail + 1) % MTP_MAX_LIVE_REFS);
