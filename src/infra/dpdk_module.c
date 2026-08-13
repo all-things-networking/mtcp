@@ -75,6 +75,10 @@
 
 #define MAX_PKT_BURST			64/*128*/
 
+/* How many times the transmit path retries a burst the NIC will not take
+ * before giving up. mTCP has no bound here; see the comment at the retry. */
+#define MTP_TX_BURST_SPINS		1024
+
 /*
  * Configurable number of RX/TX ring descriptors
  */
@@ -374,14 +378,42 @@ dpdk_send_pkts(struct thread_ctx *ctxt, int ifidx)
 		}
 #endif /* !ENABLE_STATS_IOCTL */
 #endif
-		do {
-			/* tx cnt # of packets */
-			ret = rte_eth_tx_burst(portid, ctxt->cpu,
-					       pkts, cnt);
-			pkts += ret;
-			cnt -= ret;
-			/* if not all pkts were sent... then repeat the cycle */
-		} while (cnt > 0);
+		/*
+		 * BOUNDED. mTCP retries this with no limit and no timeout, so a
+		 * NIC that stops draining spins the core for ever with no log
+		 * line and no way in. Rule 5 says treat a hang as a failing
+		 * test, and an unbounded retry inside the transmit path is the
+		 * shape that takes a node off the network.
+		 *
+		 * The bound is generous — a burst is at most 64 packets and a
+		 * healthy NIC drains it in one or two calls — so reaching it
+		 * means the device is wedged, not busy. The packets that did
+		 * not go are dropped and counted; the alternative is not
+		 * sending them either, while also never returning.
+		 */
+		{
+			int spins = 0;
+
+			do {
+				/* tx cnt # of packets */
+				ret = rte_eth_tx_burst(portid, ctxt->cpu,
+						       pkts, cnt);
+				pkts += ret;
+				cnt -= ret;
+				/* if not all pkts were sent... then repeat */
+			} while (cnt > 0 && ++spins < MTP_TX_BURST_SPINS);
+
+			if (unlikely(cnt > 0)) {
+				TRACE_ERROR("interface %d accepted nothing in "
+					    "%d attempts; dropping %d packets "
+					    "rather than spinning. The device "
+					    "is not draining.\n",
+					    ifidx, spins, cnt);
+#ifdef NETSTAT
+				core->nstat.tx_drops[ifidx] += cnt;
+#endif
+			}
+		}
 
 		/* time to allocate fresh mbufs for the queue */
 		for (i = 0; i < dpc->wmbufs[ifidx].len; i++) {

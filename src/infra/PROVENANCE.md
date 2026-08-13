@@ -68,6 +68,24 @@ donor survives and a `diff` still reads.
 | the L4 half of `debug.c`'s three packet dumpers | decoding an L4 header is the program's knowledge. `PKTDUMP` is off in every build anyone has measured; the program gets a dump hook when it has something to dump |
 | `io_engine/` | one I/O module is carried, so the PacketShader library is not needed. The two things `ps.h` supplied are listed under partial lifts |
 
+## Two donor behaviours changed deliberately, not inherited
+
+**The unbounded transmit retry.** `dpdk_send_pkts` retried `rte_eth_tx_burst` in
+a `do { } while (cnt > 0)` with no bound and no timeout, so a NIC that stops
+draining spins the core for ever, silently. Rule 5 says treat a hang as a
+failing test. Bounded at 1024 attempts against a 64-packet burst — reaching it
+means wedged, not busy — with the undelivered packets dropped and counted.
+
+**Fatal errors on the send path, NOT changed, but decided rather than
+inherited.** In the donor a missing route is `assert(0)` (`ip_out.c:34`) and
+mempool exhaustion is `exit(EXIT_FAILURE)`. Neither is a classifiable failure;
+both kill the process. Kept for now, because a target that limps on after
+exhausting its mempool produces measurements nobody should trust, and because
+changing it would change behaviour the comparison rests on. It is on the debt
+list (`docs/DESIGN.md` §17.2) to revisit when the failure signal of D-17 exists
+— at that point a mempool exhaustion is a classifiable `BLOCKED(shared)` and
+killing the process stops being the only honest option.
+
 ## Deferred to increment 2, though they belong in this layer
 
 `eventpoll.c`, `socket.c`, `pipe.c` and the `mtcp_api.h` / `mtcp_epoll.h`
