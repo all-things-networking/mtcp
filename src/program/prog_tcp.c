@@ -802,13 +802,25 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 			sock_recv(c, (uint32_t)got);
 		return got;
 	}
-	case MTP_APP_SEND:
-		/* posted before any connection exists: the object every
-		 * accepted connection is served. A real accept/send pair
-		 * arrives with the application queues. */
-		prog_listener.obj = op->data.base;
-		prog_listener.obj_len = op->len;
-		return 0;
+	case MTP_APP_SEND: {
+		/*
+		 * On a named flow this is an ordinary send. With no flow it is
+		 * the object posted before any connection exists, which is how
+		 * a one-shot server hands over what every accepted connection
+		 * receives.
+		 */
+		struct tcp_ctx *c;
+
+		if (!op->flow) {
+			prog_listener.obj = op->data.base;
+			prog_listener.obj_len = op->len;
+			return 0;
+		}
+		c = (struct tcp_ctx *)mtp_ctx_of(op->flow);
+		if (!c)
+			return -1;
+		return tcp_app_send(c, op->data.base, op->len, now_ms);
+	}
 	default:
 		return -1;		/* an op this program does not bind */
 	}

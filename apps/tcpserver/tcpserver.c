@@ -33,6 +33,12 @@
  * printed, so a wrong return from the flush shows as wrong CONTENT rather than
  * as a number that merely looks plausible.
  */
+/*
+ * SELF-DESCRIBING: every 4-byte word holds its own offset, so any wrong byte
+ * says where it came from rather than only that something is wrong.
+ */
+static uint8_t g_obj[65536];
+
 static void
 serve(struct core_ctx *core, void *arg)
 {
@@ -58,10 +64,39 @@ serve(struct core_ctx *core, void *arg)
 		op.len = sizeof(buf) - 1;
 
 		got = mtp_program_app_op(&op, 0);
-		if (got > 0) {
-			buf[got] = 0;
-			fprintf(stderr, "tcpserver: app read %d bytes: \"%.40s\"\n",
-				got, (char *)buf);
+		if (got <= 0)
+			continue;
+		buf[got] = 0;
+
+		/*
+		 * Answer a GET. This is the ONLY place HTTP appears in this
+		 * tree: it is the application's, exactly as it is the donor's
+		 * (epserver parses the request and writes the header in its
+		 * app). Nothing in src/target/ or the .mtp changed to make this
+		 * work — DESIGN.md §17.1's layering test, and it held.
+		 */
+		if (!strncmp((char *)buf, "GET ", 4)) {
+			struct mtp_app_op snd;
+			static uint8_t resp[sizeof(g_obj) + 128];
+			int hdr;
+
+			hdr = snprintf((char *)resp, 128,
+				       "HTTP/1.1 200 OK\r\n"
+				       "Content-Length: %zu\r\n"
+				       "Connection: close\r\n\r\n",
+				       sizeof(g_obj));
+			memcpy(resp + hdr, g_obj, sizeof(g_obj));
+
+			memset(&snd, 0, sizeof(snd));
+			snd.kind = MTP_APP_SEND;
+			snd.flow = ready[i].flow;
+			snd.data.base = resp;
+			snd.data.len = hdr + sizeof(g_obj);
+			snd.len = hdr + sizeof(g_obj);
+			mtp_program_app_op(&snd, 0);
+
+			fprintf(stderr, "tcpserver: served %zu bytes for "
+				"\"%.20s\"\n", hdr + sizeof(g_obj), (char *)buf);
 		}
 	}
 }
@@ -147,21 +182,15 @@ main(int argc, char **argv)
 		 * from, and uninitialised memory announces itself by being
 		 * neither. A repeating 0..255 pattern says only "wrong".
 		 */
-		static uint8_t obj[65536];
 		size_t i;
 
-		for (i = 0; i + 4 <= sizeof(obj); i += 4) {
+		for (i = 0; i + 4 <= sizeof(g_obj); i += 4) {
 			uint32_t w = (uint32_t)i;
 
-			memcpy(obj + i, &w, 4);
+			memcpy(g_obj + i, &w, 4);
 		}
-		op.kind = MTP_APP_SEND;
-		op.data.base = obj;
-		op.data.len = sizeof(obj);
-		op.len = sizeof(obj);
-		mtp_program_app_op(&op, 0);
-		fprintf(stderr, "tcpserver: serving a %zu byte object\n",
-			sizeof(obj));
+		fprintf(stderr, "tcpserver: serving a %zu byte object on GET\n",
+			sizeof(g_obj));
 	}
 
 	fprintf(stderr, "tcpserver: listening on %s:%u; RUN WINDOW OPENS NOW, ",
