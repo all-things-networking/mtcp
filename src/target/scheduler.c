@@ -71,6 +71,35 @@ TransportCoreFini(struct core_ctx *core)
 	core->transport = NULL;
 }
 
+/*
+ * READABLE, from the level rather than from an edge.
+ *
+ * The rx unit holds unread bytes, so the flow belongs on the readiness list —
+ * whether it got there by arriving data or by still holding data after a
+ * partial read. Both callers are the same question asked at the two moments it
+ * can change: bytes went in, and bytes came out.
+ *
+ * This was the re-insert inside TransportPoll and nothing else, which made the
+ * target's "level-triggering" a continuation with no beginning: only a flow
+ * ALREADY on the list could ever gain READABLE. It worked solely because a
+ * passive open notifies STATE, putting the flow on the list, and the data used
+ * to arrive before the application drained that entry. Speed up the poll loop
+ * and the entry is gone before the first byte lands — a race the workload had
+ * been hiding, not a bug the changes introduced.
+ */
+static void
+ready_level_check(struct transport *t, struct flow *f)
+{
+	if (!f->rx_unit || f->rx_unit->tail_seq <= f->rx_unit->head_seq)
+		return;
+	f->ready_kinds |= (1u << MTP_NOTIF_READABLE);
+	if (!f->on_ready_list) {
+		TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
+		f->on_ready_list = 1;
+	}
+}
+
+/*----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------*/
 /*
  * The application drains readiness once per iteration. Returns how many flows
@@ -93,6 +122,7 @@ TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max)
 	struct transport *t = TransportOf(core);
 	int n = 0;
 
+	t->polls++;
 	while (n < max) {
 		struct flow *f = TAILQ_FIRST(&t->ready_list);
 
@@ -104,6 +134,7 @@ TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max)
 		out[n].kinds = f->ready_kinds;
 		f->ready_kinds = 0;
 		n++;
+		t->poll_entries++;
 
 		/*
 		 * LEVEL-TRIGGERED, AND IT IS THE TARGET'S. While the unit still
@@ -119,11 +150,7 @@ TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max)
 		 * that belongs here. Rule 4 asks the target not to know
 		 * protocols; it does not ask it to be minimal.
 		 */
-		if (f->rx_unit && f->rx_unit->tail_seq > f->rx_unit->head_seq) {
-			f->ready_kinds |= (1u << MTP_NOTIF_READABLE);
-			TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
-			f->on_ready_list = 1;
-		}
+		ready_level_check(t, f);
 	}
 	return n;
 }
@@ -344,6 +371,9 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 	 * not read and an address is below the transport boundary. */
 	TransportOf(core)->cur_iph = iph;
 	mtp_program_net_input(l4, l4_len, iph, cur_ts);
+	/* the edge: whatever the program merged is now readable */
+	if (TransportOf(core)->cur_flow)
+		ready_level_check(TransportOf(core), TransportOf(core)->cur_flow);
 	TransportOf(core)->cur_iph = NULL;
 	TransportOf(core)->cur_flow = NULL;
 
@@ -474,6 +504,15 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 		   (unsigned long)t->drain_depth[2],
 		   (unsigned long)t->drain_depth[3],
 		   (unsigned long)t->drain_depth[4]);
+	TRACE_INFO("CPU %d: readiness: notify readable=%lu writable=%lu "
+		   "state=%lu error=%lu; polls=%lu entries returned=%lu\n",
+		   ctx->cpu,
+		   (unsigned long)TransportOf(core)->notifies[MTP_NOTIF_READABLE],
+		   (unsigned long)TransportOf(core)->notifies[MTP_NOTIF_WRITABLE],
+		   (unsigned long)TransportOf(core)->notifies[MTP_NOTIF_STATE],
+		   (unsigned long)TransportOf(core)->notifies[MTP_NOTIF_ERROR],
+		   (unsigned long)TransportOf(core)->polls,
+		   (unsigned long)TransportOf(core)->poll_entries);
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,
 		   (unsigned long)TimerFires());
 	}

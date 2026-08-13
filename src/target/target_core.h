@@ -55,6 +55,11 @@ struct transport {
 	uint32_t		 tx_hist_short_mode;
 	uint64_t		 tx_hist_short_mode_n;
 	uint64_t		 notifies[4];
+	/* readiness, from both ends: what the transport put on the list and
+	 * what the application found there. The pair discriminates "never
+	 * notified" from "notified and the application saw nothing". */
+	uint64_t		 polls;
+	uint64_t		 poll_entries;
 };
 
 static inline struct transport *TransportOf(struct core_ctx *core)

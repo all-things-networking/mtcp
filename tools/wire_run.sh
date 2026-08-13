@@ -52,6 +52,23 @@ S=(ssh -o BatchMode=yes -o ConnectTimeout=8)
 RUNID=$(date +%Y%m%d-%H%M%S)-$$
 RD=/tmp/mtp-wire/$RUNID
 
+# REFUSE A STALE BINARY. The handoff says to check the binary's mtime before
+# questioning the logic; then a `make 2>&1 | grep -c error` chain swallowed a
+# failed build and the old binary ran anyway, producing a reading of code that
+# was never compiled. Remembering did not work, so it is checked here. Same
+# principle as the fresh run directory: make it impossible, not unlikely.
+stale=$(find "$here/src" "$here/apps" -name '*.[ch]' -newer "$here/bin/$BIN" 2>/dev/null | head -3)
+if [ ! -x "$here/bin/$BIN" ]; then
+	echo "REFUSING: bin/$BIN does not exist — build it on the build host first." >&2
+	exit 1
+fi
+if [ -n "$stale" ]; then
+	echo "REFUSING: sources are newer than bin/$BIN, so this would measure code" >&2
+	echo "that was never compiled. Rebuild. Newer than the binary:" >&2
+	echo "$stale" | sed 's/^/  /' >&2
+	exit 1
+fi
+
 link_state() {
 	"${S[@]}" "$1" 'printf "carrier=%s addr=%s" "$(cat /sys/class/net/ens2/carrier 2>/dev/null)" "$(ip -br addr show ens2 | awk "{print \$3}")"'
 }

@@ -589,6 +589,10 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 static void
 proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
+	if (getenv("MTP_TRACE_SEQ"))
+		fprintf(stderr, "PROCRECV state=%u seq=%u recv_next=%u paylen=%u "
+			"flags=0x%x\n", c->state, e->seq, c->recv_next,
+			e->payload_len, e->flags);
 	uint8_t hdr[PROG_HDR_MAX];
 	struct mtp_tx_payload none = { 0 };
 	uint16_t hdr_len;
