@@ -407,6 +407,48 @@ tgt_drain(struct core_ctx *core)
 	t->ring_drain_calls++;
 
 	/*
+	 * THE MERGE INJECTOR — MTP_MERGE_HOLD=n.
+	 *
+	 * Coalescing needs two blueprints pending in one drain, which needs two
+	 * send decisions between drains, which a natural workload produces only
+	 * when acknowledgements arrive in a burst. So it fired 1-5 times in a
+	 * megabyte and never at all at 64 KB, and after the sequence-field fix
+	 * it stopped firing entirely — leaving the mechanism SHOWN NOT FIRING
+	 * rather than SHOWN WORKING.
+	 *
+	 * Holding the drain for n iterations lets blueprints accumulate, so
+	 * adjacency is produced deliberately instead of waited for. Same
+	 * argument as MTP_DROP_NTH_DATA and the checksum corrupter: a mechanism
+	 * that cannot be made to run cannot be shown to work.
+	 *
+	 * BOUNDED, because rule 5 treats a hang as a failing test: the hold
+	 * releases after n iterations whatever happened, so the worst case is
+	 * delayed transmission and never a stall.
+	 */
+	{
+		static int hold = -1;
+		static uint32_t held;
+
+		if (hold < 0) {
+			const char *e = getenv("MTP_MERGE_HOLD");
+
+			hold = e ? atoi(e) : 0;
+		}
+		/*
+		 * Counted in ITERATIONS, not drains-to-skip: the poll loop runs
+		 * about 5x10^7 times a second while acknowledgements arrive
+		 * microseconds apart, so "skip n drains" is nanoseconds and
+		 * stacks up nothing. n is therefore scaled to span real time —
+		 * n=100 is roughly 2 microseconds of holding, which is the
+		 * order an acknowledgement gap actually has.
+		 */
+		if (hold > 0) {
+			if (++held % (uint32_t)(hold * 100))
+				return;		/* let the next send stack up */
+		}
+	}
+
+	/*
 	 * How many blueprints were pending when the drain ran.
 	 *
 	 * Coalescing merges BLUEPRINTS, and one send decision produces one
