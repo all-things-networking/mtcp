@@ -43,7 +43,14 @@ WIRE_ENV=${WIRE_ENV:-}
 
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 S=(ssh -o BatchMode=yes -o ConnectTimeout=8)
-RD=/tmp/mtp-wire
+
+# A FRESH DIRECTORY PER RUN. A fixed path let a run that produced nothing be
+# read as the previous run's answer — and that is the most dangerous apparatus
+# failure of the five, because the other four produced WRONG readings and this
+# one produces a PLAUSIBLE one from a run that never happened. Same fix as
+# waiting on the banner from a truncated log, applied to the output side.
+RUNID=$(date +%Y%m%d-%H%M%S)-$$
+RD=/tmp/mtp-wire/$RUNID
 
 link_state() {
 	"${S[@]}" "$1" 'printf "carrier=%s addr=%s" "$(cat /sys/class/net/ens2/carrier 2>/dev/null)" "$(ip -br addr show ens2 | awk "{print \$3}")"'
@@ -79,5 +86,17 @@ echo "window open; on $CLI: ${CLIENT%%$'\n'*}"
 echo "client done"
 
 sleep $(( MS/1000 + 3 ))
-"${S[@]}" "$SRV" "cd $RD && grep -oE 'rx classes:.*|promisc=[0-9]+ .*' run.log
+# REFUSE a run whose artefacts are absent, rather than printing nothing and
+# letting the caller reach for a previous result.
+if ! "${S[@]}" "$SRV" "cd $RD 2>/dev/null && grep -q 'RUN WINDOW CLOSED' run.log"; then
+	echo "FAILED: $SRV/$RD has no completed run. The server did not finish;"
+	echo "        there is no result here, and any number you have is from"
+	echo "        somewhere else."
+	"${S[@]}" "$SRV" "tail -5 $RD/run.log 2>/dev/null || echo '  (no log at all)'"
+	"${S[@]}" "$SRV" "sudo rm -rf /dev/hugepages/* /var/run/dpdk/* 2>/dev/null || true"
+	exit 1
+fi
+
+echo "run: $SRV:$RD"
+"${S[@]}" "$SRV" "cd $RD && grep -oE 'rx classes:.*|tx: .*|timers fired: .*|promisc=[0-9]+ .*' run.log
 	sudo rm -rf /dev/hugepages/* /var/run/dpdk/* 2>/dev/null || true"
