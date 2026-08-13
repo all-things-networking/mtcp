@@ -208,6 +208,11 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 					if (!inherit)
 						last->base_seq = payload->off;
 					TransportOf(g_core[0])->merges++;
+					if (getenv("MTP_TRACE_EV"))
+						fprintf(stderr,
+							"EV merge base=%llu len=%u\n",
+							(unsigned long long)last->base_seq,
+							(unsigned)(ext.len));
 					return 0;
 				}
 			}

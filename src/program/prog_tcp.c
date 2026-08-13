@@ -1383,7 +1383,14 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	 * refused, so the re-emission happens later from the acknowledgement
 	 * path — the rewind and the re-send are separated in time.
 	 */
-	g_emit[c->send_next < c->send_high ? EM_DATA_RTX : EM_DATA]++;
+	if (c->send_next < c->send_high) {
+		g_emit[EM_DATA_RTX]++;
+		if (getenv("MTP_TRACE_EV"))
+			fprintf(stderr, "EV rtx off=%u len=%u\n",
+				c->send_next - c->snd_base, to_send);
+	} else {
+		g_emit[EM_DATA]++;
+	}
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0) {
 		c->send_next += to_send;
 		if (c->send_next > c->send_high)
