@@ -12,6 +12,8 @@
  * program embeds (CR-2), bound to the event they raise (CR-6). The same split
  * as D-19 — the boundary conforms and the contents are ours.
  */
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "contract.h"
@@ -59,6 +61,13 @@ mtp_timer_start(struct mtp_timer *t, uint64_t ns)
 	unlink_timer(t);
 	t->deadline = wheel_now + (ticks ? ticks : 1);
 	t->armed = 1;
+
+	if (getenv("MTP_TRACE_SEQ"))
+		fprintf(stderr, "ARM  ns=%llu ticks=%u now=%u deadline=%u "
+			"in_range=%d bucket=%u\n", (unsigned long long)ns,
+			ticks, wheel_now, t->deadline,
+			(t->deadline - wheel_now < WHEEL_BUCKETS),
+			t->deadline & WHEEL_MASK);
 
 	if (t->deadline - wheel_now < WHEEL_BUCKETS) {
 		t->wnext = wheel[t->deadline & WHEEL_MASK];
@@ -108,6 +117,19 @@ TimerTick(uint32_t now)
 			wheel[t->deadline & WHEEL_MASK] = t;
 		} else {
 			pp = &t->wnext;
+		}
+	}
+
+	if (getenv("MTP_TRACE_SEQ")) {
+		static uint32_t last;
+
+		if (now != last) {
+			static uint64_t n;
+
+			if (!(n++ % 512))
+				fprintf(stderr, "TICK sweep=%u -> now=%u\n",
+					wheel_now, now);
+			last = now;
 		}
 	}
 
