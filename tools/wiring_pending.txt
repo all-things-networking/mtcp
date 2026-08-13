@@ -8,12 +8,10 @@
 # <name>  <milestone that wires it>
 
 PARITY_DUPACK_THRESH    M2 — fast retransmit
-PARITY_INITIAL_RTO_MS   increment 2 piece 5 — retransmission timeout
 PARITY_RTO_MIN_MS       increment 2 piece 5 — the donor has no floor; the
                         constant records that, and the RTO code must read it
                         rather than assume
 PARITY_RTO_MAX_MS       increment 2 piece 5 — likewise, no ceiling
-PARITY_MAX_RTX          increment 2 piece 5 — G11, the flow is closed at 16
 PARITY_MAX_SYN_RETRY    M2 — SYN_SENT only, and this target has no active open
 
 # Not a constant, but the same defect class and it belongs on the same

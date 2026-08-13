@@ -106,6 +106,11 @@ typedef struct {
 int tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 		     void (*drain)(void *), void *drain_arg);
 
+/* The receive unit's base is a sequence number, not zero: the peer's ISN + 1.
+ * Passing it here is the bridge, so nothing downstream has to convert. */
+int tgt_rx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
+		     uint64_t base);
+
 int tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len,
 	       payref_t *out);
 

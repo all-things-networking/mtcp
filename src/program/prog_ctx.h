@@ -105,7 +105,8 @@ struct tcp_ctx {
 	 * takes its send buffer from a pool on first send, not at accept. */
 	struct mtp_data_unit tx;
 	struct mtp_data_unit rx;
-	bool     tx_open;	/* new_tx_ordered_data issued (lazily, as the
+	bool     tx_open;
+	bool     rx_open;	/* new_tx_ordered_data issued (lazily, as the
 				 * donor allocates its send buffer lazily) */
 };
 

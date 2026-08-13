@@ -588,6 +588,24 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		return;			/* out of order: M2, and it does not
 					 * fire at -c 1 on a clean LAN */
 
+	/*
+	 * The bytes actually go into the receive stream now. Until this landed
+	 * the unit was declared in the context and never held a byte —
+	 * declared and never connected, the fourth instance, and one the wiring
+	 * gate could not see because these are contract instructions rather
+	 * than program constants.
+	 */
+	if (!c->rx_open) {
+		mtp_new_rx_ordered_data(&c->rx, MTP_SIZE_INF);
+		c->rx_open = true;
+	}
+	{
+		struct mtp_rx_addr a = { .data = e->payload, .len = e->payload_len };
+
+		if (mtp_add_rx_data_seg(&c->rx, a, e->payload_len, e->seq) < 0)
+			return;		/* refused: not in order, M2 */
+	}
+
 	/* §window_rule recompute point 1: payload merged in order. Nothing
 	 * else in this program may write rcv_wnd. */
 	tcp_on_payload_merged(c, c->recv_next + e->payload_len);

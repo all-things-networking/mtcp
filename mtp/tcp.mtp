@@ -182,6 +182,10 @@ app_parser socket {
 // divergence in the first RTT of every connection with no protocol logic wrong.
 // The sequence is 14600 unscaled on the SYN, then 14592, then 2048.
 
+// §coalesce               what a merged packet keeps (see §blueprint)
+// §proc_ack               an acknowledgement of our data: window, congestion,
+//                         and the guard for an ack past send_next
+// §gen_fin                our FIN, gated on send_next == write_end (G10)
 // §proc_passive_open      a SYN with no context, and a listener that matches
 // §proc_open_done         the acknowledgement that completes a passive open
 // §record_data            application data appended to the transmit stream

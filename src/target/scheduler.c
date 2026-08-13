@@ -147,6 +147,17 @@ drain_this_core(void *arg)
 }
 
 void
+mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t size)
+{
+	uint32_t cap = 1;
+
+	while (cap < (uint32_t)CONFIG.rcvbuf_size)
+		cap <<= 1;
+	if (tgt_rx_unit_init(u, size, cap, 0) < 0)
+		TRACE_ERROR("could not allocate a %u byte receive ring\n", cap);
+}
+
+void
 mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 {
 	struct core_ctx *core = g_core[0];	/* single core; see above */

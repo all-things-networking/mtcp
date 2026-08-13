@@ -81,6 +81,25 @@ while IFS= read -r hit; do
 	fail=1
 done < <(grep -rnE '\b(tx|rx)\.(buf|cap|size|head_seq|tail_seq|ref_base|ref_head|ref_tail|live_refs)\b' src/program 2>/dev/null || true)
 
+# --- 3c. a data unit the program declares and never fills -------------------
+# NARROW ON PURPOSE. "A contract instruction nothing calls" is NOT a defect —
+# TCP legitimately never calls instructions that exist for Homa, and a gate
+# demanding otherwise would be wrong the moment a second protocol arrives.
+#
+# What IS catchable without knowing anything about protocols: a program declares
+# a data unit in its context and then no instruction ever operates on it. It
+# said it would hold a stream and never put a byte in one. That is the same
+# shape as a constant with no reader, and it is how the receive path sat
+# declared and unwired while every test passed.
+while IFS= read -r unit; do
+	if ! grep -rqE "(new_(tx|rx)_ordered_data|add_(tx|rx)_data(_seg)?|(tx|rx)_flush_and_notify)\([^)]*\b$unit\b" src/program 2>/dev/null; then
+		echo "UNWIRED  the program declares a data unit '$unit' that no"
+		echo "         instruction ever operates on — it holds no bytes"
+		fail=1
+	fi
+done < <(grep -rhoE 'struct mtp_data_unit[[:space:]]+[a-z_0-9]+' src/program/*.h |
+	 awk '{print $NF}' | sort -u)
+
 # --- 4. the pending list must not decay into a silencer ----------------------
 # An exception carries the milestone that must consume it. Once that milestone
 # has landed the exception is no longer a schedule, it is the very thing this

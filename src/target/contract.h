@@ -103,6 +103,7 @@ struct mtp_data_unit {
 	 * also what lets it be tested without a NIC. */
 	void		(*drain)(void *arg);
 	void		 *drain_arg;
+	uint8_t		 established;	/* receive side: the base is known */
 };
 
 /* A reference to application data to be transmitted. The kernel target uses an
