@@ -359,12 +359,26 @@ int mtp_notify(flow_t *f, const struct mtp_notif *msg);
  * recompute the advertised window at the donor's second recompute point — see
  * prog_app.c. Nothing about the language changes.
  */
+/*
+ * SEND takes a named flow, and that is CR-7 rather than a stretch of it. The
+ * schema is the target's and the mapping into events is the program's, so
+ * "send on this connection" is the app interface doing what it says. It is
+ * recorded here because it is the ONE contract-level change the HTTP work
+ * needed: DESIGN.md §17.6b's layering test held on everything else, and a test
+ * that held with one exception is only worth citing if the exception is
+ * written down next to the thing it changed.
+ *
+ * SEND with no flow remains the pre-posted object of a one-shot server, which
+ * is how the first connection was served before an application could name one.
+ */
 enum mtp_app_op_kind {
 	MTP_APP_SEND = 1,
 	MTP_APP_RECV,
 	MTP_APP_CONNECT,
 	MTP_APP_BIND,
-	MTP_APP_CLOSE,
+	MTP_APP_CLOSE,	/* the APPLICATION's send path, not the connection:
+			 * D-20 is per-path, so a peer FIN does not imply this
+			 * and our FIN waits for it. DESIGN.md §17.6c. */
 	/* Additions to the kernel target's set. CR-7 makes the schema the
 	 * target's, and a passive-open protocol needs both. DESIGN.md §17.1. */
 	MTP_APP_LISTEN,
