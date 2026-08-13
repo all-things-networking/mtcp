@@ -605,7 +605,26 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	acked = e->ack - c->send_una;
 	if ((int32_t)acked <= 0) {
 		g_rx[RXS_ACK_DUP]++;
-		return;			/* duplicate or stale */
+		/*
+		 * ADVANCES NOTHING, BUT IT IS STILL AN EVENT. The window above
+		 * has just been refreshed from this segment, and a peer whose
+		 * window reopens tells us with exactly this: ack == send_una,
+		 * a larger window, no new data acknowledged. Returning here
+		 * used the segment and then discarded it, so we learned the
+		 * window had reopened and never acted on it, and the flow
+		 * stalled with data buffered and a window that was open.
+		 *
+		 * The donor reaches the same place by a different route: it
+		 * puts the stream on the send list and re-runs the flush every
+		 * event-loop iteration. A closed window can only reopen by the
+		 * peer telling us, and that telling is an rx event, so an
+		 * rx-driven retry and a per-iteration retry are observably
+		 * identical — there is nothing to retry between segments. That
+		 * is why this needs no new entry point and the contract's
+		 * three keep their monopoly (D-15/D-16).
+		 */
+		tcp_gen_seg(c, now);
+		return;
 	}
 	g_rx[RXS_ACK_ADVANCED]++;
 
