@@ -397,6 +397,15 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	struct mtp_tx_payload none = { 0 };
 	uint16_t hdr_len;
 
+	/*
+	 * The data-acknowledgement path, silenced permanently once a FIN has
+	 * been accepted (D-20). One state test that says what it means, which
+	 * is the prototype's mechanism rather than mTCP's emergent counter
+	 * arithmetic — reproducing that would mean reproducing the arithmetic
+	 * to obtain a side effect.
+	 */
+	if (c->state != TCP_ESTABLISHED)
+		return;
 	if (!e->payload_len)
 		return;
 	if (e->seq != c->recv_next)
@@ -410,6 +419,83 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
 	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1);
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * mtp/tcp.mtp §proc_fin — the peer closes.
+ *
+ * The acknowledgement of the peer's FIN comes from the CONTROL path and must
+ * not be suppressed (D-20, corrected): once a FIN is accepted the
+ * DATA-acknowledgement path goes quiet for this stream permanently, and the
+ * control path keeps emitting. Suppressing both stalls teardown and the peer
+ * retransmits its FIN.
+ *
+ * Ordering, from C on the prototype and easy to invert: the acknowledgement is
+ * built BEFORE the state transition, so it is still emitted for the FIN itself.
+ * Transition first and the guard that silences the data path would silence this
+ * too.
+ */
+static void
+proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	struct mtp_tx_payload none = { 0 };
+	uint16_t hdr_len;
+
+	if (!(e->flags & TCP_FIN))
+		return;
+	if (c->state != TCP_ESTABLISHED)
+		return;
+	if (e->seq != c->recv_next)
+		return;			/* a FIN ahead of a gap does not
+					 * transition; the segment that fills
+					 * the hole performs it (C) */
+
+	c->recv_next = e->seq + 1;	/* the FIN consumes one byte */
+
+	/* built before the transition, deliberately */
+	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
+				   c->ts_recent);
+	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1);
+
+	c->state = TCP_CLOSE_WAIT;
+	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_STATE });
+}
+
+/*
+ * mtp/tcp.mtp §gen_fin — our own FIN.
+ *
+ * G10, and the constraint is narrower than "order the FIN". Against data
+ * already turned into blueprints the per-flow ring is FIFO, so a FIN committed
+ * after them cannot overtake them. What must not happen is a FIN ahead of data
+ * the program has NOT yet handed to the target — the window- or
+ * congestion-limited case — which in the prototype goes out at one past ALL
+ * buffered data, leaving a sequence gap and a second FIN once the buffer
+ * drains.
+ *
+ * So the gate is exactly: send_next has caught up with write_end. The
+ * prototype gates this in one of its two close paths and not the other, which
+ * is the evidence it is an oversight rather than a decision.
+ */
+static void
+gen_fin(struct tcp_ctx *c, uint32_t now)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	struct mtp_tx_payload none = { 0 };
+	uint16_t hdr_len;
+
+	if (c->state != TCP_CLOSE_WAIT)
+		return;
+	if (c->send_next != c->write_end)
+		return;			/* G10: not ahead of unsent data */
+
+	hdr_len = tcp_build_header(hdr, c, c->send_next,
+				   TCP_ACK | TCP_FIN, now, c->ts_recent);
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0) {
+		c->send_next++;		/* the FIN consumes one byte */
+		c->state = TCP_LAST_ACK;
+	}
 }
 
 /*----------------------------------------------------------------------------*/
@@ -456,6 +542,15 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	proc_open_done(c, &e, now_ms);
 	proc_ack(c, &e, now_ms);
 	proc_recv(c, &e, now_ms);
+	proc_fin(c, &e, now_ms);
+	gen_fin(c, now_ms);
+
+	/* the final acknowledgement of our FIN */
+	if (c->state == TCP_LAST_ACK && (e.flags & TCP_ACK) &&
+	    e.ack == c->send_next) {
+		c->state = TCP_CLOSED;
+		mtp_del_ctx(&k);
+	}
 	return 0;
 }
 
