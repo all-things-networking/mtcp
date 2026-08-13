@@ -106,6 +106,12 @@ struct tcp_ctx {
 	struct mtp_data_unit tx;
 	struct mtp_data_unit rx;
 	bool     tx_open;
+	/*
+	 * The application has closed its send direction. The peer's FIN closes
+	 * the peer's path only (D-20: the rule is per-path), so our FIN waits
+	 * for this. A one-shot server sets it when it hands over its object.
+	 */
+	bool     app_closed;
 	bool     rx_open;
 	bool     fin_consumed;	/* the peer's FIN took a sequence number */	/* new_tx_ordered_data issued (lazily, as the
 				 * donor allocates its send buffer lazily) */

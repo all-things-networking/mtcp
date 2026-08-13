@@ -32,7 +32,8 @@
  * the single-threaded poller shape both references have. NULL for an
  * application that only needs the stack to run. */
 void SchedRun(struct core_ctx *core, uint32_t max_ticks,
-	      void (*app)(struct core_ctx *, void *), void *app_arg);
+	      void (*app)(struct core_ctx *, uint32_t now, void *),
+	      void *app_arg);
 
 /* The per-core transport state — the flow table and the listener table. Set up
  * before the loop runs and torn down after it. */

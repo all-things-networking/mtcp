@@ -40,7 +40,7 @@
 static uint8_t g_obj[65536];
 
 static void
-serve(struct core_ctx *core, void *arg)
+serve(struct core_ctx *core, uint32_t now, void *arg)
 {
 	struct mtp_ready ready[16];
 	int n, i;
@@ -63,7 +63,7 @@ serve(struct core_ctx *core, void *arg)
 		op.data.len = sizeof(buf) - 1;
 		op.len = sizeof(buf) - 1;
 
-		got = mtp_program_app_op(&op, 0);
+		got = mtp_program_app_op(&op, now);
 		if (got <= 0)
 			continue;
 		buf[got] = 0;
@@ -93,7 +93,13 @@ serve(struct core_ctx *core, void *arg)
 			snd.data.base = resp;
 			snd.data.len = hdr + sizeof(g_obj);
 			snd.len = hdr + sizeof(g_obj);
-			mtp_program_app_op(&snd, 0);
+			mtp_program_app_op(&snd, now);
+
+			/* Connection: close — say so to the transport too */
+			memset(&snd, 0, sizeof(snd));
+			snd.kind = MTP_APP_CLOSE;
+			snd.flow = ready[i].flow;
+			mtp_program_app_op(&snd, now);
 
 			fprintf(stderr, "tcpserver: served %zu bytes for "
 				"\"%.20s\"\n", hdr + sizeof(g_obj), (char *)buf);

@@ -352,7 +352,7 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 /*----------------------------------------------------------------------------*/
 void
 SchedRun(struct core_ctx *core, uint32_t max_ticks,
-	 void (*app)(struct core_ctx *, void *), void *app_arg)
+	 void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg)
 {
 	struct thread_ctx *ctx = core->ctx;
 	struct timeval tv = {0};
@@ -406,7 +406,7 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 		/* the application, between the burst and the drain, so what it
 		 * writes reaches this iteration's flush */
 		if (app)
-			app(core, app_arg);
+			app(core, ts, app_arg);
 
 		TimerTick(ts);
 		tgt_drain(core);

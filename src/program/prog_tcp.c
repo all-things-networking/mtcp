@@ -331,6 +331,24 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	}
 }
 
+/*
+ * Our send path is open, which is not the same as the connection being
+ * ESTABLISHED. CLOSE_WAIT is a sending state — it is the whole point of it:
+ * the peer's FIN closes the PEER's path (D-20, per-path), and ours stays open
+ * until the application closes it.
+ *
+ * This is one predicate rather than three state tests because it was three:
+ * accepting the write, generating the segments, and processing the ACKs that
+ * come back each tested ESTABLISHED separately, and fixing them one at a time
+ * moved the failure rather than removing it. A response to a request whose FIN
+ * arrived with it needs all three.
+ */
+static bool
+send_side_open(const struct tcp_ctx *c)
+{
+	return c->state == TCP_ESTABLISHED || c->state == TCP_CLOSE_WAIT;
+}
+
 /* mtp/tcp.mtp §proc_open_done — the ACK that completes a passive open. */
 static void
 proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
@@ -346,8 +364,10 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_STATE });
 
 	/* the application posted an object before listening; serve it */
-	if (prog_listener.obj_len)
+	if (prog_listener.obj_len) {
 		tcp_app_send(c, prog_listener.obj, prog_listener.obj_len, now);
+		c->app_closed = true;	/* a one-shot server has said all it will */
+	}
 }
 
 /*
@@ -494,7 +514,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	uint32_t acked;
 
-	if (c->state != TCP_ESTABLISHED || !(e->flags & TCP_ACK))
+	if (!send_side_open(c) || !(e->flags & TCP_ACK))
 		return;
 
 	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
@@ -680,7 +700,11 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 	struct mtp_tx_payload none = { 0 };
 	uint16_t hdr_len;
 
-	if (c->state != TCP_CLOSE_WAIT)
+	if (getenv("MTP_TRACE_SEQ") && c->state == TCP_CLOSE_WAIT)
+		fprintf(stderr, "GENFIN now=%u send_next=%u snd_base=%u "
+			"write_end=%u\n", now, c->send_next, c->snd_base,
+			c->write_end);
+	if (c->state != TCP_CLOSE_WAIT || !c->app_closed)
 		return;
 	if (c->send_next - c->snd_base != c->write_end)
 		return;			/* G10: not ahead of unsent data */
@@ -761,8 +785,6 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 int
 mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 {
-	(void)now_ms;
-
 	switch (op->kind) {
 	case MTP_APP_BIND:
 		/*
@@ -781,6 +803,25 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 	case MTP_APP_LISTEN:
 		prog_listener.listening = 1;
 		return 0;
+	/*
+	 * mtp/tcp.mtp §sock_close. The application has no more to send. Our
+	 * FIN is gated on this and not on the peer's: a peer FIN closes the
+	 * peer's path, and until this arrives our own path is still open.
+	 * Try immediately, because the peer may already have finished and
+	 * nothing else will call gen_fin if no further packet arrives.
+	 */
+	case MTP_APP_CLOSE: {
+		struct tcp_ctx *c;
+
+		if (!op->flow)
+			return -1;
+		c = (struct tcp_ctx *)mtp_ctx_of(op->flow);
+		if (!c)
+			return -1;
+		c->app_closed = true;
+		gen_fin(c, now_ms);
+		return 0;
+	}
 	case MTP_APP_RECV: {
 		/*
 		 * mtp/tcp.mtp §sock_recv — RECOMPUTE POINT 2. The application
@@ -811,6 +852,9 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 		 */
 		struct tcp_ctx *c;
 
+		if (getenv("MTP_TRACE_SEQ"))
+			fprintf(stderr, "APPOP send now=%u flow=%p len=%u\n",
+				now_ms, (void *)op->flow, op->len);
 		if (!op->flow) {
 			prog_listener.obj = op->data.base;
 			prog_listener.obj_len = op->len;
@@ -893,7 +937,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	uint32_t win, to_send;
 	uint16_t hdr_len;
 
-	if (c->state != TCP_ESTABLISHED)
+	if (!send_side_open(c))
 		return;
 
 	win = c->cwnd < c->send_wnd ? c->cwnd : c->send_wnd;
@@ -987,7 +1031,7 @@ tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len, uint32_t now)
 	struct mtp_tx_addr addr;
 	int wrote;
 
-	if (c->state != TCP_ESTABLISHED)
+	if (!send_side_open(c))
 		return -1;
 
 	if (!c->tx_open) {
@@ -998,6 +1042,11 @@ tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len, uint32_t now)
 	addr.base = data;
 	addr.len = len;
 	wrote = mtp_add_tx_data(&c->tx, addr, len);
+	if (getenv("MTP_TRACE_SEQ"))
+		fprintf(stderr, "APPSEND state=%u len=%u wrote=%d write_end=%u "
+			"send_next=%u snd_base=%u cwnd=%u send_wnd=%u\n",
+			c->state, len, wrote, c->write_end, c->send_next,
+			c->snd_base, c->cwnd, c->send_wnd);
 	if (wrote > 0)
 		c->write_end += (uint32_t)wrote;
 
