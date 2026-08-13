@@ -92,6 +92,12 @@ sock_recv(struct tcp_ctx *c, uint32_t delivered_now)
  *     14600 >> 7 = 114, which the peer reads back as 14592;
  *   - after payload has been merged and drained, rcv_wnd is the full 262144 and
  *     the field is 2048.
+ *
+ * A VALUE ONE BELOW 2048 IS CORRECT, NOT AN OFF-BY-ONE. Between the merge and
+ * the application's read the bytes are held, so the window is RCVBUF minus
+ * what is held: one byte held advertises 2047. Observed on the wire
+ * 2026-08-13. Anyone "fixing" this to an unconditional 2048 would be removing
+ * the mechanism, and would only find out from a trace diff.
  */
 uint16_t
 tcp_window_field(const struct tcp_ctx *c, int is_syn)
