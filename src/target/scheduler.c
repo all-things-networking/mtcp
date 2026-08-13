@@ -46,6 +46,7 @@ TransportCoreInit(struct core_ctx *core)
 
 	if (!t)
 		return -1;
+	TAILQ_INIT(&t->ready_list);
 	t->flows = FlowTableCreate();
 	t->listeners = ListenerTableCreate();
 	core->transport = t;
@@ -68,6 +69,37 @@ TransportCoreFini(struct core_ctx *core)
 	ListenerTableDestroy(t->listeners);
 	free(t);
 	core->transport = NULL;
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * The application drains readiness once per iteration. Returns how many flows
+ * it wrote, each with the kinds pending on it.
+ *
+ * This is the target's side of §17.6 and it is OURS: the kernel maps
+ * notifications onto socket wakeups because that suits Linux; a single-threaded
+ * poller wants a list. The program cannot see which, which is the property that
+ * matters.
+ */
+int
+TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max)
+{
+	struct transport *t = TransportOf(core);
+	int n = 0;
+
+	while (n < max) {
+		struct flow *f = TAILQ_FIRST(&t->ready_list);
+
+		if (!f)
+			break;
+		TAILQ_REMOVE(&t->ready_list, f, ready_link);
+		f->on_ready_list = 0;
+		out[n].flow = (flow_t *)f;
+		out[n].kinds = f->ready_kinds;
+		f->ready_kinds = 0;
+		n++;
+	}
+	return n;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -193,6 +225,21 @@ mtp_notify(flow_t *f, const struct mtp_notif *msg)
 
 	(void)f;
 	t->notifies[msg->kind & 3]++;
+
+	/*
+	 * COALESCED: a flow already on the list gains the kind and does not gain
+	 * an entry. The program issues a notification per merge, so without this
+	 * the list would grow once per received segment.
+	 *
+	 * Level-triggering is the PROGRAM's: it re-issues while unread bytes
+	 * remain. The target only coalesces and delivers — it does not inspect
+	 * the unit to decide, which would be the target reading program state.
+	 */
+	f->ready_kinds |= (1u << (msg->kind & 3));
+	if (!f->on_ready_list) {
+		TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
+		f->on_ready_list = 1;
+	}
 	return 0;
 }
 

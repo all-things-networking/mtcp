@@ -39,15 +39,9 @@ tgt_rx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 	return u->buf ? 0 : -1;
 }
 
-void
-mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t size)
-{
-	/* The base is set by the caller through tgt_rx_unit_init; this is the
-	 * contract's entry point and the target picks the capacity, as it does
-	 * on the transmit side. */
-	(void)size;
-	assert(u->buf && "tgt_rx_unit_init must run first");
-}
+/* mtp_new_rx_ordered_data lives in scheduler.c, where CONFIG is visible —
+ * same split as the transmit side: the ring takes its capacity as a parameter
+ * and knows nothing about a configuration system. */
 
 int
 mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,

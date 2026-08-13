@@ -21,6 +21,7 @@
  * cause.
  */
 #include "infra.h"
+#include "contract.h"
 
 /* Runs until the context is asked to stop (SIGINT, or `ctx->exit`), or until
  * `max_ticks` milliseconds have passed if `max_ticks` is non-zero. The bound
@@ -31,6 +32,14 @@ void SchedRun(struct core_ctx *core, uint32_t max_ticks);
 
 /* The per-core transport state — the flow table and the listener table. Set up
  * before the loop runs and torn down after it. */
+/* One ready flow, as the application sees it. The handle is opaque. */
+struct mtp_ready {
+	flow_t   *flow;
+	uint32_t  kinds;	/* 1 << enum mtp_notif_kind */
+};
+
+int  TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max);
+
 int  TransportCoreInit(struct core_ctx *core);
 void TransportCoreFini(struct core_ctx *core);
 

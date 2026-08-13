@@ -29,6 +29,14 @@ struct transport {
 	TAILQ_HEAD(gen_head, flow) gen_list;
 
 	/*
+	 * The readiness list — §17.6's target→app edge. Coalesced per flow, so
+	 * it is bounded by flows rather than by packets; without that it is
+	 * unbounded, which makes coalescing a correctness property and not only
+	 * a performance one.
+	 */
+	TAILQ_HEAD(ready_head, flow) ready_list;
+
+	/*
 	 * The packet being dispatched, if any. The target attaches its L3
 	 * addressing to a context the program creates during that dispatch,
 	 * because the program's key is a shape it may not read and an address

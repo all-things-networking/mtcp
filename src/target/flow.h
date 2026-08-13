@@ -37,6 +37,10 @@ struct flow {
 	uint16_t	 ring_head, ring_tail;
 
 	/* the generation list (P5) */
+	TAILQ_ENTRY(flow) ready_link;
+	uint8_t		 on_ready_list;
+	uint32_t	 ready_kinds;	/* bitmask of notify kinds pending */
+
 	TAILQ_ENTRY(flow) gen_link;
 	uint8_t		 on_gen_list;
 	uint8_t		 scratch_out;	/* a tgt_bp_new() awaiting its commit */
