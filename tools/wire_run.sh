@@ -36,6 +36,11 @@ SRV=${1:?server node}; CLI=${2:?client node}; BIN=${3:?binary}; MS=${4:?window m
 shift 4; [ "${1:-}" = "--" ] && shift
 ARGS="$*"
 
+# Extra environment for the server, e.g. WIRE_ENV='MTP_DROP_NTH=5'. Passed
+# through rather than requiring a hand-rolled launch — which is the mistake
+# WIRE_CLIENT exists to prevent, and it would have recurred here.
+WIRE_ENV=${WIRE_ENV:-}
+
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 S=(ssh -o BatchMode=yes -o ConnectTimeout=8)
 RD=/tmp/mtp-wire
@@ -55,7 +60,7 @@ echo "client $CLI: $(link_state "$CLI")"
 	cp $here/conf/aqua/upcheck.conf tcpserver.conf 2>/dev/null
 	cp $here/bin/$BIN . || exit 1
 	rm -f run.log
-	sudo MTP_DUMP_TX=4 nohup timeout \$(( MS/1000 + 20 )) ./$BIN $ARGS -t $MS > run.log 2>&1 &
+	sudo $WIRE_ENV MTP_DUMP_TX=${MTP_DUMP_TX:-4} nohup timeout \$(( MS/1000 + 20 )) ./$BIN $ARGS -t $MS > run.log 2>&1 &
 	for w in \$(seq 1 300); do
 		grep -q 'RUN WINDOW OPENS' run.log 2>/dev/null && exit 0
 		sleep 0.1

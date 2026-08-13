@@ -84,10 +84,27 @@
  * The rest of the parity freeze (docs/DESIGN.md §7.2)
  *============================================================================*/
 #define PARITY_MSS_ADVERTISED	1460
+/*
+ * The 1460-versus-1448 asymmetry is REPRODUCED, not tidied. The send
+ * decision's bail threshold is the full segment size while a segment's payload
+ * is that minus twelve bytes of options, so the donor defers segments it could
+ * have filled. It looks like an oversight and it is parity.
+ *
+ * Note also what the donor does NOT do: there is no Nagle and no "wait for a
+ * full segment". The only gate is the window, so a short buffered write goes
+ * out immediately at an application write boundary. Short segments in a trace
+ * are therefore expected on both sides, not evidence of a defect here.
+ */
 #define PARITY_MSS_PAYLOAD	1448	/* mss - CalculateOptionLength(ACK), computed
 					 * inline at tcp_out.c:566. There is no
 					 * `eff_mss` in the donor to grep for. */
 #define PARITY_ISN		0	/* always. REPRODUCE, DO NOT CORRECT. */
+/*
+ * TWO segments, not ten. TCP_INIT_CWND is 2 in the donor; the INIT_CWND_PKTS 10
+ * in another header belongs to the token bucket and is unrelated. Taking that
+ * one would be a five-fold error in the opening trajectory, and it sits in
+ * plain sight under a name that looks right. (B, 2026-08-13.)
+ */
 #define PARITY_INIT_CWND	2920	/* 2 * MSS */
 #define PARITY_SSTHRESH_ACTIVE	14600	/* MSS * 10 */
 #define PARITY_DUPACK_THRESH	3

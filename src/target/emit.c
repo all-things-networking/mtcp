@@ -72,6 +72,48 @@ dump_tx(const uint8_t *eth, uint16_t total)
 
 /*----------------------------------------------------------------------------*/
 /*
+ * Deliberately lose one transmitted segment, once.
+ *
+ * The retransmission timer is the first mechanism in this target whose ABSENCE
+ * is invisible in a clean run. Everything before it failed loudly when wrong: a
+ * missing SYN-ACK, a malformed header, a stalled teardown. A timer that never
+ * fires looks exactly like a timer that was never needed, on a link that loses
+ * nothing — and the effective RTO here is ~3 ms against a round trip of at most
+ * 0.229 ms, so waiting does not produce one either. It has to be provoked.
+ *
+ * Provoking it from the SERVER rather than with `tc` on the client is
+ * deliberate: the loss is then deterministic, it is a known segment index
+ * rather than a probability, and it does not touch the peer's stack — so what
+ * the peer does afterwards is its ordinary behaviour and not an artefact of the
+ * apparatus.
+ *
+ * Inert unless MTP_DROP_NTH is set, and it fires once per process. D-03's
+ * discipline for instrumentation on a reference applies to us as well: an
+ * instrumented binary must be safe to benchmark unenabled.
+ */
+static int
+drop_this_one(void)
+{
+	static int nth = -1;
+	static int seen;
+
+	if (nth < 0) {
+		const char *e = getenv("MTP_DROP_NTH");
+
+		nth = e ? atoi(e) : 0;
+	}
+	if (!nth)
+		return 0;
+	if (++seen != nth)
+		return 0;
+
+	fprintf(stderr, "MTP_DROP_NTH: dropping transmitted segment %d "
+		"— the peer will not acknowledge past it until we retransmit\n",
+		nth);
+	return 1;
+}
+
+/*
  * One segment. Returns 0, or -1 when the interface's transmit buffer is full,
  * which is a retry rather than an error.
  */
@@ -161,6 +203,14 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 				    "peer, so it is not sent\n");
 			return -1;
 		}
+	}
+
+	/* Dropped AFTER the frame is fully built, so everything upstream —
+	 * header, fixup, payload copy, checksum request — runs exactly as it
+	 * would have. Only the wire misses it. */
+	if (drop_this_one()) {
+		t->tx_dropped_for_test++;
+		return 0;
 	}
 
 	dump_tx(l4 - IP_HEADER_LEN - ETHERNET_HEADER_LEN,

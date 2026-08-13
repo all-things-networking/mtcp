@@ -40,6 +40,7 @@ struct transport {
 	uint64_t		 tx_packets, tx_bytes, tx_bursted;
 	uint64_t		 forced_drains;
 	uint64_t		 bp_full, ring_drain_calls, merges;
+	uint64_t		 tx_dropped_for_test;
 	uint64_t		 notifies[4];
 };
 
