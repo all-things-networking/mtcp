@@ -20,6 +20,51 @@
 #include "bringup.h"
 #include "scheduler.h"
 #include "contract.h"
+#include "scheduler.h"
+
+/*
+ * The application, run once per iteration by SchedRun. Drains readiness and
+ * reads. This is the first time the inbound direction reaches an application in
+ * this target, so the three mechanisms underneath it — the flush instruction's
+ * return, `delivered`, and the window rule's second recompute point — all run
+ * here for the first time.
+ *
+ * The bytes are reported rather than trusted: what the application received is
+ * printed, so a wrong return from the flush shows as wrong CONTENT rather than
+ * as a number that merely looks plausible.
+ */
+static void
+serve(struct core_ctx *core, void *arg)
+{
+	struct mtp_ready ready[16];
+	int n, i;
+
+	(void)arg;
+	n = TransportPoll(core, ready, 16);
+
+	for (i = 0; i < n; i++) {
+		static uint8_t buf[2048];
+		struct mtp_app_op op;
+		int got;
+
+		if (!(ready[i].kinds & (1u << MTP_NOTIF_READABLE)))
+			continue;
+
+		memset(&op, 0, sizeof(op));
+		op.kind = MTP_APP_RECV;
+		op.flow = ready[i].flow;
+		op.data.base = buf;
+		op.data.len = sizeof(buf) - 1;
+		op.len = sizeof(buf) - 1;
+
+		got = mtp_program_app_op(&op, 0);
+		if (got > 0) {
+			buf[got] = 0;
+			fprintf(stderr, "tcpserver: app read %d bytes: \"%.40s\"\n",
+				got, (char *)buf);
+		}
+	}
+}
 
 int
 main(int argc, char **argv)
@@ -126,7 +171,7 @@ main(int argc, char **argv)
 	else
 		fprintf(stderr, "until SIGINT\n");
 
-	SchedRun(core, ms);
+	SchedRun(core, ms, serve, NULL);
 
 	TransportCoreFini(core);
 	InfraCoreDestroy(core);

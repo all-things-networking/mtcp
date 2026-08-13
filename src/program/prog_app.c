@@ -27,6 +27,9 @@
  * partial program file that does not describe the running system is exactly the
  * failure the difference report records against the prototype's own `tcp.mtp`.
  */
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "contract.h"
 #include "prog_params.h"
 #include "prog_ctx.h"
@@ -80,6 +83,20 @@ sock_recv(struct tcp_ctx *c, uint32_t delivered_now)
 {
 	c->delivered += delivered_now;
 	recompute_rcv_wnd(c);
+
+	/*
+	 * PRINTED SEPARATELY, on purpose. Three mechanisms run here for the
+	 * first time — the flush instruction's return, `delivered`'s advance,
+	 * and this recompute. If the window is wrong, one number cannot say
+	 * which of the three moved; three can. Collapsing them into one
+	 * observable is how three runs went on the retransmit path.
+	 */
+	if (getenv("MTP_TRACE_SEQ"))
+		fprintf(stderr, "RECV got=%u delivered=%u recv_next=%u "
+			"held=%u rcv_wnd=%u field=%u\n",
+			delivered_now, c->delivered, c->recv_next,
+			(uint32_t)(c->recv_next - c->delivered), c->rcv_wnd,
+			tcp_window_field(c, 0));
 }
 
 /*

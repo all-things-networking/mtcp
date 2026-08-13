@@ -81,6 +81,12 @@ TransportCoreFini(struct core_ctx *core)
  * poller wants a list. The program cannot see which, which is the property that
  * matters.
  */
+void *
+mtp_ctx_of(flow_t *f)
+{
+	return ((struct flow *)f)->ctx;
+}
+
 int
 TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max)
 {
@@ -345,7 +351,8 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 }
 /*----------------------------------------------------------------------------*/
 void
-SchedRun(struct core_ctx *core, uint32_t max_ticks)
+SchedRun(struct core_ctx *core, uint32_t max_ticks,
+	 void (*app)(struct core_ctx *, void *), void *app_arg)
 {
 	struct thread_ctx *ctx = core->ctx;
 	struct timeval tv = {0};
@@ -396,6 +403,11 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 		 * because a blueprint committed by either must reach this
 		 * burst. mTCP checks its retransmission timers at exactly this
 		 * point (core.c:822). */
+		/* the application, between the burst and the drain, so what it
+		 * writes reaches this iteration's flush */
+		if (app)
+			app(core, app_arg);
+
 		TimerTick(ts);
 		tgt_drain(core);
 

@@ -780,6 +780,27 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 	case MTP_APP_LISTEN:
 		prog_listener.listening = 1;
 		return 0;
+	case MTP_APP_RECV: {
+		/*
+		 * mtp/tcp.mtp §sock_recv — RECOMPUTE POINT 2. The application
+		 * has taken bytes, so `delivered` advances by what the
+		 * instruction REPORTS it handed over, and the advertised window
+		 * is recomputed. This is the second of the donor's two points
+		 * and the only place `delivered` moves.
+		 */
+		struct tcp_ctx *c = (struct tcp_ctx *)mtp_ctx_of(op->flow);
+		struct mtp_rx_addr a;
+		int got;
+
+		if (!c)
+			return -1;
+		a.data = (const uint8_t *)op->data.base;
+		a.len = op->len;
+		got = mtp_rx_flush_and_notify(&c->rx, op->len, a);
+		if (got > 0)
+			sock_recv(c, (uint32_t)got);
+		return got;
+	}
 	case MTP_APP_SEND:
 		/* posted before any connection exists: the object every
 		 * accepted connection is served. A real accept/send pair

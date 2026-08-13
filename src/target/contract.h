@@ -302,6 +302,16 @@ void *mtp_new_ctx(const flowkey_t *key, size_t ctx_size);
 void *mtp_ctx_lookup(const flowkey_t *key);
 int   mtp_del_ctx(const flowkey_t *key);
 
+/*
+ * The program's context for a flow handle the APPLICATION holds — the inverse
+ * of the handle the target places in the generated context at creation.
+ *
+ * Needed because an application operation arrives naming a flow, not a key: the
+ * app got its handle from readiness and has no business constructing a flow id.
+ * Protocol-neutral: it returns the opaque block the program declared.
+ */
+void *mtp_ctx_of(flow_t *f);
+
 /*============================================================================*
  * 6. Scheduling and notification (MTP_LANG §8)
  *============================================================================*/
@@ -368,6 +378,8 @@ struct mtp_endpoint {		/* network byte order */
 
 struct mtp_app_op {
 	enum mtp_app_op_kind	kind;
+	flow_t			*flow;	/* RECV/SEND/CLOSE on an accepted flow;
+					 * the handle the app got from readiness */
 	struct mtp_endpoint	local;
 	struct mtp_endpoint	remote;
 	struct mtp_tx_addr	data;	/* SEND: the application's bytes */

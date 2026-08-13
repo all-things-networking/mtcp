@@ -110,7 +110,7 @@ main(int argc, char **argv)
 			((uint8_t *)&arp_target)[2], ((uint8_t *)&arp_target)[3]);
 	}
 
-	SchedRun(core, ms);
+	SchedRun(core, ms, NULL, NULL);
 
 	TransportCoreFini(core);
 	InfraCoreDestroy(core);

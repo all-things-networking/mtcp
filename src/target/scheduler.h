@@ -28,7 +28,11 @@
  * exists because rule 5 says a hang is a failing test: a bring-up check that
  * cannot end on its own is a bring-up check that takes the node off the
  * network when it goes wrong. */
-void SchedRun(struct core_ctx *core, uint32_t max_ticks);
+/* `app` runs once per iteration, after the receive burst and before the drain —
+ * the single-threaded poller shape both references have. NULL for an
+ * application that only needs the stack to run. */
+void SchedRun(struct core_ctx *core, uint32_t max_ticks,
+	      void (*app)(struct core_ctx *, void *), void *app_arg);
 
 /* The per-core transport state — the flow table and the listener table. Set up
  * before the loop runs and torn down after it. */
