@@ -464,8 +464,22 @@ void mtp_program_segment(const struct mtp_seg_view *v);
  * acknowledgement, window and timestamp. Building it the other way puts a stale
  * cumulative acknowledgement and a stale echo on every merged segment.
  */
+/*
+ * A MERGE IS NOT "ONE HEADER WINS", and reading it that way is what went wrong:
+ * the header that describes the RECEIVER'S state moves forward, and the field
+ * that describes THIS SEGMENT'S OWN PAYLOAD does not. Acknowledgement, window
+ * and timestamp echo are the former; the sequence number is the latter, and it
+ * travels in the same header, which is how a blanket copy took it along.
+ *
+ * `keep_off`/`keep_len` name the byte range of the header that belongs to the
+ * payload and must be taken from the OLDER contribution when the base is
+ * inherited. The program names a RANGE rather than a field so the target stays
+ * protocol-blind: it copies bytes it has been told about and never learns what
+ * they mean (rule 4). keep_len 0 means take the whole newer header.
+ */
 void mtp_program_coalesce(const uint8_t *hdr, uint16_t hdr_len,
-			  uint8_t *class, uint32_t *key, bool *inherit_base);
+			  uint8_t *class, uint32_t *key, bool *inherit_base,
+			  uint16_t *keep_off, uint16_t *keep_len);
 
 /* The IP protocol number this program answers to. */
 extern const uint8_t TRANSPORT_IP_PROTO;

@@ -163,6 +163,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	    const struct mtp_tx_payload *payload,
 	    uint32_t mss, uint32_t prio, uint32_t offload)
 {
+	uint16_t keep_off = 0, keep_len = 0;
 	struct bp *bp;
 	uint8_t cls = 0;
 	uint32_t key = 0;
@@ -180,7 +181,8 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	 * depends on batch boundaries. WHAT a merged one contains is the
 	 * program's, or packet content is target-determined.
 	 */
-	mtp_program_coalesce(hdr, hdr_len, &cls, &key, &inherit);
+	mtp_program_coalesce(hdr, hdr_len, &cls, &key, &inherit,
+			     &keep_off, &keep_len);
 	if (cls) {
 		struct bp *last = tgt_bp_last(f);
 
@@ -219,7 +221,30 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 							(unsigned long long)payload->off,
 							inherit);
 					}
-					memcpy(last->hdr, hdr, hdr_len);
+					/*
+					 * The newer header, EXCEPT the range
+					 * the program says belongs to the
+					 * payload. A blanket copy carried the
+					 * newer sequence number onto older
+					 * bytes: the peer stored them at the
+					 * later offset, nothing arrived for the
+					 * gap, and a retransmission followed at
+					 * this base. One field, three symptoms.
+					 */
+					{
+						uint8_t keep[8];
+						uint16_t kl = keep_len;
+
+						if (inherit && kl &&
+						    keep_off + kl <= hdr_len &&
+						    kl <= sizeof(keep))
+							memcpy(keep, last->hdr + keep_off, kl);
+						else
+							kl = 0;
+						memcpy(last->hdr, hdr, hdr_len);
+						if (kl)
+							memcpy(last->hdr + keep_off, keep, kl);
+					}
 					last->hdr_len = hdr_len;
 					if (!inherit)
 						last->base_seq = payload->off;

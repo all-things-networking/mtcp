@@ -1457,11 +1457,22 @@ tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len, uint32_t now)
  */
 void
 mtp_program_coalesce(const uint8_t *hdr, uint16_t hdr_len,
-		     uint8_t *class, uint32_t *key, bool *inherit_base)
+		     uint8_t *class, uint32_t *key, bool *inherit_base,
+		     uint16_t *keep_off, uint16_t *keep_len)
 {
 	uint8_t flags = hdr[TCPH_FLAGS];
 
 	(void)hdr_len;
+
+	/*
+	 * The sequence number describes THIS SEGMENT'S PAYLOAD, so when the
+	 * merge inherits the older payload origin it must inherit this too.
+	 * Everything else in the header describes the receiver's state and must
+	 * move forward — that is what C's review established, and taking the
+	 * whole newer header took one field too many.
+	 */
+	*keep_off = TCPH_SEQ;
+	*keep_len = 4;
 
 	/* anything consuming sequence space stands alone */
 	if (flags & (TCP_SYN | TCP_FIN | TCP_RST)) {
