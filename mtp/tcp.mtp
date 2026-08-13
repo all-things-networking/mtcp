@@ -184,8 +184,31 @@ app_parser socket {
 
 // §proc_passive_open      a SYN with no context, and a listener that matches
 // §proc_open_done         the acknowledgement that completes a passive open
+// §record_data            application data appended to the transmit stream
 // §proc_recv              in-order payload; merges, recomputes the window
-// §send_ack               acknowledgement generation
+// §send_ack               acknowledgement generation.
+//
+//   THE POST-FIN SUPPRESSION (D-20, from B). Once a FIN has been accepted, a
+//   pending pure-acknowledgement obligation must NOT produce a packet.
+//
+//   In the donor this looks like an anomaly handler and is not: the sequence
+//   test at tcp_out.c:875-879 can only fail once a FIN has advanced rcv_nxt
+//   past the merged data, and that sum is invariant under application reads —
+//   so it holds for a connection's whole life and then fails permanently from
+//   the moment a FIN is accepted. It is de-duplication. Nothing is lost when it
+//   fires, because the control walk has already put an acknowledgement carrying
+//   the same ack_seq on the wire.
+//
+//   REPRODUCE THE EFFECT, NOT THE STRUCTURE. "The control walk got there first"
+//   is not a mechanism available to us — we have one queue, not three. What has
+//   to hold is the observable: one fewer pure acknowledgement per teardown.
+//   Not reproducing it is a packet-count difference in "acknowledgements
+//   returned", which is rule 1 and which a throughput comparison never shows.
+//
+//   And do NOT copy the donor's state lists. EnqueueACK's expected set
+//   (tcp_out.c:1082-1086) is four states; to_ack's is those four PLUS
+//   TIME_WAIT. Neither is a superset of the other's intent, so at least one is
+//   an oversight. Implement suppress-after-FIN, not either list.
 // §gen_seg                the send decision, under min(cwnd, peer window)
 // §proc_fin               teardown
 // §proc_timeout           retransmission timeout, with backoff
