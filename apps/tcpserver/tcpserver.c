@@ -37,7 +37,25 @@
  * SELF-DESCRIBING: every 4-byte word holds its own offset, so any wrong byte
  * says where it came from rather than only that something is wrong.
  */
-static uint8_t g_obj[65536];
+/*
+ * The object served on a GET. Read from a file rather than generated here:
+ * both arms must serve THE SAME BYTES, not the same recipe, or an object
+ * difference is indistinguishable from a transport difference. bench/gen_object.py
+ * writes it once on the shared mount and records its checksum.
+ *
+ * A built-in generator is kept for the smoke path only, where nothing is being
+ * compared against anything.
+ */
+static uint8_t *g_obj;
+static size_t   g_obj_len;
+
+/*
+ * Header plus body, built once. The response is identical for every request, so
+ * building it per request would put a memcpy of the whole object on the serving
+ * path and measure our own memory bandwidth as though it were transport cost.
+ */
+static uint8_t *g_resp;
+static size_t   g_resp_len;
 
 static void
 serve(struct core_ctx *core, uint32_t now, void *arg)
@@ -77,22 +95,13 @@ serve(struct core_ctx *core, uint32_t now, void *arg)
 		 */
 		if (!strncmp((char *)buf, "GET ", 4)) {
 			struct mtp_app_op snd;
-			static uint8_t resp[sizeof(g_obj) + 128];
-			int hdr;
-
-			hdr = snprintf((char *)resp, 128,
-				       "HTTP/1.1 200 OK\r\n"
-				       "Content-Length: %zu\r\n"
-				       "Connection: close\r\n\r\n",
-				       sizeof(g_obj));
-			memcpy(resp + hdr, g_obj, sizeof(g_obj));
 
 			memset(&snd, 0, sizeof(snd));
 			snd.kind = MTP_APP_SEND;
 			snd.flow = ready[i].flow;
-			snd.data.base = resp;
-			snd.data.len = hdr + sizeof(g_obj);
-			snd.len = hdr + sizeof(g_obj);
+			snd.data.base = g_resp;
+			snd.data.len = g_resp_len;
+			snd.len = g_resp_len;
 			mtp_program_app_op(&snd, now);
 
 			/* Connection: close — say so to the transport too */
@@ -102,7 +111,7 @@ serve(struct core_ctx *core, uint32_t now, void *arg)
 			mtp_program_app_op(&snd, now);
 
 			fprintf(stderr, "tcpserver: served %zu bytes for "
-				"\"%.20s\"\n", hdr + sizeof(g_obj), (char *)buf);
+				"\"%.20s\"\n", g_resp_len, (char *)buf);
 		}
 	}
 }
@@ -112,6 +121,7 @@ main(int argc, char **argv)
 {
 	const char *conf = "tcpserver.conf";
 	const char *bind_ip = NULL;
+	const char *objpath = NULL;
 	uint16_t port = 80;
 	uint32_t ms = 0;
 	int have_ms = 0, cpu = 0, i;
@@ -129,11 +139,16 @@ main(int argc, char **argv)
 		else if (!strcmp(argv[i], "-t") && i + 1 < argc) {
 			ms = (uint32_t)atoi(argv[++i]);
 			have_ms = 1;
+		} else if (!strcmp(argv[i], "-o") && i + 1 < argc) {
+			objpath = argv[++i];
 		} else if (!strcmp(argv[i], "-c") && i + 1 < argc) {
 			cpu = atoi(argv[++i]);
 		} else {
 			fprintf(stderr,
 				"usage: %s -s <ip> -t <ms> [-p port] [-f conf] [-c cpu]\n"
+				"       [-o object-file]  the shared object; without it a\n"
+				"                         64 KB one is generated, which is\n"
+				"                         a SMOKE object and not comparable\n"
 				"       -t 0 runs until SIGINT\n", argv[0]);
 			return 2;
 		}
@@ -180,23 +195,69 @@ main(int argc, char **argv)
 
 	/* post the object to serve. One fixed object, as epserver serves one
 	 * file, which is what M1d compares against. */
-	{
+	if (objpath) {
 		/*
-		 * SELF-DESCRIBING: every 4-byte word holds its own offset, so
-		 * any wrong byte says where it came from. A shifted copy
-		 * announces its shift, stale data announces which region it is
-		 * from, and uninitialised memory announces itself by being
-		 * neither. A repeating 0..255 pattern says only "wrong".
+		 * THE SHARED OBJECT. Read, not generated: both arms serve the
+		 * same bytes from the same file on the shared mount, so a
+		 * difference in what arrives cannot be a difference in what was
+		 * served. bench/gen_object.py wrote it and recorded its
+		 * checksum; this prints the length so the run log says which
+		 * object it served without anyone having to infer it.
+		 */
+		FILE *f = fopen(objpath, "rb");
+		long n;
+
+		if (!f) {
+			fprintf(stderr, "tcpserver: cannot open %s\n", objpath);
+			return 1;
+		}
+		fseek(f, 0, SEEK_END);
+		n = ftell(f);
+		fseek(f, 0, SEEK_SET);
+		if (n <= 0 || !(g_obj = malloc((size_t)n)) ||
+		    fread(g_obj, 1, (size_t)n, f) != (size_t)n) {
+			fprintf(stderr, "tcpserver: cannot read %s\n", objpath);
+			return 1;
+		}
+		fclose(f);
+		g_obj_len = (size_t)n;
+		fprintf(stderr, "tcpserver: serving %zu bytes from %s\n",
+			g_obj_len, objpath);
+	} else {
+		/*
+		 * THE SMOKE OBJECT, and it is not comparable with anything.
+		 * Self-describing — every 4-byte word holds its own offset, so
+		 * a shifted copy announces its shift and stale data announces
+		 * which region it came from — but generated here rather than
+		 * shared, so it is for bring-up only.
 		 */
 		size_t i;
 
-		for (i = 0; i + 4 <= sizeof(g_obj); i += 4) {
+		g_obj_len = 65536;
+		g_obj = malloc(g_obj_len);
+		if (!g_obj)
+			return 1;
+		for (i = 0; i + 4 <= g_obj_len; i += 4) {
 			uint32_t w = (uint32_t)i;
 
 			memcpy(g_obj + i, &w, 4);
 		}
-		fprintf(stderr, "tcpserver: serving a %zu byte object on GET\n",
-			sizeof(g_obj));
+		fprintf(stderr, "tcpserver: no -o; generating a %zu byte SMOKE "
+			"object (not comparable across arms)\n", g_obj_len);
+	}
+
+	{
+		int hdr;
+
+		g_resp = malloc(g_obj_len + 128);
+		if (!g_resp)
+			return 1;
+		hdr = snprintf((char *)g_resp, 128,
+			       "HTTP/1.1 200 OK\r\n"
+			       "Content-Length: %zu\r\n"
+			       "Connection: close\r\n\r\n", g_obj_len);
+		memcpy(g_resp + hdr, g_obj, g_obj_len);
+		g_resp_len = (size_t)hdr + g_obj_len;
 	}
 
 	fprintf(stderr, "tcpserver: listening on %s:%u; RUN WINDOW OPENS NOW, ",
