@@ -287,6 +287,9 @@ void       tgt_bp_commit(flow_t *f, struct bp *bp);
  *   - ring full: tgt_bp_new returns NULL, the program declines, the flow stays
  *     schedulable.
  */
+void     TimerTick(uint32_t now);
+uint64_t TimerFires(void);
+
 void tgt_sched_enqueue(flow_t *f);
 void tgt_drain(struct core_ctx *core);
 

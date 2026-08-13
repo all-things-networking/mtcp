@@ -256,7 +256,22 @@ struct mtp_seg_rule {
  * target quantises to it. That is a parity property of the donor, not a
  * contract question.
  */
-struct mtp_timer;			/* opaque; embedded in the generated context */
+/*
+ * A timer OBJECT the program embeds in its context (CR-2), bound at
+ * declaration to the event its expiry raises (CR-6). Complete for the same
+ * reason the data unit is (D-19): the generated context embeds one by value.
+ *
+ * As with the data unit, only the BOUNDARY conforms. The fields are ours — a
+ * deadline and a wheel link, because the realisation is the donor's hashed
+ * timing wheel. The kernel target uses an hrtimer because that suits Linux.
+ */
+struct mtp_timer {
+	uint32_t	 deadline;	/* in ticks; 0 = not armed */
+	uint8_t		 armed;
+	uint8_t		 id;		/* which of the program's timers this is */
+	struct mtp_timer *wnext;	/* the wheel bucket's chain */
+	void		 *ctx;		/* the program's context, for the callback */
+};
 
 int mtp_timer_start(struct mtp_timer *t, uint64_t ns);
 int mtp_timer_stop(struct mtp_timer *t);

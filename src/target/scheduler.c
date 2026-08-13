@@ -298,9 +298,11 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 			}
 		}
 
-		/* Timers and the application queues land here, between the
-		 * burst and the drain, because a blueprint committed by either
-		 * must reach this burst. */
+		/* Timers, then the drain — between the burst and the flush,
+		 * because a blueprint committed by either must reach this
+		 * burst. mTCP checks its retransmission timers at exactly this
+		 * point (core.c:822). */
+		TimerTick(ts);
 		tgt_drain(core);
 
 		/*
@@ -353,6 +355,8 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks)
 			   (unsigned long)t->forced_drains,
 			   (unsigned long)t->tx_bursted,
 			   (unsigned long)t->merges);
+	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,
+		   (unsigned long)TimerFires());
 	}
 	TRACE_INFO("CPU %d: rx classes: arp=%lu ipv4=%lu(proto-match=%lu other=%lu) "
 		   "other_ethertype=%lu\n", ctx->cpu,

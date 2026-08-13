@@ -348,6 +348,24 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		tcp_app_send(c, prog_listener.obj, prog_listener.obj_len, now);
 }
 
+/*
+ * G16, stated as the donor states it: ANY TRANSMISSION THAT CONSUMES SEQUENCE
+ * SPACE ARMS THE RETRANSMISSION TIMER. SendTCPPacket counts a SYN or a FIN as
+ * one byte of payload before the arm, so one rule covers SYN, SYN-ACK, FIN and
+ * data — "armed in the handshake processors" makes it easy to forget the FIN.
+ *
+ * The donor has NO FLOOR and NO CEILING on the RTO (differences.md §1.1), so
+ * the effective value here is about 3 ms — roughly twenty times the measured
+ * round trip. Reproduced: a retransmission on this link is a real event.
+ */
+static void
+arm_rto(struct tcp_ctx *c)
+{
+	c->rto.ctx = c;
+	mtp_timer_start(&c->rto, (uint64_t)PARITY_INITIAL_RTO_MS * 1000000ULL
+			<< (c->rtx_count < 7 ? c->rtx_count : 7));
+}
+
 /*----------------------------------------------------------------------------*/
 /* mtp/tcp.mtp §proc_ack — an acknowledgement of our data. */
 static void
@@ -367,6 +385,13 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	c->send_una = e->ack;
 	mtp_tx_flush_and_notify(&c->tx, acked);
+
+	/* progress: cancel, and reset the backoff. Re-armed below if anything
+	 * is still outstanding. */
+	c->rtx_count = 0;
+	mtp_timer_stop(&c->rto);
+	if (c->send_una != c->send_next)
+		arm_rto(c);
 
 	/*
 	 * Congestion window growth, with the donor's granularity: packets is
@@ -602,10 +627,37 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 }
 
 /* No timers are armed until the RTO lands, so nothing reaches this yet. */
+/*
+ * mtp/tcp.mtp §proc_timeout — the retransmission timer fired.
+ *
+ * After an RTO the donor sets cwnd = MSS and ssthresh = max(cwnd/2, 2*MSS).
+ * One segment leaves, and B established WHY: cwnd == MSS while a segment
+ * consumes MSS - 12, so the window bail fires after the first segment
+ * regardless of which constant it is compared against. It is NOT the
+ * 1460-versus-1448 mismatch, which was the earlier and wrong explanation.
+ */
 void
 mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 {
-	(void)t; (void)now_ms;
+	struct tcp_ctx *c = t->ctx;
+
+	if (!c || c->state == TCP_CLOSED)
+		return;
+
+	if (++c->rtx_count > PARITY_MAX_RTX) {
+		c->state = TCP_CLOSED;		/* G11: closed at 16 */
+		mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_ERROR });
+		return;
+	}
+
+	c->ssthresh = (c->cwnd / 2 > 2 * PARITY_MSS_ADVERTISED)
+		      ? c->cwnd / 2 : 2 * PARITY_MSS_ADVERTISED;
+	c->cwnd = PARITY_MSS_ADVERTISED;
+
+	/* retransmit from the oldest unacknowledged byte, not the unsent tail
+	 * (G13 — the prototype sizes this from the wrong end) */
+	c->send_next = c->send_una;
+	tcp_gen_seg(c, now_ms);
 }
 
 /*============================================================================*
@@ -662,8 +714,10 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	pay.off = c->send_next - c->snd_base;	/* into the unit, not the stream */
 	pay.len = to_send;
 
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0)
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0) {
 		c->send_next += to_send;
+		arm_rto(c);
+	}
 }
 
 /*

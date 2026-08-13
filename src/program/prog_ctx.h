@@ -83,6 +83,11 @@ struct tcp_ctx {
 	/* --- the peer's timestamp, echoed in ours ------------------------ */
 	uint32_t ts_recent;
 
+	uint32_t rtx_count;
+
+	/* CR-2/CR-6: a timer object embedded here, bound to tcp_timeout. */
+	struct mtp_timer rto;
+
 	/* --- the data units, embedded, per CR-3 -------------------------- */
 	/* Embedded BY VALUE (D-19): the context owns the storage and
 	 * new_tx_ordered_data initialises it. The ring buffer inside is still
