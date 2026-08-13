@@ -211,8 +211,12 @@ emit_bp(struct core_ctx *core, struct flow *f, struct bp *bp)
 	 * there because its send buffer is not a true ring: the retained raw
 	 * pointer stays valid across the break.
 	 *
-	 * Ours IS a true ring (§0a, D-06), so an advanced raw pointer can be
-	 * on the wrong side of a wrap by the time the drain resumes. The
+	 * Ours IS a true ring, so an advanced raw pointer can be on the wrong
+	 * side of a wrap by the time the drain resumes. This is the SIXTH
+	 * piece in differences.md §0a — added by D after the table had been
+	 * read as complete, and the only one of the six that quic-mtp had not
+	 * already solved. Read §0a rather than this comment for the argument.
+	 * The
 	 * blueprint therefore stays immutable and the progress lives in
 	 * seg_off, which is an offset and cannot go stale. Rewriting in place
 	 * here would look correct and would fail on the first wrap.

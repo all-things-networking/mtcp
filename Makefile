@@ -93,6 +93,7 @@ test: $(TESTS)
 # The gates. A rule with no test is a rule that gets broken quietly.
 check: test
 	tools/check_rule4.sh
+	tools/check_wiring.sh
 	tools/check_infra_provenance.sh
 
 clean:

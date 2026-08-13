@@ -1,0 +1,246 @@
+// tcp.mtp — the MTP program this target runs.
+//
+// Written against the frozen v4 surface language (minmit/MTP-kernel-test,
+// docs/MTP_LANG.md). It knows nothing about the target's runtime, its
+// instructions' implementations, or DPDK. All protocol logic lives here.
+//
+// THE AUTHORITY. src/program/*.c is what a compiler would emit from this file
+// and is hand-written until the compiler exists. Every processor there cites
+// its section as `mtp/tcp.mtp §name`, and tools/check_wiring.sh fails the build
+// if a citation points at a section that is not here — because the prototype's
+// own tcp.mtp was byte-identical across five branches while the C it supposedly
+// described was rewritten twice, and a program file nobody checks is worse than
+// none.
+//
+// SCOPE. docs/PLAN.md §6.1 M1c: passive open, bulk send under cwnd and rwnd,
+// acknowledgement generation, FIN teardown, retransmission timeout. One
+// connection, one core, byte-identical delivery. What is deliberately absent is
+// declared in §absence_register, not left to be inferred.
+//
+// PARITY. Every constant is the DONOR'S RUNNING CONFIGURATION, not a standard
+// and not memory (rule 1). The ones that look like defects are reproduced on
+// purpose and say so. docs/DESIGN.md §7.2 is the freeze; the SYN-ACK it
+// produces was measured field-for-field against the donor's on 2026-08-12
+// (docs/RESULTS.md) and matched.
+
+// §constants
+// ---------------------------------------------------------------------------
+const uint8  FLAG_FIN = 0x01;
+const uint8  FLAG_SYN = 0x02;
+const uint8  FLAG_RST = 0x04;
+const uint8  FLAG_PSH = 0x08;
+const uint8  FLAG_ACK = 0x10;
+
+const uint8  ST_CLOSED      = 0;
+const uint8  ST_LISTEN      = 1;
+const uint8  ST_SYN_RCVD    = 2;
+const uint8  ST_ESTABLISHED = 3;
+const uint8  ST_CLOSE_WAIT  = 4;
+const uint8  ST_LAST_ACK    = 5;
+
+const uint16 MSS_ADVERTISED = 1460;   // what the option carries
+const uint16 MSS_PAYLOAD    = 1448;   // mss - CalculateOptionLength(ACK), which
+                                      // the donor computes inline at
+                                      // tcp_out.c:566. There is no `eff_mss` in
+                                      // the donor to grep for.
+const uint8  WSCALE         = 7;      // sent always
+const uint32 RCVBUF         = 262144; // the donor's running rcvbuf
+const uint32 INITIAL_WINDOW = 14600;  // tcp_stream.c:325
+
+const uint32 ISN            = 0;      // ALWAYS. Reproduce, do not correct.
+const uint32 INIT_CWND      = 2920;   // 2 * MSS
+const uint32 SSTHRESH_ACTIVE = 14600; // MSS * 10
+
+// D-01. mTCP never assigns ssthresh on the passive-open path, so the server —
+// the machine under test — runs with ssthresh 0, the slow-start test is false
+// from the first acknowledgement, and it does congestion avoidance from
+// cwnd = 2*MSS. Reproduced knowingly; PARITY_OPENING_TRAJECTORY gates it.
+//
+// The flag covers snd_wl1 and last_ack_seq too, and the reason is subtle: only
+// ssthresh has a live consequence TODAY, because snd_wl1's divergence is masked
+// by the ISN freeze above. Lift the ISN and it activates silently, with nothing
+// in a diff pointing at the cause. The two freezes are coupled.
+const bool   PARITY_OPENING_TRAJECTORY = true;
+const uint32 SSTHRESH_PASSIVE = 0;
+
+const uint32 DUP_ACK_THRESH = 3;
+const uint32 MAX_RTX        = 16;     // TCP_MAX_RTX, enforced
+const uint32 MAX_SYN_RETRY  = 7;      // SYN_SENT only; timer.c:267-269
+
+// PSH is never set. Tested at tcp_out.c:172,265 and passed by no caller. Listed
+// because this program builds the header, so a flag bit can diverge with no
+// protocol logic wrong anywhere.
+const bool   SET_PSH = false;
+
+// §flow_id
+// ---------------------------------------------------------------------------
+// SHAPE ONLY (CR-5). The fields have no meaning here; the parser constructs the
+// value and CANONICALISES direction so an inbound packet and an outbound
+// application operation resolve the same context. That canonicalisation is
+// protocol logic — only this program knows which half is local — and it is the
+// piece the target cannot do for us.
+flow_id tcp_fid : (uint32, uint32, uint16, uint16)
+
+// §events
+// ---------------------------------------------------------------------------
+event tcp_syn      : net_event { uint32 seq; uint16 sport, dport, window;
+                                 uint32 ts_val; }
+event tcp_ack      : net_event { uint32 seq, ack; uint16 window; uint32 ts_val; }
+event tcp_data     : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
+                                 addr_t hold_addr; uint32 data_len; }
+event tcp_fin      : net_event { uint32 seq, ack; uint16 window; uint32 ts_val; }
+event tcp_timeout  : timer_event { }
+event app_bind     : app_event { uint32 ip; uint16 port; }
+event app_listen   : app_event { }
+event app_recv     : app_event { uint32 delivered; }
+event app_send     : app_event { addr_t addr; uint32 mlen; }
+
+// §context
+// ---------------------------------------------------------------------------
+context tcp_ctx {
+    uint8  state = ST_CLOSED;
+    uint16 loc_port, rem_port;
+
+    uint32 send_una, send_next, write_end;
+    uint32 send_wnd  = 65535;
+    uint32 cwnd      = INIT_CWND;
+    uint32 ssthresh;
+    uint32 dup_acks;
+
+    uint32 recv_next;                 // next in-order byte; the cumulative ack
+    uint32 delivered;                 // what the application has taken,
+                                      // accumulated from rx_flush_and_notify
+    uint32 rcv_wnd = INITIAL_WINDOW;  // §window_rule owns every write to this
+
+    uint32 ts_recent;                 // the peer's timestamp, echoed in ours
+    uint32 rtx_count;
+
+    timer_t rto_timer -> tcp_timeout; // CR-6: expiry raises this event
+}
+
+// Cross-flow, declared `global` in deploy. One listening endpoint. Matching a
+// listener is protocol policy — G8 is "match on ip AND port", which is a
+// statement about TCP — so the target does not hold it. mTCP matches on port
+// alone, so a socket bound to one address answers for every address on the
+// host; matched on both here.
+context tcp_global { uint32 listen_ip; uint16 listen_port; bool listening; }
+
+scratchpad_t tcp_scratch { uint32 acked, delivered; bool ack_now; }
+
+// §blueprint
+// ---------------------------------------------------------------------------
+pkt_bp TCPBP { uint16 src_port, dst_port; uint32 seq_no, ack_seq;
+               uint8 data_off, flags; uint16 window;
+               checksum16_t checksum; uint16 urg_ptr;
+               tcp_options opts; data_t data; }
+
+// Option layout, frozen from tcp_out.c:83-124,181-192 and MEASURED against the
+// donor's wire (docs/RESULTS.md 2026-08-12). The order differs from Linux's
+// own, which is what makes the comparison a real check rather than a tautology.
+//   SYN / SYN-ACK, exactly 20 bytes:  MSS NOP NOP Timestamp NOP WScale
+//   every non-SYN, exactly 12 bytes:  NOP NOP Timestamp
+opt_list tcp_options { ... }
+
+// §seg_rule
+// ---------------------------------------------------------------------------
+// TCP's recurrence is PER BYTE, which is why it is safe under coalescing and
+// under anything else that changes how a blueprint is split. A protocol whose
+// recurrence is per PACKET is not: QUIC advances its packet number once per
+// packet, pkt_gen does not report how it split, and the program's prediction is
+// then wrong. Worth knowing before copying this line into another program.
+seg_rule seg_seq(x) [ TCPBP::seq_no, x, prev.hdr.seq_no + prev.payload_len ]
+
+// §app_parser
+// ---------------------------------------------------------------------------
+// CR-7. The target defines the op schema (docs/DESIGN.md §17.1) and this
+// program maps the ops it needs. There is no universal `send`.
+//
+// `recv` IS BOUND, and the example kernel program does not bind it. Parity
+// requires it: the donor recomputes its advertised window when the application
+// drains (api.c:1141), and a program never told the application drained cannot
+// reproduce the window-reopen acknowledgement. Without it a connection that
+// reaches a zero window has nothing to restart it.
+app_parser socket {
+    bind    -> sock_bind;
+    listen  -> sock_listen;
+    recv    -> sock_recv;
+    send    -> sock_send;
+}
+
+// §window_rule
+// ---------------------------------------------------------------------------
+// The advertised window is a per-flow VARIABLE, not a buffer query.
+//
+//     rcv_wnd = RCVBUF - (recv_next - delivered)
+//
+// recomputed at exactly the donor's two points and nowhere else: when payload
+// merges in order (tcp_in.c:659), and when the application drains (api.c:1141).
+// Both terms are this program's own state, so no target accessor is involved.
+//
+// A program that answered every packet with the buffer's free space would
+// advertise 2048 from the first acknowledgement and NEVER EMIT 14592 — a
+// divergence in the first RTT of every connection with no protocol logic wrong.
+// The sequence is 14600 unscaled on the SYN, then 14592, then 2048.
+
+// §proc_passive_open      a SYN with no context, and a listener that matches
+// §proc_open_done         the acknowledgement that completes a passive open
+// §proc_recv              in-order payload; merges, recomputes the window
+// §send_ack               acknowledgement generation
+// §gen_seg                the send decision, under min(cwnd, peer window)
+// §proc_fin               teardown
+// §proc_timeout           retransmission timeout, with backoff
+//
+// (Bodies follow the paper's imperative, pointer-free form; see
+//  src/program/prog_tcp.c for the emitted C of those written so far.)
+
+// §dispatch
+// ---------------------------------------------------------------------------
+dispatch tcp_dispatch {
+    tcp_syn     -> { proc_passive_open };
+    tcp_ack     -> { proc_open_done, proc_ack, gen_seg };
+    tcp_data    -> { proc_recv, send_ack };
+    tcp_fin     -> { proc_fin };
+    tcp_timeout -> { proc_timeout };
+    app_bind    -> { sock_bind };
+    app_listen  -> { sock_listen };
+    app_recv    -> { sock_recv };
+    app_send    -> { record_data, gen_seg };
+}
+
+deploy {
+    parser   parse_tcp;
+    context  tcp_ctx    per_flow;
+    context  tcp_global global;
+    seg_rule seg_seq;
+}
+
+// §absence_register
+// ---------------------------------------------------------------------------
+// MTP is positive-only: a program can say what it does and cannot say what it
+// does not. The one rule this effort runs under turns on exactly that — "if one
+// stack is missing a mechanism the other has, the two are not running the same
+// protocol" — so the absences are declared rather than inferred from silence.
+//
+// NOT IMPLEMENTED, and each says whether the donor has it, because that is what
+// decides whether its absence is a parity difference or a shared property:
+//
+//   fast_retransmit      donor HAS it. M2. A parity difference until then.
+//   out_of_order_reasm   donor HAS it. M2. Does not fire at -c 1 on a clean LAN.
+//   window_probe         donor HAS it, and it is a WINDOW-BLOCKED probe, not a
+//                        zero-window one — it fires when the peer's window is
+//                        merely small. M2.
+//   rst_emission         donor HAS it. Needs the per-core global ring. M2.
+//   seq_validation       donor HAS it. M2.
+//   paws                 donor HAS it. M2.
+//   idle_reaping         donor HAS it. M2.
+//   sack                 NEITHER has it. Adding it would break parity.
+//   nagle                NEITHER has it.
+//   delayed_ack          NEITHER has it.
+//   ecn                  NEITHER has it.
+//   keepalive            NEITHER has it.
+//   active_open          not needed by the workload; the donor's server path is
+//                        passive and that is what is measured.
+//
+// A compiler should check this register against the body and reject a program
+// that implements something it declared absent, or that omits something it did
+// not. That check does not exist yet.
