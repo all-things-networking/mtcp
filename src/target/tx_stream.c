@@ -14,6 +14,7 @@
 #include <assert.h>
 
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "contract.h"
 #include "internal.h"
@@ -127,6 +128,43 @@ int
 mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 {
 	uint64_t upto = u->head_seq + len;
+
+	/*
+	 * The head slot is the OLDEST reference, and it is the minimum only if
+	 * references are taken in increasing sequence order. A retransmission
+	 * takes one BELOW references already outstanding, so its base lands in
+	 * the tail slot while being numerically the smallest — and this check
+	 * then reads a larger sequence, concludes the range is clear, and does
+	 * not force a drain.
+	 *
+	 * Instrumented rather than fixed: MTP_TRACE_REF prints what the head
+	 * holds against the true minimum, so the premise is checked rather than
+	 * assumed.
+	 */
+	if (getenv("MTP_TRACE_REF")) {
+		static uint64_t flushes;
+
+		if (!(++flushes % 8) || u->live_refs)
+			fprintf(stderr, "FLUSHN n=%llu upto=%llu live=%u\n",
+				(unsigned long long)flushes,
+				(unsigned long long)upto, u->live_refs);
+	}
+	if (getenv("MTP_TRACE_REF") && u->live_refs) {
+		uint64_t lo = u->ref_base[u->ref_head];
+		uint32_t i, n = u->live_refs;
+		int out_of_order = 0;
+
+		for (i = 0; i < n; i++) {
+			uint64_t v = u->ref_base[(u->ref_head + i) % MTP_MAX_LIVE_REFS];
+
+			if (v < lo) { lo = v; out_of_order = 1; }
+		}
+		fprintf(stderr, "FLUSH upto=%llu head_holds=%llu true_min=%llu "
+			"live=%u%s\n", (unsigned long long)upto,
+			(unsigned long long)u->ref_base[u->ref_head],
+			(unsigned long long)lo, n,
+			out_of_order ? "  <<< HEAD IS NOT THE MINIMUM" : "");
+	}
 
 	if (u->live_refs && upto > u->ref_base[u->ref_head] && u->drain)
 		u->drain(u->drain_arg);
