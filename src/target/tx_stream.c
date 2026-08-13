@@ -91,6 +91,15 @@ mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len)
 	uint32_t at, first;
 
 	/*
+	 * held CANNOT exceed cap, and if it ever does, `space` underflows to
+	 * near 2^32, the clamp below does nothing, and the memcpy runs off the
+	 * end of the ring. That is a silent heap overrun several calls before
+	 * anything crashes — so it asserts here rather than being discovered
+	 * from the wreckage.
+	 */
+	assert(held <= u->cap);
+
+	/*
 	 * THE ESTABLISHMENT EDGE FOR WRITABLE (D-23). A write the ring could not
 	 * take in full is the moment the application starts waiting, and it is
 	 * the only moment the target can see it — afterwards the short return

@@ -229,10 +229,32 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 		/* the true ring: a payload may straddle the end, and the wrap
 		 * is carried in the blueprint's own snapshot so the emitter
 		 * never touches the stream */
-		if (!p->wraps || seg_off + seg_len <= (uint32_t)(p->wrap_at_seq - bp->base_seq)) {
+		/*
+		 * THREE CASES, NOT TWO. A blueprint's payload may lie entirely
+		 * before the ring's wrap, straddle it, or lie entirely AFTER
+		 * it — and the third is a real case as soon as one blueprint
+		 * is segmented into pieces, because only the first pieces are
+		 * before the wrap.
+		 *
+		 * It was missing, and the arithmetic did not fail safe: the
+		 * straddle branch computes `first` as (wrap - base) - seg_off,
+		 * which UNDERFLOWS for a segment starting past the wrap and
+		 * asks memcpy for about four gigabytes.
+		 *
+		 * Nothing had ever reached it. A 256 KB ring serving a 64 KB
+		 * object never wraps at all, so `wraps` was false on every
+		 * blueprint ever emitted here; the 1 MB object made the ring
+		 * wrap for the first time.
+		 */
+		uint32_t wrap_off = p->wraps
+			? (uint32_t)(p->wrap_at_seq - bp->base_seq) : 0;
+
+		if (!p->wraps || seg_off + seg_len <= wrap_off) {
 			memcpy(dst, p->data + seg_off, seg_len);
+		} else if (seg_off >= wrap_off) {
+			memcpy(dst, p->wrap_data + (seg_off - wrap_off), seg_len);
 		} else {
-			uint32_t first = (uint32_t)(p->wrap_at_seq - bp->base_seq) - seg_off;
+			uint32_t first = wrap_off - seg_off;
 
 			memcpy(dst, p->data + seg_off, first);
 			memcpy(dst + first, p->wrap_data, seg_len - first);

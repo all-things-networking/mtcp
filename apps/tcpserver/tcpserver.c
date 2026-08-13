@@ -11,6 +11,9 @@
  * an app op is how the program learns its own endpoint and builds the same flow
  * id the packet parser builds.
  */
+#include <execinfo.h>
+#include <unistd.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -165,9 +168,46 @@ serve(struct core_ctx *core, uint32_t now, void *arg)
 	}
 }
 
+/*
+ * A crash here is a failing test (rule 5), and a failing test that leaves no
+ * evidence costs a run to reproduce. Ubuntu routes cores to apport, so nothing
+ * lands beside the binary; this prints the stack at the moment of the fault
+ * instead, which is what one actually wants from a core anyway.
+ */
+static void
+on_fatal(int sig)
+{
+	void *fr[32];
+	int n = backtrace(fr, 32);
+
+	fprintf(stderr, "\n*** FATAL signal %d — stack follows ***\n", sig);
+	fflush(stderr);
+	backtrace_symbols_fd(fr, n, 2);
+	_exit(128 + sig);
+}
+
 int
 main(int argc, char **argv)
 {
+	/*
+	 * On an ALTERNATE STACK, which is the whole point: the first crash here
+	 * produced no handler output at all, and a handler that cannot run is
+	 * itself evidence — it means the ordinary stack was gone.
+	 */
+	{
+		static char altstack[SIGSTKSZ * 4];
+		stack_t ss = { .ss_sp = altstack, .ss_size = sizeof(altstack) };
+		struct sigaction sa;
+
+		sigaltstack(&ss, NULL);
+		memset(&sa, 0, sizeof(sa));
+		sa.sa_handler = on_fatal;
+		sa.sa_flags = SA_ONSTACK;
+		sigaction(SIGSEGV, &sa, NULL);
+		sigaction(SIGABRT, &sa, NULL);
+		sigaction(SIGBUS, &sa, NULL);
+	}
+
 	const char *conf = "tcpserver.conf";
 	const char *bind_ip = NULL;
 	const char *objpath = NULL;
