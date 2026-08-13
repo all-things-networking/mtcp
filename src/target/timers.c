@@ -184,7 +184,31 @@ TimerTick(uint32_t now)
 				fires++;
 				/* CR-6: expiry raises the bound event, which
 				 * flows through dispatch like any other */
-				mtp_program_timer(b, wheel_now);
+				/*
+				 * `now`, NOT `wheel_now`. They are meant to be
+				 * equal and are separate variables, and the
+				 * wheel's is derived from its own sweep state —
+				 * so a processor reached from here built its
+				 * headers on a DIFFERENT CLOCK from every other
+				 * processor in the same iteration.
+				 *
+				 * That is how a timestamp echo came back ahead
+				 * of our clock: a segment sent from a timer
+				 * carried the wheel's position as its TSval,
+				 * the peer echoed it, and the estimator
+				 * subtracted it from the loop's `now`. Unsigned,
+				 * so an echo one tick ahead becomes a sample of
+				 * ~2^32 and an interval the wheel cannot
+				 * represent. The donor needs a backwards NTP
+				 * step to reach that state; we reached it with
+				 * a second clock.
+				 *
+				 * Both references read the clock once per
+				 * iteration and use that one value everywhere,
+				 * and it is a parity property, not a tidiness
+				 * one.
+				 */
+				mtp_program_timer(b, now);
 			} else if (b->armed) {
 				/* a bucket collision from a later revolution */
 				b->wnext = wheel[b->deadline & WHEEL_MASK];

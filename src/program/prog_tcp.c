@@ -442,6 +442,19 @@ estimate_rtt(struct tcp_ctx *c, uint32_t now, uint32_t ts_ecr)
 	 * first to last. rttvar cannot decay because `mdev >> 2` is 0 at
 	 * mdev = 2, so mdev never decreases.
 	 *
+	 * AND NOTE THE FORM, because the next reader will think `mdev` is an
+	 * idiosyncratic way of writing the textbook one and simplify it:
+	 *
+	 *     textbook   rttvar += (|err| - rttvar) >> 2     decays
+	 *     donor      mdev   += |err| - (mdev >> 2)       pinned
+	 *
+	 * Same intent, same shape, opposite behaviour, and neither is wrong on
+	 * its own terms. The textbook form is what you get from knowing how a
+	 * retransmission timer is supposed to work — which is exactly what rule
+	 * 1 forbids: parameter values are part of behaviour and come from the
+	 * donor's running code, not from a standard or from memory. Reading
+	 * either would not have found this; only running both did.
+	 *
 	 * THE RATCHET IS THE POINT. One 2-tick sample — jitter, a delayed
 	 * acknowledgement — takes srtt to 9 and mdev to 3 and the timeout to 4
 	 * ticks PERMANENTLY, still 4 after 350 clean samples. At these
