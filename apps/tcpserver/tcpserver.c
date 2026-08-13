@@ -95,11 +95,21 @@ main(int argc, char **argv)
 	/* post the object to serve. One fixed object, as epserver serves one
 	 * file, which is what M1d compares against. */
 	{
+		/*
+		 * SELF-DESCRIBING: every 4-byte word holds its own offset, so
+		 * any wrong byte says where it came from. A shifted copy
+		 * announces its shift, stale data announces which region it is
+		 * from, and uninitialised memory announces itself by being
+		 * neither. A repeating 0..255 pattern says only "wrong".
+		 */
 		static uint8_t obj[65536];
 		size_t i;
 
-		for (i = 0; i < sizeof(obj); i++)
-			obj[i] = (uint8_t)i;
+		for (i = 0; i + 4 <= sizeof(obj); i += 4) {
+			uint32_t w = (uint32_t)i;
+
+			memcpy(obj + i, &w, 4);
+		}
 		op.kind = MTP_APP_SEND;
 		op.data.base = obj;
 		op.data.len = sizeof(obj);

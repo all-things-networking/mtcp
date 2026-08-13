@@ -153,6 +153,38 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	 * more than a thorough one that reports fiction.
 	 */
 	if (drop_this_one(seg_len)) {
+		/*
+		 * A LOST SEGMENT STILL HAPPENED. The per-segment fixup is a
+		 * RECURRENCE over the previous segment's header, so skipping it
+		 * leaves prev_hdr stale and the NEXT segment takes the dropped
+		 * one's sequence number while carrying its own payload — the
+		 * peer then stores good data at the wrong offset, shifted by
+		 * exactly one segment, with the sequence space still contiguous
+		 * and the length still right.
+		 *
+		 * That is what the corruption was, and it was the instrument
+		 * rather than the transport: three hypotheses about the
+		 * retransmit path all died because the retransmit path was
+		 * fine. So the drop advances the bookkeeping exactly as a
+		 * transmission would and only the wire misses it — which is
+		 * what the comment claimed the first time and did not do.
+		 */
+		if (bp->seg_count > 1) {
+			uint8_t scratch[PROG_HDR_MAX];
+			struct mtp_seg_view v = {
+				.hdr = scratch,
+				.prev_hdr = bp->prev_hdr_valid ? bp->prev_hdr : NULL,
+				.prev_paylen = bp->prev_paylen,
+				.seg_idx = bp->seg_idx,
+				.n_segs = bp->seg_count,
+			};
+
+			memcpy(scratch, bp->hdr, bp->hdr_len);
+			mtp_program_segment(&v);
+			memcpy(bp->prev_hdr, scratch, bp->hdr_len);
+			bp->prev_hdr_valid = 1;
+			bp->prev_paylen = seg_len;
+		}
 		t->tx_dropped_for_test++;
 		return 0;
 	}
