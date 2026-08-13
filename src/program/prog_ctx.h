@@ -83,6 +83,15 @@ struct tcp_ctx {
 	/* --- the peer's timestamp, echoed in ours ------------------------ */
 	uint32_t ts_recent;
 
+	/* The retransmission estimator, from the donor. NO FLOOR AND NO
+	 * CEILING (differences.md §1.1), so on this testbed the effective
+	 * timeout is about 3 ms — roughly twenty times the measured round
+	 * trip. A retransmission on an idle link is therefore a real event. */
+	uint32_t srtt;		/* scaled by 8, as the donor keeps it */
+	uint32_t rttvar;
+	uint32_t rto_ms;
+	bool     have_rtt;	/* a sample has been taken; rto_ms is live */
+
 	uint32_t rtx_count;
 
 	/* CR-2/CR-6: a timer object embedded here, bound to tcp_timeout. */

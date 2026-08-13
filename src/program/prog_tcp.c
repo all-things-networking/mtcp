@@ -361,9 +361,55 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 static void
 arm_rto(struct tcp_ctx *c)
 {
+	/*
+	 * A SEPARATE FLAG, not `rto_ms != 0`. The donor has no floor, so an
+	 * estimate of zero is legal and common on a link whose round trip is
+	 * far below the tick — and testing the value treats that legal zero as
+	 * "no estimate yet" and falls back to 500 ms for ever. The estimator
+	 * then works perfectly and changes nothing, which is what happened.
+	 */
+	uint32_t base = c->have_rtt ? c->rto_ms : PARITY_INITIAL_RTO_MS;
+
 	c->rto.ctx = c;
-	mtp_timer_start(&c->rto, (uint64_t)PARITY_INITIAL_RTO_MS * 1000000ULL
+	/* backoff is `base << MIN(nrtx, 7)`, and the base is RECOMPUTED from
+	 * the estimator rather than the previous value doubled */
+	mtp_timer_start(&c->rto, (uint64_t)base * 1000000ULL
 			<< (c->rtx_count < 7 ? c->rtx_count : 7));
+}
+
+/*
+ * The round-trip estimator, from the donor: rto = (srtt >> 3) + rttvar, with
+ * srtt held scaled by eight. NO FLOOR AND NO CEILING — reproduce, do not
+ * correct.
+ *
+ * The sample comes from the timestamp the peer echoes, which is why this
+ * program sends timestamps on every segment. PARITY_INITIAL_RTO_MS applies
+ * ONLY until the first sample: the earlier code armed with it on every arm and
+ * never estimated, so a loss cost 500 ms where the donor takes about 3 — a
+ * factor of 150, invisible on any link that loses nothing.
+ */
+static void
+estimate_rtt(struct tcp_ctx *c, uint32_t now, uint32_t ts_ecr)
+{
+	uint32_t m;
+	int32_t err;
+
+	if (!ts_ecr)
+		return;
+	m = now - ts_ecr;		/* in 1 ms ticks */
+
+	if (!c->srtt) {
+		c->srtt = m << 3;
+		c->rttvar = m << 1;
+	} else {
+		err = (int32_t)m - (int32_t)(c->srtt >> 3);
+		c->srtt = (uint32_t)((int32_t)c->srtt + err);
+		if (err < 0)
+			err = -err;
+		c->rttvar += ((uint32_t)err - c->rttvar) >> 2;
+	}
+	c->rto_ms = (c->srtt >> 3) + c->rttvar;
+	c->have_rtt = true;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -384,6 +430,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		return;			/* duplicate or stale */
 
 	c->send_una = e->ack;
+	estimate_rtt(c, now, e->ts_ecr);
 	mtp_tx_flush_and_notify(&c->tx, acked);
 
 	/* progress: cancel, and reset the backoff. Re-armed below if anything
