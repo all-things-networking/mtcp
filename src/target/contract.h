@@ -104,6 +104,14 @@ struct mtp_data_unit {
 	void		(*drain)(void *arg);
 	void		 *drain_arg;
 	uint8_t		 established;	/* receive side: the base is known */
+
+	/*
+	 * Transmit side, for WRITABLE. `owner` is the flow this unit belongs
+	 * to, so a short write can name the flow that must be woken; the
+	 * program never sees either field, as it never sees any field here.
+	 */
+	void		*owner;
+	uint8_t		 want_space;	/* a write was refused or truncated */
 };
 
 /* A reference to application data to be transmitted. The kernel target uses an

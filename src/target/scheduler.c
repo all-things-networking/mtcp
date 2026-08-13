@@ -88,14 +88,37 @@ TransportCoreFini(struct core_ctx *core)
  * been hiding, not a bug the changes introduced.
  */
 static void
-ready_level_check(struct transport *t, struct flow *f)
+ready_raise(struct transport *t, struct flow *f, int kind)
 {
-	if (!f->rx_unit || f->rx_unit->tail_seq <= f->rx_unit->head_seq)
-		return;
-	f->ready_kinds |= (1u << MTP_NOTIF_READABLE);
+	f->ready_kinds |= (1u << kind);
 	if (!f->on_ready_list) {
 		TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
 		f->on_ready_list = 1;
+	}
+	t->notifies[kind & 3]++;
+}
+
+static void
+ready_level_check(struct transport *t, struct flow *f)
+{
+	if (f->rx_unit && f->rx_unit->tail_seq > f->rx_unit->head_seq)
+		ready_raise(t, f, MTP_NOTIF_READABLE);
+
+	/*
+	 * WRITABLE, D-23, and it gets BOTH HALVES for the same reason READABLE
+	 * does. want_space is set by the truncated write — the establishment —
+	 * and this is the maintenance: while the application is waiting and the
+	 * ring has room, the flow keeps being presented. A program that had to
+	 * re-issue would be the edge-triggered stall arriving in a second place,
+	 * and that argument was settled once already (§17.6a).
+	 *
+	 * Cleared here rather than by the application, because the target is
+	 * what knows the space exists. The application asking again for a ring
+	 * that is still full simply re-sets it.
+	 */
+	if (f->tx_unit && f->tx_unit->want_space && tgt_tx_space(f->tx_unit)) {
+		f->tx_unit->want_space = 0;
+		ready_raise(t, f, MTP_NOTIF_WRITABLE);
 	}
 }
 
@@ -113,6 +136,14 @@ ready_level_check(struct transport *t, struct flow *f)
 void *
 mtp_ctx_of(flow_t *f)
 {
+	/*
+	 * Also the point at which the target learns which flow is being worked
+	 * on OUTSIDE packet dispatch. The program calls this at the top of every
+	 * app op that names a flow, so a transmit ring created lazily on a first
+	 * write — which happens in the application callback, where there is no
+	 * packet being dispatched — still records its owner (D-23).
+	 */
+	TransportOf(g_core[0])->cur_flow = (struct flow *)f;
 	return ((struct flow *)f)->ctx;
 }
 
@@ -273,6 +304,13 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 
 	if (tgt_tx_unit_init(u, size, cap, drain_this_core, core) < 0)
 		TRACE_ERROR("could not allocate a %u byte transmit ring\n", cap);
+
+	/* the flow this ring belongs to, so a short write can name who to wake
+	 * (D-23). Same recording as the receive side, for the same reason. */
+	if (TransportOf(core)->cur_flow) {
+		TransportOf(core)->cur_flow->tx_unit = u;
+		u->owner = TransportOf(core)->cur_flow;
+	}
 }
 
 /*----------------------------------------------------------------------------*/

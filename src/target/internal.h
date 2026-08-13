@@ -111,6 +111,7 @@ int tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 int tgt_rx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 		     uint64_t base);
 
+uint32_t tgt_tx_space(const struct mtp_data_unit *u);
 int tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len,
 	       payref_t *out);
 

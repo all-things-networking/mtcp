@@ -57,6 +57,61 @@ static size_t   g_obj_len;
 static uint8_t *g_resp;
 static size_t   g_resp_len;
 
+/*
+ * WRITE_CHUNK — 8192, WHICH IS A PARITY VALUE AND NOT A BUFFER SIZE.
+ *
+ * epserver writes in 8192-byte chunks and loops until the write is refused
+ * (epserver.c:30; B, 2026-08-13). The write pattern INTERLEAVES WITH THE DRAIN,
+ * and that interleaving is what B measured when establishing that the donor
+ * packs at 99.75% full segments. A different chunk size here would present as a
+ * SEGMENTATION difference between the two arms — which is one of the things the
+ * comparison exists to measure, so it would be a harness artefact wearing the
+ * costume of a result.
+ */
+#define WRITE_CHUNK	8192
+
+static size_t g_sent;		/* how much of the response has been accepted */
+
+/*
+ * Write until refused, exactly as epserver does. A short return is not an
+ * error: it is backpressure, and the remainder goes when WRITABLE says so.
+ */
+static void
+pump(flow_t *flow, uint32_t now)
+{
+	while (g_sent < g_resp_len) {
+		struct mtp_app_op snd;
+		size_t want = g_resp_len - g_sent;
+		int wrote;
+
+		if (want > WRITE_CHUNK)
+			want = WRITE_CHUNK;
+
+		memset(&snd, 0, sizeof(snd));
+		snd.kind = MTP_APP_SEND;
+		snd.flow = flow;
+		snd.data.base = g_resp + g_sent;
+		snd.data.len = want;
+		snd.len = want;
+		wrote = mtp_program_app_op(&snd, now);
+		if (wrote <= 0)
+			return;		/* refused: wait for WRITABLE */
+		g_sent += (size_t)wrote;
+		if ((size_t)wrote < want)
+			return;		/* truncated: same */
+	}
+
+	{
+		struct mtp_app_op cl;
+
+		memset(&cl, 0, sizeof(cl));
+		cl.kind = MTP_APP_CLOSE;
+		cl.flow = flow;
+		mtp_program_app_op(&cl, now);
+		fprintf(stderr, "tcpserver: served %zu bytes\n", g_resp_len);
+	}
+}
+
 static void
 serve(struct core_ctx *core, uint32_t now, void *arg)
 {
@@ -70,6 +125,14 @@ serve(struct core_ctx *core, uint32_t now, void *arg)
 		static uint8_t buf[2048];
 		struct mtp_app_op op;
 		int got;
+
+		/*
+		 * D-23: the ring refused the rest of the object and the target
+		 * is telling us there is room again. The application retries;
+		 * the target does not absorb.
+		 */
+		if (ready[i].kinds & (1u << MTP_NOTIF_WRITABLE))
+			pump(ready[i].flow, now);
 
 		if (!(ready[i].kinds & (1u << MTP_NOTIF_READABLE)))
 			continue;
@@ -94,24 +157,10 @@ serve(struct core_ctx *core, uint32_t now, void *arg)
 		 * work — DESIGN.md §17.1's layering test, and it held.
 		 */
 		if (!strncmp((char *)buf, "GET ", 4)) {
-			struct mtp_app_op snd;
-
-			memset(&snd, 0, sizeof(snd));
-			snd.kind = MTP_APP_SEND;
-			snd.flow = ready[i].flow;
-			snd.data.base = g_resp;
-			snd.data.len = g_resp_len;
-			snd.len = g_resp_len;
-			mtp_program_app_op(&snd, now);
-
-			/* Connection: close — say so to the transport too */
-			memset(&snd, 0, sizeof(snd));
-			snd.kind = MTP_APP_CLOSE;
-			snd.flow = ready[i].flow;
-			mtp_program_app_op(&snd, now);
-
-			fprintf(stderr, "tcpserver: served %zu bytes for "
-				"\"%.20s\"\n", g_resp_len, (char *)buf);
+			g_sent = 0;
+			fprintf(stderr, "tcpserver: answering \"%.20s\" with "
+				"%zu bytes\n", (char *)buf, g_resp_len);
+			pump(ready[i].flow, now);
 		}
 	}
 }

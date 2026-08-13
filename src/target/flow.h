@@ -40,6 +40,9 @@ struct flow {
 	TAILQ_ENTRY(flow) ready_link;
 	uint8_t		 on_ready_list;
 	uint32_t	 ready_kinds;	/* bitmask of notify kinds pending */
+	struct mtp_data_unit *tx_unit;	/* recorded when the program creates it,
+					 * so the target can see its own ring's
+					 * occupancy for WRITABLE (D-23) */
 	struct mtp_data_unit *rx_unit;	/* recorded when the program creates it,
 					 * so the target can re-present READABLE
 					 * while bytes remain unread */

@@ -90,10 +90,27 @@ mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len)
 	uint32_t space = u->cap - held;
 	uint32_t at, first;
 
-	if (len > space)
+	/*
+	 * THE ESTABLISHMENT EDGE FOR WRITABLE (D-23). A write the ring could not
+	 * take in full is the moment the application starts waiting, and it is
+	 * the only moment the target can see it — afterwards the short return
+	 * value is the application's business and the target has no way to know
+	 * whether it intends to write again.
+	 *
+	 * The target does NOT absorb the overflow. sndbuf is the donor's running
+	 * configuration, so a target that quietly grew the ring would remove
+	 * backpressure the donor's application feels and change the buffer
+	 * occupancy that drives the advertised window — a parity change wearing
+	 * the appearance of a convenience.
+	 */
+	if (len > space) {
 		len = space;
-	if (!len)
+		u->want_space = 1;
+	}
+	if (!len) {
+		u->want_space = 1;
 		return 0;
+	}
 
 	/* split at the wrap; NO memmove. mTCP's re-linearisation is the first
 	 * of §0a's five pieces and it is the one that makes a resolved pointer
@@ -256,4 +273,11 @@ tgt_tx_ref_release(struct mtp_data_unit *u)
 		return;
 	u->ref_head = (uint16_t)((u->ref_head + 1) % MTP_MAX_LIVE_REFS);
 	u->live_refs--;
+}
+
+/* Free bytes in the ring — the target's own bookkeeping, for WRITABLE. */
+uint32_t
+tgt_tx_space(const struct mtp_data_unit *u)
+{
+	return u->cap - (uint32_t)(u->tail_seq - u->head_seq);
 }
