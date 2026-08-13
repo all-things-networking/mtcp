@@ -394,7 +394,7 @@ static void
 estimate_rtt(struct tcp_ctx *c, uint32_t now, uint32_t ts_ecr)
 {
 	uint32_t m;
-	int32_t err;
+
 
 	if (!ts_ecr)
 		return;
@@ -414,6 +414,14 @@ estimate_rtt(struct tcp_ctx *c, uint32_t now, uint32_t ts_ecr)
 	 * none, which is the property both stacks share and which we reproduce
 	 * deliberately.
 	 *
+	 * AND IT IS THE DONOR'S COMPLETE CHECK. `if (m == 0) m = 1;` is all it
+	 * does — no bound, no ahead-of-clock test, no Karn's rule. B simulated
+	 * an echo five ticks ahead and the donor produces an RTO of about 149
+	 * hours with its own assert passing, because `long m = mrtt` widens a
+	 * wrapped uint32 to a large POSITIVE long and a sign check never fires.
+	 * So we add no validation the donor lacks; the wheel's refusal is where
+	 * an impossible interval is caught, and that is a recorded divergence.
+	 *
 	 * The donor's srtt is scaled by eight, which is why the timeout is
 	 * (srtt >> 3) + rttvar: one tick from the smoothed term plus two from
 	 * the variance term. `srtt = 8` is not eight milliseconds, and an
@@ -423,16 +431,45 @@ estimate_rtt(struct tcp_ctx *c, uint32_t now, uint32_t ts_ecr)
 	if (m == 0)
 		m = 1;
 
+	/*
+	 * THE DONOR'S RECURRENCE, WITH ITS TRUNCATIONS. Not a corrected
+	 * estimator that computes "the same thing" — B compiled the donor's and
+	 * simulated it rather than reasoning about it (D-21), and the
+	 * truncations are the behaviour.
+	 *
+	 * With m == 1, which is what this testbed always produces: srtt = 8,
+	 * mdev = 2, RTO = 3 ticks, and it does NOT move — over 200 samples,
+	 * first to last. rttvar cannot decay because `mdev >> 2` is 0 at
+	 * mdev = 2, so mdev never decreases.
+	 *
+	 * THE RATCHET IS THE POINT. One 2-tick sample — jitter, a delayed
+	 * acknowledgement — takes srtt to 9 and mdev to 3 and the timeout to 4
+	 * ticks PERMANENTLY, still 4 after 350 clean samples. At these
+	 * magnitudes the donor's timeout is monotonically non-decreasing. An
+	 * estimator that decays properly sits at 3 where the donor sits at 4,
+	 * and timers then fire at different moments. My previous version
+	 * decayed: `rttvar += (|err| - rttvar) >> 2` reaches -1 per sample at
+	 * rttvar = 2 and walks the timeout down.
+	 */
 	if (!c->srtt) {
 		c->srtt = m << 3;
-		c->rttvar = m << 1;
+		c->mdev = m << 1;
 	} else {
-		err = (int32_t)m - (int32_t)(c->srtt >> 3);
-		c->srtt = (uint32_t)((int32_t)c->srtt + err);
-		if (err < 0)
-			err = -err;
-		c->rttvar += ((uint32_t)err - c->rttvar) >> 2;
+		int32_t d = (int32_t)m - (int32_t)(c->srtt >> 3);
+
+		c->srtt = (uint32_t)((int32_t)c->srtt + d);
+		if (d < 0) {
+			d = -d;
+			d -= (int32_t)(c->mdev >> 2);
+			if (d > 0)
+				d >>= 3;
+		} else {
+			d -= (int32_t)(c->mdev >> 2);
+		}
+		c->mdev = (uint32_t)((int32_t)c->mdev + d);
 	}
+	c->rttvar = c->mdev;
+
 	c->rto_ms = (c->srtt >> 3) + c->rttvar;
 	c->have_rtt = true;
 }

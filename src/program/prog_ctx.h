@@ -88,6 +88,7 @@ struct tcp_ctx {
 	 * timeout is about 3 ms — roughly twenty times the measured round
 	 * trip. A retransmission on an idle link is therefore a real event. */
 	uint32_t srtt;		/* scaled by 8, as the donor keeps it */
+	uint32_t mdev;		/* the donor's mean deviation; rttvar tracks it */
 	uint32_t rttvar;
 	uint32_t rto_ms;
 	bool     have_rtt;	/* a sample has been taken; rto_ms is live */
