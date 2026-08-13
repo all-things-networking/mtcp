@@ -14,13 +14,20 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
 #include <string.h>
 
 #include "contract.h"
 #include "internal.h"
+#include "debug.h"
 
 #define WHEEL_BUCKETS	4096		/* 1-tick buckets, ~4 s of range */
 #define WHEEL_MASK	(WHEEL_BUCKETS - 1)
+
+/* The longest interval this wheel will accept. Generous — the donor's maximum
+ * backoff is 60 s and this is more — so exceeding it means a broken caller
+ * rather than a long timer. */
+#define TIMER_MAX_TICKS	(120u * 1000u)
 
 static struct mtp_timer *wheel[WHEEL_BUCKETS];
 static struct mtp_timer *overflow;	/* deadlines beyond the wheel's range */
@@ -59,6 +66,34 @@ mtp_timer_start(struct mtp_timer *t, uint64_t ns)
 	uint32_t ticks = (uint32_t)(ns / 1000000);	/* the 1 ms tick */
 
 	unlink_timer(t);
+
+	/*
+	 * AN UNREPRESENTABLE DEADLINE IS LOUD, NOT FILED.
+	 *
+	 * The overflow list is legitimate for a deadline beyond the wheel's
+	 * range but still in the future — a 60 s backoff is 60000 ticks and
+	 * belongs there. What is not legitimate is a deadline so far out that
+	 * `deadline - now` wraps below the current tick: the promotion test can
+	 * then never become true, the timer is never swept, and the flow waits
+	 * for something that cannot arrive. That is exactly what a nonsense RTT
+	 * sample produced — 2^30 + 2 ticks — and the wheel accepted it in
+	 * silence and said nothing.
+	 *
+	 * Silently accepting an impossible input and producing a
+	 * plausible-looking state is the defect class this whole increment has
+	 * been made of. So: assert where an assert can be seen, and refuse
+	 * where it cannot, rather than defer for ever.
+	 */
+	if (ticks > TIMER_MAX_TICKS) {
+		TRACE_ERROR("timer armed for %u ticks, beyond the %u this wheel "
+			    "can represent — the caller's interval is wrong, "
+			    "not this timer. Clamping rather than filing it "
+			    "where the sweep will never reach it.\n",
+			    ticks, TIMER_MAX_TICKS);
+		assert(0);
+		ticks = TIMER_MAX_TICKS;
+	}
+
 	t->deadline = wheel_now + (ticks ? ticks : 1);
 	t->armed = 1;
 
