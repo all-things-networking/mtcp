@@ -287,7 +287,7 @@ key_of_inbound(uint32_t loc_ip, uint32_t rem_ip, uint16_t loc_port,
  * these without reading protocol flags, which rule 4 forbids it.
  */
 enum { EM_SYNACK, EM_ACK_DATA, EM_ACK_FIN, EM_PROBE, EM_PROBE_REPLY, EM_FIN,
-       EM_DATA, EM__N };
+       EM_DATA, EM_DATA_RTX, EM__N };
 static uint64_t g_emit[EM__N];
 
 /* mtp/tcp.mtp §proc_passive_open — a SYN with no context and a listener. */
@@ -418,7 +418,8 @@ prog_report_refusals(void)
 		static const char *en[EM__N] = { "SYN-ACK", "ack of data",
 						 "ack of FIN", "window probe",
 						 "reply to their probe",
-						 "our FIN", "data" };
+						 "our FIN", "data (first send)",
+						 "data (retransmission)" };
 		int j;
 
 		for (j = 0; j < EM__N; j++)
@@ -1192,6 +1193,18 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 	if (getenv("MTP_TRACE_SEQ"))
 		fprintf(stderr, "RTO  rewind next %u -> una %u\n",
 			c->send_next, c->send_una);
+	/*
+	 * MARKING THE CALLER DOES NOT WORK, and the measurement said so: the
+	 * timeout fired once and emitted NOTHING — `timer fired retransmission
+	 * 1` with `data (retransmission) 0` — because tcp_gen_seg refused here
+	 * and the rewound data actually went out later, from the
+	 * acknowledgement path. The rewind and the re-emission are SEPARATED IN
+	 * TIME, so the caller is not the fact; the sequence position is.
+	 *
+	 * So it is marked by send_high — the highest send_next ever reached.
+	 * Emitting below it is a retransmission whoever asked. The program
+	 * still inspects only its own state, which was the point.
+	 */
 	c->send_next = c->send_una;
 	tcp_gen_seg(c, now_ms);
 }
@@ -1367,6 +1380,8 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	g_emit[EM_DATA]++;
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0) {
 		c->send_next += to_send;
+		if (c->send_next > c->send_high)
+			c->send_high = c->send_next;
 		arm_rto(c);
 	}
 }

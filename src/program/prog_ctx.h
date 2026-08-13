@@ -119,6 +119,8 @@ struct tcp_ctx {
 	 * for this. A one-shot server sets it when it hands over its object.
 	 */
 	bool     app_closed;
+	uint32_t send_high;	/* highest send_next ever reached; below it is
+				 * a retransmission (see prog_tcp.c) */
 	/* TIME_WAIT's own timer. A SECOND timer object on one flow, which is
 	 * the first time the wheel has held more than one — A4 leaving the
 	 * dormant list, with the standing expectation attached. */
