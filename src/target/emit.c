@@ -92,13 +92,24 @@ dump_tx(const uint8_t *eth, uint16_t total)
  * instrumented binary must be safe to benchmark unenabled.
  */
 static int
-drop_this_one(void)
+drop_this_one(uint16_t seg_len)
 {
 	static int nth = -1;
 	static int seen;
 
+	/*
+	 * DATA-carrying only, and the name says so. The first version counted
+	 * every transmitted segment, so MTP_DROP_NTH=5 dropped a pure
+	 * acknowledgement and the transfer completed — a knob that was exactly
+	 * what it said and not what its reader assumed, which is the defect
+	 * this week keeps producing. Dropping an acknowledgement makes no hole;
+	 * only losing data does.
+	 */
+	if (!seg_len)
+		return 0;
+
 	if (nth < 0) {
-		const char *e = getenv("MTP_DROP_NTH");
+		const char *e = getenv("MTP_DROP_NTH_DATA");
 
 		nth = e ? atoi(e) : 0;
 	}
@@ -107,9 +118,9 @@ drop_this_one(void)
 	if (++seen != nth)
 		return 0;
 
-	fprintf(stderr, "MTP_DROP_NTH: dropping transmitted segment %d "
-		"— the peer will not acknowledge past it until we retransmit\n",
-		nth);
+	fprintf(stderr, "MTP_DROP_NTH_DATA: dropping data segment %d (%u bytes) "
+		"— the peer cannot acknowledge past it until we retransmit\n",
+		nth, seg_len);
 	return 1;
 }
 
@@ -208,7 +219,7 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	/* Dropped AFTER the frame is fully built, so everything upstream —
 	 * header, fixup, payload copy, checksum request — runs exactly as it
 	 * would have. Only the wire misses it. */
-	if (drop_this_one()) {
+	if (drop_this_one(seg_len)) {
 		t->tx_dropped_for_test++;
 		return 0;
 	}

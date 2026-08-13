@@ -289,7 +289,8 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * two quantities of the same C type, one absolute and one relative,
 	 * subtracted. Nothing type-checks it and the wire is where it shows.
 	 */
-	c->delivered = c->recv_next;
+	c->rcv_base = c->recv_next;
+	c->delivered = c->rcv_base;
 	c->ts_recent = e->ts_val;
 
 	/*
@@ -322,8 +323,10 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_SYN | TCP_ACK,
 				   now, c->ts_recent);
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0)
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0) {
 		c->send_next++;			/* the SYN-ACK consumes one */
+		c->snd_base = c->send_next;	/* ...so data starts one past */
+	}
 }
 
 /* mtp/tcp.mtp §proc_open_done — the ACK that completes a passive open. */
@@ -487,7 +490,7 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 
 	if (c->state != TCP_CLOSE_WAIT)
 		return;
-	if (c->send_next != c->write_end)
+	if (c->send_next - c->snd_base != c->write_end)
 		return;			/* G10: not ahead of unsent data */
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next,
@@ -639,7 +642,8 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 		return;
 
 	inflight = c->send_next - c->send_una;
-	avail    = c->write_end - c->send_next;
+	/* write_end is a unit offset; send_next is a sequence. Bridge once. */
+	avail    = c->write_end - (c->send_next - c->snd_base);
 	win      = c->cwnd < c->send_wnd ? c->cwnd : c->send_wnd;
 	usable   = win > inflight ? win - inflight : 0;
 
@@ -655,7 +659,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 				   c->ts_recent);
 
 	pay.u   = &c->tx;
-	pay.off = c->send_next;
+	pay.off = c->send_next - c->snd_base;	/* into the unit, not the stream */
 	pay.len = to_send;
 
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0)

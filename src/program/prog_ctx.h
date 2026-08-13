@@ -36,6 +36,16 @@ struct tcp_ctx {
 	uint8_t  state;
 
 	/* --- receive side, sequence space ------------------------------- */
+	/*
+	 * The receive side's bridge, named for symmetry with snd_base. The peer's
+	 * SYN consumes one, so the first data byte it sends is at ISN+1, and
+	 * `delivered` is seeded here rather than at zero — otherwise
+	 * §window_rule subtracts a sequence number from a byte count. That is
+	 * the same bug as the send side's, in the same week, and the two were
+	 * found separately because neither bridge had a name. They do now.
+	 */
+	uint32_t rcv_base;	/* sequence of the first data byte the peer sends */
+
 	uint32_t recv_next;	/* next in-order sequence expected; the cumulative ACK */
 	uint32_t delivered;	/* what the application has taken, accumulated from
 				 * mtp_rx_flush_and_notify()'s return value */
@@ -53,6 +63,16 @@ struct tcp_ctx {
 	uint16_t loc_port, rem_port;
 
 	/* --- send side, sequence space ----------------------------------- */
+	/*
+	 * TWO SPACES, and conflating them is the fifth instance of the class in
+	 * docs/PLAN.md §3. The transmit unit's offsets start at 0. The sequence
+	 * space starts at the ISN, and the SYN CONSUMES ONE, so the first data
+	 * byte is sequence ISN+1. snd_base is that, and it is the only bridge
+	 * between the two — anything relating a unit offset to a sequence
+	 * number goes through it.
+	 */
+	uint32_t snd_base;	/* sequence of unit offset 0 */
+
 	uint32_t send_una;	/* oldest unacknowledged */
 	uint32_t send_next;	/* next to send */
 	uint32_t write_end;	/* highest app byte appended */
