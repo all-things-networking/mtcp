@@ -642,6 +642,11 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 		   (unsigned long)TransportOf(core)->notifies[MTP_NOTIF_ERROR],
 		   (unsigned long)TransportOf(core)->polls,
 		   (unsigned long)TransportOf(core)->poll_entries);
+	{	/* the program's own account of why it emitted nothing */
+		void prog_report_refusals(void);
+
+		prog_report_refusals();
+	}
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,
 		   (unsigned long)TimerFires());
 	}

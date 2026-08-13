@@ -343,6 +343,55 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
  * moved the failure rather than removing it. A response to a request whose FIN
  * arrived with it needs all three.
  */
+/*
+ * WHY THE SEND DECISION EMITTED NOTHING, counted per reason.
+ *
+ * This inverts the search. Counters built for other purposes can only narrow
+ * "what stopped us sending" by inference backwards; a refusal reason answers it
+ * forwards. It is the same instrument as `APPSEND refused: state=5`, which
+ * named the close-gating bug in one line after the counters had only bracketed
+ * it — and if the decision is never CALLED, no reason appears at all, which is
+ * a different answer rather than a missing one.
+ */
+enum { REF_STATE, REF_WINDOW, REF_SWS, REF_NODATA, REF_SENT, REF__N };
+static uint64_t g_refuse[REF__N];
+
+/*
+ * THE RECEIVE PATH, STAGE BY STAGE — the same instrument pointed the other way.
+ *
+ * A refusal reason inside proc_ack only answers "reached it and was rejected".
+ * If packets are lost BEFORE dispatch no reason appears at all, and an absence
+ * is not an answer — so each stage is counted, and the stage where the count
+ * drops is the stage at fault.
+ *
+ * ACK_DUP is the one to watch: if the peer's acknowledgements are being read as
+ * duplicates, send_una cannot advance BY CONSTRUCTION, and the send side's
+ * sws-holdoff is then a correct response to a window we are keeping shut
+ * ourselves.
+ */
+enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
+       RXS_ACK_ADVANCED, RXS__N };
+static uint64_t g_rx[RXS__N];
+
+void
+prog_report_refusals(void)
+{
+	static const char *n[REF__N] = { "state-gate", "window-closed",
+					 "sws-holdoff", "nothing-buffered",
+					 "SENT" };
+	static const char *r[RXS__N] = { "reached dispatch", "flow ctx found",
+					 "proc_ack called", "  no ACK flag",
+					 "  DUPLICATE/STALE", "  ADVANCED una" };
+	int i;
+
+	for (i = 0; i < REF__N; i++)
+		fprintf(stderr, "send decision %-17s %llu\n", n[i],
+			(unsigned long long)g_refuse[i]);
+	for (i = 0; i < RXS__N; i++)
+		fprintf(stderr, "recv path     %-17s %llu\n", r[i],
+			(unsigned long long)g_rx[i]);
+}
+
 static bool
 send_side_open(const struct tcp_ctx *c)
 {
@@ -544,15 +593,21 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	uint32_t acked;
 
-	if (!conn_exists(c) || !(e->flags & TCP_ACK))
+	g_rx[RXS_ACK_CALLED]++;
+	if (!conn_exists(c) || !(e->flags & TCP_ACK)) {
+		g_rx[RXS_ACK_NOFLAG]++;
 		return;
+	}
 
 	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
 	c->ts_recent = e->ts_val;
 
 	acked = e->ack - c->send_una;
-	if ((int32_t)acked <= 0)
+	if ((int32_t)acked <= 0) {
+		g_rx[RXS_ACK_DUP]++;
 		return;			/* duplicate or stale */
+	}
+	g_rx[RXS_ACK_ADVANCED]++;
 
 	if (getenv("MTP_TRACE_SEQ"))
 		fprintf(stderr, "ACK  ack=%u una=%u next=%u acked=%u%s\n",
@@ -835,6 +890,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		return 0;
 	}
 
+	g_rx[RXS_CTX]++;
 	proc_open_done(c, &e, now_ms);
 	proc_ack(c, &e, now_ms);
 	proc_recv(c, &e, now_ms);
@@ -1056,9 +1112,12 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	struct mtp_tx_payload pay;
 	uint32_t win, to_send;
 	uint16_t hdr_len;
+	int why = REF_NODATA;
 
-	if (!send_side_open(c))
+	if (!send_side_open(c)) {
+		g_refuse[REF_STATE]++;
 		return;
+	}
 
 	win = c->cwnd < c->send_wnd ? c->cwnd : c->send_wnd;
 
@@ -1097,14 +1156,20 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			int32_t rw = (int32_t)win - (int32_t)inflight_here;
 			uint32_t avail_here, len, pkt;
 
-			if (rw <= 0)
+			if (rw <= 0) {
+				why = REF_WINDOW;
 				break;
-			if (rw < PARITY_MSS_ADVERTISED && inflight_here > 0)
+			}
+			if (rw < PARITY_MSS_ADVERTISED && inflight_here > 0) {
+				why = REF_SWS;
 				break;
+			}
 
 			avail_here = c->write_end - (seq - c->snd_base);
-			if (!avail_here)
+			if (!avail_here) {
+				why = REF_NODATA;
 				break;
+			}
 
 			len = avail_here < (uint32_t)rw ? avail_here : (uint32_t)rw;
 			pkt = len < PARITY_MSS_PAYLOAD ? len : PARITY_MSS_PAYLOAD;
@@ -1114,8 +1179,16 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 		}
 	}
 
-	if (to_send == 0)
+	if (to_send == 0) {
+		g_refuse[why]++;
+		if (why == REF_WINDOW && getenv("MTP_TRACE_SEQ"))
+			fprintf(stderr, "REFUSE window cwnd=%u peer=%u una=%u "
+				"next=%u inflight=%u write_end=%u\n", c->cwnd,
+				c->send_wnd, c->send_una, c->send_next,
+				c->send_next - c->send_una, c->write_end);
 		return;
+	}
+	g_refuse[REF_SENT]++;
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
