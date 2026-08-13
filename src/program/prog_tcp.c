@@ -275,6 +275,21 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	c->state = TCP_SYN_RCVD;
 	c->recv_next = e->seq + 1;		/* the SYN consumes one byte */
+
+	/*
+	 * `delivered` is the SAME ORIGIN as recv_next, not zero.
+	 *
+	 * §window_rule computes rcv_wnd = RCVBUF - (recv_next - delivered), and
+	 * that difference has to be a BYTE COUNT. recv_next is an absolute
+	 * sequence number seeded from the peer's ISN, so leaving delivered at
+	 * zero makes the difference a sequence number and the window arbitrary
+	 * — it advertised 29423 on the first acknowledgement here.
+	 *
+	 * Fourth instance of the units bug this increment (docs/PLAN.md §3):
+	 * two quantities of the same C type, one absolute and one relative,
+	 * subtracted. Nothing type-checks it and the wire is where it shows.
+	 */
+	c->delivered = c->recv_next;
 	c->ts_recent = e->ts_val;
 
 	/*
@@ -331,6 +346,73 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 }
 
 /*----------------------------------------------------------------------------*/
+/* mtp/tcp.mtp §proc_ack — an acknowledgement of our data. */
+static void
+proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+{
+	uint32_t acked;
+
+	if (c->state != TCP_ESTABLISHED || !(e->flags & TCP_ACK))
+		return;
+
+	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
+	c->ts_recent = e->ts_val;
+
+	acked = e->ack - c->send_una;
+	if ((int32_t)acked <= 0)
+		return;			/* duplicate or stale */
+
+	c->send_una = e->ack;
+	mtp_tx_flush_and_notify(&c->tx, acked);
+
+	/*
+	 * Congestion window growth, with the donor's granularity: packets is
+	 * floor(rmlen / 1448), and B found the packets++ at tcp_in.c:519 is
+	 * unreachable dead code — so AN ACKNOWLEDGEMENT COVERING FEWER THAN
+	 * 1448 NEW BYTES GROWS THE WINDOW BY NOTHING AT ALL. Reproduced; the
+	 * inventory's "rounded up" was corrected to this.
+	 *
+	 * ssthresh is 0 on a passive open (D-01), so cwnd < ssthresh is false
+	 * from the first acknowledgement and this is always congestion
+	 * avoidance. The server has no slow start. Reproduce, do not correct.
+	 */
+	{
+		uint32_t packets = acked / PARITY_MSS_PAYLOAD;
+
+		if (packets && c->cwnd >= c->ssthresh)
+			c->cwnd += (PARITY_MSS_ADVERTISED * PARITY_MSS_ADVERTISED)
+				   / c->cwnd * packets;
+		else if (packets)
+			c->cwnd += PARITY_MSS_ADVERTISED * packets;
+	}
+
+	tcp_gen_seg(c, now);
+}
+
+/* mtp/tcp.mtp §proc_recv and §send_ack — in-order payload, then acknowledge. */
+static void
+proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	struct mtp_tx_payload none = { 0 };
+	uint16_t hdr_len;
+
+	if (!e->payload_len)
+		return;
+	if (e->seq != c->recv_next)
+		return;			/* out of order: M2, and it does not
+					 * fire at -c 1 on a clean LAN */
+
+	/* §window_rule recompute point 1: payload merged in order. Nothing
+	 * else in this program may write rcv_wnd. */
+	tcp_on_payload_merged(c, c->recv_next + e->payload_len);
+
+	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
+				   c->ts_recent);
+	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1);
+}
+
+/*----------------------------------------------------------------------------*/
 /*
  * The generated dispatch: a static switch on event type calling the processors
  * directly, not a runtime table. One flow-table lookup per packet — two on a
@@ -372,6 +454,8 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	}
 
 	proc_open_done(c, &e, now_ms);
+	proc_ack(c, &e, now_ms);
+	proc_recv(c, &e, now_ms);
 	return 0;
 }
 
