@@ -267,6 +267,29 @@ key_of_inbound(uint32_t loc_ip, uint32_t rem_ip, uint16_t loc_port,
 }
 
 /*----------------------------------------------------------------------------*/
+/*
+ * WHAT WE EMITTED, BY CAUSE — and this is an audit of the fingerprint, not a
+ * new curiosity.
+ *
+ * `zero=4` aggregates the SYN-ACK, the pure acknowledgement, the FIN and the
+ * final acknowledgement. It read correctly when it moved 2 -> 4 only because
+ * we happened to know active close had landed. The window probe ALSO emits a
+ * zero-payload acknowledgement, so `zero` in this build already means something
+ * different from `zero` in the recorded fingerprint — and nobody noticed,
+ * because the two runs were against different peers.
+ *
+ * That is the same failure as `timers fired`: an aggregate silently absorbing a
+ * new mechanism, so the same digits stop meaning the same thing without anyone
+ * editing the number. A fingerprint is a promise that a number means the same
+ * thing next time, and the promise is only as good as the counters behind it.
+ *
+ * Counted in the PROGRAM, where the cause is known. The target cannot classify
+ * these without reading protocol flags, which rule 4 forbids it.
+ */
+enum { EM_SYNACK, EM_ACK_DATA, EM_ACK_FIN, EM_PROBE, EM_PROBE_REPLY, EM_FIN,
+       EM_DATA, EM__N };
+static uint64_t g_emit[EM__N];
+
 /* mtp/tcp.mtp §proc_passive_open — a SYN with no context and a listener. */
 static void
 proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
@@ -325,6 +348,7 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_SYN | TCP_ACK,
 				   now, c->ts_recent);
+	g_emit[EM_SYNACK]++;
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0) {
 		c->send_next++;			/* the SYN-ACK consumes one */
 		c->snd_base = c->send_next;	/* ...so data starts one past */
@@ -390,6 +414,17 @@ prog_report_refusals(void)
 	for (i = 0; i < REF__N; i++)
 		fprintf(stderr, "send decision %-17s %llu\n", n[i],
 			(unsigned long long)g_refuse[i]);
+	{
+		static const char *en[EM__N] = { "SYN-ACK", "ack of data",
+						 "ack of FIN", "window probe",
+						 "reply to their probe",
+						 "our FIN", "data" };
+		int j;
+
+		for (j = 0; j < EM__N; j++)
+			fprintf(stderr, "emitted      %-21s %llu\n", en[j],
+				(unsigned long long)g_emit[j]);
+	}
 	{
 		/*
 		 * SPLIT BY KIND, because "timers fired" aggregates mechanisms
@@ -754,6 +789,7 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		uint16_t plen = tcp_build_header(phdr, c, c->send_next, TCP_ACK,
 						 now, c->ts_recent);
 
+		g_emit[EM_PROBE_REPLY]++;
 		mtp_pkt_gen(c->f, phdr, plen, &none, 0, 0, 1);
 		return;
 	}
@@ -788,6 +824,7 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
+	g_emit[EM_ACK_DATA]++;
 	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1);
 }
 
@@ -846,6 +883,7 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	/* built before the transition, deliberately */
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
+	g_emit[EM_ACK_FIN]++;
 	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1);
 
 	/*
@@ -909,6 +947,7 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next,
 				   TCP_ACK | TCP_FIN, now, c->ts_recent);
+	g_emit[EM_FIN]++;
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0) {
 		c->send_next++;		/* the FIN consumes one byte */
 		c->state = (c->state == TCP_CLOSE_WAIT) ? TCP_LAST_ACK
@@ -1193,6 +1232,7 @@ send_window_probe(struct tcp_ctx *c, uint32_t now)
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next - 1, TCP_ACK, now,
 				   c->ts_recent);
+	g_emit[EM_PROBE]++;
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0)
 		c->last_ack_sent_ms = now;
 	mtp_timer_start(&c->probe, (uint64_t)PARITY_PROBE_MS * 1000000ULL);
@@ -1324,6 +1364,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			c->send_next - c->send_una);
 	pay.len = to_send;
 
+	g_emit[EM_DATA]++;
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0) {
 		c->send_next += to_send;
 		arm_rto(c);
