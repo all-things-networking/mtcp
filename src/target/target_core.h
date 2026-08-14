@@ -50,6 +50,15 @@ struct transport {
 	uint64_t		 forced_drains;
 	uint64_t		 bp_full, ring_drain_calls, merges;
 	uint64_t		 tx_dropped_for_test;
+	/*
+	 * Frames the emit path decided on and did NOT put on the wire: the
+	 * deliberate drop, and IPOutput refusing for want of an ARP entry.
+	 * tx_packets counts frames that reached the END of emit_segment; the
+	 * donor counts at SendTCPPacket, BEFORE any driver outcome. Without
+	 * this the two totals are not the same set, and the difference carries
+	 * the sign of the gap the comparison is trying to measure.
+	 */
+	uint64_t		 tx_suppressed;
 	uint64_t		 drain_depth[5];	/* blueprints pending when the drain ran */
 	uint64_t		 tx_hist_zero, tx_hist_full, tx_hist_short;
 	uint32_t		 tx_hist_short_mode;

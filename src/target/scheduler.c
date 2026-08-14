@@ -618,6 +618,9 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 			   (unsigned long)t->forced_drains,
 			   (unsigned long)t->tx_bursted,
 			   (unsigned long)t->merges);
+	TRACE_INFO("CPU %d: frames handed down = %lu counted + %lu suppressed\n",
+		   ctx->cpu, (unsigned long)TransportOf(core)->tx_packets,
+		   (unsigned long)TransportOf(core)->tx_suppressed);
 	TRACE_INFO("CPU %d: payload sizes: zero=%lu full=%lu short=%lu "
 		   "(commonest short=%u seen %lu)\n", ctx->cpu,
 		   (unsigned long)t->tx_hist_zero,

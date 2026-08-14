@@ -186,6 +186,7 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 			bp->prev_paylen = seg_len;
 		}
 		t->tx_dropped_for_test++;
+		t->tx_suppressed++;
 		return 0;
 	}
 
@@ -195,8 +196,16 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	 * the blueprint stays in the ring. */
 	l4 = IPOutput(core, &f->nif_out, &f->is_external, f->saddr, f->daddr,
 		      TRANSPORT_IP_PROTO, f->ip_id, (uint8_t)bp->prio, l4len);
-	if (!l4)
+	if (!l4) {
+		/* counted so "frames handed down" is reconstructible as
+		 * tx_packets + tx_suppressed. The donor counts at
+		 * SendTCPPacket, BEFORE any driver-level outcome; our counter
+		 * sits after this point, so without this the two totals are
+		 * not the same set and the difference has the sign of the gap
+		 * we are trying to measure. */
+		t->tx_suppressed++;
 		return -1;
+	}
 	f->ip_id++;			/* per-flow counter from 0; ip_out.c:147 */
 
 	memcpy(l4, bp->hdr, bp->hdr_len);
