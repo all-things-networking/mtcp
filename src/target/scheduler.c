@@ -13,6 +13,7 @@
  * cost a great deal. It is here now so that it cannot be lost later by
  * accident.
  */
+#include <signal.h>
 #include <sys/time.h>
 
 #include "infra.h"
@@ -495,6 +496,8 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 	return TRUE;
 }
 /*----------------------------------------------------------------------------*/
+volatile sig_atomic_t SchedStopRequested;
+
 void
 SchedRun(struct core_ctx *core, uint32_t max_ticks,
 	 void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg)
@@ -507,7 +510,7 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 	gettimeofday(&tv, NULL);
 	ts_start = TIMEVAL_TO_TS(&tv);
 
-	while (!ctx->exit && !ctx->done) {
+	while (!ctx->exit && !ctx->done && !SchedStopRequested) {
 		/* one clock read per iteration; everything below uses it */
 		gettimeofday(&tv, NULL);
 		ts = TIMEVAL_TO_TS(&tv);

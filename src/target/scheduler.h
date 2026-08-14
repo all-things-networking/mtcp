@@ -20,6 +20,7 @@
  * failure is a wall of errors inside libc headers that says nothing about the
  * cause.
  */
+#include <signal.h>
 #include "infra.h"
 #include "contract.h"
 
@@ -31,6 +32,14 @@
 /* `app` runs once per iteration, after the receive burst and before the drain —
  * the single-threaded poller shape both references have. NULL for an
  * application that only needs the stack to run. */
+/*
+ * Set from a signal handler to end the run loop. The runners stop a server with
+ * SIGINT and then SIGKILL, so a summary printed after SchedRun returns is only
+ * reachable if SIGINT unwinds the loop — the donor had the mirror of this and it
+ * cost a report there too.
+ */
+extern volatile sig_atomic_t SchedStopRequested;
+
 void SchedRun(struct core_ctx *core, uint32_t max_ticks,
 	      void (*app)(struct core_ctx *, uint32_t now, void *),
 	      void *app_arg);

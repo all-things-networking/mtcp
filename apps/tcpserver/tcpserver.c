@@ -175,6 +175,13 @@ serve(struct core_ctx *core, uint32_t now, void *arg)
  * instead, which is what one actually wants from a core anyway.
  */
 static void
+on_stop(int sig)
+{
+	(void)sig;
+	SchedStopRequested = 1;
+}
+
+static void
 on_fatal(int sig)
 {
 	void *fr[32];
@@ -206,6 +213,18 @@ main(int argc, char **argv)
 		sigaction(SIGSEGV, &sa, NULL);
 		sigaction(SIGABRT, &sa, NULL);
 		sigaction(SIGBUS, &sa, NULL);
+
+		/*
+		 * SIGINT/SIGTERM end the run loop rather than the process, so
+		 * the summary after SchedRun still prints. The runners stop a
+		 * server with SIGINT and then SIGKILL; without this the
+		 * counters are never reported and the transfer looks
+		 * unmeasured. Our side of a defect the donor has too.
+		 */
+		memset(&sa, 0, sizeof(sa));
+		sa.sa_handler = on_stop;
+		sigaction(SIGINT, &sa, NULL);
+		sigaction(SIGTERM, &sa, NULL);
 	}
 
 	const char *conf = "tcpserver.conf";
