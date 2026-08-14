@@ -14,6 +14,7 @@
 #include <execinfo.h>
 #include <unistd.h>
 #include <signal.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -366,15 +367,49 @@ main(int argc, char **argv)
 	{
 		int hdr;
 
-		g_resp = malloc(g_obj_len + 128);
+		g_resp = malloc(g_obj_len + 256);
 		if (!g_resp)
 			return 1;
-		hdr = snprintf((char *)g_resp, 128,
+		/*
+		 * THE DONOR'S RESPONSE HEADER, field for field — epserver.c:273.
+		 *
+		 * Rule 1 makes the donor the reference at the application layer
+		 * too, and the two responses were not the same size: 145 bytes
+		 * against our 63. That is 82 bytes per connection of extra data
+		 * on the donor's wire for the same object, which confounded the
+		 * byte comparison outright and about one frame of the
+		 * frame comparison. Invisible to every check we had, because the
+		 * delivered-content check compares the OBJECT and the frame
+		 * counters do not look at contents.
+		 *
+		 * Byte-identity is not achievable: the donor stamps a Date. But
+		 * strftime "%a, %d %b %Y %X GMT" is fixed-width at 29
+		 * characters, so the LENGTH is constant at 145 and the two
+		 * responses differ only in timestamp digits — which is where
+		 * the donor differs from itself run to run. That is the ceiling.
+		 *
+		 * The literals name a protocol. This is application code under
+		 * apps/, not target infrastructure, so rule 4's diff test is
+		 * unaffected — do not "fix" it.
+		 */
+		char date[64];
+		time_t now_t = time(NULL);
+
+		strftime(date, sizeof(date), "%a, %d %b %Y %X GMT",
+			 gmtime(&now_t));
+		hdr = snprintf((char *)g_resp, 256,
 			       "HTTP/1.1 200 OK\r\n"
+			       "Date: %s\r\n"
+			       "Server: Webserver on Middlebox TCP (Ubuntu)\r\n"
 			       "Content-Length: %zu\r\n"
-			       "Connection: close\r\n\r\n", g_obj_len);
+			       "Connection: Close\r\n\r\n", date, g_obj_len);
 		memcpy(g_resp + hdr, g_obj, g_obj_len);
 		g_resp_len = (size_t)hdr + g_obj_len;
+		/* the header as bytes, so it can be DIFFED against the donor's
+		 * rather than compared by length — equal length is not equal
+		 * bytes (PLAN.md §3, second instance). */
+		fprintf(stderr, "tcpserver: response header %d bytes: |%.*s|\n",
+			hdr, hdr, (char *)g_resp);
 	}
 
 	fprintf(stderr, "tcpserver: listening on %s:%u; RUN WINDOW OPENS NOW, ",
