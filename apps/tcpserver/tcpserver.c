@@ -179,6 +179,15 @@ on_stop(int sig)
 {
 	(void)sig;
 	SchedStopRequested = 1;
+	/*
+	 * write(2) and NOT fprintf. A signal handler may call only
+	 * async-signal-safe functions; fprintf takes the stream lock, and this
+	 * server prints a stat line every second, so the lock is contended by
+	 * construction. The handler would deadlock, hang to the runner's
+	 * timeout, and be force-killed — indistinguishable from the symptom it
+	 * was added to diagnose.
+	 */
+	write(2, "STOP-HANDLER-RAN\n", 17);
 }
 
 static void
