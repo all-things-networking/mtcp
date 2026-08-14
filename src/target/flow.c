@@ -152,6 +152,29 @@ tgt_bp_commit(flow_t *f, struct bp *bp)
 
 /*----------------------------------------------------------------------------*/
 /*
+ * The nine outcomes of a coalesce attempt. Reported at exit alongside the send
+ * decision's refusal reasons and the receive path's stages.
+ */
+enum { MRG_OK, MRG_UNCLASSIFIED, MRG_NO_PENDING, MRG_CLASS, MRG_KEY,
+       MRG_SCRATCH, MRG_NEW_NOPAY, MRG_PENDING_NOPAY, MRG_NONCONTIG,
+       MRG_REF_FAIL, MRG__N };
+static uint64_t g_mrg[MRG__N];
+
+void
+tgt_report_merges(void)
+{
+	static const char *n[MRG__N] = {
+		"MERGED", "program said no", "nothing pending", "class differs",
+		"key differs", "scratch_out set", "arriving has no payload",
+		"PENDING has no payload", "not contiguous", "ref failed" };
+	int i;
+
+	for (i = 0; i < MRG__N; i++)
+		fprintf(stderr, "coalesce     %-24s %llu\n", n[i],
+			(unsigned long long)g_mrg[i]);
+}
+
+/*
  * mtp_pkt_gen — the contract's packet-generation instruction.
  *
  * A program may rely on the packet being transmitted with the payload as it
@@ -183,8 +206,44 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	 */
 	mtp_program_coalesce(hdr, hdr_len, &cls, &key, &inherit,
 			     &keep_off, &keep_len);
+	if (!cls)
+		g_mrg[MRG_UNCLASSIFIED]++;
 	if (cls) {
 		struct bp *last = tgt_bp_last(f);
+
+		/*
+		 * WHY A MERGE DID NOT HAPPEN, counted per branch. The same
+		 * instrument that answered the send decision and the receive
+		 * path immediately, pointed at a third site.
+		 *
+		 * Evaluated alongside the real conditions rather than replacing
+		 * them: counting must not be able to change what the code does,
+		 * and this block is the only place the predicates are written
+		 * twice — a cost paid deliberately so the merge logic below is
+		 * untouched.
+		 *
+		 * NINE branches, not four. The distinction that matters is
+		 * between "the arriving blueprint has no payload" and "the
+		 * PENDING one has none": four zero-payload emissions occur per
+		 * transfer — SYN-ACK, ack of data, ack of FIN, our FIN — and any
+		 * of them pending when a data blueprint arrives produces
+		 * adjacency that MUST decline, because a merge needs payload on
+		 * both sides. That is correct behaviour, not a puzzle.
+		 */
+		if (!last)
+			g_mrg[MRG_NO_PENDING]++;
+		else if (last->coalesce_class != cls)
+			g_mrg[MRG_CLASS]++;
+		else if (last->coalesce_key != key)
+			g_mrg[MRG_KEY]++;
+		else if (f->scratch_out)
+			g_mrg[MRG_SCRATCH]++;
+		else if (!payload || !payload->len)
+			g_mrg[MRG_NEW_NOPAY]++;
+		else if (!last->payload.len)
+			g_mrg[MRG_PENDING_NOPAY]++;
+		else if (payload->off != last->base_seq + last->payload.len)
+			g_mrg[MRG_NONCONTIG]++;
 
 		if (last && last->coalesce_class == cls &&
 		    last->coalesce_key == key && !f->scratch_out) {
@@ -196,9 +255,17 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 			    payload->off == end) {
 				payref_t ext;
 
-				if (tgt_tx_ref(payload->u, last->base_seq,
-					       last->payload.len + payload->len,
-					       &ext) == 0) {
+				/* ONE call: tgt_tx_ref TAKES a reference, so
+				 * asking twice to count the failure would
+				 * double-reference on success. */
+				int reffed = tgt_tx_ref(payload->u,
+						last->base_seq,
+						last->payload.len + payload->len,
+						&ext);
+
+				if (reffed != 0)
+					g_mrg[MRG_REF_FAIL]++;
+				if (reffed == 0) {
 					tgt_tx_ref_release(last->unit);
 					last->payload = ext;
 					/* the NEWER header: stale ack, window
@@ -249,6 +316,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 					if (!inherit)
 						last->base_seq = payload->off;
 					TransportOf(g_core[0])->merges++;
+					g_mrg[MRG_OK]++;
 					if (getenv("MTP_TRACE_EV"))
 						fprintf(stderr,
 							"EV merge base=%llu len=%u\n",

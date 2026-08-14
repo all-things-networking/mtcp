@@ -646,6 +646,7 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 		void prog_report_refusals(void);
 
 		prog_report_refusals();
+		{ void tgt_report_merges(void); tgt_report_merges(); }
 	}
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,
 		   (unsigned long)TimerFires());
