@@ -289,6 +289,7 @@ key_of_inbound(uint32_t loc_ip, uint32_t rem_ip, uint16_t loc_port,
 enum { EM_SYNACK, EM_ACK_DATA, EM_ACK_FIN, EM_PROBE, EM_PROBE_REPLY, EM_FIN,
        EM_DATA, EM_DATA_RTX, EM__N };
 static uint64_t g_emit[EM__N];
+static uint64_t g_app_bytes;   /* bytes accepted from the application */
 
 /* mtp/tcp.mtp §proc_passive_open — a SYN with no context and a listener. */
 static void
@@ -397,7 +398,7 @@ enum { TMR_RTO, TMR_TIMEWAIT, TMR_PROBE, TMR__N };
 static uint64_t g_tmr[TMR__N];
 
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
-       RXS_ACK_ADVANCED, RXS__N };
+       RXS_ACK_ADVANCED, RXS_RST, RXS__N };
 static uint64_t g_rx[RXS__N];
 
 void
@@ -408,7 +409,8 @@ prog_report_refusals(void)
 					 "SENT" };
 	static const char *r[RXS__N] = { "reached dispatch", "flow ctx found",
 					 "proc_ack called", "  no ACK flag",
-					 "  DUPLICATE/STALE", "  ADVANCED una" };
+					 "  DUPLICATE/STALE", "  ADVANCED una",
+					 "INBOUND RST (discarded)" };
 	int i;
 
 	for (i = 0; i < REF__N; i++)
@@ -443,6 +445,11 @@ prog_report_refusals(void)
 			fprintf(stderr, "timer fired  %-17s %llu\n", tn[j],
 				(unsigned long long)g_tmr[j]);
 	}
+	fprintf(stderr, "app bytes accepted %llu  (SYN-ACKs %llu -> %.0f bytes/connection,"
+		" object is 1048721)\n",
+		(unsigned long long)g_app_bytes,
+		(unsigned long long)g_emit[EM_SYNACK],
+		g_emit[EM_SYNACK] ? (double)g_app_bytes / g_emit[EM_SYNACK] : 0.0);
 	for (i = 0; i < RXS__N; i++)
 		fprintf(stderr, "recv path     %-17s %llu\n", r[i],
 			(unsigned long long)g_rx[i]);
@@ -998,6 +1005,16 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	}
 
 	g_rx[RXS_CTX]++;
+	/*
+	 * INBOUND RST, counted and nothing else. DESIGN-CLOSE.md §5 records that
+	 * this program has no RST path: a peer that has gone away answers our
+	 * retransmissions with a reset and we discard it. That was written down
+	 * as a known absence before the between-transfer frame flood existed, and
+	 * it predicts exactly that shape — so it is worth TESTING, not believing.
+	 * If resets are not arriving in quantity, the reading is dead.
+	 */
+	if (e.flags & TCP_RST)
+		g_rx[RXS_RST]++;
 	proc_open_done(c, &e, now_ms);
 	proc_ack(c, &e, now_ms);
 	proc_recv(c, &e, now_ms);
@@ -1425,6 +1442,15 @@ tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len, uint32_t now)
 	addr.base = data;
 	addr.len = len;
 	wrote = mtp_add_tx_data(&c->tx, addr, len);
+	/*
+	 * BYTES THE APPLICATION HANDED US, in total. Splits the problem in half:
+	 * if the application wrote ~1 MB per connection and the wire carried
+	 * ~11 MB, the transport is re-sending; if it wrote ~11 MB, the transport
+	 * is faithfully sending what it was given and the fault is above this
+	 * line. A client that reads its 1 MB and closes would never notice.
+	 */
+	if (wrote > 0)
+		g_app_bytes += (uint64_t)wrote;
 	if (getenv("MTP_TRACE_SEQ"))
 		fprintf(stderr, "APPSEND state=%u len=%u wrote=%d write_end=%u "
 			"send_next=%u snd_base=%u cwnd=%u send_wnd=%u\n",
