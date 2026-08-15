@@ -266,7 +266,11 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 				if (reffed != 0)
 					g_mrg[MRG_REF_FAIL]++;
 				if (reffed == 0) {
-					tgt_tx_ref_release(last->unit);
+					/* the SUPERSEDED reference, named: it is
+					 * not the oldest, which is the whole
+					 * reason release is by identity */
+					tgt_tx_ref_release(last->unit,
+							   last->base_seq);
 					last->payload = ext;
 					/* the NEWER header: stale ack, window
 					 * or echo on a merged segment is what

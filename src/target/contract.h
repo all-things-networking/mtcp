@@ -91,10 +91,12 @@ struct mtp_data_unit {
 	uint64_t	 head_seq;	/* first byte still held */
 	uint64_t	 tail_seq;	/* one past the last byte held */
 
-	/* bases of every committed-and-undrained blueprint referencing this
-	 * unit, oldest first — internal.h §3 */
+	/* Bases of every committed-and-undrained blueprint referencing this
+	 * unit — internal.h §3. UNORDERED, and a multiset: entries may repeat,
+	 * and nothing reads a position. The head/tail pair that used to index
+	 * this is gone with the bug it caused (DESIGN.md §18); the minimum is
+	 * computed on demand instead of being tracked. */
 	uint64_t	 ref_base[MTP_MAX_LIVE_REFS];
-	uint16_t	 ref_head, ref_tail;
 	uint32_t	 live_refs;
 
 	/* How the unit forces a drain when a flush would cross a live

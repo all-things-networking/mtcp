@@ -116,8 +116,12 @@ int tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len,
 	       payref_t *out);
 
 /* Liveness ends here: called once per blueprint by the drain, after its LAST
- * segment has been copied into an mbuf. Not per segment. */
-void tgt_tx_ref_release(struct mtp_data_unit *u);
+ * segment has been copied into an mbuf. Not per segment.
+ *
+ * `base` names WHICH reference is being released. Release is by identity, not
+ * by position, so no ordering between callers is required and a new release
+ * site cannot reintroduce DESIGN.md §18's corruption. */
+void tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base);
 
 struct bp {
 	/* The earliest byte this blueprint will transmit. Used for two things,

@@ -38,8 +38,10 @@ static void count_drain(void *arg)
 {
 	(void)arg;
 	drains++;
+	/* Releases every reference by naming one that is live each time. Any
+	 * order is correct now — that is the point of release-by-identity. */
 	while (drain_unit && drain_unit->live_refs)
-		tgt_tx_ref_release(drain_unit);
+		tgt_tx_ref_release(drain_unit, drain_unit->ref_base[0]);
 }
 
 static void

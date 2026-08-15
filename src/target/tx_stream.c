@@ -19,6 +19,8 @@
 #include "contract.h"
 #include "internal.h"
 
+static uint64_t tx_ref_min(const struct mtp_data_unit *u);
+
 /*
  * No infra.h, no target_core.h, and therefore no DPDK. The ring depends on
  * nothing above it: its capacity arrives as a parameter and its forced drain as
@@ -155,24 +157,9 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 {
 	uint64_t upto = u->head_seq + len;
 
-	/*
-	 * The head slot is the OLDEST reference, and it is the minimum only if
-	 * references are taken in increasing sequence order. A retransmission
-	 * takes one BELOW references already outstanding, so its base lands in
-	 * the tail slot while being numerically the smallest — and this check
-	 * then reads a larger sequence, concludes the range is clear, and does
-	 * not force a drain.
-	 *
-	 * Instrumented rather than fixed: MTP_TRACE_REF prints what the head
-	 * holds against the true minimum, so the premise is checked rather than
-	 * assumed.
-	 */
 	if (getenv("MTP_TRACE_REF")) {
 		static uint64_t flushes;
 
-		/* head/tail as well as live_refs: enough to say whether a
-		 * region sits at a wrap, at a flush boundary, or at neither,
-		 * without a mechanism having to be true first. */
 		if (!(++flushes % 8) || u->live_refs)
 			fprintf(stderr, "FLUSHN n=%llu upto=%llu live=%u "
 				"head=%llu tail=%llu held=%llu cap=%u\n",
@@ -183,29 +170,20 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 				(unsigned long long)(u->tail_seq - u->head_seq),
 				u->cap);
 	}
-	if (getenv("MTP_TRACE_REF") && u->live_refs) {
-		uint64_t lo = u->ref_base[u->ref_head];
-		uint32_t i, n = u->live_refs;
-		int out_of_order = 0;
+	if (getenv("MTP_TRACE_REF") && u->live_refs)
+		fprintf(stderr, "FLUSH upto=%llu min=%llu live=%u\n",
+			(unsigned long long)upto,
+			(unsigned long long)tx_ref_min(u), u->live_refs);
 
-		for (i = 0; i < n; i++) {
-			uint64_t v = u->ref_base[(u->ref_head + i) % MTP_MAX_LIVE_REFS];
-
-			if (v < lo) { lo = v; out_of_order = 1; }
-		}
-		fprintf(stderr, "FLUSH upto=%llu head_holds=%llu true_min=%llu "
-			"live=%u%s\n", (unsigned long long)upto,
-			(unsigned long long)u->ref_base[u->ref_head],
-			(unsigned long long)lo, n,
-			out_of_order ? "  <<< HEAD IS NOT THE MINIMUM" : "");
-	}
-
-	if (u->live_refs && upto > u->ref_base[u->ref_head] && u->drain)
+	if (u->live_refs && upto > tx_ref_min(u) && u->drain)
 		u->drain(u->drain_arg);
 
-	/* Now our own invariant must hold. This never accuses the program: a
-	 * failure here means the drain above did not do its job. */
-	assert(!u->live_refs || upto <= u->ref_base[u->ref_head]);
+	/* I2. This never accuses the program: a failure here means the drain
+	 * above did not do its job. It is meaningful only because the minimum
+	 * is COMPUTED — the previous version asserted against whichever entry
+	 * happened to sit at the ring head, and was satisfied by a wrong value
+	 * while payload was being overwritten underneath it (DESIGN.md §18). */
+	assert(!u->live_refs || upto <= tx_ref_min(u));
 
 	if (upto > u->tail_seq)
 		upto = u->tail_seq;
@@ -249,23 +227,14 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out)
 	}
 
 	/*
-	 * THE RING'S PREMISE, CHECKED RATHER THAN DOCUMENTED. The flush reads
-	 * ref_base[ref_head] as the minimum, which is exact only while
-	 * references arrive in increasing sequence order. A retransmission is
-	 * the first path that can take one BELOW an outstanding reference, and
-	 * nothing would notice: the head would hold a larger sequence, the
-	 * flush would conclude the range is clear, and bytes would move under a
-	 * live reference.
-	 *
-	 * A stated assumption that a later mechanism can invalidate is the
-	 * shape that keeps biting here, and this one is already identified —
-	 * so it is asserted, not merely written down.
+	 * No ordering requirement. Taking a base BELOW an outstanding one — a
+	 * retransmission does exactly that — is safe here, because the minimum
+	 * is computed at every use rather than tracked as a position. The
+	 * previous version asserted increasing order to protect a head pointer
+	 * that no longer exists.
 	 */
-	assert(!u->live_refs || seq >= u->ref_base[u->ref_head]);
 	assert(u->live_refs < MTP_MAX_LIVE_REFS);
-	u->ref_base[u->ref_tail] = seq;
-	u->ref_tail = (uint16_t)((u->ref_tail + 1) % MTP_MAX_LIVE_REFS);
-	u->live_refs++;
+	u->ref_base[u->live_refs++] = seq;
 	return 0;
 }
 
@@ -274,22 +243,69 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out)
  * mbuf — internal.h §3 — so this is called once per blueprint, from the drain,
  * after its final segment and not per segment.
  *
- * Nothing called it for one commit, which is worth recording rather than
- * quietly fixing: live_refs only ever rose, so the oldest base stayed pinned at
- * the first byte the flow ever sent. In a debug build the first flush past the
- * first data packet would have tripped an assertion written to catch the
- * target; with NDEBUG it would have taken the forced-drain branch on every
- * flush for ever, cutting every coalescing run short. It would have passed
- * traffic and benchmarked cleanly while handing back the mechanism the whole
- * comparison rests on.
+ * RELEASE BY IDENTITY, NOT BY POSITION. The caller names the base it is
+ * releasing and that entry is removed wherever it sits. The previous version
+ * took only the unit, so it could not know which reference was meant and
+ * dropped the oldest — correct only if releases happen in the order the
+ * references were taken. Nothing guaranteed that, and the merge path in
+ * flow.c breaks it by construction: merging exists to drop a superseded
+ * reference that is precisely NOT the oldest. The result was silent payload
+ * corruption from two concurrent flows upward, with the flush's own assertion
+ * satisfied by a wrong value throughout. The full account is DESIGN.md §18.
+ *
+ * THE ASSUMPTION, STATED, because both previous designs here failed by
+ * carrying one that was not: `ref_base` holds BASES ONLY and nothing reads a
+ * position in it, so it is a MULTISET. Bases are NOT unique — the merge takes
+ * its wider reference at `last->base_seq` before releasing `last`'s reference
+ * at that same base, so two equal entries coexist by design. Identity by base
+ * alone is still exact, because removing any one entry of equal value leaves
+ * the same multiset, and the only question ever asked of it is its minimum.
+ * If a future caller ever needs to distinguish two references sharing a base,
+ * that is the assumption that has expired, and this comment is where to start.
+ *
+ * Order-independent by construction: no caller has to be enumerated for this
+ * to be correct, and a new release site cannot reintroduce the old bug.
  */
 void
-tgt_tx_ref_release(struct mtp_data_unit *u)
+tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base)
 {
-	if (!u->live_refs)
+	uint32_t i;
+
+	for (i = 0; i < u->live_refs; i++) {
+		if (u->ref_base[i] != base)
+			continue;
+		/* Compact: move the last entry into the hole. Order carries no
+		 * meaning now, so this is the whole removal. */
+		u->ref_base[i] = u->ref_base[--u->live_refs];
 		return;
-	u->ref_head = (uint16_t)((u->ref_head + 1) % MTP_MAX_LIVE_REFS);
-	u->live_refs--;
+	}
+
+	/* Releasing a base that is not live means the caller and the ring
+	 * disagree about what is outstanding. The old code returned silently
+	 * on an empty ring and popped an arbitrary entry otherwise, which is
+	 * how a mismatch stayed invisible for the whole of the sweep. */
+	assert(0 && "tgt_tx_ref_release: base is not live on this unit");
+}
+
+/*
+ * I1: the minimum live base. COMPUTED, never maintained — the bug in §18 was a
+ * maintained minimum going stale, and maintaining it correctly under arbitrary
+ * removal needs an ordering the callers cannot promise. MTP_MAX_LIVE_REFS is
+ * small and this is a scan of a hot, contiguous array; obviously correct beats
+ * clever here (rule 3).
+ */
+static uint64_t
+tx_ref_min(const struct mtp_data_unit *u)
+{
+	uint64_t lo;
+	uint32_t i;
+
+	assert(u->live_refs > 0);
+	lo = u->ref_base[0];
+	for (i = 1; i < u->live_refs; i++)
+		if (u->ref_base[i] < lo)
+			lo = u->ref_base[i];
+	return lo;
 }
 
 /* Free bytes in the ring — the target's own bookkeeping, for WRITABLE. */
