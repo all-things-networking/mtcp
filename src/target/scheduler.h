@@ -40,6 +40,12 @@
  */
 extern volatile sig_atomic_t SchedStopRequested;
 
+/* One iteration, for an application that owns its own event loop and drives
+ * the target rather than being driven by it (DESIGN.md §20). SchedRun is this
+ * in a loop; there is only one copy of the body. */
+void SchedStep(struct core_ctx *core,
+	       void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg);
+
 void SchedRun(struct core_ctx *core, uint32_t max_ticks,
 	      void (*app)(struct core_ctx *, uint32_t now, void *),
 	      void *app_arg);

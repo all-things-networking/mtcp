@@ -498,19 +498,28 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 /*----------------------------------------------------------------------------*/
 volatile sig_atomic_t SchedStopRequested;
 
+/*
+ * ONE iteration of the loop, exposed so the APPLICATION can drive the target
+ * instead of the target driving the application. The mTCP compatibility shim
+ * needs that inversion: epserver owns its own event loop and calls
+ * mtcp_epoll_wait, which pumps the target once (DESIGN.md §20).
+ *
+ * SchedRun is now this in a while loop, so there is ONE body and the two entry
+ * points cannot drift apart. A second copy of the receive/app/drain order
+ * would be the "one site of a kind" defect the standing rules name.
+ *
+ * No protocol identity here or in the name: rule 4 is unaffected.
+ */
 void
-SchedRun(struct core_ctx *core, uint32_t max_ticks,
-	 void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg)
+SchedStep(struct core_ctx *core,
+	  void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg)
 {
 	struct thread_ctx *ctx = core->ctx;
 	struct timeval tv = {0};
-	uint32_t ts, ts_start;
+	uint32_t ts;
 	int rx_inf, tx_inf, i;
 
-	gettimeofday(&tv, NULL);
-	ts_start = TIMEVAL_TO_TS(&tv);
 
-	while (!ctx->exit && !ctx->done && !SchedStopRequested) {
 		/* one clock read per iteration; everything below uses it */
 		gettimeofday(&tv, NULL);
 		ts = TIMEVAL_TO_TS(&tv);
@@ -583,7 +592,23 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 		}
 
 		core->iom->select(ctx);
+}
 
+void
+SchedRun(struct core_ctx *core, uint32_t max_ticks,
+	 void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg)
+{
+	struct thread_ctx *ctx = core->ctx;
+	struct timeval tv = {0};
+	uint32_t ts, ts_start;
+
+	gettimeofday(&tv, NULL);
+	ts_start = TIMEVAL_TO_TS(&tv);
+
+	while (!ctx->exit && !ctx->done && !SchedStopRequested) {
+		SchedStep(core, app, app_arg);
+		gettimeofday(&tv, NULL);
+		ts = TIMEVAL_TO_TS(&tv);
 		if (max_ticks && (uint32_t)(ts - ts_start) >= max_ticks)
 			break;
 	}
