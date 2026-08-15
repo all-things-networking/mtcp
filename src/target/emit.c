@@ -92,6 +92,10 @@ dump_tx(const uint8_t *eth, uint16_t total)
  * discipline for instrumentation on a reference applies to us as well: an
  * instrumented binary must be safe to benchmark unenabled.
  */
+/* Resolved once rather than per segment: this is the hottest path in the
+ * target and a getenv() here would dominate it. -1 = not yet resolved. */
+static int g_trace_seg = -1;
+
 static int
 drop_this_one(uint16_t seg_len)
 {
@@ -207,6 +211,33 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 		return -1;
 	}
 	f->ip_id++;			/* per-flow counter from 0; ip_out.c:147 */
+
+	/*
+	 * Per-segment state at the moment of emission, for the junction defect
+	 * (RESULTS 2026-08-15). Placed BEFORE the fixup below, because that
+	 * fixup OVERWRITES prev_paylen — logging after it would report the value
+	 * this segment stores, not the value this segment inherited, and the
+	 * inherited one is the whole question.
+	 *
+	 * Logs every field regardless of which reading it supports: blueprint
+	 * and flow identity to see interleaving, seg_* to locate the junction,
+	 * the inherited prev_* because a wrong LENGTH displaces payload without
+	 * any header byte being involved, and the payload snapshot because the
+	 * corruption is in payload. Deliberately not built around one candidate.
+	 */
+	if (g_trace_seg < 0)
+		g_trace_seg = getenv("MTP_TRACE_SEG") ? 1 : 0;
+	if (g_trace_seg) {
+		fprintf(stderr,
+			"SEG bp=%p flow=%p base=%llu off=%u len=%u idx=%u/%u "
+			"prev_valid=%u prev_paylen=%u pay=%p paylen=%u wraps=%d\n",
+			(void *)bp, (void *)f,
+			(unsigned long long)(bp->base_seq + seg_off),
+			seg_off, seg_len, bp->seg_idx, bp->seg_count,
+			bp->prev_hdr_valid, bp->prev_paylen,
+			(void *)bp->payload.data, bp->payload.len,
+			bp->payload.wraps ? 1 : 0);
+	}
 
 	memcpy(l4, bp->hdr, bp->hdr_len);
 

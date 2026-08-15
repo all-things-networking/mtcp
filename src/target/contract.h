@@ -320,6 +320,24 @@ int   mtp_del_ctx(const flowkey_t *key);
  * app got its handle from readiness and has no business constructing a flow id.
  * Protocol-neutral: it returns the opaque block the program declared.
  */
+/*
+ * PER-FLOW APPLICATION STATE (DESIGN.md §19). A fixed-size opaque block the
+ * target carries with the flow, zeroed when the flow is created and invalid
+ * once it is destroyed. The target never interprets a byte of it.
+ *
+ * It exists because the application has nowhere else to put per-connection
+ * state, and the obvious alternative -- an application table keyed by the flow
+ * pointer -- depends on a lifetime the application does not own. A recycled
+ * slot would hand it a pointer it had seen before, belonging to a different
+ * connection, silently.
+ *
+ * Zeroed on create, so all-zero IS the initial state and no "new flow" event is
+ * needed. The application asserts its own structure fits at BUILD time.
+ */
+#define MTP_APP_STATE_BYTES 128
+
+void *mtp_flow_app_state(flow_t *f);
+
 void *mtp_ctx_of(flow_t *f);
 
 /*============================================================================*

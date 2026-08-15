@@ -74,7 +74,29 @@ static size_t   g_resp_len;
  */
 #define WRITE_CHUNK	8192
 
-static size_t g_sent;		/* how much of the response has been accepted */
+/*
+ * PER-CONNECTION, not global. This was a single `static size_t g_sent` shared
+ * by every connection and reset by any incoming request: with two connections
+ * in flight each read the object from the other's offset and sent a total
+ * unrelated to the response length. Silent below 16 connections, and the whole
+ * of the c=2 corruption (RESULTS 2026-08-15).
+ *
+ * The block is the target's, carried with the flow and zeroed when the flow is
+ * created (DESIGN.md §19), so `sent == 0` on the first look at a new
+ * connection with no "flow began" event needed.
+ */
+struct conn_state {
+	size_t sent;		/* how much of the response THIS connection has sent */
+};
+
+_Static_assert(sizeof(struct conn_state) <= MTP_APP_STATE_BYTES,
+	       "conn_state outgrew the per-flow block; raise MTP_APP_STATE_BYTES");
+
+static struct conn_state *
+conn_of(flow_t *flow)
+{
+	return (struct conn_state *)mtp_flow_app_state(flow);
+}
 
 /*
  * Write until refused, exactly as epserver does. A short return is not an
@@ -83,9 +105,11 @@ static size_t g_sent;		/* how much of the response has been accepted */
 static void
 pump(flow_t *flow, uint32_t now)
 {
-	while (g_sent < g_resp_len) {
+	struct conn_state *c = conn_of(flow);
+
+	while (c->sent < g_resp_len) {
 		struct mtp_app_op snd;
-		size_t want = g_resp_len - g_sent;
+		size_t want = g_resp_len - c->sent;
 		int wrote;
 
 		if (want > WRITE_CHUNK)
@@ -94,13 +118,13 @@ pump(flow_t *flow, uint32_t now)
 		memset(&snd, 0, sizeof(snd));
 		snd.kind = MTP_APP_SEND;
 		snd.flow = flow;
-		snd.data.base = g_resp + g_sent;
+		snd.data.base = g_resp + c->sent;
 		snd.data.len = want;
 		snd.len = want;
 		wrote = mtp_program_app_op(&snd, now);
 		if (wrote <= 0)
 			return;		/* refused: wait for WRITABLE */
-		g_sent += (size_t)wrote;
+		c->sent += (size_t)wrote;
 		if ((size_t)wrote < want)
 			return;		/* truncated: same */
 	}
@@ -161,7 +185,7 @@ serve(struct core_ctx *core, uint32_t now, void *arg)
 		 * work — DESIGN.md §17.1's layering test, and it held.
 		 */
 		if (!strncmp((char *)buf, "GET ", 4)) {
-			g_sent = 0;
+			conn_of(ready[i].flow)->sent = 0;
 			fprintf(stderr, "tcpserver: answering \"%.20s\" with "
 				"%zu bytes\n", (char *)buf, g_resp_len);
 			pump(ready[i].flow, now);

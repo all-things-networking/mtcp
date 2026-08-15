@@ -148,6 +148,49 @@ test_flush_over_live_reference(void)
 	      "(drains=%d) — references are not being released", drains);
 }
 
+/*
+ * DESIGN.md §18, in nine lines: RELEASING A REFERENCE THAT IS NOT THE OLDEST.
+ *
+ * The merge path drops a superseded reference which is, by construction, not
+ * the oldest outstanding. The old release took only the unit, so it dropped
+ * whatever sat at the ring head — the OLDEST — and that blueprint's base left
+ * the ring while the blueprint was still live. The computed minimum jumped
+ * forward, the next flush concluded the range was clear, and bytes moved under
+ * a live reference. Silent payload corruption from two concurrent flows
+ * upward; it only announced itself as an abort at sixteen.
+ *
+ * This test fails on the old code at the FIRST check that follows the release.
+ */
+static void
+test_release_of_a_non_oldest_reference(void)
+{
+	struct mtp_data_unit u;
+	payref_t x, y;
+
+	drains = 0;
+	tgt_tx_unit_init(&u, MTP_SIZE_INF, 4096, count_drain, NULL);
+	drain_unit = &u;
+	fill(&u, 3000);
+
+	CHECK(tgt_tx_ref(&u, 0, 1000, &x) == 0, "X ref failed");
+	CHECK(tgt_tx_ref(&u, 1000, 1000, &y) == 0, "Y ref failed");
+	CHECK(u.live_refs == 2, "expected 2 live refs, got %u", u.live_refs);
+
+	/* Y goes first: the merge path's case, and not the oldest. */
+	tgt_tx_ref_release(&u, 1000);
+	CHECK(u.live_refs == 1, "expected 1 live ref, got %u", u.live_refs);
+	CHECK(u.ref_base[0] == 0,
+	      "the surviving reference has base %llu, want 0 — the WRONG entry "
+	      "was released", (unsigned long long)u.ref_base[0]);
+
+	/* X is still live at base 0, so a flush into its range must force a
+	 * drain. Having dropped X, the old code sails straight past. */
+	mtp_tx_flush_and_notify(&u, 500);
+	CHECK(drains == 1, "a flush over the surviving oldest reference did not "
+	      "force a drain (drains=%d) — its bytes were freed underneath it",
+	      drains);
+}
+
 int
 main(void)
 {
@@ -156,6 +199,7 @@ main(void)
 	test_ref_refuses_out_of_range();
 	test_ref_describes_the_wrap();
 	test_flush_over_live_reference();
+	test_release_of_a_non_oldest_reference();
 
 	printf("%s\n", failures ? "FAILED" : "  all checks passed");
 	return failures != 0;

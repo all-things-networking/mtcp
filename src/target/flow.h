@@ -22,6 +22,9 @@ struct flow {
 	flowkey_t	 key;
 	void		*ctx;		/* the program's generated context */
 
+	/* the application's, never the target's or the program's -- §19 */
+	uint8_t		 app_state[MTP_APP_STATE_BYTES];
+
 	/* L3 addressing, learned by the target from the packet or the app op
 	 * that created the flow. The program never sees an IP address unless
 	 * its own events carry one — addressing below the transport is
