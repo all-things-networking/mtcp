@@ -20,6 +20,7 @@
 #include "internal.h"
 
 static uint64_t tx_ref_min(const struct mtp_data_unit *u);
+static void tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto);
 
 /*
  * No infra.h, no target_core.h, and therefore no DPDK. The ring depends on
@@ -152,6 +153,60 @@ mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len)
  * is declined; the cost is one early drain in a case that is rare, and it cuts
  * a coalescing run short, which is why it is counted.
  */
+
+/*
+ * Everything known at the moment the invariant breaks. Two questions this must
+ * answer, both asked before the dump existed (2026-08-16):
+ *
+ *   - is `upto` past the minimum by exactly one MSS, as it was the first time
+ *     we saw this, or by something else? A one-segment overshoot and a large
+ *     one are different faults.
+ *   - is the offending reference the OLDEST outstanding, or one that should
+ *     already have been released? A flush advancing too far and a release that
+ *     never happened look identical from the assertion alone.
+ *
+ * Every base is printed, not a summary, because a summary is what the previous
+ * version of this check effectively was.
+ */
+static void
+tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
+{
+	uint64_t lo = tx_ref_min(u);
+	uint32_t i, lo_idx = 0;
+
+	for (i = 0; i < u->live_refs; i++)
+		if (u->ref_base[i] == lo) { lo_idx = i; break; }
+
+	fprintf(stderr,
+		"\n*** REF FAULT: flush past a live reference ***\n"
+		"  upto        = %llu\n"
+		"  min live    = %llu   (entry %u of %u)\n"
+		"  overshoot   = %llu bytes  (%.2f MSS at 1448)\n"
+		"  head_seq    = %llu\n"
+		"  tail_seq    = %llu   (held %llu of cap %u)\n"
+		"  min is %llu bytes behind head, %llu behind tail\n"
+		"  owner flow  = %p\n"
+		"  live refs (%u):\n",
+		(unsigned long long)upto,
+		(unsigned long long)lo, lo_idx, u->live_refs,
+		(unsigned long long)(upto - lo), (double)(upto - lo) / 1448.0,
+		(unsigned long long)u->head_seq,
+		(unsigned long long)u->tail_seq,
+		(unsigned long long)(u->tail_seq - u->head_seq), u->cap,
+		(unsigned long long)(u->head_seq - lo),
+		(unsigned long long)(u->tail_seq - lo),
+		(void *)u->owner, u->live_refs);
+
+	for (i = 0; i < u->live_refs; i++)
+		fprintf(stderr, "    [%2u] base=%llu  %s%s\n", i,
+			(unsigned long long)u->ref_base[i],
+			u->ref_base[i] == lo ? "<- MINIMUM " : "",
+			u->ref_base[i] < u->head_seq ? "<- BEHIND head_seq" : "");
+	if (tgt_dump_flow_bps)		/* absent in the unit-test link */
+		tgt_dump_flow_bps(u->owner, lo);
+	fflush(stderr);
+}
+
 int
 mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 {
@@ -182,8 +237,20 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 	 * above did not do its job. It is meaningful only because the minimum
 	 * is COMPUTED — the previous version asserted against whichever entry
 	 * happened to sit at the ring head, and was satisfied by a wrong value
-	 * while payload was being overwritten underneath it (DESIGN.md §18). */
-	assert(!u->live_refs || upto <= tx_ref_min(u));
+	 * while payload was being overwritten underneath it (DESIGN.md §18).
+	 *
+	 * INSTRUMENT THE FAILURE, NOT THE RUN. This fires about one run in five
+	 * at 16 connections, and a tracer over the whole run perturbs timing —
+	 * which already cost us once, when a traced run never reproduced the
+	 * fault it was built to catch (ratio 0.998). A dump on the failing path
+	 * costs nothing until the path is taken, so it cannot suppress the race
+	 * it is trying to observe, and one failure with full state is worth more
+	 * than many runs without.
+	 */
+	if (u->live_refs && upto > tx_ref_min(u)) {
+		tx_dump_ref_fault(u, upto);
+		assert(0 && "flush past a live reference — see the dump above");
+	}
 
 	if (upto > u->tail_seq)
 		upto = u->tail_seq;

@@ -123,6 +123,15 @@ int tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len,
  * site cannot reintroduce DESIGN.md §18's corruption. */
 void tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base);
 
+/* Debug only, on the assertion's failing path: print the blueprints of `owner`
+ * with their segmentation progress. Lives in flow.c so tx_stream.c need not
+ * reach into the flow's blueprint ring.
+ *
+ * WEAK, because the unit tests link tx_stream.c without flow.c and a debug
+ * dump must not decide what a test binary contains. Absent, the call is
+ * skipped and the rest of the dump still prints. */
+__attribute__((weak)) void tgt_dump_flow_bps(void *owner, uint64_t base);
+
 struct bp {
 	/* The earliest byte this blueprint will transmit. Used for two things,
 	 * both the target's own business: deriving each segment's offset, and

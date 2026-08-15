@@ -396,3 +396,32 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	tgt_bp_commit(f, bp);
 	return 0;
 }
+
+/*
+ * Segmentation progress of the blueprints on this flow, printed only from the
+ * reference-fault dump. The question it exists to answer: did the drain stop
+ * PART-WAY through a blueprint because the transmit buffer filled? If so
+ * seg_off is between 0 and the payload length and seg_idx is below seg_count,
+ * and the fault is back-pressure being treated as fatal rather than a
+ * corruption. If every blueprint is untouched, that candidate is dead.
+ */
+void
+tgt_dump_flow_bps(void *owner, uint64_t base)
+{
+	struct flow *f = (struct flow *)owner;
+	uint16_t i;
+
+	if (!f) { fprintf(stderr, "  (no owner flow recorded)\n"); return; }
+
+	fprintf(stderr, "  blueprints on this flow (ring head=%u tail=%u):\n",
+		f->ring_head, f->ring_tail);
+	for (i = f->ring_head; i != f->ring_tail; i = (uint16_t)((i + 1) % BP_RING_DEPTH)) {
+		struct bp *b = &f->ring[i];
+
+		fprintf(stderr,
+			"    [%2u] base=%llu paylen=%u seg %u/%u seg_off=%u%s\n",
+			i, (unsigned long long)b->base_seq, b->payload.len,
+			b->seg_idx, b->seg_count, b->seg_off,
+			b->base_seq == base ? "   <- HOLDS THE MINIMUM" : "");
+	}
+}
