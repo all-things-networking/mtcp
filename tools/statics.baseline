@@ -65,14 +65,9 @@ src/target/scheduler.c:702:static void
 src/target/scheduler.c:713:static void *
 src/target/scheduler.c:764: static struct sched_thread_arg arg;
 src/target/scheduler.c:95:static void
-src/target/timers.c:178: static uint32_t last;
-src/target/timers.c:181: static uint64_t n;
-src/target/timers.c:32:static struct mtp_timer *wheel[WHEEL_BUCKETS];
-src/target/timers.c:33:static struct mtp_timer *overflow; /* deadlines beyond the wheel's range */
-src/target/timers.c:34:static uint32_t wheel_now;
-src/target/timers.c:35:static int wheel_started;
-src/target/timers.c:36:static uint64_t fires;
-src/target/timers.c:38:static void
+src/target/timers.c:185: static uint32_t last;
+src/target/timers.c:188: static uint64_t n;
+src/target/timers.c:45:static void
 src/target/tx_stream.c:210:static void
 src/target/tx_stream.c:257: static uint64_t flushes;
 src/target/tx_stream.c:406:static uint64_t

@@ -19,9 +19,9 @@
 
 #include "contract.h"
 #include "internal.h"
+#include "target_core.h"
 #include "debug.h"
 
-#define WHEEL_BUCKETS	4096		/* 1-tick buckets, ~4 s of range */
 #define WHEEL_MASK	(WHEEL_BUCKETS - 1)
 
 /* The longest interval this wheel will accept. Generous — the donor's maximum
@@ -29,11 +29,18 @@
  * rather than a long timer. */
 #define TIMER_MAX_TICKS	(120u * 1000u)
 
-static struct mtp_timer *wheel[WHEEL_BUCKETS];
-static struct mtp_timer *overflow;	/* deadlines beyond the wheel's range */
-static uint32_t		 wheel_now;
-static int		 wheel_started;
-static uint64_t		 fires;
+/*
+ * The wheel lives in the per-core transport (target_core.h), not here. These
+ * accessors keep the 40-odd references in this file readable without threading
+ * a parameter through every one; the state itself is per core, which is what
+ * both references do and what this file previously did not.
+ */
+#define TW		(&TransportOf(g_core[0])->timers)
+#define wheel		(TW->bucket)
+#define overflow	(TW->overflow)
+#define wheel_now	(TW->now)
+#define wheel_started	(TW->started)
+#define fires		(TW->fires)
 
 static void
 unlink_timer(struct mtp_timer *t)

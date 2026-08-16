@@ -19,6 +19,23 @@ struct flow_table;
 struct listener_table;
 struct bp;
 
+/*
+ * THE TIMER WHEEL, PER CORE -- both references keep their timer state in the
+ * per-core manager and neither has a file-scope timer static. Ours were five
+ * (timers.c), which is the "only one thread touches it" assumption in the same
+ * form as everything else this rework has been unwinding, and it stopped being
+ * true the moment a second thread existed.
+ */
+#define WHEEL_BUCKETS	4096		/* 1-tick buckets, ~4 s of range */
+
+struct timer_wheel {
+	struct mtp_timer *bucket[WHEEL_BUCKETS];
+	struct mtp_timer *overflow;	/* deadlines beyond the wheel's range */
+	uint32_t	  now;
+	int		  started;
+	uint64_t	  fires;
+};
+
 struct transport {
 	struct flow_table	*flows;
 	struct listener_table	*listeners;
@@ -69,6 +86,9 @@ struct transport {
 	TAILQ_HEAD(ready_head, flow) ready_list;
 	/* flows the program has finished with, destroyed at a safe point */
 	TAILQ_HEAD(destroy_head, flow) destroy_list;
+
+	/* per core, not file scope */
+	struct timer_wheel	 timers;
 	struct flow_queue	 q_ready;
 	/* CR-E: application -> stack, "this flow has buffered bytes". */
 	struct flow_queue	 q_send;
