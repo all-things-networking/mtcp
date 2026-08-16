@@ -67,6 +67,8 @@ struct transport {
 	 * application's list, so no structure has two writers.
 	 */
 	TAILQ_HEAD(ready_head, flow) ready_list;
+	/* flows the program has finished with, destroyed at a safe point */
+	TAILQ_HEAD(destroy_head, flow) destroy_list;
 	struct flow_queue	 q_ready;
 	/* CR-E: application -> stack, "this flow has buffered bytes". */
 	struct flow_queue	 q_send;

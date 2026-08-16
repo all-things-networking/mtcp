@@ -103,6 +103,8 @@ typedef struct {
  * and the caller reading it makes the round-up-to-a-power-of-two decision
  * visible at the call site instead of buried three frames down.
  */
+void tgt_tx_unit_fini(struct mtp_data_unit *u);
+void tgt_rx_unit_fini(struct mtp_data_unit *u);
 int tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 		     void (*drain)(void *), void *drain_arg);
 

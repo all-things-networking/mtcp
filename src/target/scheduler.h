@@ -73,6 +73,9 @@ struct mtp_ready {
 /* Move flows the application published into gen_list. Stack thread, before
  * the drain. */
 void tgt_sched_take_notifications(struct core_ctx *core);
+/* Destroy flows the program finished with, at a point where no program call
+ * is in flight. */
+void tgt_sched_reap(struct core_ctx *core);
 
 int  TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max);
 

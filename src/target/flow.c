@@ -41,6 +41,7 @@ FlowPoolInit(struct core_ctx *core)
 	if (fq_init(&t->q_send, (fq_index_t)CONFIG.max_concurrency) < 0)
 		return -1;
 	{ int c; for (c = 0; c < MTP_PRIO_CLASSES; c++) TAILQ_INIT(&t->gen_list[c]); }
+	TAILQ_INIT(&t->destroy_list);
 	return 0;
 }
 
@@ -97,6 +98,8 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	f->ip_id = 0;
 	f->pending_send = 0;
 	f->pending_close = 0;
+	f->app_detached = 0;
+	f->pending_destroy = 0;
 	f->on_send_q = 0;
 	f->ctx = NULL;
 	/* §24: the slot index IS the identifier. Slots are not recycled, so it
@@ -123,6 +126,25 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 				f->on_gen[c] = 0;
 			}
 	}
+	/*
+	 * THE ASSERTION AT THE DESTROY SITE, and there is only one destroy site
+	 * so that it cannot be forgotten at a second. The donor's equivalent
+	 * safety is emergent -- it destroys in states only reachable after the
+	 * application has closed -- and B's caveat is that a new path into one
+	 * of those states breaks it silently. This is that invariant enforced
+	 * rather than relied upon.
+	 */
+	assert(f->app_detached &&
+	       "destroying a flow the application has not detached from");
+
+	/* Both byte-stream buffers, returned here and nowhere else -- which is
+	 * where the donor returns its payload chunk too. They were malloc'ed
+	 * per flow and never freed at all before this. */
+	if (f->tx_unit)
+		tgt_tx_unit_fini(f->tx_unit);
+	if (f->rx_unit)
+		tgt_rx_unit_fini(f->rx_unit);
+
 	FlowTableRemove(t->flows, &f->key);
 	/* the flow slot itself is not recycled yet — M1 is one connection.
 	 * A free list lands with connection reaping (A3), which M1 excludes. */
@@ -227,6 +249,15 @@ mtp_app_close(flow_t *f)
 {
 	if (!f)
 		return -1;
+
+	/*
+	 * DETACH FIRST, PUBLISH SECOND. The application is done with this flow
+	 * before anything tells the stack so; the publish below is the release
+	 * that makes the detach visible. Reversing these two lines reintroduces
+	 * the window in which the stack can destroy a flow the application is
+	 * still holding.
+	 */
+	f->app_detached = 1;
 	f->pending_close = 1;
 	tgt_publish_app_op(f);
 	return 0;

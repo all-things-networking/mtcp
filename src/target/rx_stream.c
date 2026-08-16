@@ -25,6 +25,15 @@ static inline uint32_t rx_off(const struct mtp_data_unit *u, uint64_t seq)
 			  & (u->cap - 1));
 }
 
+/* Returns the ring. Called once, from FlowDestroy. */
+void
+tgt_rx_unit_fini(struct mtp_data_unit *u)
+{
+	free(u->buf);
+	u->buf = NULL;
+	u->cap = 0;
+}
+
 int
 tgt_rx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 		 uint64_t base)

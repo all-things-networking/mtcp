@@ -54,16 +54,16 @@ src/target/emit.c:483: static int hold;
 src/target/emit.c:484: static uint32_t held;
 src/target/emit.c:97:static int g_trace_seg;
 src/target/emit.c:99:static int
-src/target/flow.c:397:static uint64_t g_mrg[MRG__N];
+src/target/flow.c:428:static uint64_t g_mrg[MRG__N];
 src/target/scheduler.c:128:static void
-src/target/scheduler.c:301:static void
-src/target/scheduler.c:409:static uint64_t transport_packets;
-src/target/scheduler.c:420:static struct {
-src/target/scheduler.c:446:static int
-src/target/scheduler.c:469: static uint64_t seen;
-src/target/scheduler.c:665:static void
-src/target/scheduler.c:676:static void *
-src/target/scheduler.c:727: static struct sched_thread_arg arg;
+src/target/scheduler.c:335:static void
+src/target/scheduler.c:443:static uint64_t transport_packets;
+src/target/scheduler.c:454:static struct {
+src/target/scheduler.c:480:static int
+src/target/scheduler.c:503: static uint64_t seen;
+src/target/scheduler.c:702:static void
+src/target/scheduler.c:713:static void *
+src/target/scheduler.c:764: static struct sched_thread_arg arg;
 src/target/scheduler.c:95:static void
 src/target/timers.c:178: static uint32_t last;
 src/target/timers.c:181: static uint64_t n;
@@ -73,7 +73,7 @@ src/target/timers.c:34:static uint32_t wheel_now;
 src/target/timers.c:35:static int wheel_started;
 src/target/timers.c:36:static uint64_t fires;
 src/target/timers.c:38:static void
-src/target/tx_stream.c:200:static void
-src/target/tx_stream.c:247: static uint64_t flushes;
-src/target/tx_stream.c:396:static uint64_t
+src/target/tx_stream.c:210:static void
+src/target/tx_stream.c:257: static uint64_t flushes;
+src/target/tx_stream.c:406:static uint64_t
 src/target/tx_stream.c:94:static void

@@ -114,6 +114,16 @@ own_check(uint64_t *slot, const char *which)
 }
 #define OWN(u, f, name) own_check(&(u)->f, name)
 
+/* Returns the ring. Called once, from FlowDestroy -- the buffer was malloc'ed
+ * per flow at init and was never freed anywhere before that site existed. */
+void
+tgt_tx_unit_fini(struct mtp_data_unit *u)
+{
+	free(u->buf);
+	u->buf = NULL;
+	u->cap = 0;
+}
+
 int
 mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len)
 {

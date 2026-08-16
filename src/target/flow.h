@@ -79,6 +79,28 @@ struct flow {
 	uint32_t	 pending_send;	/* bytes buffered, not yet handed over */
 	uint8_t		 pending_close;	/* application has closed; stack must act */
 	uint8_t		 on_send_q;
+
+	/*
+	 * DETACH-THEN-ENQUEUE (DESIGN.md §21.5). The application thread clears
+	 * its handle FIRST, then publishes the close; the queue's release/
+	 * acquire pair orders the two, so by the time the stack sees the close
+	 * the application is already off this flow. The prototype does exactly
+	 * this and its ordering comes from the barrier inside the ring, not
+	 * from a lock -- there is no lock in either reference here.
+	 */
+	uint8_t		 app_detached;
+
+	/*
+	 * DESTROY IS DEFERRED TO A SAFE POINT, never done inside a program
+	 * call. mtp_del_ctx used to free the entry -- and the program context
+	 * and both data units inside it -- while still inside
+	 * mtp_program_net_input, after which TransportInput dereferenced
+	 * f->rx_unit and f->tx_unit through ready_level_check. A confirmed
+	 * use-after-free on every connection's close path, invisible because
+	 * glibc leaves a just-freed small block intact.
+	 */
+	uint8_t		 pending_destroy;
+	TAILQ_ENTRY(flow) destroy_link;
 	uint8_t		 scratch_out[MTP_PRIO_CLASSES];	/* a tgt_bp_new() awaiting commit */
 };
 

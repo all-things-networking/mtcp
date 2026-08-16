@@ -283,7 +283,41 @@ mtp_ctx_lookup(const flowkey_t *key)
 int
 mtp_del_ctx(const flowkey_t *key)
 {
-	return FlowTableRemove(TransportOf(g_core[0])->flows, key);
+	struct transport *t = TransportOf(g_core[0]);
+	struct flow *f = FlowTableLookup(t->flows, key);
+
+	/*
+	 * MARKS, DOES NOT FREE. This is called from inside a program entry
+	 * point, and freeing here frees the program's context and both data
+	 * units with it -- after which TransportInput dereferences f->rx_unit
+	 * and f->tx_unit through ready_level_check, on every close. That was a
+	 * confirmed use-after-free, invisible because a just-freed small block
+	 * still reads correctly.
+	 *
+	 * The stack destroys at the end of its pass instead, when no program
+	 * call is on the stack.
+	 */
+	if (!f)
+		return -1;
+	if (!f->pending_destroy) {
+		f->pending_destroy = 1;
+		TAILQ_INSERT_TAIL(&t->destroy_list, f, destroy_link);
+	}
+	return 0;
+}
+
+/* End of pass, no program call in flight: now it is safe. */
+void
+tgt_sched_reap(struct core_ctx *core)
+{
+	struct transport *t = TransportOf(core);
+	struct flow *f;
+
+	while ((f = TAILQ_FIRST(&t->destroy_list)) != NULL) {
+		TAILQ_REMOVE(&t->destroy_list, f, destroy_link);
+		f->pending_destroy = 0;
+		FlowDestroy(core, f);
+	}
 }
 
 /*----------------------------------------------------------------------------*/
@@ -624,6 +658,9 @@ SchedStep(struct core_ctx *core,
 
 		TimerTick(ts);
 		tgt_drain(core);
+
+		/* nothing from the program is on the stack here */
+		tgt_sched_reap(core);
 
 		/*
 		 * What the burst actually accepted, as against what we handed
