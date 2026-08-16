@@ -531,7 +531,8 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 				int reffed = tgt_tx_ref(payload->u,
 						last->base_seq,
 						last->payload.len + payload->len,
-						&ext);
+						&ext, REF_SITE_MERGE_TAKE,
+						last);
 
 				if (reffed != 0)
 					g_mrg[MRG_REF_FAIL]++;
@@ -540,7 +541,9 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 					 * not the oldest, which is the whole
 					 * reason release is by identity */
 					tgt_tx_ref_release(last->unit,
-							   last->base_seq);
+							   last->base_seq,
+							   REF_SITE_MERGE_REL,
+							   last);
 					last->payload = ext;
 					/* the NEWER header: stale ack, window
 					 * or echo on a merged segment is what
@@ -636,7 +639,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		 * stays valid until the program flushes this range, which is
 		 * the guarantee that makes deferral safe (internal.h §3). */
 		if (tgt_tx_ref(payload->u, payload->off, payload->len,
-			       &bp->payload) < 0) {
+			       &bp->payload, REF_SITE_COMMIT, bp) < 0) {
 			f->scratch_out[pc] = 0;	/* abandoned, not committed */
 			return -1;
 		}

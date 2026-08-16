@@ -83,6 +83,17 @@ typedef struct flow flow_t;
  */
 #define MTP_MAX_LIVE_REFS	64	/* == the blueprint ring depth */
 
+/* Power of two: the log wraps and keeps the most recent events. */
+#define MTP_REF_LOG	32
+
+enum ref_site {
+	REF_SITE_COMMIT,	/* pkt_gen taking a reference for a new blueprint */
+	REF_SITE_MERGE_TAKE,	/* coalescing taking the wider reference */
+	REF_SITE_MERGE_REL,	/* coalescing dropping the superseded one */
+	REF_SITE_DRAIN_REL,	/* the drain, after a blueprint's last segment */
+	REF_SITE__N
+};
+
 struct mtp_data_unit {
 	uint8_t		*buf;
 	uint32_t	 cap;		/* a power of two: the ring's wrap mask */
@@ -98,6 +109,28 @@ struct mtp_data_unit {
 	 * computed on demand instead of being tracked. */
 	uint64_t	 ref_base[MTP_MAX_LIVE_REFS];
 	uint32_t	 live_refs;
+
+	/*
+	 * REFERENCE HISTORY -- the missing observable.
+	 *
+	 * Five fault dumps have shown the STATE at the moment of failure and
+	 * none has shown the SEQUENCE that produced it. Two invariants hold
+	 * across all five and neither has narrowed anything: the oldest live
+	 * reference sits exactly at head_seq, and the unit is within a few KB
+	 * of full. Neither says how the reference got there.
+	 *
+	 * Every take and every release is recorded here in order, with the
+	 * base, the blueprint and the call site. Two stores on paths that
+	 * already do more than that, and nothing at all until the fault fires.
+	 */
+	struct ref_event {
+		uint64_t base;
+		const void *bp;
+		uint8_t	 op;		/* 0 = take, 1 = release */
+		uint8_t	 site;		/* enum ref_site */
+		uint32_t live_after;
+	}		 ref_log[MTP_REF_LOG];
+	uint32_t	 ref_log_n;	/* total events; & (MTP_REF_LOG-1) indexes */
 
 	/*
 	 * SPSC OWNERSHIP, CHECKED RATHER THAN INTENDED (DESIGN.md §21.7).

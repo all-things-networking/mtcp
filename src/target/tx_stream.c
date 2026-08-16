@@ -21,6 +21,22 @@
 #include "internal.h"
 
 static uint64_t tx_ref_min(const struct mtp_data_unit *u);
+
+/* Two stores on paths that already do more than that. Never read except by the
+ * fault dump, so it costs nothing until something goes wrong. */
+static void
+ref_log_put(struct mtp_data_unit *u, uint8_t op, uint8_t site, uint64_t base,
+	    const void *bp)
+{
+	struct ref_event *e = &u->ref_log[u->ref_log_n & (MTP_REF_LOG - 1)];
+
+	e->base = base;
+	e->bp = bp;
+	e->op = op;
+	e->site = site;
+	e->live_after = u->live_refs;	/* set by the caller after the change */
+	u->ref_log_n++;
+}
 static void tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto);
 
 /*
@@ -243,6 +259,30 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 			u->ref_base[i] < u->head_seq ? "<- BEHIND head_seq" : "");
 	if (tgt_dump_flow_bps)		/* absent in the unit-test link */
 		tgt_dump_flow_bps(u->owner, lo);
+	{
+		static const char *sn[REF_SITE__N] = {
+			"commit", "merge-take", "merge-rel", "drain-rel"
+		};
+		uint32_t n = u->ref_log_n < MTP_REF_LOG ? u->ref_log_n
+							: MTP_REF_LOG;
+		uint32_t i;
+
+		fprintf(stderr, "  reference history, oldest first "
+			"(%u events total):\n", u->ref_log_n);
+		for (i = 0; i < n; i++) {
+			uint32_t k = (u->ref_log_n - n + i) & (MTP_REF_LOG - 1);
+			const struct ref_event *e = &u->ref_log[k];
+
+			fprintf(stderr, "    %-7s base=%-10llu bp=%p %-11s "
+				"live_after=%u%s\n",
+				e->op ? "RELEASE" : "take",
+				(unsigned long long)e->base, e->bp,
+				e->site < REF_SITE__N ? sn[e->site] : "?",
+				e->live_after,
+				e->base == lo ? "   <- THE MINIMUM" : "");
+		}
+	}
+
 	if (prog_dump_flow_state)	/* the caller's terms, not the callee's */
 		prog_dump_flow_state(u->owner);
 	fflush(stderr);
@@ -311,7 +351,8 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
  * happens.
  */
 int
-tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out)
+tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
+	   uint8_t site, const void *bp)
 {
 	uint32_t at, to_end;
 
@@ -344,6 +385,7 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out)
 	 */
 	assert(u->live_refs < MTP_MAX_LIVE_REFS);
 	u->ref_base[u->live_refs++] = seq;
+	ref_log_put(u, 0 /* take */, site, seq, bp);
 	return 0;
 }
 
@@ -376,7 +418,8 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out)
  * to be correct, and a new release site cannot reintroduce the old bug.
  */
 void
-tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base)
+tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base, uint8_t site,
+		   const void *bp)
 {
 	uint32_t i;
 
@@ -386,6 +429,7 @@ tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base)
 		/* Compact: move the last entry into the hole. Order carries no
 		 * meaning now, so this is the whole removal. */
 		u->ref_base[i] = u->ref_base[--u->live_refs];
+		ref_log_put(u, 1 /* release */, site, base, bp);
 		return;
 	}
 
