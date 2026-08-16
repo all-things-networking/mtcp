@@ -99,6 +99,26 @@ struct mtp_data_unit {
 	uint64_t	 ref_base[MTP_MAX_LIVE_REFS];
 	uint32_t	 live_refs;
 
+#ifndef NDEBUG
+	/*
+	 * SPSC OWNERSHIP, CHECKED RATHER THAN INTENDED (DESIGN.md §21.7).
+	 *
+	 * We use head_seq/tail_seq as an ownership boundary instead of the
+	 * donor's per-stream spinlock, which is correct ONLY while each index
+	 * has exactly one writer: the application advances the tail, the stack
+	 * advances the head, and nothing else writes either.
+	 *
+	 * That is true today by grep -- one write site each, one caller each,
+	 * retransmission read-only, and no compaction anywhere. It is not
+	 * enforced by anything, and it is precisely the class of invariant this
+	 * project has been bleeding from. First writer records itself; every
+	 * later write asserts it is the same thread. A path added later that
+	 * violates the precondition fails loudly instead of corrupting a
+	 * stream, which is the whole argument for diverging from the lock.
+	 */
+	uint64_t	 w_tail_tid, w_head_tid;
+#endif
+
 	/* How the unit forces a drain when a flush would cross a live
 	 * reference (internal.h §3). A callback rather than a reach into the
 	 * per-core state, so the ring depends on nothing above it — which is

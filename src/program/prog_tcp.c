@@ -398,7 +398,7 @@ enum { TMR_RTO, TMR_TIMEWAIT, TMR_PROBE, TMR__N };
 static uint64_t g_tmr[TMR__N];
 
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
-       RXS_ACK_ADVANCED, RXS_RST, RXS__N };
+       RXS_ACK_ADVANCED, RXS_RST, RXS_ACK_PAST_NEXT, RXS__N };
 static uint64_t g_rx[RXS__N];
 
 void
@@ -410,7 +410,8 @@ prog_report_refusals(void)
 	static const char *r[RXS__N] = { "reached dispatch", "flow ctx found",
 					 "proc_ack called", "  no ACK flag",
 					 "  DUPLICATE/STALE", "  ADVANCED una",
-					 "INBOUND RST (discarded)" };
+					 "INBOUND RST (discarded)",
+		"ack past send_next" };
 	int i;
 
 	for (i = 0; i < REF__N; i++)
@@ -715,6 +716,14 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * which the packet count and the size histogram would both pass.
 	 */
 	if ((int32_t)(e->ack - c->send_next) > 0) {
+		/*
+		 * COUNTED UNCONDITIONALLY. The print above is getenv-gated and
+		 * no run has ever enabled it, so "has this ever happened?" was
+		 * unanswerable from every log we hold -- absence of the string
+		 * was absence of the INSTRUMENT, not absence of the condition.
+		 * A counter costs an increment on a path already taken.
+		 */
+		g_rx[RXS_ACK_PAST_NEXT]++;
 		c->send_next = e->ack;
 		c->cwnd = c->ssthresh;
 	}

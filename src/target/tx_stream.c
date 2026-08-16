@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <pthread.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -86,6 +87,32 @@ tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 	return 0;
 }
 
+
+#ifndef NDEBUG
+/* First writer wins and records itself; every later write must match. Works
+ * before threading exists (both indices record the same thread and nothing
+ * fires) and starts discriminating the moment there are two. */
+static void
+own_check(uint64_t *slot, const char *which)
+{
+	uint64_t me = (uint64_t)(uintptr_t)pthread_self();
+
+	if (*slot == 0) { *slot = me; return; }
+	if (*slot != me) {
+		fprintf(stderr, "\n*** SPSC OWNERSHIP VIOLATED: %s written by "
+			"thread %llu, previously owned by %llu\n"
+			"    head_seq/tail_seq are an ownership boundary, not a "
+			"lock -- see DESIGN.md \u00a721.7\n", which,
+			(unsigned long long)me, (unsigned long long)*slot);
+		fflush(stderr);
+		assert(0 && "two threads write one SPSC index");
+	}
+}
+#define OWN(u, f, name) own_check(&(u)->f, name)
+#else
+#define OWN(u, f, name) ((void)0)
+#endif
+
 int
 mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len)
 {
@@ -135,6 +162,7 @@ mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len)
 		memcpy(u->buf + at, addr.base, first);
 		memcpy(u->buf, (const uint8_t *)addr.base + first, len - first);
 	}
+	OWN(u, w_tail_tid, "tx tail_seq");	/* the APPLICATION's index */
 	u->tail_seq += len;
 	return (int)len;
 }
@@ -256,6 +284,7 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 
 	if (upto > u->tail_seq)
 		upto = u->tail_seq;
+	OWN(u, w_head_tid, "tx head_seq");	/* the STACK's index */
 	u->head_seq = upto;
 	return 0;
 }
