@@ -84,7 +84,10 @@ typedef struct flow flow_t;
 #define MTP_MAX_LIVE_REFS	64	/* == the blueprint ring depth */
 
 /* Power of two: the log wraps and keeps the most recent events. */
-#define MTP_REF_LOG	32
+#define MTP_REF_LOG	256	/* long enough to hold both partners of an
+				 * overlap: firing B lost one because a 32-entry
+				 * window could not span a commit, its partner's
+				 * full life, and the flush */
 
 enum ref_site {
 	REF_SITE_COMMIT,	/* pkt_gen taking a reference for a new blueprint */
@@ -137,6 +140,7 @@ struct mtp_data_unit {
 		 * committed them" is one field away.
 		 */
 		const void *caller;
+		uint8_t	 kind;		/* 0 first send, 1 retransmission */
 	}		 ref_log[MTP_REF_LOG];
 	uint32_t	 ref_log_n;	/* total events; & (MTP_REF_LOG-1) indexes */
 
@@ -221,6 +225,16 @@ void mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size);
 int  mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len);
 int  mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len);
 
+/*
+ * The highest byte of this unit ACTUALLY PUT ON THE WIRE, in stream bytes.
+ *
+ * Deferred segmentation (P4) makes "generated" and "emitted" different things,
+ * by up to a ring under back-pressure. A program decision that means "has this
+ * been sent?" must read this, not its own generation counter. mTCP needs no
+ * equivalent: generation and emission are one act there.
+ */
+uint64_t mtp_tx_emitted(const struct mtp_data_unit *u);
+
 void mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t size);
 int  mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
 			 uint32_t len, uint64_t offset);
@@ -283,7 +297,8 @@ int  mtp_rx_flush_and_notify(struct mtp_data_unit *u, uint32_t len,
  */
 int mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		const struct mtp_tx_payload *payload,
-		uint32_t mss, uint32_t prio, uint32_t offload);
+		uint32_t mss, uint32_t prio, uint32_t offload,
+		uint32_t rtx);
 
 /*============================================================================*
  * 3. Segmentation rules (MTP_LANG §6, CR-1)

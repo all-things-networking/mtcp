@@ -26,7 +26,7 @@ static uint64_t tx_ref_min(const struct mtp_data_unit *u);
  * fault dump, so it costs nothing until something goes wrong. */
 static void
 ref_log_put(struct mtp_data_unit *u, uint8_t op, uint8_t site, uint64_t base,
-	    uint32_t len, const void *bp, const void *caller)
+	    uint32_t len, const void *bp, const void *caller, uint8_t kind)
 {
 	struct ref_event *e = &u->ref_log[u->ref_log_n & (MTP_REF_LOG - 1)];
 
@@ -36,6 +36,7 @@ ref_log_put(struct mtp_data_unit *u, uint8_t op, uint8_t site, uint64_t base,
 	e->op = op;
 	e->site = site;
 	e->caller = caller;
+	e->kind = kind;
 	e->live_after = u->live_refs;	/* set by the caller after the change */
 	u->ref_log_n++;
 }
@@ -279,12 +280,13 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 			uint32_t k = (u->ref_log_n - n + i) & (MTP_REF_LOG - 1);
 			const struct ref_event *e = &u->ref_log[k];
 
-			fprintf(stderr, "    %-7s [%llu,%llu) len=%-6u bp=%p %-11s "
+			fprintf(stderr, "    %-7s [%llu,%llu) len=%-6u bp=%p %s%-11s "
 				"live_after=%u%s\n",
 				e->op ? "RELEASE" : "take",
 				(unsigned long long)e->base,
 				(unsigned long long)(e->base + e->len),
 				e->len, e->bp,
+				e->op ? "" : (e->kind ? "RTX " : "new "),
 				e->site < REF_SITE__N ? sn[e->site] : "?",
 				e->live_after,
 				e->base == lo ? "   <- THE MINIMUM" : "");
@@ -377,7 +379,7 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
  */
 int
 tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
-	   uint8_t site, const void *bp, const void *caller)
+	   uint8_t site, const void *bp, const void *caller, uint8_t kind)
 {
 	uint32_t at, to_end;
 
@@ -410,7 +412,7 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 	 */
 	assert(u->live_refs < MTP_MAX_LIVE_REFS);
 	u->ref_base[u->live_refs++] = seq;
-	ref_log_put(u, 0 /* take */, site, seq, len, bp, caller);
+	ref_log_put(u, 0 /* take */, site, seq, len, bp, caller, kind);
 	return 0;
 }
 
@@ -444,7 +446,7 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
  */
 void
 tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base, uint8_t site,
-		   const void *bp, const void *caller)
+		   const void *bp, const void *caller, uint8_t kind)
 {
 	uint32_t i;
 
@@ -454,7 +456,7 @@ tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base, uint8_t site,
 		/* Compact: move the last entry into the hole. Order carries no
 		 * meaning now, so this is the whole removal. */
 		u->ref_base[i] = u->ref_base[--u->live_refs];
-		ref_log_put(u, 1 /* release */, site, base, 0, bp, caller);
+		ref_log_put(u, 1 /* release */, site, base, 0, bp, caller, kind);
 		return;
 	}
 
@@ -484,6 +486,12 @@ tx_ref_min(const struct mtp_data_unit *u)
 		if (u->ref_base[i] < lo)
 			lo = u->ref_base[i];
 	return lo;
+}
+
+uint64_t
+mtp_tx_emitted(const struct mtp_data_unit *u)
+{
+	return u->emitted_hwm;
 }
 
 /* Free bytes in the ring — the target's own bookkeeping, for WRITABLE. */

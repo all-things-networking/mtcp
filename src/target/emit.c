@@ -457,7 +457,7 @@ release_bp(struct bp *bp)
 {
 	if (bp->payload.len && bp->unit)
 		tgt_tx_ref_release(bp->unit, bp->base_seq, REF_SITE_DRAIN_REL, bp,
-				   NULL);
+				   NULL, 0);
 }
 
 /*----------------------------------------------------------------------------*/

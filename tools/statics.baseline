@@ -23,7 +23,8 @@ apps/tcpserver/tcpserver.c:56:static size_t g_obj_len;
 apps/tcpserver/tcpserver.c:63:static uint8_t *g_resp;
 apps/tcpserver/tcpserver.c:64:static size_t g_resp_len;
 src/program/prog_app.c:50:static void
-src/program/prog_tcp.c:1316:static void
+src/program/prog_tcp.c:1015:static void
+src/program/prog_tcp.c:1340:static void
 src/program/prog_tcp.c:141:static struct {
 src/program/prog_tcp.c:188:static void
 src/program/prog_tcp.c:225:static int
@@ -38,13 +39,13 @@ src/program/prog_tcp.c:505:static bool
 src/program/prog_tcp.c:516:static bool
 src/program/prog_tcp.c:534:static bool
 src/program/prog_tcp.c:542:static void
-src/program/prog_tcp.c:584:static void
-src/program/prog_tcp.c:614:static void
-src/program/prog_tcp.c:713:static void
-src/program/prog_tcp.c:823:static void
-src/program/prog_tcp.c:914:static void
+src/program/prog_tcp.c:599:static bool
+src/program/prog_tcp.c:607:static void
+src/program/prog_tcp.c:637:static void
+src/program/prog_tcp.c:736:static void
+src/program/prog_tcp.c:846:static void
 src/program/prog_tcp.c:937:static void
-src/program/prog_tcp.c:992:static void
+src/program/prog_tcp.c:960:static void
 src/target/emit.c:102: static int nth;
 src/target/emit.c:103: static int seen;
 src/target/emit.c:136:static int
@@ -70,8 +71,8 @@ src/target/scheduler.c:95:static void
 src/target/timers.c:193: static uint32_t last;
 src/target/timers.c:196: static uint64_t n;
 src/target/timers.c:45:static void
-src/target/tx_stream.c:112:static void
-src/target/tx_stream.c:228:static void
+src/target/tx_stream.c:113:static void
+src/target/tx_stream.c:229:static void
 src/target/tx_stream.c:27:static void
-src/target/tx_stream.c:317: static uint64_t flushes;
-src/target/tx_stream.c:475:static uint64_t
+src/target/tx_stream.c:319: static uint64_t flushes;
+src/target/tx_stream.c:477:static uint64_t

@@ -384,7 +384,7 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_SYN | TCP_ACK,
 				   now, c->ts_recent);
 	g_emit[EM_SYNACK]++;
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1) == 0) {
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1, 0 /* not a retransmission */) == 0) {
 		c->send_next++;			/* the SYN-ACK consumes one */
 		c->snd_base = c->send_next;	/* ...so data starts one past */
 		/*
@@ -581,6 +581,29 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
  * the effective value here is about 3 ms — roughly twenty times the measured
  * round trip. Reproduced: a retransmission on this link is a real event.
  */
+/*
+ * Is there data ON THE WIRE that has not been acknowledged? The only thing a
+ * retransmission timer should be waiting for.
+ *
+ * NOT `send_una != send_next`: send_next advances at GENERATION, so that test
+ * is true for a blueprint still sitting in the ring. Arming on it lets the
+ * timer expire against data that never went out, and the expiry rewinds
+ * send_next and regenerates -- producing a retransmission for a range a live
+ * blueprint is still carrying, whose reference can then never drain.
+ *
+ * That is the reading this change exists to test, and it is changed ALONE so
+ * the test means something: if the overlapping new-x-RTX pairs vanish, the
+ * mechanism is established; if they persist, the reading is wrong and the
+ * remaining sites are correctness work rather than the fix.
+ */
+static bool
+unacked_on_wire(const struct tcp_ctx *c)
+{
+	uint64_t acked = (uint64_t)(c->send_una - c->snd_base);
+
+	return c->tx_open && mtp_tx_emitted(&c->tx) > acked;
+}
+
 static void
 arm_rto(struct tcp_ctx *c)
 {
@@ -792,7 +815,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * is still outstanding. */
 	c->rtx_count = 0;
 	mtp_timer_stop(&c->rto);
-	if (c->send_una != c->send_next)
+	if (unacked_on_wire(c))
 		arm_rto(c);
 
 	/*
@@ -863,7 +886,7 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 						 now, c->ts_recent);
 
 		g_emit[EM_PROBE_REPLY]++;
-		mtp_pkt_gen(c->f, phdr, plen, &none, 0, PRIO_ACK, 1);
+		mtp_pkt_gen(c->f, phdr, plen, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */);
 		return;
 	}
 
@@ -898,7 +921,7 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
 	g_emit[EM_ACK_DATA]++;
-	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1);
+	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -957,7 +980,7 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
 	g_emit[EM_ACK_FIN]++;
-	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1);
+	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */);
 
 	/*
 	 * DESIGN-CLOSE.md §4. Where the peer's FIN takes us depends on whether
@@ -1021,7 +1044,8 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next,
 				   TCP_ACK | TCP_FIN, now, c->ts_recent);
 	g_emit[EM_FIN]++;
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_DATA, 1) == 0) {
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_DATA, 1,
+			0 /* the FIN is not a retransmission */) == 0) {
 		c->send_next++;		/* the FIN consumes one byte */
 		c->state = (c->state == TCP_CLOSE_WAIT) ? TCP_LAST_ACK
 							: TCP_FIN_WAIT_1;
@@ -1328,7 +1352,7 @@ send_window_probe(struct tcp_ctx *c, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next - 1, TCP_ACK, now,
 				   c->ts_recent);
 	g_emit[EM_PROBE]++;
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1) == 0)
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */) == 0)
 		c->last_ack_sent_ms = now;
 	mtp_timer_start(&c->probe, (uint64_t)PARITY_PROBE_MS * 1000000ULL);
 }
@@ -1359,6 +1383,7 @@ send_window_probe(struct tcp_ctx *c, uint32_t now)
 void
 tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 {
+	uint32_t rtx;		/* below the high-water mark: a retransmission */
 	uint8_t hdr[PROG_HDR_MAX];
 	struct mtp_tx_payload pay;
 	uint32_t win, to_send;
@@ -1465,7 +1490,8 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	 * refused, so the re-emission happens later from the acknowledgement
 	 * path — the rewind and the re-send are separated in time.
 	 */
-	if (c->send_next < c->send_high) {
+	rtx = c->send_next < c->send_high;
+	if (rtx) {
 		g_emit[EM_DATA_RTX]++;
 		if (getenv("MTP_TRACE_EV"))
 			fprintf(stderr, "EV rtx off=%u len=%u\n",
@@ -1473,11 +1499,13 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	} else {
 		g_emit[EM_DATA]++;
 	}
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, PRIO_DATA, 1) == 0) {
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, PRIO_DATA, 1,
+			rtx) == 0) {
 		c->send_next += to_send;
 		if (c->send_next > c->send_high)
 			c->send_high = c->send_next;
-		arm_rto(c);
+		if (unacked_on_wire(c))
+			arm_rto(c);
 	}
 }
 
