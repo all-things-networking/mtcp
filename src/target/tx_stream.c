@@ -88,7 +88,6 @@ tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 }
 
 
-#ifndef NDEBUG
 /* First writer wins and records itself; every later write must match. Works
  * before threading exists (both indices record the same thread and nothing
  * fires) and starts discriminating the moment there are two. */
@@ -105,13 +104,15 @@ own_check(uint64_t *slot, const char *which)
 			"lock -- see DESIGN.md \u00a721.7\n", which,
 			(unsigned long long)me, (unsigned long long)*slot);
 		fflush(stderr);
-		assert(0 && "two threads write one SPSC index");
+		/* abort(), not assert(): assert() compiles away under NDEBUG,
+		 * which would remove the check from exactly the build that
+		 * needs it. The cost is a thread-id compare on two sites that
+		 * are not hot -- the tail advances once per application write
+		 * and the head once per flush, never per segment. */
+		abort();
 	}
 }
 #define OWN(u, f, name) own_check(&(u)->f, name)
-#else
-#define OWN(u, f, name) ((void)0)
-#endif
 
 int
 mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len)

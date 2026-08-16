@@ -99,9 +99,14 @@ struct mtp_data_unit {
 	uint64_t	 ref_base[MTP_MAX_LIVE_REFS];
 	uint32_t	 live_refs;
 
-#ifndef NDEBUG
 	/*
 	 * SPSC OWNERSHIP, CHECKED RATHER THAN INTENDED (DESIGN.md §21.7).
+	 *
+	 * NOT debug-only. The configuration we measure is the configuration
+	 * that must carry the check: a check absent from the build that
+	 * produces numbers turns "we replaced a lock with a check" into "we
+	 * removed a lock", in the only build that runs at load and so the only
+	 * one where a wrong-thread write would first appear.
 	 *
 	 * We use head_seq/tail_seq as an ownership boundary instead of the
 	 * donor's per-stream spinlock, which is correct ONLY while each index
@@ -117,7 +122,6 @@ struct mtp_data_unit {
 	 * stream, which is the whole argument for diverging from the lock.
 	 */
 	uint64_t	 w_tail_tid, w_head_tid;
-#endif
 
 	/* How the unit forces a drain when a flush would cross a live
 	 * reference (internal.h §3). A callback rather than a reach into the
