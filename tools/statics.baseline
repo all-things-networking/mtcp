@@ -44,12 +44,12 @@ src/program/prog_tcp.c:936:static void
 src/target/emit.c:102: static int nth;
 src/target/emit.c:103: static int seen;
 src/target/emit.c:136:static int
-src/target/emit.c:361:static int
-src/target/emit.c:433:static void
+src/target/emit.c:374:static int
+src/target/emit.c:446:static void
 src/target/emit.c:44:static void
-src/target/emit.c:469: static int hold;
-src/target/emit.c:470: static uint32_t held;
 src/target/emit.c:47: static int budget;
+src/target/emit.c:482: static int hold;
+src/target/emit.c:483: static uint32_t held;
 src/target/emit.c:97:static int g_trace_seg;
 src/target/emit.c:99:static int
 src/target/flow.c:246:static uint64_t g_mrg[MRG__N];

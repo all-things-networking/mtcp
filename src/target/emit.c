@@ -198,8 +198,21 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	 * returns NULL if the destination is not in the ARP table, having
 	 * queued an ARP request. mTCP retries the packet later and so do we:
 	 * the blueprint stays in the ring. */
+	/*
+	 * TOS IS ALWAYS ZERO, as the donor's is. `bp->prio` used to be passed
+	 * here, which made one field mean two things -- a scheduling hint and a
+	 * header byte -- and put a value on the wire the donor never sets:
+	 * `iph->tos = 0` unconditionally at ip_out.c:74 and :145, and its
+	 * IPOutput takes no tos argument at all.
+	 *
+	 * Latent while every pkt_gen site passed prio = 0. It would have
+	 * stopped being latent the moment the scheduler gave the classes
+	 * distinct values -- a wire divergence appearing as a side effect of
+	 * building something else, which is the kind that ships without anyone
+	 * deciding. `prio` now reaches the drain and nothing else.
+	 */
 	l4 = IPOutput(core, &f->nif_out, &f->is_external, f->saddr, f->daddr,
-		      TRANSPORT_IP_PROTO, f->ip_id, (uint8_t)bp->prio, l4len);
+		      TRANSPORT_IP_PROTO, f->ip_id, 0 /* tos */, l4len);
 	if (!l4) {
 		/* counted so "frames handed down" is reconstructible as
 		 * tx_packets + tx_suppressed. The donor counts at
