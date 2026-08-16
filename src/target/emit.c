@@ -512,9 +512,9 @@ tgt_drain(struct core_ctx *core)
 	 * is countable rather than arguable.
 	 */
 	for (c = MTP_PRIO_CLASSES - 1; c >= 0; c--)
-	TAILQ_FOREACH(f, &t->gen_list[c], gen_link) {
-		uint32_t n = (uint32_t)((f->ring_tail + BP_RING_DEPTH
-					 - f->ring_head) % BP_RING_DEPTH);
+	TAILQ_FOREACH(f, &t->gen_list[c], gen_link[c]) {
+		uint32_t n = (uint32_t)((f->ring_tail[c] + BP_RING_DEPTH
+					 - f->ring_head[c]) % BP_RING_DEPTH);
 
 		if (n < 4)
 			t->drain_depth[n]++;
@@ -530,9 +530,9 @@ tgt_drain(struct core_ctx *core)
 	 * program's own sequencing.
 	 */
 	for (c = MTP_PRIO_CLASSES - 1; c >= 0; c--)
-	TAILQ_FOREACH_SAFE(f, &t->gen_list[c], gen_link, tmp) {
-		while (f->ring_head != f->ring_tail) {
-			struct bp *bp = &f->ring[f->ring_head];
+	TAILQ_FOREACH_SAFE(f, &t->gen_list[c], gen_link[c], tmp) {
+		while (f->ring_head[c] != f->ring_tail[c]) {
+			struct bp *bp = &f->ring[c][f->ring_head[c]];
 
 			if (emit_bp(core, f, bp) < 0) {
 				/*
@@ -587,10 +587,10 @@ tgt_drain(struct core_ctx *core)
 			release_bp(bp);
 			bp->seg_off = 0;
 			bp->prev_hdr_valid = 0;
-			f->ring_head = ring_next(f->ring_head);
+			f->ring_head[c] = ring_next(f->ring_head[c]);
 		}
 
-		TAILQ_REMOVE(&t->gen_list[c], f, gen_link);
-		f->gen_class = -1;
+		TAILQ_REMOVE(&t->gen_list[c], f, gen_link[c]);
+		f->on_gen[c] = 0;
 	}
 }

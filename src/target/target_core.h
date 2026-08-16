@@ -99,6 +99,18 @@ struct transport {
 	uint32_t		 tx_hist_short_mode;
 	uint64_t		 tx_hist_short_mode_n;
 	uint64_t		 notifies[4];
+
+	/*
+	 * BOUNDARY CROSSINGS, counted because the 3.2x throughput loss under
+	 * threading is unattributed and this is what tests the obvious
+	 * attribution. The donor crosses once per application write and once
+	 * per readiness event; if ours is comparable and we still lose 3.2x,
+	 * the boundary is not the cost. If ours is an order of magnitude
+	 * higher, the boundary is carrying something §21.6 says it must not.
+	 */
+	uint64_t		 cross_send;	/* app -> stack: send/close */
+	uint64_t		 cross_notify;	/* app -> stack: generation */
+	uint64_t		 cross_ready;	/* stack -> app: readiness */
 	/* readiness, from both ends: what the transport put on the list and
 	 * what the application found there. The pair discriminates "never
 	 * notified" from "notified and the application saw nothing". */

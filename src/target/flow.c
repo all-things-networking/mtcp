@@ -24,7 +24,8 @@ FlowPoolInit(struct core_ctx *core)
 	struct transport *t = TransportOf(core);
 
 	t->flow_pool = calloc(CONFIG.max_concurrency, sizeof(struct flow));
-	t->bp_pool = calloc((size_t)CONFIG.max_concurrency * BP_RING_DEPTH,
+	t->bp_pool = calloc((size_t)CONFIG.max_concurrency * MTP_PRIO_CLASSES
+			    * BP_RING_DEPTH,
 			    sizeof(struct bp));
 	if (!t->flow_pool || !t->bp_pool)
 		return -1;
@@ -74,7 +75,18 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	}
 
 	f = &t->flow_pool[t->flow_next];
-	f->ring = &t->bp_pool[(size_t)t->flow_next * BP_RING_DEPTH];
+	{
+		int c;
+
+		for (c = 0; c < MTP_PRIO_CLASSES; c++) {
+			f->ring[c] = &t->bp_pool[((size_t)t->flow_next
+						  * MTP_PRIO_CLASSES + c)
+						 * BP_RING_DEPTH];
+			f->ring_head[c] = f->ring_tail[c] = 0;
+			f->on_gen[c] = 0;
+			f->scratch_out[c] = 0;
+		}
+	}
 	t->flow_next++;
 
 	f->key = *key;
@@ -83,8 +95,6 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	f->nif_out = -1;
 	f->is_external = 0;
 	f->ip_id = 0;
-	f->ring_head = f->ring_tail = 0;
-	f->gen_class = -1;
 	f->pending_send = 0;
 	f->pending_close = 0;
 	f->on_send_q = 0;
@@ -102,9 +112,16 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 {
 	struct transport *t = TransportOf(core);
 
-	if (f->gen_class >= 0) {
-		TAILQ_REMOVE(&t->gen_list[f->gen_class], f, gen_link);
-		f->gen_class = -1;
+	{
+		int c;
+
+		/* every list, separately -- DestroyTCPStream unlinks its three
+		 * the same way (tcp_stream.c:486-488) */
+		for (c = 0; c < MTP_PRIO_CLASSES; c++)
+			if (f->on_gen[c]) {
+				TAILQ_REMOVE(&t->gen_list[c], f, gen_link[c]);
+				f->on_gen[c] = 0;
+			}
 	}
 	FlowTableRemove(t->flows, &f->key);
 	/* the flow slot itself is not recycled yet — M1 is one connection.
@@ -127,31 +144,27 @@ void
 tgt_sched_enqueue(flow_t *f, uint32_t prio)
 {
 	struct transport *t = TransportOf(g_core[0]);
-	int8_t c = (int8_t)(prio < MTP_PRIO_CLASSES ? prio
-						    : MTP_PRIO_CLASSES - 1);
+	int c = (int)(prio < MTP_PRIO_CLASSES ? prio : MTP_PRIO_CLASSES - 1);
 
 	/*
-	 * THE GUARD IS HERE, not at the call sites, and it is what makes the
-	 * queue's flow-count capacity sound (DESIGN.md §21.10). A flow already
-	 * pending at this class or higher enqueues nothing, however many times
-	 * it is written.
+	 * THE GUARD IS PER (FLOW, CLASS) and lives here, not at the call sites.
+	 * That is what keeps each list bounded by flow count: a flow appears at
+	 * most once per list however many packets of that class it generates.
+	 * A new producer cannot omit a guard it cannot reach -- the prototype
+	 * added one that set the flag without testing it and its capacity
+	 * argument silently stopped holding.
 	 */
-	if (f->gen_class >= c)
+	if (f->on_gen[c])
 		return;
-
-	/* Pending at a LOWER class: lift it, so a higher-priority blueprint
-	 * does not queue behind this flow's own backlog. */
-	if (f->gen_class >= 0)
-		TAILQ_REMOVE(&t->gen_list[f->gen_class], f, gen_link);
-
-	f->gen_class = c;
+	f->on_gen[c] = 1;
 
 	if (t->stack_tid == 0 ||
 	    t->stack_tid == (uint64_t)(uintptr_t)pthread_self()) {
-		TAILQ_INSERT_TAIL(&t->gen_list[c], f, gen_link);
+		TAILQ_INSERT_TAIL(&t->gen_list[c], f, gen_link[c]);
 		return;
 	}
 
+	t->cross_notify++;
 	if (fq_enqueue(&t->q_notify, f) != 0) {
 		fprintf(stderr, "\n*** NOTIFY QUEUE FULL: capacity is flow "
 			"count and the membership guard should make this "
@@ -236,7 +249,7 @@ tgt_publish_app_op(flow_t *f)
 			 */
 			tgt_deliver_send(g_core[0], f);
 			return;
-		} else if (fq_enqueue(&t->q_send, f) != 0) {
+		} else if (t->cross_send++, fq_enqueue(&t->q_send, f) != 0) {
 			fprintf(stderr, "\n*** SEND QUEUE FULL: capacity is "
 				"flow count and the membership guard should "
 				"make this impossible\n");
@@ -303,9 +316,16 @@ tgt_sched_take_notifications(struct core_ctx *core)
 		 * so this cannot double-insert; the drain clears it when the
 		 * flow is finished with.
 		 */
-		if (f->gen_class >= 0)
-			TAILQ_INSERT_TAIL(&t->gen_list[f->gen_class], f,
-					  gen_link);
+		{
+			int c;
+
+			/* The queue says "this flow has work"; which lists it
+			 * belongs on is read from its per-class flags. */
+			for (c = 0; c < MTP_PRIO_CLASSES; c++)
+				if (f->on_gen[c])
+					TAILQ_INSERT_TAIL(&t->gen_list[c], f,
+							  gen_link[c]);
+		}
 	}
 }
 
@@ -313,42 +333,45 @@ tgt_sched_take_notifications(struct core_ctx *core)
 static inline uint16_t ring_next(uint16_t i) { return (uint16_t)((i + 1) % BP_RING_DEPTH); }
 
 struct bp *
-tgt_bp_new(flow_t *f)
+tgt_bp_new(flow_t *f, int c)
 {
 	/* A SCRATCH SLOT: the one past the tail. Not in the ring, not drained,
 	 * holding no live payload reference until commit. Returns NULL when the
 	 * ring is full and every caller checks — the prototype has twelve call
 	 * sites and not one does. */
-	if (ring_next(f->ring_tail) == f->ring_head)
+	if (ring_next(f->ring_tail[c]) == f->ring_head[c])
 		return NULL;
 
 	/* Two tgt_bp_new() with no commit between them is a contract violation,
 	 * not a silent overwrite: the second would hand back the same scratch
 	 * slot and the first caller's header would vanish under it. Cheap to
 	 * assert, and otherwise it surfaces as a corrupted packet weeks later. */
-	assert(!f->scratch_out);
-	f->scratch_out = 1;
+	assert(!f->scratch_out[c]);
+	f->scratch_out[c] = 1;
 
-	return &f->ring[f->ring_tail];
+	return &f->ring[c][f->ring_tail[c]];
 }
 
 struct bp *
-tgt_bp_last(flow_t *f)
+tgt_bp_last(flow_t *f, int c)
 {
 	uint16_t last;
 
-	if (f->ring_head == f->ring_tail)
+	if (f->ring_head[c] == f->ring_tail[c])
 		return NULL;
-	last = (uint16_t)((f->ring_tail + BP_RING_DEPTH - 1) % BP_RING_DEPTH);
-	return &f->ring[last];
+	last = (uint16_t)((f->ring_tail[c] + BP_RING_DEPTH - 1) % BP_RING_DEPTH);
+	return &f->ring[c][last];
 }
 
 void
 tgt_bp_commit(flow_t *f, struct bp *bp)
 {
-	assert(bp == &f->ring[f->ring_tail]);
-	f->scratch_out = 0;
-	f->ring_tail = ring_next(f->ring_tail);
+	int c = (int)(bp->prio < MTP_PRIO_CLASSES ? bp->prio
+						  : MTP_PRIO_CLASSES - 1);
+
+	assert(bp == &f->ring[c][f->ring_tail[c]]);
+	f->scratch_out[c] = 0;
+	f->ring_tail[c] = ring_next(f->ring_tail[c]);
 	tgt_sched_enqueue(f, bp->prio);
 }
 
@@ -389,6 +412,9 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	    uint32_t mss, uint32_t prio, uint32_t offload)
 {
 	uint16_t keep_off = 0, keep_len = 0;
+	/* storage is per (flow, class); coalescing only ever merges within one */
+	const int pc = (int)(prio < MTP_PRIO_CLASSES ? prio
+						     : MTP_PRIO_CLASSES - 1);
 	struct bp *bp;
 	uint8_t cls = 0;
 	uint32_t key = 0;
@@ -411,7 +437,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	if (!cls)
 		g_mrg[MRG_UNCLASSIFIED]++;
 	if (cls) {
-		struct bp *last = tgt_bp_last(f);
+		struct bp *last = tgt_bp_last(f, pc);
 
 		/*
 		 * WHY A MERGE DID NOT HAPPEN, counted per branch. The same
@@ -438,7 +464,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 			g_mrg[MRG_CLASS]++;
 		else if (last->coalesce_key != key)
 			g_mrg[MRG_KEY]++;
-		else if (f->scratch_out)
+		else if (f->scratch_out[pc])
 			g_mrg[MRG_SCRATCH]++;
 		else if (!payload || !payload->len)
 			g_mrg[MRG_NEW_NOPAY]++;
@@ -448,7 +474,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 			g_mrg[MRG_NONCONTIG]++;
 
 		if (last && last->coalesce_class == cls &&
-		    last->coalesce_key == key && !f->scratch_out) {
+		    last->coalesce_key == key && !f->scratch_out[pc]) {
 			uint64_t end = last->base_seq + last->payload.len;
 
 			/* contiguous only: a gap would silently fabricate
@@ -534,7 +560,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		}
 	}
 
-	bp = tgt_bp_new(f);
+	bp = tgt_bp_new(f, pc);
 
 	if (!bp) {
 		TransportOf(g_core[0])->bp_full++;
@@ -569,7 +595,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		 * the guarantee that makes deferral safe (internal.h §3). */
 		if (tgt_tx_ref(payload->u, payload->off, payload->len,
 			       &bp->payload) < 0) {
-			f->scratch_out = 0;	/* abandoned, not committed */
+			f->scratch_out[pc] = 0;	/* abandoned, not committed */
 			return -1;
 		}
 		bp->unit = payload->u;
@@ -591,19 +617,31 @@ void
 tgt_dump_flow_bps(void *owner, uint64_t base)
 {
 	struct flow *f = (struct flow *)owner;
-	uint16_t i;
+	int c;
 
 	if (!f) { fprintf(stderr, "  (no owner flow recorded)\n"); return; }
 
-	fprintf(stderr, "  blueprints on this flow (ring head=%u tail=%u):\n",
-		f->ring_head, f->ring_tail);
-	for (i = f->ring_head; i != f->ring_tail; i = (uint16_t)((i + 1) % BP_RING_DEPTH)) {
-		struct bp *b = &f->ring[i];
+	/* every class, because storage is per (flow, class) and the blueprint
+	 * holding the minimum can be in any of them */
+	for (c = 0; c < MTP_PRIO_CLASSES; c++) {
+		uint16_t i;
 
-		fprintf(stderr,
-			"    [%2u] base=%llu paylen=%u seg %u/%u seg_off=%u%s\n",
-			i, (unsigned long long)b->base_seq, b->payload.len,
-			b->seg_idx, b->seg_count, b->seg_off,
-			b->base_seq == base ? "   <- HOLDS THE MINIMUM" : "");
+		if (f->ring_head[c] == f->ring_tail[c])
+			continue;
+		fprintf(stderr, "  blueprints, class %d (head=%u tail=%u):\n",
+			c, f->ring_head[c], f->ring_tail[c]);
+		for (i = f->ring_head[c]; i != f->ring_tail[c];
+		     i = (uint16_t)((i + 1) % BP_RING_DEPTH)) {
+			struct bp *b = &f->ring[c][i];
+
+			fprintf(stderr,
+				"    [%2u] base=%llu paylen=%u seg %u/%u "
+				"seg_off=%u%s\n", i,
+				(unsigned long long)b->base_seq,
+				b->payload.len, b->seg_idx, b->seg_count,
+				b->seg_off,
+				b->base_seq == base ? "   <- HOLDS THE MINIMUM"
+						    : "");
+		}
 	}
 }

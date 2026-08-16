@@ -297,9 +297,25 @@ enum { EM_SYNACK, EM_ACK_DATA, EM_ACK_FIN, EM_PROBE, EM_PROBE_REPLY, EM_FIN,
  * target while still producing the donor's observable ordering: control ahead
  * of pure acknowledgements ahead of data.
  */
-#define PRIO_CONTROL	2	/* handshake and teardown: SYN, FIN */
+#define PRIO_CONTROL	2	/* SYN: ahead of everything, holds no data position */
 #define PRIO_ACK	1	/* pure acknowledgements and window probes */
-#define PRIO_DATA	0	/* payload */
+#define PRIO_DATA	0	/* payload -- and the FIN, see below */
+
+/*
+ * THE FIN IS PRIO_DATA, NOT PRIO_CONTROL, AND THE REASON IS ORDERING.
+ *
+ * A FIN occupies a sequence position after the data it terminates. Class 2
+ * drains before class 0, so classifying it as control sends it AHEAD of the
+ * payload it follows: the peer sees a FIN at a sequence number it has not
+ * reached, and the transfer never completes. Measured, not reasoned -- the
+ * server reported a full object served and the client reported zero
+ * completions, because it never saw EOF.
+ *
+ * The rule this is an instance of: ANYTHING THAT CONSUMES SEQUENCE SPACE MUST
+ * BE ORDERED WITH THE DATA. Pure acknowledgements and SYN do not, so they may
+ * overtake; a FIN does. mTCP reaches the same place by construction -- its FIN
+ * is sent from the send path, not from the control list.
+ */
 
 static uint64_t g_emit[EM__N];
 static uint64_t g_app_bytes;   /* bytes accepted from the application */
@@ -1000,7 +1016,7 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next,
 				   TCP_ACK | TCP_FIN, now, c->ts_recent);
 	g_emit[EM_FIN]++;
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1) == 0) {
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_DATA, 1) == 0) {
 		c->send_next++;		/* the FIN consumes one byte */
 		c->state = (c->state == TCP_CLOSE_WAIT) ? TCP_LAST_ACK
 							: TCP_FIN_WAIT_1;

@@ -112,6 +112,7 @@ ready_raise(struct transport *t, struct flow *f, int kind)
 	 */
 	if (t->stack_tid != 0 &&
 	    t->stack_tid == (uint64_t)(uintptr_t)pthread_self()) {
+		t->cross_ready++;
 		if (fq_enqueue(&t->q_ready, f) != 0) {
 			fprintf(stderr, "\n*** READY QUEUE FULL: capacity is "
 				"flow count and the membership guard should "
@@ -815,6 +816,11 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 		   rxc.csum_seen ? "yes" : "NO (frames are trusted)",
 		   (unsigned long)rxc.csum_bad,
 		   getenv("MTP_CORRUPT_NTH_RX") ? " [INJECTOR ON]" : "");
+	TRACE_INFO("CPU %d: boundary crossings: app->stack send=%lu notify=%lu; "
+		   "stack->app ready=%lu\n", ctx->cpu,
+		   (unsigned long)TransportOf(core)->cross_send,
+		   (unsigned long)TransportOf(core)->cross_notify,
+		   (unsigned long)TransportOf(core)->cross_ready);
 	TRACE_INFO("CPU %d: readiness: notify readable=%lu writable=%lu "
 		   "state=%lu error=%lu; polls=%lu entries returned=%lu\n",
 		   ctx->cpu,

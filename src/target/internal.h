@@ -209,8 +209,9 @@ struct bp {
  * prototype has twelve call sites and none checks, so a full ring is a null
  * dereference there; here the emitter declines and the flow stays schedulable.
  */
-struct bp *tgt_bp_new(flow_t *f);
-struct bp *tgt_bp_last(flow_t *f);
+/* `c` is the priority class: storage is per (flow, class). */
+struct bp *tgt_bp_new(flow_t *f, int c);
+struct bp *tgt_bp_last(flow_t *f, int c);
 void       tgt_bp_commit(flow_t *f, struct bp *bp);
 
 /*============================================================================*

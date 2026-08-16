@@ -36,9 +36,19 @@ struct flow {
 	uint8_t		 is_external;
 	uint16_t	 ip_id;		/* per-flow counter from 0; ip_out.c:147 */
 
-	/* the blueprint ring: a slice of the per-core pool, head/tail indices */
-	struct bp	*ring;
-	uint16_t	 ring_head, ring_tail;
+	/*
+	 * BLUEPRINT STORAGE PER (FLOW, CLASS) -- mTCP's shape, where a stream
+	 * carries on_control_list, on_ack_list and on_send_list as SEPARATE
+	 * flags and sits on several lists at once (tcp_stream.c:486-488
+	 * unlinks from all three). A flow appears on every list it has packets
+	 * for; it is NOT lifted to the class of its highest pending blueprint,
+	 * which was a divergence and is gone.
+	 *
+	 * One ring per class, each a slice of the per-core pool.
+	 */
+	struct bp	*ring[MTP_PRIO_CLASSES];
+	uint16_t	 ring_head[MTP_PRIO_CLASSES];
+	uint16_t	 ring_tail[MTP_PRIO_CLASSES];
 
 	/* the generation list (P5) */
 	TAILQ_ENTRY(flow) ready_link;
@@ -51,15 +61,13 @@ struct flow {
 					 * so the target can re-present READABLE
 					 * while bytes remain unread */
 
-	TAILQ_ENTRY(flow) gen_link;
 	/*
-	 * Which transmit-priority list this flow is on, or -1 for none. A flow
-	 * sits at the class of its HIGHEST pending blueprint, so a control
-	 * packet committed behind queued data lifts the whole flow rather than
-	 * queueing behind it. One membership, so the guard stays a single
-	 * test-and-set and the ring's flow-count capacity argument holds.
+	 * One link and one membership flag PER CLASS: a flow is on every list
+	 * it has packets for, as mTCP's is. The guard is per (flow, class) and
+	 * stays inside the enqueue helper.
 	 */
-	int8_t		 gen_class;
+	TAILQ_ENTRY(flow) gen_link[MTP_PRIO_CLASSES];
+	uint8_t		 on_gen[MTP_PRIO_CLASSES];
 
 	/*
 	 * CR-E. The application thread buffers payload straight into the ring
@@ -71,7 +79,7 @@ struct flow {
 	uint32_t	 pending_send;	/* bytes buffered, not yet handed over */
 	uint8_t		 pending_close;	/* application has closed; stack must act */
 	uint8_t		 on_send_q;
-	uint8_t		 scratch_out;	/* a tgt_bp_new() awaiting its commit */
+	uint8_t		 scratch_out[MTP_PRIO_CLASSES];	/* a tgt_bp_new() awaiting commit */
 };
 
 /*
