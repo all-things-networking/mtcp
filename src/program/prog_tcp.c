@@ -288,6 +288,19 @@ key_of_inbound(uint32_t loc_ip, uint32_t rem_ip, uint16_t loc_port,
  */
 enum { EM_SYNACK, EM_ACK_DATA, EM_ACK_FIN, EM_PROBE, EM_PROBE_REPLY, EM_FIN,
        EM_DATA, EM_DATA_RTX, EM__N };
+/*
+ * THE PROGRAM'S TRANSMIT SCHEDULING POLICY (D-17).
+ *
+ * The target provides MTP_PRIO_CLASSES classes and drains the highest first.
+ * It attaches no meaning to them. What each class MEANS is stated here, in the
+ * program, and nowhere else -- that is what keeps the protocol out of the
+ * target while still producing the donor's observable ordering: control ahead
+ * of pure acknowledgements ahead of data.
+ */
+#define PRIO_CONTROL	2	/* handshake and teardown: SYN, FIN */
+#define PRIO_ACK	1	/* pure acknowledgements and window probes */
+#define PRIO_DATA	0	/* payload */
+
 static uint64_t g_emit[EM__N];
 static uint64_t g_app_bytes;   /* bytes accepted from the application */
 
@@ -350,7 +363,7 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_SYN | TCP_ACK,
 				   now, c->ts_recent);
 	g_emit[EM_SYNACK]++;
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0) {
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1) == 0) {
 		c->send_next++;			/* the SYN-ACK consumes one */
 		c->snd_base = c->send_next;	/* ...so data starts one past */
 	}
@@ -807,7 +820,7 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 						 now, c->ts_recent);
 
 		g_emit[EM_PROBE_REPLY]++;
-		mtp_pkt_gen(c->f, phdr, plen, &none, 0, 0, 1);
+		mtp_pkt_gen(c->f, phdr, plen, &none, 0, PRIO_ACK, 1);
 		return;
 	}
 
@@ -842,7 +855,7 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
 	g_emit[EM_ACK_DATA]++;
-	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1);
+	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -901,7 +914,7 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
 	g_emit[EM_ACK_FIN]++;
-	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1);
+	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1);
 
 	/*
 	 * DESIGN-CLOSE.md §4. Where the peer's FIN takes us depends on whether
@@ -965,7 +978,7 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next,
 				   TCP_ACK | TCP_FIN, now, c->ts_recent);
 	g_emit[EM_FIN]++;
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0) {
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1) == 0) {
 		c->send_next++;		/* the FIN consumes one byte */
 		c->state = (c->state == TCP_CLOSE_WAIT) ? TCP_LAST_ACK
 							: TCP_FIN_WAIT_1;
@@ -1272,7 +1285,7 @@ send_window_probe(struct tcp_ctx *c, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next - 1, TCP_ACK, now,
 				   c->ts_recent);
 	g_emit[EM_PROBE]++;
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, 0, 1) == 0)
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1) == 0)
 		c->last_ack_sent_ms = now;
 	mtp_timer_start(&c->probe, (uint64_t)PARITY_PROBE_MS * 1000000ULL);
 }
@@ -1417,7 +1430,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	} else {
 		g_emit[EM_DATA]++;
 	}
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, 0, 1) == 0) {
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, PRIO_DATA, 1) == 0) {
 		c->send_next += to_send;
 		if (c->send_next > c->send_high)
 			c->send_high = c->send_next;

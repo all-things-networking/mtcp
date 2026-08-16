@@ -94,6 +94,7 @@ test: $(TESTS)
 check: test
 	tools/check_rule4.sh
 	tools/check_statics.sh
+	tools/check_prio_opaque.sh
 	tools/check_wiring.sh
 	tools/check_infra_provenance.sh
 

@@ -364,6 +364,20 @@ int   mtp_del_ctx(const flowkey_t *key);
  */
 uint32_t mtp_flow_id(flow_t *f);
 
+/*
+ * TRANSMIT PRIORITY CLASSES (D-17).
+ *
+ * The target provides three classes and drains the highest first. It attaches
+ * NO MEANING to them: they are integers, and which packet takes which class is
+ * the PROGRAM's decision, stated at `pkt_gen` in the `prio` argument.
+ *
+ * That is what keeps rule 4: a target that knew "class 2 is control" would have
+ * put the protocol back inside the target, and would still produce the right
+ * order on the wire -- which is why the acceptance test has a second half that
+ * inspects the target's source for exactly that.
+ */
+#define MTP_PRIO_CLASSES 3
+
 void *mtp_ctx_of(flow_t *f);
 
 /*============================================================================*

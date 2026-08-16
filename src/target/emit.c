@@ -456,6 +456,7 @@ tgt_drain(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f, *tmp;
+	int c;
 
 	t->ring_drain_calls++;
 
@@ -510,7 +511,8 @@ tgt_drain(struct core_ctx *core)
 	 * one receive burst. That is the whole of whether P2 can fire, and it
 	 * is countable rather than arguable.
 	 */
-	TAILQ_FOREACH(f, &t->gen_list, gen_link) {
+	for (c = MTP_PRIO_CLASSES - 1; c >= 0; c--)
+	TAILQ_FOREACH(f, &t->gen_list[c], gen_link) {
 		uint32_t n = (uint32_t)((f->ring_tail + BP_RING_DEPTH
 					 - f->ring_head) % BP_RING_DEPTH);
 
@@ -520,7 +522,15 @@ tgt_drain(struct core_ctx *core)
 			t->drain_depth[4]++;
 	}
 
-	TAILQ_FOREACH_SAFE(f, &t->gen_list, gen_link, tmp) {
+	/*
+	 * HIGHEST CLASS FIRST (D-17). The target does not know what any class
+	 * means -- the program stated it at pkt_gen -- it only drains higher
+	 * before lower. A flow sits at its highest pending class, so this
+	 * orders across flows, and within a flow the ring order is the
+	 * program's own sequencing.
+	 */
+	for (c = MTP_PRIO_CLASSES - 1; c >= 0; c--)
+	TAILQ_FOREACH_SAFE(f, &t->gen_list[c], gen_link, tmp) {
 		while (f->ring_head != f->ring_tail) {
 			struct bp *bp = &f->ring[f->ring_head];
 
@@ -559,7 +569,7 @@ tgt_drain(struct core_ctx *core)
 				 * three policies: control inserts at the HEAD
 				 * and breaks, data inserts at the TAIL and
 				 * breaks, and ACKs do not stop the walk at
-				 * all. We have one gen_list and one policy, so
+				 * all. Priority is the program's, so
 				 * this is a trajectory-level parity
 				 * difference — and it fires on
 				 * transmit-buffer-full, which a 64-mbuf burst
@@ -580,7 +590,7 @@ tgt_drain(struct core_ctx *core)
 			f->ring_head = ring_next(f->ring_head);
 		}
 
-		TAILQ_REMOVE(&t->gen_list, f, gen_link);
-		f->on_gen_list = 0;
+		TAILQ_REMOVE(&t->gen_list[c], f, gen_link);
+		f->gen_class = -1;
 	}
 }

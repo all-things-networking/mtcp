@@ -27,7 +27,8 @@ struct transport {
 	struct bp		*bp_pool;
 	uint32_t		 flow_next;
 
-	TAILQ_HEAD(gen_head, flow) gen_list;
+	/* One per priority class; drained highest first (D-17). */
+	TAILQ_HEAD(gen_head, flow) gen_list[MTP_PRIO_CLASSES];
 
 	/*
 	 * CROSS-THREAD NOTIFICATION (DESIGN.md §21.9/§21.10). The application

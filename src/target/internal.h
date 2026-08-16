@@ -314,7 +314,9 @@ void       tgt_bp_commit(flow_t *f, struct bp *bp);
 void     TimerTick(uint32_t now);
 uint64_t TimerFires(void);
 
-void tgt_sched_enqueue(flow_t *f);
+/* `prio` is the PROGRAM's class for this packet; the target attaches no
+ * meaning to the value and only drains higher before lower. */
+void tgt_sched_enqueue(flow_t *f, uint32_t prio);
 void tgt_drain(struct core_ctx *core);
 
 #endif /* INTERNAL_H */

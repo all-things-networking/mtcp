@@ -35,7 +35,7 @@ FlowPoolInit(struct core_ctx *core)
 	 * ported queue wraps at capacity rather than masking. */
 	if (fq_init(&t->q_notify, (fq_index_t)CONFIG.max_concurrency) < 0)
 		return -1;
-	TAILQ_INIT(&t->gen_list);
+	{ int c; for (c = 0; c < MTP_PRIO_CLASSES; c++) TAILQ_INIT(&t->gen_list[c]); }
 	return 0;
 }
 
@@ -80,7 +80,7 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	f->is_external = 0;
 	f->ip_id = 0;
 	f->ring_head = f->ring_tail = 0;
-	f->on_gen_list = 0;
+	f->gen_class = -1;
 	f->ctx = NULL;
 	/* §24: the slot index IS the identifier. Slots are not recycled, so it
 	 * is unique for the life of the process and cannot be handed to the
@@ -95,9 +95,9 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 {
 	struct transport *t = TransportOf(core);
 
-	if (f->on_gen_list) {
-		TAILQ_REMOVE(&t->gen_list, f, gen_link);
-		f->on_gen_list = 0;
+	if (f->gen_class >= 0) {
+		TAILQ_REMOVE(&t->gen_list[f->gen_class], f, gen_link);
+		f->gen_class = -1;
 	}
 	FlowTableRemove(t->flows, &f->key);
 	/* the flow slot itself is not recycled yet — M1 is one connection.
@@ -117,42 +117,38 @@ mtp_flow_id(flow_t *f)
 /* P5: one list per core, enqueued idempotently. A flow with nothing to send is
  * not on it and is not walked. */
 void
-tgt_sched_enqueue(flow_t *f)
+tgt_sched_enqueue(flow_t *f, uint32_t prio)
 {
 	struct transport *t = TransportOf(g_core[0]);
+	int8_t c = (int8_t)(prio < MTP_PRIO_CLASSES ? prio
+						    : MTP_PRIO_CLASSES - 1);
 
 	/*
 	 * THE GUARD IS HERE, not at the call sites, and it is what makes the
-	 * ring's flow-count capacity sound (§21.10). Test-and-set: a flow
-	 * already pending enqueues nothing, however many times it is written.
+	 * queue's flow-count capacity sound (DESIGN.md §21.10). A flow already
+	 * pending at this class or higher enqueues nothing, however many times
+	 * it is written.
 	 */
-	if (f->on_gen_list)
+	if (f->gen_class >= c)
 		return;
-	f->on_gen_list = 1;
 
-	/*
-	 * Same thread as the stack: insert directly, so a flow enqueued while
-	 * handling a packet is drained in the SAME pass. Routing it through the
-	 * ring would cost it an iteration and lose the single-pass property.
-	 */
+	/* Pending at a LOWER class: lift it, so a higher-priority blueprint
+	 * does not queue behind this flow's own backlog. */
+	if (f->gen_class >= 0)
+		TAILQ_REMOVE(&t->gen_list[f->gen_class], f, gen_link);
+
+	f->gen_class = c;
+
 	if (t->stack_tid == 0 ||
 	    t->stack_tid == (uint64_t)(uintptr_t)pthread_self()) {
-		TAILQ_INSERT_TAIL(&t->gen_list, f, gen_link);
+		TAILQ_INSERT_TAIL(&t->gen_list[c], f, gen_link);
 		return;
 	}
 
-	/* The application thread. Publish; the stack thread moves it across. */
 	if (fq_enqueue(&t->q_notify, f) != 0) {
-		/*
-		 * Structurally impossible: capacity is max_concurrency and the
-		 * flag above means each flow occupies at most one slot. If it
-		 * ever happens the capacity argument has been broken by a new
-		 * producer, which is exactly the prototype's defect -- so it is
-		 * loud rather than a discarded return value.
-		 */
-		fprintf(stderr, "\n*** NOTIFY RING FULL: capacity is flow count "
-			"and the membership flag should make this impossible "
-			"(DESIGN.md \u00a721.10)\n");
+		fprintf(stderr, "\n*** NOTIFY QUEUE FULL: capacity is flow "
+			"count and the membership guard should make this "
+			"impossible (DESIGN.md \u00a721.10)\n");
 		fflush(stderr);
 		abort();
 	}
@@ -180,8 +176,9 @@ tgt_sched_take_notifications(struct core_ctx *core)
 		 * so this cannot double-insert; the drain clears it when the
 		 * flow is finished with.
 		 */
-		if (f->on_gen_list)
-			TAILQ_INSERT_TAIL(&t->gen_list, f, gen_link);
+		if (f->gen_class >= 0)
+			TAILQ_INSERT_TAIL(&t->gen_list[f->gen_class], f,
+					  gen_link);
 	}
 }
 
@@ -225,7 +222,7 @@ tgt_bp_commit(flow_t *f, struct bp *bp)
 	assert(bp == &f->ring[f->ring_tail]);
 	f->scratch_out = 0;
 	f->ring_tail = ring_next(f->ring_tail);
-	tgt_sched_enqueue(f);
+	tgt_sched_enqueue(f, bp->prio);
 }
 
 /*----------------------------------------------------------------------------*/

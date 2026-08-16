@@ -52,7 +52,14 @@ struct flow {
 					 * while bytes remain unread */
 
 	TAILQ_ENTRY(flow) gen_link;
-	uint8_t		 on_gen_list;
+	/*
+	 * Which transmit-priority list this flow is on, or -1 for none. A flow
+	 * sits at the class of its HIGHEST pending blueprint, so a control
+	 * packet committed behind queued data lifts the whole flow rather than
+	 * queueing behind it. One membership, so the guard stays a single
+	 * test-and-set and the ring's flow-count capacity argument holds.
+	 */
+	int8_t		 gen_class;
 	uint8_t		 scratch_out;	/* a tgt_bp_new() awaiting its commit */
 };
 
