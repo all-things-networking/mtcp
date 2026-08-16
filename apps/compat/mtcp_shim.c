@@ -47,17 +47,16 @@ struct shim_sock {
 };
 
 /*
- * Per-flow, in the TARGET's block (DESIGN.md §19) rather than in a side table
- * keyed on the flow pointer. The shim does not own that pointer's lifetime; a
- * recycled slot would hand it one it had seen before, belonging to a different
- * connection, silently. The target zeroes this on create and poisons it on
- * destroy, so `sockid == 0` means "not ours yet" and the poison is not a
- * plausible id.
+ * The shim's own flow->socket table, indexed by the flow's identifier
+ * (DESIGN.md §24, ruling 3). Not keyed on the flow pointer: the shim does not
+ * own that pointer's lifetime, and a recycled slot would hand it one it had
+ * seen before belonging to a different connection.
  */
 struct shim_flow_state {
 	int sockid;
 };
 
+static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
 static struct shim_sock	 g_sock[SHIM_MAX_SOCK];
 static struct core_ctx	*g_shim_core;
 static struct mtcp_conf	 g_conf;
@@ -65,7 +64,14 @@ static struct mtcp_conf	 g_conf;
 static struct shim_flow_state *
 fstate(flow_t *f)
 {
-	return (struct shim_flow_state *)mtp_flow_app_state(f);
+	uint32_t id = mtp_flow_id(f);
+
+	if (id >= SHIM_MAX_SOCK) {
+		fprintf(stderr, "mtcp_shim: flow id %u exceeds %d\n",
+			id, SHIM_MAX_SOCK);
+		abort();
+	}
+	return &g_flow[id];
 }
 
 static int

@@ -82,9 +82,10 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	f->ring_head = f->ring_tail = 0;
 	f->on_gen_list = 0;
 	f->ctx = NULL;
-	/* §19: zeroed here, so the application's first look at a new flow
-	 * sees all-zero and needs no separate "flow began" event. */
-	memset(f->app_state, 0, sizeof(f->app_state));
+	/* §24: the slot index IS the identifier. Slots are not recycled, so it
+	 * is unique for the life of the process and cannot be handed to the
+	 * application twice for different connections. */
+	f->id = t->flow_next - 1;
 
 	return f;
 }
@@ -99,25 +100,17 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 		f->on_gen_list = 0;
 	}
 	FlowTableRemove(t->flows, &f->key);
-	/* §19: the application's block dies with the flow. Poisoned rather than
-	 * merely left, so that an application still holding this flow reads
-	 * something obviously wrong instead of its own last-known-good state —
-	 * the failure this whole mechanism exists to prevent is precisely a
-	 * plausible-looking stale value. */
-	memset(f->app_state, 0xA5, sizeof(f->app_state));
 	/* the flow slot itself is not recycled yet — M1 is one connection.
 	 * A free list lands with connection reaping (A3), which M1 excludes. */
 }
 
 /*
- * §19. The target hands the block back and never looks inside it. No length is
- * returned: the size is a compile-time constant the application asserts
- * against, so a mismatch is a build failure rather than a runtime check.
+ * §24. The identifier, and nothing else: the target holds no application state.
  */
-void *
-mtp_flow_app_state(flow_t *f)
+uint32_t
+mtp_flow_id(flow_t *f)
 {
-	return f->app_state;
+	return f->id;
 }
 
 /*----------------------------------------------------------------------------*/

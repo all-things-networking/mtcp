@@ -89,13 +89,32 @@ struct conn_state {
 	size_t sent;		/* how much of the response THIS connection has sent */
 };
 
-_Static_assert(sizeof(struct conn_state) <= MTP_APP_STATE_BYTES,
-	       "conn_state outgrew the per-flow block; raise MTP_APP_STATE_BYTES");
+/*
+ * THE APPLICATION'S OWN TABLE, indexed by the flow's identifier -- exactly as
+ * `epserver` indexes `server_vars` by socket id (DESIGN.md §24, ruling 3).
+ * Nothing of ours lives inside the target's flow record.
+ *
+ * Not keyed on the flow POINTER: the application does not own that pointer's
+ * lifetime and a recycled slot would silently alias. The identifier is what
+ * makes a table safe here.
+ */
+#define MAX_CONNS 4096
+static struct conn_state g_conn[MAX_CONNS];
 
 static struct conn_state *
 conn_of(flow_t *flow)
 {
-	return (struct conn_state *)mtp_flow_app_state(flow);
+	uint32_t id = mtp_flow_id(flow);
+
+	/* Loud rather than a wrapped index: a flow whose id is out of range
+	 * would silently share another connection's state, which is the class
+	 * of defect g_sent already was. */
+	if (id >= MAX_CONNS) {
+		fprintf(stderr, "tcpserver: flow id %u exceeds MAX_CONNS %d\n",
+			id, MAX_CONNS);
+		abort();
+	}
+	return &g_conn[id];
 }
 
 /*

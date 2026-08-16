@@ -345,22 +345,24 @@ int   mtp_del_ctx(const flowkey_t *key);
  * Protocol-neutral: it returns the opaque block the program declared.
  */
 /*
- * PER-FLOW APPLICATION STATE (DESIGN.md §19). A fixed-size opaque block the
- * target carries with the flow, zeroed when the flow is created and invalid
- * once it is destroyed. The target never interprets a byte of it.
+ * PER-FLOW IDENTIFIER (DESIGN.md §24, lead ruling 3).
  *
- * It exists because the application has nowhere else to put per-connection
- * state, and the obvious alternative -- an application table keyed by the flow
- * pointer -- depends on a lifetime the application does not own. A recycled
- * slot would hand it a pointer it had seen before, belonging to a different
- * connection, silently.
+ * A small, stable integer naming this flow, as mTCP's socket_map gives the
+ * application a socket id. The application keeps its per-connection state in
+ * ITS OWN table indexed by this -- exactly as `epserver` does -- so nothing of
+ * the application's lives inside our flow record.
  *
- * Zeroed on create, so all-zero IS the initial state and no "new flow" event is
- * needed. The application asserts its own structure fits at BUILD time.
+ * This replaces a 128-byte opaque block the target carried for the application.
+ * The block existed because an application cannot key a table on a pointer
+ * whose lifetime the target owns; the identifier solves that, which is what
+ * mTCP's design was doing all along.
+ *
+ * STABILITY IS THE CONTRACT: an id is not reused while any application table
+ * may still hold it. Flow slots are not recycled today (flow.c), so an id is
+ * unique for the life of the process; when recycling lands, reuse must wait
+ * until the application can no longer be holding the id.
  */
-#define MTP_APP_STATE_BYTES 128
-
-void *mtp_flow_app_state(flow_t *f);
+uint32_t mtp_flow_id(flow_t *f);
 
 void *mtp_ctx_of(flow_t *f);
 
