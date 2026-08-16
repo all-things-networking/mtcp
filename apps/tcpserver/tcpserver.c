@@ -146,12 +146,9 @@ pump(flow_t *flow, uint32_t now)
 	}
 
 	{
-		struct mtp_app_op cl;
-
-		memset(&cl, 0, sizeof(cl));
-		cl.kind = MTP_APP_CLOSE;
-		cl.flow = flow;
-		mtp_program_app_op(&cl, now);
+		/* CR-E: publishes; the stack generates the FIN, so no
+		 * generation happens on this thread. */
+		mtp_app_close(flow);
 		fprintf(stderr, "tcpserver: served %zu bytes\n", g_resp_len);
 	}
 }
@@ -460,20 +457,25 @@ main(int argc, char **argv)
 		fprintf(stderr, "until SIGINT\n");
 
 	/*
-	 * STILL SINGLE-THREADED, DELIBERATELY. The two-thread scaffolding is
-	 * built and inert (SchedStartStack, the two queues, the thread-aware
-	 * enqueue and ready_raise), but activating it here regressed the
-	 * server to one transfer and a stall.
+	 * TWO THREADS, ONE CORE (DESIGN.md §21). The stack runs its own loop;
+	 * this thread becomes the application, pinned to the same core, as
+	 * mTCP's application thread is. Neither waits for the other -- `serve`
+	 * takes whatever readiness is there and returns -- because a
+	 * synchronous round trip on a shared core measures 8.26 ms against a
+	 * 4004 us slice.
 	 *
-	 * The reason is a sequencing dependency the build order missed: with
-	 * the application thread calling app_op(SEND), it runs tcp_gen_seg,
-	 * which mutates send_next, cwnd and snd_base -- the same connection
-	 * state the stack thread's acknowledgement path mutates. That is the
-	 * data race CR-E exists to remove, by having the application buffer
-	 * and notify while the STACK invokes SEND. So CR-E must land before
-	 * the threads are switched on, not after.
+	 * Safe only because of CR-E: the application buffers and notifies, and
+	 * the STACK invokes SEND, so packet generation stays on one thread.
 	 */
-	SchedRun(core, ms, serve, NULL);
+	{
+		pthread_t stack = SchedStartStack(core, ms, cpu);
+
+		while (SchedRunning(core))
+			serve(core, SchedNow(core), NULL);
+
+		if (stack)
+			pthread_join(stack, NULL);
+	}
 
 	TransportCoreFini(core);
 	InfraCoreDestroy(core);

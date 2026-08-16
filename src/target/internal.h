@@ -323,6 +323,7 @@ void tgt_sched_enqueue(flow_t *f, uint32_t prio);
 struct core_ctx;
 void tgt_sched_take_sends(struct core_ctx *core);
 void tgt_deliver_send(struct core_ctx *core, struct flow *f);
+void tgt_publish_app_op(flow_t *f);
 void tgt_drain(struct core_ctx *core);
 
 #endif /* INTERNAL_H */

@@ -11,11 +11,11 @@ apps/compat/mtcp_shim.c:77:static int
 apps/tcpserver/tcpserver.c:104:static struct conn_state g_conn[MAX_CONNS];
 apps/tcpserver/tcpserver.c:106:static struct conn_state *
 apps/tcpserver/tcpserver.c:126:static void
-apps/tcpserver/tcpserver.c:159:static void
-apps/tcpserver/tcpserver.c:169: static uint8_t buf[2048];
-apps/tcpserver/tcpserver.c:218:static void
-apps/tcpserver/tcpserver.c:234:static void
-apps/tcpserver/tcpserver.c:255: static char altstack[SIGSTKSZ * 4];
+apps/tcpserver/tcpserver.c:156:static void
+apps/tcpserver/tcpserver.c:166: static uint8_t buf[2048];
+apps/tcpserver/tcpserver.c:215:static void
+apps/tcpserver/tcpserver.c:231:static void
+apps/tcpserver/tcpserver.c:252: static char altstack[SIGSTKSZ * 4];
 apps/tcpserver/tcpserver.c:55:static uint8_t *g_obj;
 apps/tcpserver/tcpserver.c:56:static size_t g_obj_len;
 apps/tcpserver/tcpserver.c:63:static uint8_t *g_resp;
@@ -54,7 +54,7 @@ src/target/emit.c:483: static int hold;
 src/target/emit.c:484: static uint32_t held;
 src/target/emit.c:97:static int g_trace_seg;
 src/target/emit.c:99:static int
-src/target/flow.c:327:static uint64_t g_mrg[MRG__N];
+src/target/flow.c:363:static uint64_t g_mrg[MRG__N];
 src/target/scheduler.c:127:static void
 src/target/scheduler.c:300:static void
 src/target/scheduler.c:408:static uint64_t transport_packets;

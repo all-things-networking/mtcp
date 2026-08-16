@@ -69,6 +69,7 @@ struct flow {
 	 * copies under the buffer lock and enqueues the stream).
 	 */
 	uint32_t	 pending_send;	/* bytes buffered, not yet handed over */
+	uint8_t		 pending_close;	/* application has closed; stack must act */
 	uint8_t		 on_send_q;
 	uint8_t		 scratch_out;	/* a tgt_bp_new() awaiting its commit */
 };

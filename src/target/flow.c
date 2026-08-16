@@ -86,6 +86,7 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	f->ring_head = f->ring_tail = 0;
 	f->gen_class = -1;
 	f->pending_send = 0;
+	f->pending_close = 0;
 	f->on_send_q = 0;
 	f->ctx = NULL;
 	/* §24: the slot index IS the identifier. Slots are not recycled, so it
@@ -186,7 +187,6 @@ tgt_sched_enqueue(flow_t *f, uint32_t prio)
 int
 mtp_app_send(flow_t *f, const void *buf, uint32_t len)
 {
-	struct transport *t = TransportOf(g_core[0]);
 	struct mtp_tx_addr addr;
 	int wrote;
 
@@ -200,9 +200,31 @@ mtp_app_send(flow_t *f, const void *buf, uint32_t len)
 		return wrote;
 
 	f->pending_send += (uint32_t)wrote;
+	tgt_publish_app_op(f);
+	return wrote;
+}
 
-	/* Guard inside the helper, as everywhere else: one entry per flow, so
-	 * the queue's flow-count capacity holds however often this is called. */
+/*
+ * CR-E, close half. The application has no more to send. Like SEND, this must
+ * not generate on the application thread -- gen_fin builds a blueprint and
+ * touches send_next, which is the stack's. Publish; the stack acts.
+ */
+int
+mtp_app_close(flow_t *f)
+{
+	if (!f)
+		return -1;
+	f->pending_close = 1;
+	tgt_publish_app_op(f);
+	return 0;
+}
+
+/* One entry per flow however many operations are pending on it. */
+void
+tgt_publish_app_op(flow_t *f)
+{
+	struct transport *t = TransportOf(g_core[0]);
+
 	if (!f->on_send_q) {
 		f->on_send_q = 1;
 		if (t->stack_tid == 0 ||
@@ -213,6 +235,7 @@ mtp_app_send(flow_t *f, const void *buf, uint32_t len)
 			 * and this flow was never put in it.
 			 */
 			tgt_deliver_send(g_core[0], f);
+			return;
 		} else if (fq_enqueue(&t->q_send, f) != 0) {
 			fprintf(stderr, "\n*** SEND QUEUE FULL: capacity is "
 				"flow count and the membership guard should "
@@ -221,7 +244,6 @@ mtp_app_send(flow_t *f, const void *buf, uint32_t len)
 			abort();
 		}
 	}
-	return wrote;
 }
 
 /*
@@ -248,14 +270,24 @@ tgt_deliver_send(struct core_ctx *core, struct flow *f)
 
 	f->pending_send = 0;
 	f->on_send_q = 0;
-	if (!len)
-		return;
 
-	memset(&op, 0, sizeof(op));
-	op.kind = MTP_APP_SEND;
-	op.flow = f;
-	op.len = len;		/* CR-E: an EXTENT already in the ring */
-	mtp_program_app_op(&op, core->cur_ts);
+	if (len) {
+		memset(&op, 0, sizeof(op));
+		op.kind = MTP_APP_SEND;
+		op.flow = f;
+		op.len = len;	/* CR-E: an EXTENT already in the ring */
+		mtp_program_app_op(&op, core->cur_ts);
+	}
+
+	/* Close AFTER the extent, so the FIN is generated behind the data the
+	 * application wrote before closing rather than ahead of it. */
+	if (f->pending_close) {
+		f->pending_close = 0;
+		memset(&op, 0, sizeof(op));
+		op.kind = MTP_APP_CLOSE;
+		op.flow = f;
+		mtp_program_app_op(&op, core->cur_ts);
+	}
 }
 
 void

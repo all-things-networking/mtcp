@@ -372,6 +372,9 @@ uint32_t mtp_flow_id(flow_t *f);
  */
 int mtp_app_send(flow_t *f, const void *buf, uint32_t len);
 
+/* CR-E, close half: publishes; the stack generates the FIN. */
+int mtp_app_close(flow_t *f);
+
 /*
  * TRANSMIT PRIORITY CLASSES (D-17).
  *
