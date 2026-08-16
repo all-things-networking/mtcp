@@ -330,7 +330,10 @@ tgt_sched_take_notifications(struct core_ctx *core)
 }
 
 /*----------------------------------------------------------------------------*/
-static inline uint16_t ring_next(uint16_t i) { return (uint16_t)((i + 1) % BP_RING_DEPTH); }
+static inline uint16_t ring_next(uint16_t i, int c)
+{
+	return (uint16_t)((i + 1) % bp_depth(c));
+}
 
 struct bp *
 tgt_bp_new(flow_t *f, int c)
@@ -339,7 +342,7 @@ tgt_bp_new(flow_t *f, int c)
 	 * holding no live payload reference until commit. Returns NULL when the
 	 * ring is full and every caller checks — the prototype has twelve call
 	 * sites and not one does. */
-	if (ring_next(f->ring_tail[c]) == f->ring_head[c])
+	if (ring_next(f->ring_tail[c], c) == f->ring_head[c])
 		return NULL;
 
 	/* Two tgt_bp_new() with no commit between them is a contract violation,
@@ -359,7 +362,7 @@ tgt_bp_last(flow_t *f, int c)
 
 	if (f->ring_head[c] == f->ring_tail[c])
 		return NULL;
-	last = (uint16_t)((f->ring_tail[c] + BP_RING_DEPTH - 1) % BP_RING_DEPTH);
+	last = (uint16_t)((f->ring_tail[c] + bp_depth(c) - 1) % bp_depth(c));
 	return &f->ring[c][last];
 }
 
@@ -371,7 +374,15 @@ tgt_bp_commit(flow_t *f, struct bp *bp)
 
 	assert(bp == &f->ring[c][f->ring_tail[c]]);
 	f->scratch_out[c] = 0;
-	f->ring_tail[c] = ring_next(f->ring_tail[c]);
+	f->ring_tail[c] = ring_next(f->ring_tail[c], c);
+	{
+		struct transport *t = TransportOf(g_core[0]);
+		uint32_t n = (uint32_t)((f->ring_tail[c] + bp_depth(c)
+					 - f->ring_head[c]) % bp_depth(c));
+
+		if (n > t->ring_hwm[c])
+			t->ring_hwm[c] = n;
+	}
 	tgt_sched_enqueue(f, bp->prio);
 }
 
@@ -631,7 +642,7 @@ tgt_dump_flow_bps(void *owner, uint64_t base)
 		fprintf(stderr, "  blueprints, class %d (head=%u tail=%u):\n",
 			c, f->ring_head[c], f->ring_tail[c]);
 		for (i = f->ring_head[c]; i != f->ring_tail[c];
-		     i = (uint16_t)((i + 1) % BP_RING_DEPTH)) {
+		     i = (uint16_t)((i + 1) % bp_depth(c))) {
 			struct bp *b = &f->ring[c][i];
 
 			fprintf(stderr,

@@ -313,8 +313,13 @@ enum { EM_SYNACK, EM_ACK_DATA, EM_ACK_FIN, EM_PROBE, EM_PROBE_REPLY, EM_FIN,
  *
  * The rule this is an instance of: ANYTHING THAT CONSUMES SEQUENCE SPACE MUST
  * BE ORDERED WITH THE DATA. Pure acknowledgements and SYN do not, so they may
- * overtake; a FIN does. mTCP reaches the same place by construction -- its FIN
- * is sent from the send path, not from the control list.
+ * overtake; a FIN does.
+ *
+ * mTCP reaches the same place BY CONSTRUCTION rather than by rule: its FIN
+ * leaves from the send path, not the control list, so the question never
+ * arises there. A reader comparing the two should not expect to find this rule
+ * stated anywhere in the donor -- its structure makes it unnecessary, and ours
+ * does not.
  */
 
 static uint64_t g_emit[EM__N];

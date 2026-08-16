@@ -23,9 +23,9 @@
 #include "prog_params.h"
 #include "debug.h"
 
-static inline uint16_t ring_next(uint16_t i)
+static inline uint16_t ring_next(uint16_t i, int c)
 {
-	return (uint16_t)((i + 1) % BP_RING_DEPTH);
+	return (uint16_t)((i + 1) % bp_depth(c));
 }
 
 /*----------------------------------------------------------------------------*/
@@ -513,8 +513,8 @@ tgt_drain(struct core_ctx *core)
 	 */
 	for (c = MTP_PRIO_CLASSES - 1; c >= 0; c--)
 	TAILQ_FOREACH(f, &t->gen_list[c], gen_link[c]) {
-		uint32_t n = (uint32_t)((f->ring_tail[c] + BP_RING_DEPTH
-					 - f->ring_head[c]) % BP_RING_DEPTH);
+		uint32_t n = (uint32_t)((f->ring_tail[c] + bp_depth(c)
+					 - f->ring_head[c]) % bp_depth(c));
 
 		if (n < 4)
 			t->drain_depth[n]++;
@@ -587,7 +587,7 @@ tgt_drain(struct core_ctx *core)
 			release_bp(bp);
 			bp->seg_off = 0;
 			bp->prev_hdr_valid = 0;
-			f->ring_head[c] = ring_next(f->ring_head[c]);
+			f->ring_head[c] = ring_next(f->ring_head[c], c);
 		}
 
 		TAILQ_REMOVE(&t->gen_list[c], f, gen_link[c]);

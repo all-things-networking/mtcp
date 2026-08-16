@@ -21,28 +21,28 @@ apps/tcpserver/tcpserver.c:56:static size_t g_obj_len;
 apps/tcpserver/tcpserver.c:63:static uint8_t *g_resp;
 apps/tcpserver/tcpserver.c:64:static size_t g_resp_len;
 src/program/prog_app.c:50:static void
-src/program/prog_tcp.c:1311:static void
+src/program/prog_tcp.c:1316:static void
 src/program/prog_tcp.c:141:static struct {
 src/program/prog_tcp.c:188:static void
 src/program/prog_tcp.c:225:static int
 src/program/prog_tcp.c:258:static flowkey_t
-src/program/prog_tcp.c:320:static uint64_t g_emit[EM__N];
-src/program/prog_tcp.c:321:static uint64_t g_app_bytes; /* bytes accepted from the application */
-src/program/prog_tcp.c:324:static void
-src/program/prog_tcp.c:421:static uint64_t g_refuse[REF__N];
-src/program/prog_tcp.c:437:static uint64_t g_tmr[TMR__N];
-src/program/prog_tcp.c:441:static uint64_t g_rx[RXS__N];
-src/program/prog_tcp.c:500:static bool
-src/program/prog_tcp.c:511:static bool
-src/program/prog_tcp.c:529:static bool
-src/program/prog_tcp.c:537:static void
-src/program/prog_tcp.c:579:static void
-src/program/prog_tcp.c:609:static void
-src/program/prog_tcp.c:708:static void
-src/program/prog_tcp.c:818:static void
-src/program/prog_tcp.c:909:static void
-src/program/prog_tcp.c:932:static void
-src/program/prog_tcp.c:987:static void
+src/program/prog_tcp.c:325:static uint64_t g_emit[EM__N];
+src/program/prog_tcp.c:326:static uint64_t g_app_bytes; /* bytes accepted from the application */
+src/program/prog_tcp.c:329:static void
+src/program/prog_tcp.c:426:static uint64_t g_refuse[REF__N];
+src/program/prog_tcp.c:442:static uint64_t g_tmr[TMR__N];
+src/program/prog_tcp.c:446:static uint64_t g_rx[RXS__N];
+src/program/prog_tcp.c:505:static bool
+src/program/prog_tcp.c:516:static bool
+src/program/prog_tcp.c:534:static bool
+src/program/prog_tcp.c:542:static void
+src/program/prog_tcp.c:584:static void
+src/program/prog_tcp.c:614:static void
+src/program/prog_tcp.c:713:static void
+src/program/prog_tcp.c:823:static void
+src/program/prog_tcp.c:914:static void
+src/program/prog_tcp.c:937:static void
+src/program/prog_tcp.c:992:static void
 src/target/emit.c:102: static int nth;
 src/target/emit.c:103: static int seen;
 src/target/emit.c:136:static int
@@ -54,7 +54,7 @@ src/target/emit.c:483: static int hold;
 src/target/emit.c:484: static uint32_t held;
 src/target/emit.c:97:static int g_trace_seg;
 src/target/emit.c:99:static int
-src/target/flow.c:386:static uint64_t g_mrg[MRG__N];
+src/target/flow.c:397:static uint64_t g_mrg[MRG__N];
 src/target/scheduler.c:128:static void
 src/target/scheduler.c:301:static void
 src/target/scheduler.c:409:static uint64_t transport_packets;

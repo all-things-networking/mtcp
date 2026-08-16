@@ -475,6 +475,9 @@ main(int argc, char **argv)
 
 		if (stack)
 			pthread_join(stack, NULL);
+
+		/* the loop is ours, so the report is ours to ask for */
+		SchedReport(core);
 	}
 
 	TransportCoreFini(core);

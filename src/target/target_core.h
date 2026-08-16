@@ -111,6 +111,14 @@ struct transport {
 	uint64_t		 cross_send;	/* app -> stack: send/close */
 	uint64_t		 cross_notify;	/* app -> stack: generation */
 	uint64_t		 cross_ready;	/* stack -> app: readiness */
+
+	/*
+	 * High-water pending blueprints per class, so the ring depths are sized
+	 * from what the classes actually hold rather than from one number
+	 * copied across all three. Depth 64 is a data-path figure; control and
+	 * acknowledgement are not the data path.
+	 */
+	uint32_t		 ring_hwm[MTP_PRIO_CLASSES];
 	/* readiness, from both ends: what the transport put on the list and
 	 * what the application found there. The pair discriminates "never
 	 * notified" from "notified and the application saw nothing". */

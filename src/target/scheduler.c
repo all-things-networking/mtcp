@@ -746,24 +746,16 @@ SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu)
 	return th;
 }
 
+/*
+ * End-of-run reporting. Extracted from SchedRun because the application thread
+ * now owns the loop and SchedRun is not called at all in the threaded build --
+ * every counter in here silently stopped being printed when item 5 landed, and
+ * the numbers RESULTS.md is written from went with them.
+ */
 void
-SchedRun(struct core_ctx *core, uint32_t max_ticks,
-	 void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg)
+SchedReport(struct core_ctx *core)
 {
 	struct thread_ctx *ctx = core->ctx;
-	struct timeval tv = {0};
-	uint32_t ts, ts_start;
-
-	gettimeofday(&tv, NULL);
-	ts_start = TIMEVAL_TO_TS(&tv);
-
-	while (!ctx->exit && !ctx->done && !SchedStopRequested) {
-		SchedStep(core, app, app_arg);
-		gettimeofday(&tv, NULL);
-		ts = TIMEVAL_TO_TS(&tv);
-		if (max_ticks && (uint32_t)(ts - ts_start) >= max_ticks)
-			break;
-	}
 
 	/* Both numbers, because they answer different questions. The first says
 	 * whether the NIC is giving this process anything at all — with a
@@ -816,6 +808,11 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 		   rxc.csum_seen ? "yes" : "NO (frames are trusted)",
 		   (unsigned long)rxc.csum_bad,
 		   getenv("MTP_CORRUPT_NTH_RX") ? " [INJECTOR ON]" : "");
+	TRACE_INFO("CPU %d: pending blueprints high-water per class: "
+		   "c0=%u/%u c1=%u/%u c2=%u/%u (used/depth)\n", ctx->cpu,
+		   TransportOf(core)->ring_hwm[0], bp_depth(0),
+		   TransportOf(core)->ring_hwm[1], bp_depth(1),
+		   TransportOf(core)->ring_hwm[2], bp_depth(2));
 	TRACE_INFO("CPU %d: boundary crossings: app->stack send=%lu notify=%lu; "
 		   "stack->app ready=%lu\n", ctx->cpu,
 		   (unsigned long)TransportOf(core)->cross_send,
@@ -845,4 +842,26 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 		   (unsigned long)rxc.ip_to_transport,
 		   (unsigned long)rxc.ip_other_proto,
 		   (unsigned long)rxc.other_ethertype);
+}
+
+void
+SchedRun(struct core_ctx *core, uint32_t max_ticks,
+	 void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg)
+{
+	struct thread_ctx *ctx = core->ctx;
+	struct timeval tv = {0};
+	uint32_t ts, ts_start;
+
+	gettimeofday(&tv, NULL);
+	ts_start = TIMEVAL_TO_TS(&tv);
+
+	while (!ctx->exit && !ctx->done && !SchedStopRequested) {
+		SchedStep(core, app, app_arg);
+		gettimeofday(&tv, NULL);
+		ts = TIMEVAL_TO_TS(&tv);
+		if (max_ticks && (uint32_t)(ts - ts_start) >= max_ticks)
+			break;
+	}
+
+	SchedReport(core);
 }

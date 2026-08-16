@@ -92,7 +92,44 @@ struct flow {
  * That it is also better for cache is a HYPOTHESIS and untested, and it is a
  * change from the prototype, so it is on the change-one-thing-at-a-time list.
  */
-#define BP_RING_DEPTH	64
+/*
+ * PER-CLASS RING DEPTH, SIZED FROM MEASUREMENT.
+ *
+ * Measured high-water of pending blueprints per flow, per class, under load
+ * (c=1 and c=4, reported by SchedReport): class 0 = 2, class 1 = 1, class 2 = 1.
+ * The figure does not grow with concurrency, because it is per flow and the
+ * drain empties a flow's ring each pass.
+ *
+ * Uniform depth 64 across three classes was an assumption, not a decision, and
+ * cost 162 MB at max_concurrency against 54 MB before the split. Sized here
+ * instead:
+ *
+ *   class 0 (data)  64  -- kept. It is the class that backs up when the
+ *                          transmit buffer fills and the drain abandons its
+ *                          walk, which the measured figure of 2 does not
+ *                          exercise. The existing, tested depth stays.
+ *   class 1 (ack)    8  -- measured 1; 8x headroom. Not the data path.
+ *   class 2 (ctrl)   8  -- measured 1; 8x headroom. Not the data path.
+ *
+ * 80 slots per flow at 216 bytes = 17 280 B, so 67.5 MB at 4096 flows rather
+ * than 162 MB. mTCP pays none of this -- its lists are intrusive, three link
+ * fields per stream -- so this is the cost of our ring design, minimised rather
+ * than assumed.
+ */
+#define BP_RING_DEPTH	64		/* class 0; also the pool slice size */
+#define BP_DEPTH_ACK	8
+#define BP_DEPTH_CTRL	8
+
+/* Depth of class `c`'s ring. The pool slice is BP_RING_DEPTH for every class
+ * so the arithmetic in FlowCreate stays one multiply; the shorter classes
+ * simply do not use the tail of their slice. Trading 0.5 MB of address space
+ * for not having a variable-stride pool index. */
+static inline uint16_t bp_depth(int c)
+{
+	return c == 0 ? BP_RING_DEPTH
+	     : c == 1 ? BP_DEPTH_ACK
+		      : BP_DEPTH_CTRL;
+}
 
 int         FlowPoolInit(struct core_ctx *core);
 void        FlowPoolFini(struct core_ctx *core);

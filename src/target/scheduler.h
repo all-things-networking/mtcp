@@ -48,6 +48,9 @@ extern volatile sig_atomic_t SchedStopRequested;
 void SchedStep(struct core_ctx *core,
 	       void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg);
 
+/* End-of-run counters. The threaded build must call this itself: the
+ * application thread owns the loop, so SchedRun's epilogue never runs. */
+void     SchedReport(struct core_ctx *core);
 int      SchedRunning(struct core_ctx *core);
 uint32_t SchedNow(struct core_ctx *core);
 
