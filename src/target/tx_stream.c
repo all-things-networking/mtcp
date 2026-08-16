@@ -204,6 +204,8 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 			u->ref_base[i] < u->head_seq ? "<- BEHIND head_seq" : "");
 	if (tgt_dump_flow_bps)		/* absent in the unit-test link */
 		tgt_dump_flow_bps(u->owner, lo);
+	if (prog_dump_flow_state)	/* the caller's terms, not the callee's */
+		prog_dump_flow_state(u->owner);
 	fflush(stderr);
 }
 

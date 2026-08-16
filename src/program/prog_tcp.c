@@ -1481,6 +1481,47 @@ tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len, uint32_t now)
  * acknowledgement and a SYN or FIN never merges with anything: a control packet
  * consumes sequence space and merging it would lose that.
  */
+/*
+ * The program's terms for a flow, printed only from the target's
+ * reference-fault dump (tx_stream.c). Zero cost until that path is taken.
+ *
+ * WHY THE TERMS AND NOT THE RESULT. The overshoot is exactly 27.00 MSS in two
+ * separate runs at different absolute offsets. A race smears; a deterministic
+ * multiple is a computation. So the thing to show is every quantity `upto` was
+ * built from, as terms, because if the discrepancy is a base or a unit rather
+ * than one wrong term, only the terms side by side make it obvious.
+ *
+ * `upto = tx.head_seq + acked`, and `acked = e->ack - send_una` computed BEFORE
+ * send_una was advanced -- so at fault time send_una already equals that ack.
+ */
+void
+prog_dump_flow_state(void *owner)
+{
+	struct tcp_ctx *c = (struct tcp_ctx *)mtp_ctx_of((flow_t *)owner);
+
+	if (!c) {
+		fprintf(stderr, "  (no program context for this flow)\n");
+		return;
+	}
+	fprintf(stderr,
+		"  program terms:\n"
+		"    state       = %d\n"
+		"    send_una    = %u   (the ack just applied)\n"
+		"    send_next   = %u\n"
+		"    write_end   = %u   (highest byte the app has handed us)\n"
+		"    una - next  = %d   (POSITIVE = acknowledged past what we sent)\n"
+		"    next - una  = %u   (in flight)\n"
+		"    tx.head_seq = %llu\n"
+		"    tx.tail_seq = %llu\n"
+		"    write_end - head_seq = %lld  (undrained, in stream bytes)\n",
+		c->state, c->send_una, c->send_next, c->write_end,
+		(int32_t)(c->send_una - c->send_next),
+		(uint32_t)(c->send_next - c->send_una),
+		(unsigned long long)c->tx.head_seq,
+		(unsigned long long)c->tx.tail_seq,
+		(long long)((uint64_t)c->write_end - c->tx.head_seq));
+}
+
 void
 mtp_program_coalesce(const uint8_t *hdr, uint16_t hdr_len,
 		     uint8_t *class, uint32_t *key, bool *inherit_base,

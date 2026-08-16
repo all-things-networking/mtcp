@@ -132,6 +132,11 @@ void tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base);
  * skipped and the rest of the dump still prints. */
 __attribute__((weak)) void tgt_dump_flow_bps(void *owner, uint64_t base);
 
+/* Debug only, on the same failing path: the PROGRAM's own terms for this flow.
+ * The target prints none of them and interprets none of them -- it asks, the
+ * program answers. Weak for the same reason as above. */
+__attribute__((weak)) void prog_dump_flow_state(void *owner);
+
 struct bp {
 	/* The earliest byte this blueprint will transmit. Used for two things,
 	 * both the target's own business: deriving each segment's offset, and
