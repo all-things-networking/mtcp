@@ -31,18 +31,10 @@ FlowPoolInit(struct core_ctx *core)
 
 	t->flow_next = 0;
 
-	/* Capacity is flow count -- see the field's comment. Rounded up to a
-	 * power of two because the ring masks. */
-	{
-		uint32_t cap = 1;
-
-		while (cap < (uint32_t)CONFIG.max_concurrency)
-			cap <<= 1;
-		t->q_notify_slots = calloc(cap, sizeof(*t->q_notify_slots));
-		if (!t->q_notify_slots ||
-		    !spsc_init(&t->q_notify, t->q_notify_slots, cap))
-			return -1;
-	}
+	/* Capacity is flow count -- see the field's comment. No rounding: the
+	 * ported queue wraps at capacity rather than masking. */
+	if (fq_init(&t->q_notify, (fq_index_t)CONFIG.max_concurrency) < 0)
+		return -1;
 	TAILQ_INIT(&t->gen_list);
 	return 0;
 }
@@ -135,7 +127,6 @@ void
 tgt_sched_enqueue(flow_t *f)
 {
 	struct transport *t = TransportOf(g_core[0]);
-	struct spsc_slot slot;
 
 	/*
 	 * THE GUARD IS HERE, not at the call sites, and it is what makes the
@@ -158,9 +149,7 @@ tgt_sched_enqueue(flow_t *f)
 	}
 
 	/* The application thread. Publish; the stack thread moves it across. */
-	slot.a = (uint64_t)(uintptr_t)f;
-	slot.b = 0;
-	if (spsc_push_n(&t->q_notify, &slot, 1) != 1) {
+	if (fq_enqueue(&t->q_notify, f) != 0) {
 		/*
 		 * Structurally impossible: capacity is max_concurrency and the
 		 * flag above means each flow occupies at most one slot. If it
@@ -189,22 +178,18 @@ void
 tgt_sched_take_notifications(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
-	struct spsc_slot got[64];
-	uint32_t n, i;
+	struct flow *f;
 
-	while ((n = spsc_pop_n(&t->q_notify, got, 64)) > 0)
-		for (i = 0; i < n; i++) {
-			struct flow *f = (struct flow *)(uintptr_t)got[i].a;
-
-			/*
-			 * One flag, meaning "pending: on the list OR in the
-			 * ring". The producer's test-and-set means at most one
-			 * of those is true, so this cannot double-insert; the
-			 * drain clears it when the flow is finished with.
-			 */
-			if (f->on_gen_list)
-				TAILQ_INSERT_TAIL(&t->gen_list, f, gen_link);
-		}
+	while ((f = fq_dequeue(&t->q_notify)) != NULL) {
+		/*
+		 * One flag, meaning "pending: on the list OR in the queue". The
+		 * producer's test-and-set means at most one of those is true,
+		 * so this cannot double-insert; the drain clears it when the
+		 * flow is finished with.
+		 */
+		if (f->on_gen_list)
+			TAILQ_INSERT_TAIL(&t->gen_list, f, gen_link);
+	}
 }
 
 /*----------------------------------------------------------------------------*/

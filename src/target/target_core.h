@@ -12,7 +12,7 @@
 
 #include "contract.h"
 #include "infra.h"
-#include "spsc.h"
+#include "flow_queue.h"
 
 struct flow;
 struct flow_table;
@@ -44,8 +44,7 @@ struct transport {
 	 * and its "this always success" comment quietly became false. A new
 	 * producer cannot omit a guard it cannot reach.
 	 */
-	struct spsc		 q_notify;
-	struct spsc_slot	*q_notify_slots;
+	struct flow_queue	 q_notify;
 	uint64_t		 stack_tid;	/* 0 until the stack thread runs */
 
 	/*

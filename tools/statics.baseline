@@ -19,7 +19,7 @@ apps/tcpserver/tcpserver.c:61:static uint8_t *g_resp;
 apps/tcpserver/tcpserver.c:62:static size_t g_resp_len;
 apps/tcpserver/tcpserver.c:95:static struct conn_state *
 src/program/prog_app.c:50:static void
-src/program/prog_tcp.c:1251:static void
+src/program/prog_tcp.c:1260:static void
 src/program/prog_tcp.c:141:static struct {
 src/program/prog_tcp.c:188:static void
 src/program/prog_tcp.c:225:static int
@@ -30,17 +30,17 @@ src/program/prog_tcp.c:295:static void
 src/program/prog_tcp.c:382:static uint64_t g_refuse[REF__N];
 src/program/prog_tcp.c:398:static uint64_t g_tmr[TMR__N];
 src/program/prog_tcp.c:402:static uint64_t g_rx[RXS__N];
-src/program/prog_tcp.c:460:static bool
-src/program/prog_tcp.c:471:static bool
-src/program/prog_tcp.c:489:static bool
-src/program/prog_tcp.c:497:static void
-src/program/prog_tcp.c:527:static void
-src/program/prog_tcp.c:557:static void
-src/program/prog_tcp.c:656:static void
-src/program/prog_tcp.c:758:static void
-src/program/prog_tcp.c:849:static void
-src/program/prog_tcp.c:872:static void
-src/program/prog_tcp.c:927:static void
+src/program/prog_tcp.c:461:static bool
+src/program/prog_tcp.c:472:static bool
+src/program/prog_tcp.c:490:static bool
+src/program/prog_tcp.c:498:static void
+src/program/prog_tcp.c:528:static void
+src/program/prog_tcp.c:558:static void
+src/program/prog_tcp.c:657:static void
+src/program/prog_tcp.c:767:static void
+src/program/prog_tcp.c:858:static void
+src/program/prog_tcp.c:881:static void
+src/program/prog_tcp.c:936:static void
 src/target/emit.c:102: static int nth;
 src/target/emit.c:103: static int seen;
 src/target/emit.c:136:static int
@@ -52,7 +52,7 @@ src/target/emit.c:470: static uint32_t held;
 src/target/emit.c:47: static int budget;
 src/target/emit.c:97:static int g_trace_seg;
 src/target/emit.c:99:static int
-src/target/flow.c:181:static uint64_t g_mrg[MRG__N];
+src/target/flow.c:246:static uint64_t g_mrg[MRG__N];
 src/target/scheduler.c:102:static void
 src/target/scheduler.c:263:static void
 src/target/scheduler.c:371:static uint64_t transport_packets;
@@ -68,6 +68,7 @@ src/target/timers.c:34:static uint32_t wheel_now;
 src/target/timers.c:35:static int wheel_started;
 src/target/timers.c:36:static uint64_t fires;
 src/target/timers.c:38:static void
-src/target/tx_stream.c:171:static void
-src/target/tx_stream.c:216: static uint64_t flushes;
-src/target/tx_stream.c:364:static uint64_t
+src/target/tx_stream.c:200:static void
+src/target/tx_stream.c:247: static uint64_t flushes;
+src/target/tx_stream.c:396:static uint64_t
+src/target/tx_stream.c:94:static void
