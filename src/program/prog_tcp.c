@@ -1500,7 +1500,7 @@ tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len, uint32_t now)
  * built from, as terms, because if the discrepancy is a base or a unit rather
  * than one wrong term, only the terms side by side make it obvious.
  *
- * `upto = tx.head_seq + acked`, and `acked = e->ack - send_una` computed BEFORE
+ * The flush advances by `acked`, which is `e->ack - send_una` computed BEFORE
  * send_una was advanced -- so at fault time send_una already equals that ack.
  */
 void
@@ -1519,16 +1519,14 @@ prog_dump_flow_state(void *owner)
 		"    send_next   = %u\n"
 		"    write_end   = %u   (highest byte the app has handed us)\n"
 		"    una - next  = %d   (POSITIVE = acknowledged past what we sent)\n"
-		"    next - una  = %u   (in flight)\n"
-		"    tx.head_seq = %llu\n"
-		"    tx.tail_seq = %llu\n"
-		"    write_end - head_seq = %lld  (undrained, in stream bytes)\n",
+		"    next - una  = %u   (in flight)\n",
 		c->state, c->send_una, c->send_next, c->write_end,
 		(int32_t)(c->send_una - c->send_next),
-		(uint32_t)(c->send_next - c->send_una),
-		(unsigned long long)c->tx.head_seq,
-		(unsigned long long)c->tx.tail_seq,
-		(long long)((uint64_t)c->write_end - c->tx.head_seq));
+		(uint32_t)(c->send_next - c->send_una));
+	/* The unit's own fields are the TARGET's to print, and it does so above
+	 * this in the same dump. src/program/ may not read them --
+	 * tools/check_wiring.sh enforces that boundary and caught this when the
+	 * dump was first written. */
 }
 
 void
