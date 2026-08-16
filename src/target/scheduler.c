@@ -1,3 +1,4 @@
+#define _GNU_SOURCE	/* CPU_SET, pthread_setaffinity_np */
 /*
  * The main loop, and the one call the infrastructure makes upward.
  *
@@ -18,6 +19,9 @@
 
 #include "infra.h"
 #include "upcall.h"
+#include <pthread.h>
+#include <sched.h>
+
 #include "scheduler.h"
 /* Nothing here calls the contract yet. Included so that the compiler reads it
  * on every build — a header with no compiler in front of it stops being
@@ -92,11 +96,32 @@ static void
 ready_raise(struct transport *t, struct flow *f, int kind)
 {
 	f->ready_kinds |= (1u << kind);
-	if (!f->on_ready_list) {
-		TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
-		f->on_ready_list = 1;
-	}
 	t->notifies[kind & 3]++;
+
+	/* Guard inside, as for the generation queue: at most one entry per
+	 * flow, which is what makes the queue's flow-count capacity sound. */
+	if (f->on_ready_list)
+		return;
+	f->on_ready_list = 1;
+
+	/*
+	 * The application's own list when we ARE the application thread --
+	 * which is the level-triggered re-arm from TransportPoll -- and the
+	 * cross-thread queue when we are the stack. Neither structure ever has
+	 * two writers.
+	 */
+	if (t->stack_tid != 0 &&
+	    t->stack_tid == (uint64_t)(uintptr_t)pthread_self()) {
+		if (fq_enqueue(&t->q_ready, f) != 0) {
+			fprintf(stderr, "\n*** READY QUEUE FULL: capacity is "
+				"flow count and the membership guard should "
+				"make this impossible\n");
+			fflush(stderr);
+			abort();
+		}
+		return;
+	}
+	TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
 }
 
 static void
@@ -155,6 +180,18 @@ TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max)
 	int n = 0;
 
 	t->polls++;
+
+	/* Take what the stack published since the last poll. Application
+	 * thread only; the stack never touches ready_list. */
+	{
+		struct flow *pub;
+
+		while ((pub = fq_dequeue(&t->q_ready)) != NULL)
+			if (pub->on_ready_list)
+				TAILQ_INSERT_TAIL(&t->ready_list, pub,
+						  ready_link);
+	}
+
 	while (n < max) {
 		struct flow *f = TAILQ_FIRST(&t->ready_list);
 
@@ -599,6 +636,110 @@ SchedStep(struct core_ctx *core,
 		}
 
 		core->iom->select(ctx);
+}
+
+/*
+ * THE TWO THREADS (DESIGN.md §21).
+ *
+ * Both pinned to ONE core, both spinning, neither ever blocking or yielding --
+ * mTCP's shape, matched deliberately rather than improved on. A cleverer
+ * arrangement (separate cores, a blocking wait, an adaptive spin) would make
+ * our numbers unattributable, because the difference would then include an
+ * architecture choice of ours rather than the cost of programmability.
+ *
+ * The measured consequence, from tools/handoff_bench.c: a synchronous round
+ * trip across the boundary on one shared core costs 8.26 ms against a 4004 us
+ * slice. NEITHER SIDE MAY EVER WAIT FOR THE OTHER. Both queues are therefore
+ * publish-and-continue, and every consumer takes what is there and moves on.
+ */
+struct sched_thread_arg {
+	struct core_ctx	*core;
+	uint32_t	 max_ticks;
+	int		 cpu;
+};
+
+static void
+sched_pin(int cpu)
+{
+	cpu_set_t set;
+
+	CPU_ZERO(&set);
+	CPU_SET(cpu, &set);
+	if (pthread_setaffinity_np(pthread_self(), sizeof(set), &set))
+		TRACE_ERROR("could not pin to cpu %d\n", cpu);
+}
+
+static void *
+sched_stack_thread(void *argp)
+{
+	struct sched_thread_arg *a = argp;
+	struct thread_ctx *ctx = a->core->ctx;
+	struct timeval tv = {0};
+	uint32_t ts, ts_start;
+
+	sched_pin(a->cpu);
+
+	/* Published before the first step, so tgt_sched_enqueue and ready_raise
+	 * can tell which side they are on from here onward. */
+	TransportOf(a->core)->stack_tid = (uint64_t)(uintptr_t)pthread_self();
+
+	gettimeofday(&tv, NULL);
+	ts_start = TIMEVAL_TO_TS(&tv);
+
+	while (!ctx->exit && !ctx->done && !SchedStopRequested) {
+		SchedStep(a->core, NULL, NULL);
+		gettimeofday(&tv, NULL);
+		ts = TIMEVAL_TO_TS(&tv);
+		if (a->max_ticks && (uint32_t)(ts - ts_start) >= a->max_ticks)
+			break;
+	}
+	ctx->done = 1;		/* so the application thread stops too */
+	return NULL;
+}
+
+/*
+ * Start the stack on its own thread and return. The caller becomes the
+ * application thread and is pinned to the SAME core.
+ */
+/* For the application thread's own loop: is the stack still running, and what
+ * time does it think it is? The application must not reach into core->ctx. */
+int
+SchedRunning(struct core_ctx *core)
+{
+	struct thread_ctx *ctx = core->ctx;
+
+	return !ctx->exit && !ctx->done && !SchedStopRequested;
+}
+
+uint32_t
+SchedNow(struct core_ctx *core)
+{
+	return core->cur_ts;
+}
+
+pthread_t
+SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu)
+{
+	static struct sched_thread_arg arg;
+	pthread_t th;
+
+	arg.core = core;
+	arg.max_ticks = max_ticks;
+	arg.cpu = cpu;
+
+	if (pthread_create(&th, NULL, sched_stack_thread, &arg)) {
+		TRACE_ERROR("could not create the stack thread\n");
+		return 0;
+	}
+	/* the application shares the core, as mTCP's application thread does */
+	sched_pin(cpu);
+
+	/* Do not proceed until the stack has published its identity, or the
+	 * first enqueue could take the same-thread path from the wrong thread
+	 * and insert straight into a list the stack owns. */
+	while (TransportOf(core)->stack_tid == 0)
+		;
+	return th;
 }
 
 void

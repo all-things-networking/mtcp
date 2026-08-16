@@ -54,7 +54,20 @@ struct transport {
 	 * unbounded, which makes coalescing a correctness property and not only
 	 * a performance one.
 	 */
+	/*
+	 * Readiness, target->app. Two structures because two threads:
+	 *
+	 *   q_ready     the STACK publishes into this (flow pointers, same
+	 *               ported queue as q_notify, same membership guard);
+	 *   ready_list  the APPLICATION's own list, drained from q_ready at
+	 *               poll time and re-armed into by the level check.
+	 *
+	 * The split is what lets the level-triggered re-arm stay in the target
+	 * -- it runs on the application thread and touches only the
+	 * application's list, so no structure has two writers.
+	 */
 	TAILQ_HEAD(ready_head, flow) ready_list;
+	struct flow_queue	 q_ready;
 
 	/*
 	 * The packet being dispatched, if any. The target attaches its L3

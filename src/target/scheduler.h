@@ -21,6 +21,8 @@
  * cause.
  */
 #include <signal.h>
+#include <pthread.h>
+
 #include "infra.h"
 #include "contract.h"
 
@@ -45,6 +47,13 @@ extern volatile sig_atomic_t SchedStopRequested;
  * in a loop; there is only one copy of the body. */
 void SchedStep(struct core_ctx *core,
 	       void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg);
+
+int      SchedRunning(struct core_ctx *core);
+uint32_t SchedNow(struct core_ctx *core);
+
+/* Start the stack on its own thread, pinned to `cpu`; the caller becomes the
+ * application thread on the same core. Returns the thread to join. */
+pthread_t SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu);
 
 void SchedRun(struct core_ctx *core, uint32_t max_ticks,
 	      void (*app)(struct core_ctx *, uint32_t now, void *),

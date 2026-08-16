@@ -23,6 +23,8 @@
 #include "infra.h"
 #include "bringup.h"
 #include "scheduler.h"
+#include <pthread.h>
+
 #include "contract.h"
 #include "scheduler.h"
 
@@ -462,6 +464,20 @@ main(int argc, char **argv)
 	else
 		fprintf(stderr, "until SIGINT\n");
 
+	/*
+	 * STILL SINGLE-THREADED, DELIBERATELY. The two-thread scaffolding is
+	 * built and inert (SchedStartStack, the two queues, the thread-aware
+	 * enqueue and ready_raise), but activating it here regressed the
+	 * server to one transfer and a stall.
+	 *
+	 * The reason is a sequencing dependency the build order missed: with
+	 * the application thread calling app_op(SEND), it runs tcp_gen_seg,
+	 * which mutates send_next, cwnd and snd_base -- the same connection
+	 * state the stack thread's acknowledgement path mutates. That is the
+	 * data race CR-E exists to remove, by having the application buffer
+	 * and notify while the STACK invokes SEND. So CR-E must land before
+	 * the threads are switched on, not after.
+	 */
 	SchedRun(core, ms, serve, NULL);
 
 	TransportCoreFini(core);

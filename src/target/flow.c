@@ -35,6 +35,8 @@ FlowPoolInit(struct core_ctx *core)
 	 * ported queue wraps at capacity rather than masking. */
 	if (fq_init(&t->q_notify, (fq_index_t)CONFIG.max_concurrency) < 0)
 		return -1;
+	if (fq_init(&t->q_ready, (fq_index_t)CONFIG.max_concurrency) < 0)
+		return -1;
 	{ int c; for (c = 0; c < MTP_PRIO_CLASSES; c++) TAILQ_INIT(&t->gen_list[c]); }
 	return 0;
 }
