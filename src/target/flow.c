@@ -10,6 +10,8 @@
 #include <string.h>
 #include <assert.h>
 
+#include <pthread.h>
+
 #include "flow.h"
 #include "flow_table.h"
 #include "target_core.h"
@@ -28,6 +30,19 @@ FlowPoolInit(struct core_ctx *core)
 		return -1;
 
 	t->flow_next = 0;
+
+	/* Capacity is flow count -- see the field's comment. Rounded up to a
+	 * power of two because the ring masks. */
+	{
+		uint32_t cap = 1;
+
+		while (cap < (uint32_t)CONFIG.max_concurrency)
+			cap <<= 1;
+		t->q_notify_slots = calloc(cap, sizeof(*t->q_notify_slots));
+		if (!t->q_notify_slots ||
+		    !spsc_init(&t->q_notify, t->q_notify_slots, cap))
+			return -1;
+	}
 	TAILQ_INIT(&t->gen_list);
 	return 0;
 }
@@ -120,11 +135,76 @@ void
 tgt_sched_enqueue(flow_t *f)
 {
 	struct transport *t = TransportOf(g_core[0]);
+	struct spsc_slot slot;
 
+	/*
+	 * THE GUARD IS HERE, not at the call sites, and it is what makes the
+	 * ring's flow-count capacity sound (§21.10). Test-and-set: a flow
+	 * already pending enqueues nothing, however many times it is written.
+	 */
 	if (f->on_gen_list)
 		return;
-	TAILQ_INSERT_TAIL(&t->gen_list, f, gen_link);
 	f->on_gen_list = 1;
+
+	/*
+	 * Same thread as the stack: insert directly, so a flow enqueued while
+	 * handling a packet is drained in the SAME pass. Routing it through the
+	 * ring would cost it an iteration and lose the single-pass property.
+	 */
+	if (t->stack_tid == 0 ||
+	    t->stack_tid == (uint64_t)(uintptr_t)pthread_self()) {
+		TAILQ_INSERT_TAIL(&t->gen_list, f, gen_link);
+		return;
+	}
+
+	/* The application thread. Publish; the stack thread moves it across. */
+	slot.a = (uint64_t)(uintptr_t)f;
+	slot.b = 0;
+	if (spsc_push_n(&t->q_notify, &slot, 1) != 1) {
+		/*
+		 * Structurally impossible: capacity is max_concurrency and the
+		 * flag above means each flow occupies at most one slot. If it
+		 * ever happens the capacity argument has been broken by a new
+		 * producer, which is exactly the prototype's defect -- so it is
+		 * loud rather than a discarded return value.
+		 */
+		fprintf(stderr, "\n*** NOTIFY RING FULL: capacity is flow count "
+			"and the membership flag should make this impossible "
+			"(DESIGN.md \u00a721.10)\n");
+		fflush(stderr);
+		abort();
+	}
+}
+
+/*
+ * Move everything the application published into gen_list. Runs on the stack
+ * thread, before the drain, so a write published during the previous slice is
+ * generated and flushed in this pass.
+ *
+ * The flag is cleared by the CONSUMER before the flow is processed -- the
+ * donor's ordering -- so a write arriving after this point re-enqueues rather
+ * than being silently dropped.
+ */
+void
+tgt_sched_take_notifications(struct core_ctx *core)
+{
+	struct transport *t = TransportOf(core);
+	struct spsc_slot got[64];
+	uint32_t n, i;
+
+	while ((n = spsc_pop_n(&t->q_notify, got, 64)) > 0)
+		for (i = 0; i < n; i++) {
+			struct flow *f = (struct flow *)(uintptr_t)got[i].a;
+
+			/*
+			 * One flag, meaning "pending: on the list OR in the
+			 * ring". The producer's test-and-set means at most one
+			 * of those is true, so this cannot double-insert; the
+			 * drain clears it when the flow is finished with.
+			 */
+			if (f->on_gen_list)
+				TAILQ_INSERT_TAIL(&t->gen_list, f, gen_link);
+		}
 }
 
 /*----------------------------------------------------------------------------*/

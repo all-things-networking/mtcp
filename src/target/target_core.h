@@ -12,6 +12,7 @@
 
 #include "contract.h"
 #include "infra.h"
+#include "spsc.h"
 
 struct flow;
 struct flow_table;
@@ -27,6 +28,25 @@ struct transport {
 	uint32_t		 flow_next;
 
 	TAILQ_HEAD(gen_head, flow) gen_list;
+
+	/*
+	 * CROSS-THREAD NOTIFICATION (DESIGN.md §21.9/§21.10). The application
+	 * thread cannot touch gen_list -- the stack thread walks it -- so it
+	 * publishes the flow here and the stack thread moves it across at the
+	 * top of its pass.
+	 *
+	 * CAPACITY IS FLOW COUNT, not a rate, and that is only sound because
+	 * every producer is gated on the per-flow membership flag. A flow
+	 * written to three hundred times in one scheduling slice enqueues ONCE.
+	 * The guard therefore lives inside tgt_sched_enqueue() and not at the
+	 * call sites: the prototype kept this ring, kept the capacity, then
+	 * added a producer (mtcp_recv) that sets the flag without testing it,
+	 * and its "this always success" comment quietly became false. A new
+	 * producer cannot omit a guard it cannot reach.
+	 */
+	struct spsc		 q_notify;
+	struct spsc_slot	*q_notify_slots;
+	uint64_t		 stack_tid;	/* 0 until the stack thread runs */
 
 	/*
 	 * The readiness list — §17.6's target→app edge. Coalesced per flow, so

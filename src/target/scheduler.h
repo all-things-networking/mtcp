@@ -58,6 +58,10 @@ struct mtp_ready {
 	uint32_t  kinds;	/* 1 << enum mtp_notif_kind */
 };
 
+/* Move flows the application published into gen_list. Stack thread, before
+ * the drain. */
+void tgt_sched_take_notifications(struct core_ctx *core);
+
 int  TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max);
 
 int  TransportCoreInit(struct core_ctx *core);

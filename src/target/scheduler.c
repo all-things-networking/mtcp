@@ -571,6 +571,13 @@ SchedStep(struct core_ctx *core,
 		 * point (core.c:822). */
 		/* the application, between the burst and the drain, so what it
 		 * writes reaches this iteration's flush */
+		/*
+		 * The application's publications, taken BEFORE the drain so a
+		 * write reaches the wire in this pass rather than the next
+		 * (DESIGN.md §21.5 C4). The app callback that used to run here
+		 * is gone: that parameter WAS the inline coupling.
+		 */
+		tgt_sched_take_notifications(core);
 		if (app)
 			app(core, ts, app_arg);
 
