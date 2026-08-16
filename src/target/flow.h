@@ -60,6 +60,16 @@ struct flow {
 	 * test-and-set and the ring's flow-count capacity argument holds.
 	 */
 	int8_t		 gen_class;
+
+	/*
+	 * CR-E. The application thread buffers payload straight into the ring
+	 * and records the EXTENT here; the stack thread invokes the program's
+	 * SEND for that extent. The bytes never cross a queue -- only the fact
+	 * that they exist -- which is what the donor does (its mtcp_write
+	 * copies under the buffer lock and enqueues the stream).
+	 */
+	uint32_t	 pending_send;	/* bytes buffered, not yet handed over */
+	uint8_t		 on_send_q;
 	uint8_t		 scratch_out;	/* a tgt_bp_new() awaiting its commit */
 };
 

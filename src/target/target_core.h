@@ -68,6 +68,8 @@ struct transport {
 	 */
 	TAILQ_HEAD(ready_head, flow) ready_list;
 	struct flow_queue	 q_ready;
+	/* CR-E: application -> stack, "this flow has buffered bytes". */
+	struct flow_queue	 q_send;
 
 	/*
 	 * The packet being dispatched, if any. The target attaches its L3

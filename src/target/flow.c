@@ -37,6 +37,8 @@ FlowPoolInit(struct core_ctx *core)
 		return -1;
 	if (fq_init(&t->q_ready, (fq_index_t)CONFIG.max_concurrency) < 0)
 		return -1;
+	if (fq_init(&t->q_send, (fq_index_t)CONFIG.max_concurrency) < 0)
+		return -1;
 	{ int c; for (c = 0; c < MTP_PRIO_CLASSES; c++) TAILQ_INIT(&t->gen_list[c]); }
 	return 0;
 }
@@ -83,6 +85,8 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	f->ip_id = 0;
 	f->ring_head = f->ring_tail = 0;
 	f->gen_class = -1;
+	f->pending_send = 0;
+	f->on_send_q = 0;
 	f->ctx = NULL;
 	/* §24: the slot index IS the identifier. Slots are not recycled, so it
 	 * is unique for the life of the process and cannot be handed to the
@@ -165,6 +169,95 @@ tgt_sched_enqueue(flow_t *f, uint32_t prio)
  * donor's ordering -- so a write arriving after this point re-enqueues rather
  * than being silently dropped.
  */
+/*
+ * CR-E: the application's send, from the APPLICATION THREAD.
+ *
+ * Copies straight into the flow's transmit ring and returns what was accepted,
+ * synchronously -- the shape mtcp_write has, where CopyFromUser runs under the
+ * buffer lock and the operation that crosses names the stream rather than the
+ * bytes. Nothing waits for the stack: a short return is back-pressure and the
+ * application retries when the flow is writable.
+ *
+ * The extent is accumulated on the flow and the flow is published. The STACK
+ * thread then invokes the program's SEND for it, which is what keeps packet
+ * generation -- and therefore send_next, cwnd and snd_base -- on one thread.
+ * Doing that generation here instead is the race this whole change removes.
+ */
+int
+mtp_app_send(flow_t *f, const void *buf, uint32_t len)
+{
+	struct transport *t = TransportOf(g_core[0]);
+	struct mtp_tx_addr addr;
+	int wrote;
+
+	if (!f || !f->tx_unit)
+		return -1;
+
+	addr.base = buf;
+	addr.len = len;
+	wrote = mtp_add_tx_data(f->tx_unit, addr, len);
+	if (wrote <= 0)
+		return wrote;
+
+	f->pending_send += (uint32_t)wrote;
+
+	/* Guard inside the helper, as everywhere else: one entry per flow, so
+	 * the queue's flow-count capacity holds however often this is called. */
+	if (!f->on_send_q) {
+		f->on_send_q = 1;
+		if (t->stack_tid == 0 ||
+		    t->stack_tid == (uint64_t)(uintptr_t)pthread_self()) {
+			/*
+			 * Single-threaded, or the stack itself: hand this flow
+			 * over now. NOT take_sends() -- that drains the queue,
+			 * and this flow was never put in it.
+			 */
+			tgt_deliver_send(g_core[0], f);
+		} else if (fq_enqueue(&t->q_send, f) != 0) {
+			fprintf(stderr, "\n*** SEND QUEUE FULL: capacity is "
+				"flow count and the membership guard should "
+				"make this impossible\n");
+			fflush(stderr);
+			abort();
+		}
+	}
+	return wrote;
+}
+
+/*
+ * Stack thread: hand each published extent to the program. Runs before the
+ * drain, so bytes the application buffered during the previous slice are
+ * generated and flushed in this pass.
+ */
+void
+tgt_sched_take_sends(struct core_ctx *core)
+{
+	struct transport *t = TransportOf(core);
+	struct flow *f;
+
+	while ((f = fq_dequeue(&t->q_send)) != NULL)
+		tgt_deliver_send(core, f);
+}
+
+/* One flow's pending extent, handed to the program as CR-E's SEND. */
+void
+tgt_deliver_send(struct core_ctx *core, struct flow *f)
+{
+	struct mtp_app_op op;
+	uint32_t len = f->pending_send;
+
+	f->pending_send = 0;
+	f->on_send_q = 0;
+	if (!len)
+		return;
+
+	memset(&op, 0, sizeof(op));
+	op.kind = MTP_APP_SEND;
+	op.flow = f;
+	op.len = len;		/* CR-E: an EXTENT already in the ring */
+	mtp_program_app_op(&op, core->cur_ts);
+}
+
 void
 tgt_sched_take_notifications(struct core_ctx *core)
 {

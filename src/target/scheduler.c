@@ -614,6 +614,9 @@ SchedStep(struct core_ctx *core,
 		 * (DESIGN.md §21.5 C4). The app callback that used to run here
 		 * is gone: that parameter WAS the inline coupling.
 		 */
+		/* CR-E: extents the application buffered, handed to the
+		 * program HERE -- on the stack thread -- before the drain. */
+		tgt_sched_take_sends(core);
 		tgt_sched_take_notifications(core);
 		if (app)
 			app(core, ts, app_arg);

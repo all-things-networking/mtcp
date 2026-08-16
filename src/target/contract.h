@@ -365,6 +365,14 @@ int   mtp_del_ctx(const flowkey_t *key);
 uint32_t mtp_flow_id(flow_t *f);
 
 /*
+ * CR-E. The application's send: copies into the flow's transmit ring and
+ * returns what was accepted, synchronously. The bytes do not cross the thread
+ * boundary -- only the fact of them -- and the program's SEND then names an
+ * EXTENT rather than a pointer. A short return is back-pressure, not an error.
+ */
+int mtp_app_send(flow_t *f, const void *buf, uint32_t len);
+
+/*
  * TRANSMIT PRIORITY CLASSES (D-17).
  *
  * The target provides three classes and drains the highest first. It attaches

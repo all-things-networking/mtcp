@@ -129,20 +129,15 @@ pump(flow_t *flow, uint32_t now)
 	struct conn_state *c = conn_of(flow);
 
 	while (c->sent < g_resp_len) {
-		struct mtp_app_op snd;
 		size_t want = g_resp_len - c->sent;
 		int wrote;
 
 		if (want > WRITE_CHUNK)
 			want = WRITE_CHUNK;
 
-		memset(&snd, 0, sizeof(snd));
-		snd.kind = MTP_APP_SEND;
-		snd.flow = flow;
-		snd.data.base = g_resp + c->sent;
-		snd.data.len = want;
-		snd.len = want;
-		wrote = mtp_program_app_op(&snd, now);
+		/* CR-E: copies into the flow's ring and returns what was
+		 * accepted. The bytes do not cross the thread boundary. */
+		wrote = mtp_app_send(flow, g_resp + c->sent, (uint32_t)want);
 		if (wrote <= 0)
 			return;		/* refused: wait for WRITABLE */
 		c->sent += (size_t)wrote;

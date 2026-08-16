@@ -11,17 +11,17 @@ apps/compat/mtcp_shim.c:77:static int
 apps/tcpserver/tcpserver.c:104:static struct conn_state g_conn[MAX_CONNS];
 apps/tcpserver/tcpserver.c:106:static struct conn_state *
 apps/tcpserver/tcpserver.c:126:static void
-apps/tcpserver/tcpserver.c:164:static void
-apps/tcpserver/tcpserver.c:174: static uint8_t buf[2048];
-apps/tcpserver/tcpserver.c:223:static void
-apps/tcpserver/tcpserver.c:239:static void
-apps/tcpserver/tcpserver.c:260: static char altstack[SIGSTKSZ * 4];
+apps/tcpserver/tcpserver.c:159:static void
+apps/tcpserver/tcpserver.c:169: static uint8_t buf[2048];
+apps/tcpserver/tcpserver.c:218:static void
+apps/tcpserver/tcpserver.c:234:static void
+apps/tcpserver/tcpserver.c:255: static char altstack[SIGSTKSZ * 4];
 apps/tcpserver/tcpserver.c:55:static uint8_t *g_obj;
 apps/tcpserver/tcpserver.c:56:static size_t g_obj_len;
 apps/tcpserver/tcpserver.c:63:static uint8_t *g_resp;
 apps/tcpserver/tcpserver.c:64:static size_t g_resp_len;
 src/program/prog_app.c:50:static void
-src/program/prog_tcp.c:1273:static void
+src/program/prog_tcp.c:1295:static void
 src/program/prog_tcp.c:141:static struct {
 src/program/prog_tcp.c:188:static void
 src/program/prog_tcp.c:225:static int
@@ -29,20 +29,20 @@ src/program/prog_tcp.c:258:static flowkey_t
 src/program/prog_tcp.c:304:static uint64_t g_emit[EM__N];
 src/program/prog_tcp.c:305:static uint64_t g_app_bytes; /* bytes accepted from the application */
 src/program/prog_tcp.c:308:static void
-src/program/prog_tcp.c:395:static uint64_t g_refuse[REF__N];
-src/program/prog_tcp.c:411:static uint64_t g_tmr[TMR__N];
-src/program/prog_tcp.c:415:static uint64_t g_rx[RXS__N];
-src/program/prog_tcp.c:474:static bool
-src/program/prog_tcp.c:485:static bool
-src/program/prog_tcp.c:503:static bool
-src/program/prog_tcp.c:511:static void
-src/program/prog_tcp.c:541:static void
-src/program/prog_tcp.c:571:static void
-src/program/prog_tcp.c:670:static void
-src/program/prog_tcp.c:780:static void
-src/program/prog_tcp.c:871:static void
-src/program/prog_tcp.c:894:static void
-src/program/prog_tcp.c:949:static void
+src/program/prog_tcp.c:405:static uint64_t g_refuse[REF__N];
+src/program/prog_tcp.c:421:static uint64_t g_tmr[TMR__N];
+src/program/prog_tcp.c:425:static uint64_t g_rx[RXS__N];
+src/program/prog_tcp.c:484:static bool
+src/program/prog_tcp.c:495:static bool
+src/program/prog_tcp.c:513:static bool
+src/program/prog_tcp.c:521:static void
+src/program/prog_tcp.c:563:static void
+src/program/prog_tcp.c:593:static void
+src/program/prog_tcp.c:692:static void
+src/program/prog_tcp.c:802:static void
+src/program/prog_tcp.c:893:static void
+src/program/prog_tcp.c:916:static void
+src/program/prog_tcp.c:971:static void
 src/target/emit.c:102: static int nth;
 src/target/emit.c:103: static int seen;
 src/target/emit.c:136:static int
@@ -54,16 +54,16 @@ src/target/emit.c:483: static int hold;
 src/target/emit.c:484: static uint32_t held;
 src/target/emit.c:97:static int g_trace_seg;
 src/target/emit.c:99:static int
-src/target/flow.c:238:static uint64_t g_mrg[MRG__N];
+src/target/flow.c:327:static uint64_t g_mrg[MRG__N];
 src/target/scheduler.c:127:static void
 src/target/scheduler.c:300:static void
 src/target/scheduler.c:408:static uint64_t transport_packets;
 src/target/scheduler.c:419:static struct {
 src/target/scheduler.c:445:static int
 src/target/scheduler.c:468: static uint64_t seen;
-src/target/scheduler.c:661:static void
-src/target/scheduler.c:672:static void *
-src/target/scheduler.c:723: static struct sched_thread_arg arg;
+src/target/scheduler.c:664:static void
+src/target/scheduler.c:675:static void *
+src/target/scheduler.c:726: static struct sched_thread_arg arg;
 src/target/scheduler.c:95:static void
 src/target/timers.c:178: static uint32_t last;
 src/target/timers.c:181: static uint64_t n;

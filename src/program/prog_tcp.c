@@ -366,6 +366,16 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1) == 0) {
 		c->send_next++;			/* the SYN-ACK consumes one */
 		c->snd_base = c->send_next;	/* ...so data starts one past */
+		/*
+		 * CR-E: the ring exists from establishment, not from the first
+		 * send. The target buffers into it on the application thread
+		 * (mtp_app_send) and needs f->tx_unit valid before the
+		 * application's first write, which a lazy open cannot promise.
+		 */
+		if (!c->tx_open) {
+			mtp_new_tx_ordered_data(&c->tx, MTP_SIZE_INF);
+			c->tx_open = true;
+		}
 	}
 }
 
@@ -523,7 +533,19 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	/* the application posted an object before listening; serve it */
 	if (prog_listener.obj_len) {
-		tcp_app_send(c, prog_listener.obj, prog_listener.obj_len, now);
+		struct mtp_tx_addr addr;
+		int wrote;
+
+		/*
+		 * CR-E: buffer, then hand over the EXTENT -- the same two steps
+		 * the application thread takes, except that this path already
+		 * runs on the stack thread, so it does both itself.
+		 */
+		addr.base = prog_listener.obj;
+		addr.len = prog_listener.obj_len;
+		wrote = mtp_add_tx_data(&c->tx, addr, prog_listener.obj_len);
+		if (wrote > 0)
+			tcp_app_send(c, (uint32_t)wrote, now);
 		c->app_closed = true;	/* a one-shot server has said all it will */
 	}
 }
@@ -1165,7 +1187,7 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 		c = (struct tcp_ctx *)mtp_ctx_of(op->flow);
 		if (!c)
 			return -1;
-		return tcp_app_send(c, op->data.base, op->len, now_ms);
+		return tcp_app_send(c, op->len, now_ms);
 	}
 	default:
 		return -1;		/* an op this program does not bind */
@@ -1441,48 +1463,38 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 /*
  * mtp/tcp.mtp §record_data — application data arrives.
  *
- * The send buffer is created lazily, on first write, which is the donor's
- * behaviour (its eager-allocation counterpart is the prototype's and is an
- * unjudged difference, not a gap). write_end is the program's own mirror of how
+ * The send buffer is created AT ESTABLISHMENT (CR-E), not lazily on first
+ * write: the target buffers into it from the application thread and needs
+ * f->tx_unit valid before the application's first write, which a lazy open
+ * cannot promise. write_end is the program's own mirror of how
  * much it has appended — the target has no accessor to ask, and §2.4b's
  * withdrawal rests on exactly this working.
  */
 int
-tcp_app_send(struct tcp_ctx *c, const void *data, uint32_t len, uint32_t now)
+tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 {
-	struct mtp_tx_addr addr;
-	int wrote;
-
+	/*
+	 * CR-E: `len` is an EXTENT ALREADY IN THE RING, not a pointer to copy.
+	 * The application thread put the bytes there through mtp_app_send and
+	 * the target published the extent; this runs on the STACK thread, so
+	 * tcp_gen_seg -- and with it send_next, cwnd and snd_base -- is touched
+	 * by one thread only. Doing the generation on the application thread is
+	 * the race this representation exists to remove.
+	 */
 	if (!send_side_open(c))
 		return -1;
 
-	if (!c->tx_open) {
-		mtp_new_tx_ordered_data(&c->tx, MTP_SIZE_INF);
-		c->tx_open = true;
-	}
+	g_app_bytes += (uint64_t)len;
+	c->write_end += len;
 
-	addr.base = data;
-	addr.len = len;
-	wrote = mtp_add_tx_data(&c->tx, addr, len);
-	/*
-	 * BYTES THE APPLICATION HANDED US, in total. Splits the problem in half:
-	 * if the application wrote ~1 MB per connection and the wire carried
-	 * ~11 MB, the transport is re-sending; if it wrote ~11 MB, the transport
-	 * is faithfully sending what it was given and the fault is above this
-	 * line. A client that reads its 1 MB and closes would never notice.
-	 */
-	if (wrote > 0)
-		g_app_bytes += (uint64_t)wrote;
 	if (getenv("MTP_TRACE_SEQ"))
-		fprintf(stderr, "APPSEND state=%u len=%u wrote=%d write_end=%u "
+		fprintf(stderr, "APPSEND state=%u extent=%u write_end=%u "
 			"send_next=%u snd_base=%u cwnd=%u send_wnd=%u\n",
-			c->state, len, wrote, c->write_end, c->send_next,
+			c->state, len, c->write_end, c->send_next,
 			c->snd_base, c->cwnd, c->send_wnd);
-	if (wrote > 0)
-		c->write_end += (uint32_t)wrote;
 
 	tcp_gen_seg(c, now);
-	return wrote;
+	return (int)len;
 }
 
 /*============================================================================*
