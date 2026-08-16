@@ -1,13 +1,15 @@
-apps/compat/mtcp_shim.c:215:static flow_t *g_pending[SHIM_PENDING];
-apps/compat/mtcp_shim.c:216:static int g_pend_head, g_pend_tail;
-apps/compat/mtcp_shim.c:218:static void
-apps/compat/mtcp_shim.c:354:static void
-apps/compat/mtcp_shim.c:60:static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
-apps/compat/mtcp_shim.c:61:static struct shim_sock g_sock[SHIM_MAX_SOCK];
-apps/compat/mtcp_shim.c:62:static struct core_ctx *g_shim_core;
-apps/compat/mtcp_shim.c:63:static struct mtcp_conf g_conf;
-apps/compat/mtcp_shim.c:65:static struct shim_flow_state *
-apps/compat/mtcp_shim.c:80:static int
+apps/compat/mtcp_shim.c:126:static void
+apps/compat/mtcp_shim.c:291:static flow_t *g_pending[SHIM_PENDING];
+apps/compat/mtcp_shim.c:292:static int g_pend_head, g_pend_tail;
+apps/compat/mtcp_shim.c:294:static void
+apps/compat/mtcp_shim.c:430:static void
+apps/compat/mtcp_shim.c:68:static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
+apps/compat/mtcp_shim.c:69:static struct shim_sock g_sock[SHIM_MAX_SOCK];
+apps/compat/mtcp_shim.c:70:static struct core_ctx *g_shim_core;
+apps/compat/mtcp_shim.c:71:static pthread_t g_shim_stack;
+apps/compat/mtcp_shim.c:72:static struct mtcp_conf g_conf;
+apps/compat/mtcp_shim.c:74:static struct shim_flow_state *
+apps/compat/mtcp_shim.c:89:static int
 apps/tcpserver/tcpserver.c:104:static struct conn_state g_conn[MAX_CONNS];
 apps/tcpserver/tcpserver.c:106:static struct conn_state *
 apps/tcpserver/tcpserver.c:126:static void

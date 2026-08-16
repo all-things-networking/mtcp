@@ -18,6 +18,9 @@
  * cannot be allowed to have.
  */
 #include <errno.h>
+#include <execinfo.h>
+#include <unistd.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,6 +32,11 @@
 
 #include "contract.h"
 #include "scheduler.h"
+#include "infra.h"
+#include "bringup.h"	/* InfraInit, InfraCoreCreate -- WITHOUT this the
+				 * compiler assumes InfraCoreCreate returns int and
+				 * sign-extends the pointer, which segfaults on the
+				 * first dereference and looks like a target bug */
 #include "target_core.h"
 
 #define SHIM_MAX_SOCK	4096
@@ -60,6 +68,7 @@ struct shim_flow_state {
 static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
 static struct shim_sock	 g_sock[SHIM_MAX_SOCK];
 static struct core_ctx	*g_shim_core;
+static pthread_t	 g_shim_stack;
 static struct mtcp_conf	 g_conf;
 
 static struct shim_flow_state *
@@ -100,11 +109,53 @@ sock_alloc(flow_t *flow)
 /*----------------------------------------------------------------------------*/
 /* Setup. mtcp_init does what tcpserver's main() does before its loop. */
 
+/*
+ * BRING THE TARGET UP. epserver calls this once, before anything else, and
+ * everything the reference does afterwards assumes a working stack -- so the
+ * sequence tcpserver's main() performs before its loop happens here instead.
+ *
+ * A stub that returned 0 would link, and would fail to serve. That is the
+ * arm-that-was-never-demonstrated failure, so this is exercised by a run that
+ * delivers an object and checks its checksum, not by the binary existing.
+ */
+/*
+ * A crash here is a failing test, and one that leaves no evidence costs a run
+ * to reproduce -- the reference has no handler of its own and setsid'd output
+ * goes nowhere. Same handler tcpserver installs, for the same reason.
+ */
+static void
+shim_fatal(int sig)
+{
+	void *bt[32];
+	int n = backtrace(bt, 32);
+
+	fprintf(stderr, "\n*** mtcp_shim: FATAL signal %d — stack follows ***\n",
+		sig);
+	fflush(stderr);
+	backtrace_symbols_fd(bt, n, fileno(stderr));
+	_exit(128 + sig);
+}
+
 int
 mtcp_init(const char *config_file)
 {
-	(void)config_file;	/* our config is loaded by the harness */
+	{
+		struct sigaction sa;
+
+		memset(&sa, 0, sizeof(sa));
+		sa.sa_handler = shim_fatal;
+		sigaction(SIGSEGV, &sa, NULL);
+		sigaction(SIGBUS, &sa, NULL);
+		sigaction(SIGABRT, &sa, NULL);
+	}
 	memset(g_sock, 0, sizeof(g_sock));
+	memset(g_flow, 0, sizeof(g_flow));
+
+	if (InfraInit(config_file) < 0) {
+		fprintf(stderr, "mtcp_shim: InfraInit(%s) failed\n",
+			config_file ? config_file : "(null)");
+		return -1;
+	}
 	return 0;
 }
 
@@ -155,14 +206,39 @@ mtcp_register_signal(int signum, mtcp_sighandler_t handler)
 	return old.sa_handler;
 }
 
+/*
+ * The per-core context, and where the stack thread starts. epserver creates one
+ * per core; we refuse more than one at setconf, so this runs once.
+ */
 mctx_t
 mtcp_create_context(int cpu)
 {
-	(void)cpu;
+	g_shim_core = InfraCoreCreate(cpu);
+	if (!g_shim_core || TransportCoreInit(g_shim_core) < 0) {
+		fprintf(stderr, "mtcp_shim: cpu %d failed to come up\n", cpu);
+		return NULL;
+	}
+
+	/*
+	 * Two threads, one core, as everywhere else. epserver's thread becomes
+	 * the application; the stack gets its own. Runs until SIGINT, so no
+	 * tick limit.
+	 */
+	g_shim_stack = SchedStartStack(g_shim_core, 0, cpu);
 	return (mctx_t)g_shim_core;
 }
 
-void mtcp_destroy_context(mctx_t mctx) { (void)mctx; }
+void
+mtcp_destroy_context(mctx_t mctx)
+{
+	(void)mctx;
+	if (g_shim_stack) {
+		pthread_join(g_shim_stack, NULL);
+		g_shim_stack = 0;
+	}
+	if (g_shim_core)
+		SchedReport(g_shim_core);	/* the loop is ours, so is the report */
+}
 int  mtcp_core_affinitize(int cpu)     { (void)cpu; return 0; }
 int  mtcp_setsock_nonblock(mctx_t m, int s) { (void)m; (void)s; return 0; }
 
