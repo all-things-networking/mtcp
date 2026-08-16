@@ -1425,10 +1425,23 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	 */
 	{
 		uint32_t seq = c->send_next;
+		/*
+		 * IN FLIGHT MEANS ON THE WIRE. `seq - send_una` counts
+		 * GENERATED-unacknowledged, which under deferred segmentation
+		 * includes blueprints still sitting in the ring -- so it
+		 * overstates in flight, understates the remaining window, and
+		 * makes our congestion trajectory diverge from the donor's.
+		 * That trajectory is an observable rule 1 names.
+		 */
+		uint64_t acked_s = (uint64_t)(c->send_una - c->snd_base);
+		uint64_t wire_s = c->tx_open ? mtp_tx_emitted(&c->tx) : acked_s;
+		uint32_t on_wire = (uint32_t)(wire_s > acked_s
+					      ? wire_s - acked_s : 0);
 
 		to_send = 0;
 		for (;;) {
-			uint32_t inflight_here = seq - c->send_una;
+			/* on the wire, plus what this loop has decided to add */
+			uint32_t inflight_here = on_wire + to_send;
 			int32_t rw = (int32_t)win - (int32_t)inflight_here;
 			uint32_t avail_here, len, pkt;
 
@@ -1490,7 +1503,14 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	 * refused, so the re-emission happens later from the acknowledgement
 	 * path — the rewind and the re-send are separated in time.
 	 */
-	rtx = c->send_next < c->send_high;
+	/*
+	 * A RETRANSMISSION IS A RE-SEND OF BYTES ALREADY ON THE WIRE.
+	 * send_high is a GENERATED high-water, so this read true for a range
+	 * only ever generated -- and marked as a retransmission something that
+	 * had never been sent. Read the wire instead.
+	 */
+	rtx = c->tx_open &&
+	      (uint64_t)(c->send_next - c->snd_base) < mtp_tx_emitted(&c->tx);
 	if (rtx) {
 		g_emit[EM_DATA_RTX]++;
 		if (getenv("MTP_TRACE_EV"))
