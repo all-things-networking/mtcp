@@ -18,6 +18,7 @@
  * cannot be allowed to have.
  */
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,6 +74,8 @@ fstate(flow_t *f)
 	}
 	return &g_flow[id];
 }
+
+static void shim_collect_ready(void);
 
 static int
 sock_alloc(flow_t *flow)
@@ -133,6 +136,23 @@ mtcp_setconf(const struct mtcp_conf *conf)
 	}
 	g_conf = *conf;
 	return 0;
+}
+
+/*
+ * Plain sigaction: no target involvement, and the reference expects the
+ * previous handler back. epserver uses it to install its SIGINT handler.
+ */
+mtcp_sighandler_t
+mtcp_register_signal(int signum, mtcp_sighandler_t handler)
+{
+	struct sigaction sa, old;
+
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = handler;
+	sigemptyset(&sa.sa_mask);
+	if (sigaction(signum, &sa, &old))
+		return NULL;
+	return old.sa_handler;
 }
 
 mctx_t
@@ -250,19 +270,14 @@ mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len)
 ssize_t
 mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 {
-	struct mtp_app_op op;
 	int wrote;
 
 	(void)mctx;
 	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK || !g_sock[sockid].flow)
 		return -1;
-	memset(&op, 0, sizeof(op));
-	op.kind = MTP_APP_SEND;
-	op.flow = g_sock[sockid].flow;
-	op.data.base = (uint8_t *)(uintptr_t)buf;
-	op.data.len = (uint32_t)len;
-	op.len = (uint32_t)len;
-	wrote = mtp_program_app_op(&op, g_shim_core ? g_shim_core->cur_ts : 0);
+	/* CR-E: copies into the flow's ring on THIS thread and returns what was
+	 * accepted; the stack invokes the program's SEND for the extent. */
+	wrote = mtp_app_send(g_sock[sockid].flow, buf, (uint32_t)len);
 	if (wrote > 0)
 		return wrote;
 	errno = EAGAIN;
@@ -272,17 +287,12 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 int
 mtcp_close(mctx_t mctx, int sockid)
 {
-	struct mtp_app_op op;
-
 	(void)mctx;
 	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK)
 		return -1;
-	if (g_sock[sockid].flow) {
-		memset(&op, 0, sizeof(op));
-		op.kind = MTP_APP_CLOSE;
-		op.flow = g_sock[sockid].flow;
-		mtp_program_app_op(&op, g_shim_core ? g_shim_core->cur_ts : 0);
-	}
+	/* CR-E: detaches, then publishes; the stack generates the FIN. */
+	if (g_sock[sockid].flow)
+		mtp_app_close(g_sock[sockid].flow);
 	memset(&g_sock[sockid], 0, sizeof(g_sock[sockid]));
 	return 0;
 }
@@ -342,14 +352,12 @@ mtcp_epoll_ctl(mctx_t mctx, int epid, int op, int sockid,
  * the donor (RESULTS 2026-08-15).
  */
 static void
-shim_app_cb(struct core_ctx *core, uint32_t now, void *arg)
+shim_collect_ready(void)
 {
 	struct mtp_ready ready[64];
 	int n, i;
 
-	(void)now;
-	(void)arg;
-	n = TransportPoll(core, ready, 64);
+	n = TransportPoll(g_shim_core, ready, 64);
 	for (i = 0; i < n; i++) {
 		flow_t *f = ready[i].flow;
 		int sid = fstate(f)->sockid;
@@ -388,7 +396,19 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 	for (i = 0; i < SHIM_MAX_SOCK; i++)
 		g_sock[i].ready = 0;
 
-	SchedStep(g_shim_core, shim_app_cb, NULL);
+	/*
+	 * DOES NOT PUMP THE TARGET. It used to call SchedStep here, which made
+	 * the application's loop the stack's clock -- our inline design showing
+	 * through the API. The stack now runs on its own thread, so this only
+	 * TAKES what is already there and returns, including nothing.
+	 *
+	 * That is also what acquires the single-pass property for the shim.
+	 * With the stack pumped from here, epserver's mtcp_write landed AFTER
+	 * drain and send had run for that pass, so every write waited a further
+	 * iteration. With the stack always running, a write reaches the ring
+	 * and is drained by the pass already in flight.
+	 */
+	shim_collect_ready();
 
 	/* The listener first: epserver checks for it by socket id and accepts
 	 * everything queued before looking at the rest. */

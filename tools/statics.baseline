@@ -1,13 +1,13 @@
-apps/compat/mtcp_shim.c:195:static flow_t *g_pending[SHIM_PENDING];
-apps/compat/mtcp_shim.c:196:static int g_pend_head, g_pend_tail;
-apps/compat/mtcp_shim.c:198:static void
-apps/compat/mtcp_shim.c:344:static void
-apps/compat/mtcp_shim.c:59:static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
-apps/compat/mtcp_shim.c:60:static struct shim_sock g_sock[SHIM_MAX_SOCK];
-apps/compat/mtcp_shim.c:61:static struct core_ctx *g_shim_core;
-apps/compat/mtcp_shim.c:62:static struct mtcp_conf g_conf;
-apps/compat/mtcp_shim.c:64:static struct shim_flow_state *
-apps/compat/mtcp_shim.c:77:static int
+apps/compat/mtcp_shim.c:215:static flow_t *g_pending[SHIM_PENDING];
+apps/compat/mtcp_shim.c:216:static int g_pend_head, g_pend_tail;
+apps/compat/mtcp_shim.c:218:static void
+apps/compat/mtcp_shim.c:354:static void
+apps/compat/mtcp_shim.c:60:static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
+apps/compat/mtcp_shim.c:61:static struct shim_sock g_sock[SHIM_MAX_SOCK];
+apps/compat/mtcp_shim.c:62:static struct core_ctx *g_shim_core;
+apps/compat/mtcp_shim.c:63:static struct mtcp_conf g_conf;
+apps/compat/mtcp_shim.c:65:static struct shim_flow_state *
+apps/compat/mtcp_shim.c:80:static int
 apps/tcpserver/tcpserver.c:104:static struct conn_state g_conn[MAX_CONNS];
 apps/tcpserver/tcpserver.c:106:static struct conn_state *
 apps/tcpserver/tcpserver.c:126:static void
@@ -65,8 +65,8 @@ src/target/scheduler.c:702:static void
 src/target/scheduler.c:713:static void *
 src/target/scheduler.c:764: static struct sched_thread_arg arg;
 src/target/scheduler.c:95:static void
-src/target/timers.c:185: static uint32_t last;
-src/target/timers.c:188: static uint64_t n;
+src/target/timers.c:193: static uint32_t last;
+src/target/timers.c:196: static uint64_t n;
 src/target/timers.c:45:static void
 src/target/tx_stream.c:210:static void
 src/target/tx_stream.c:257: static uint64_t flushes;

@@ -69,6 +69,39 @@ bin/upcheck: apps/upcheck/upcheck.c $(LIB)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $< -o $@ -Wl,--start-group $(LIB) -Wl,--end-group $(LIBS)
 
+# THE DONOR'S epserver, UNMODIFIED, ON OUR TARGET.
+#
+# The whole point of the shim: with the same application on both sides, the
+# application stops being a variable and only the stack differs. The reference
+# source is compiled from its own tree and never edited -- if it stops
+# compiling, that is a finding about the shim, not a licence to patch it.
+#
+# Its own headers are included rather than redeclared, so struct layouts are
+# identical by construction rather than by care. The util objects are the
+# reference's application-side helpers (HTTP parsing, date parsing), not stack
+# code. -w because the reference's warnings are the reference's.
+DONOR    := /home/mtahmasb/MTP-pass/MTP-DPDK-donor
+DONOR_INC := -I$(DONOR)/mtcp/include -I$(DONOR)/util/include
+
+bin/epserver-shim: apps/compat/mtcp_shim.c $(DONOR)/apps/example/epserver.c $(LIB)
+	@mkdir -p $(dir $@) build/compat
+	@# The reference is compiled with ITS include path FIRST, so it gets its
+	@# own debug.h and not ours -- ours defines TRACE_* in terms of a `core`
+	@# the reference does not have. Separate objects, one link.
+	$(CC) $(DONOR_INC) -I/usr/local/include -include rte_config.h \
+	    -march=native -m64 -w -c $(DONOR)/apps/example/epserver.c \
+	    -o build/compat/epserver.o
+	$(CC) $(DONOR_INC) -w -c $(DONOR)/util/http_parsing.c -o build/compat/http_parsing.o
+	$(CC) $(DONOR_INC) -w -c $(DONOR)/util/netlib.c       -o build/compat/netlib.o
+	$(CC) $(DONOR_INC) -w -c $(DONOR)/util/tdate_parse.c  -o build/compat/tdate_parse.o
+	@# the shim gets OUR headers first, plus the reference's declarations
+	$(CC) $(CFLAGS) $(DONOR_INC) -w -c apps/compat/mtcp_shim.c \
+	    -o build/compat/mtcp_shim.o
+	$(CC) build/compat/epserver.o build/compat/mtcp_shim.o \
+	    build/compat/http_parsing.o build/compat/netlib.o \
+	    build/compat/tdate_parse.o -o $@ \
+	    -Wl,--start-group $(LIB) -Wl,--end-group $(LIBS)
+
 bin/tcpserver: apps/tcpserver/tcpserver.c $(LIB)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $< -o $@ -Wl,--start-group $(LIB) -Wl,--end-group $(LIBS)

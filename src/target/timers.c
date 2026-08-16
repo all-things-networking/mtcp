@@ -181,6 +181,14 @@ TimerTick(uint32_t now)
 		}
 	}
 
+	/*
+	 * NOT SAFE TO ENABLE ON THE THREADED PATH. The two statics below are
+	 * function-scope but process-global, so with the stack thread running
+	 * they are shared state without synchronisation. They are a rate
+	 * limiter for a debug print and nothing reads them for a result -- but
+	 * a concurrency investigation is exactly when someone reaches for this
+	 * trace, and exactly when it would produce a plausible wrong number.
+	 */
 	if (getenv("MTP_TRACE_SEQ")) {
 		static uint32_t last;
 
