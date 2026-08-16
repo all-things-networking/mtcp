@@ -26,14 +26,16 @@ static uint64_t tx_ref_min(const struct mtp_data_unit *u);
  * fault dump, so it costs nothing until something goes wrong. */
 static void
 ref_log_put(struct mtp_data_unit *u, uint8_t op, uint8_t site, uint64_t base,
-	    const void *bp)
+	    uint32_t len, const void *bp, const void *caller)
 {
 	struct ref_event *e = &u->ref_log[u->ref_log_n & (MTP_REF_LOG - 1)];
 
 	e->base = base;
+	e->len = len;
 	e->bp = bp;
 	e->op = op;
 	e->site = site;
+	e->caller = caller;
 	e->live_after = u->live_refs;	/* set by the caller after the change */
 	u->ref_log_n++;
 }
@@ -240,6 +242,8 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 		"  head_seq    = %llu\n"
 		"  tail_seq    = %llu   (held %llu of cap %u)\n"
 		"  min is %llu bytes behind head, %llu behind tail\n"
+		"  emitted_hwm = %llu   (highest byte actually on the wire)\n"
+		"  upto - emitted = %lld   (POSITIVE = freeing past the wire)\n"
 		"  owner flow  = %p\n"
 		"  live refs (%u):\n",
 		(unsigned long long)upto,
@@ -250,6 +254,8 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 		(unsigned long long)(u->tail_seq - u->head_seq), u->cap,
 		(unsigned long long)(u->head_seq - lo),
 		(unsigned long long)(u->tail_seq - lo),
+		(unsigned long long)u->emitted_hwm,
+		(long long)((int64_t)upto - (int64_t)u->emitted_hwm),
 		(void *)u->owner, u->live_refs);
 
 	for (i = 0; i < u->live_refs; i++)
@@ -273,15 +279,29 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 			uint32_t k = (u->ref_log_n - n + i) & (MTP_REF_LOG - 1);
 			const struct ref_event *e = &u->ref_log[k];
 
-			fprintf(stderr, "    %-7s base=%-10llu bp=%p %-11s "
+			fprintf(stderr, "    %-7s [%llu,%llu) len=%-6u bp=%p %-11s "
 				"live_after=%u%s\n",
 				e->op ? "RELEASE" : "take",
-				(unsigned long long)e->base, e->bp,
+				(unsigned long long)e->base,
+				(unsigned long long)(e->base + e->len),
+				e->len, e->bp,
 				e->site < REF_SITE__N ? sn[e->site] : "?",
 				e->live_after,
 				e->base == lo ? "   <- THE MINIMUM" : "");
+			if (!e->op)
+				fprintf(stderr, "              issued by %p\n",
+					e->caller);
 		}
 	}
+
+	/*
+	 * COUNTERS HERE, NOT AT EXIT. The assertion below aborts, so the
+	 * end-of-run report never runs and every counter is absent exactly when
+	 * it matters -- the instrument that would explain the failure is
+	 * disabled by the failure. Printed at the fault site instead.
+	 */
+	if (tgt_report_at_fault)
+		tgt_report_at_fault();
 
 	if (prog_dump_flow_state)	/* the caller's terms, not the callee's */
 		prog_dump_flow_state(u->owner);
@@ -328,6 +348,11 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 	 * it is trying to observe, and one failure with full state is worth more
 	 * than many runs without.
 	 */
+	/* Weak, because the unit tests link this file without the scheduler --
+	 * a counter must not decide what a test binary contains. */
+	if (upto > u->emitted_hwm && u->owner && tgt_note_flush_past_wire)
+		tgt_note_flush_past_wire();
+
 	if (u->live_refs && upto > tx_ref_min(u)) {
 		tx_dump_ref_fault(u, upto);
 		assert(0 && "flush past a live reference — see the dump above");
@@ -352,7 +377,7 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
  */
 int
 tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
-	   uint8_t site, const void *bp)
+	   uint8_t site, const void *bp, const void *caller)
 {
 	uint32_t at, to_end;
 
@@ -385,7 +410,7 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 	 */
 	assert(u->live_refs < MTP_MAX_LIVE_REFS);
 	u->ref_base[u->live_refs++] = seq;
-	ref_log_put(u, 0 /* take */, site, seq, bp);
+	ref_log_put(u, 0 /* take */, site, seq, len, bp, caller);
 	return 0;
 }
 
@@ -419,7 +444,7 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
  */
 void
 tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base, uint8_t site,
-		   const void *bp)
+		   const void *bp, const void *caller)
 {
 	uint32_t i;
 
@@ -429,7 +454,7 @@ tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base, uint8_t site,
 		/* Compact: move the last entry into the hole. Order carries no
 		 * meaning now, so this is the whole removal. */
 		u->ref_base[i] = u->ref_base[--u->live_refs];
-		ref_log_put(u, 1 /* release */, site, base, bp);
+		ref_log_put(u, 1 /* release */, site, base, 0, bp, caller);
 		return;
 	}
 

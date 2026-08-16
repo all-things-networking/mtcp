@@ -790,6 +790,18 @@ SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu)
  * the numbers RESULTS.md is written from went with them.
  */
 void
+tgt_report_at_fault(void)
+{
+	SchedReport(g_core[0]);
+}
+
+void
+tgt_note_flush_past_wire(void)
+{
+	TransportOf(g_core[0])->flush_past_emitted++;
+}
+
+void
 SchedReport(struct core_ctx *core)
 {
 	struct thread_ctx *ctx = core->ctx;
@@ -850,6 +862,8 @@ SchedReport(struct core_ctx *core)
 		   TransportOf(core)->ring_hwm[0], bp_depth(0),
 		   TransportOf(core)->ring_hwm[1], bp_depth(1),
 		   TransportOf(core)->ring_hwm[2], bp_depth(2));
+	TRACE_INFO("CPU %d: flushes asking past the wire: %lu\n", ctx->cpu,
+		   (unsigned long)TransportOf(core)->flush_past_emitted);
 	TRACE_INFO("CPU %d: boundary crossings: app->stack send=%lu notify=%lu; "
 		   "stack->app ready=%lu\n", ctx->cpu,
 		   (unsigned long)TransportOf(core)->cross_send,

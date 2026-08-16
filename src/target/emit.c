@@ -225,6 +225,15 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	}
 	f->ip_id++;			/* per-flow counter from 0; ip_out.c:147 */
 
+	/* The wire's own high-water, in stream space. Set here because this is
+	 * the last point at which a segment can still fail to go out. */
+	if (bp->unit) {
+		uint64_t end = bp->base_seq + seg_off + seg_len;
+
+		if (end > bp->unit->emitted_hwm)
+			bp->unit->emitted_hwm = end;
+	}
+
 	/*
 	 * Per-segment state at the moment of emission, for the junction defect
 	 * (RESULTS 2026-08-15). Placed BEFORE the fixup below, because that
@@ -447,7 +456,8 @@ static void
 release_bp(struct bp *bp)
 {
 	if (bp->payload.len && bp->unit)
-		tgt_tx_ref_release(bp->unit, bp->base_seq, REF_SITE_DRAIN_REL, bp);
+		tgt_tx_ref_release(bp->unit, bp->base_seq, REF_SITE_DRAIN_REL, bp,
+				   NULL);
 }
 
 /*----------------------------------------------------------------------------*/

@@ -135,6 +135,15 @@ struct transport {
 	uint64_t		 cross_ready;	/* stack -> app: readiness */
 
 	/*
+	 * A flush asking to free past what the wire has carried. The existing
+	 * ack-past-send_next counter CANNOT see this case: send_next runs ahead
+	 * of the wire by the undrained backlog, so an acknowledgement past the
+	 * wire but short of send_next is silent by construction. This is the
+	 * bound that matters.
+	 */
+	uint64_t		 flush_past_emitted;
+
+	/*
 	 * High-water pending blueprints per class, so the ring depths are sized
 	 * from what the classes actually hold rather than from one number
 	 * copied across all three. Depth 64 is a data-path figure; control and

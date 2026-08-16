@@ -48,12 +48,12 @@ src/program/prog_tcp.c:992:static void
 src/target/emit.c:102: static int nth;
 src/target/emit.c:103: static int seen;
 src/target/emit.c:136:static int
-src/target/emit.c:374:static int
-src/target/emit.c:446:static void
+src/target/emit.c:383:static int
 src/target/emit.c:44:static void
+src/target/emit.c:455:static void
 src/target/emit.c:47: static int budget;
-src/target/emit.c:483: static int hold;
-src/target/emit.c:484: static uint32_t held;
+src/target/emit.c:493: static int hold;
+src/target/emit.c:494: static uint32_t held;
 src/target/emit.c:97:static int g_trace_seg;
 src/target/emit.c:99:static int
 src/target/flow.c:428:static uint64_t g_mrg[MRG__N];
@@ -70,7 +70,8 @@ src/target/scheduler.c:95:static void
 src/target/timers.c:193: static uint32_t last;
 src/target/timers.c:196: static uint64_t n;
 src/target/timers.c:45:static void
-src/target/tx_stream.c:210:static void
-src/target/tx_stream.c:257: static uint64_t flushes;
-src/target/tx_stream.c:406:static uint64_t
-src/target/tx_stream.c:94:static void
+src/target/tx_stream.c:112:static void
+src/target/tx_stream.c:228:static void
+src/target/tx_stream.c:27:static void
+src/target/tx_stream.c:317: static uint64_t flushes;
+src/target/tx_stream.c:475:static uint64_t

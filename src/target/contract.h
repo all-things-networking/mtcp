@@ -125,12 +125,32 @@ struct mtp_data_unit {
 	 */
 	struct ref_event {
 		uint64_t base;
+		uint32_t len;		/* so RANGES are visible, not inferred */
 		const void *bp;
 		uint8_t	 op;		/* 0 = take, 1 = release */
 		uint8_t	 site;		/* enum ref_site */
 		uint32_t live_after;
+		/*
+		 * WHO issued the pkt_gen, as a return address -- resolved with
+		 * addr2line rather than threaded through the contract as a
+		 * parameter. "What overlaps" was in the history already; "who
+		 * committed them" is one field away.
+		 */
+		const void *caller;
 	}		 ref_log[MTP_REF_LOG];
 	uint32_t	 ref_log_n;	/* total events; & (MTP_REF_LOG-1) indexes */
+
+	/*
+	 * THE HIGHEST STREAM POSITION ACTUALLY PUT ON THE WIRE.
+	 *
+	 * Distinct from the program's send_next, which advances when a
+	 * blueprint is GENERATED rather than when it is EMITTED -- so send_next
+	 * runs ahead of the wire by the undrained backlog. Any guard that
+	 * compares an acknowledgement against send_next cannot see an
+	 * acknowledgement that is past the wire but short of send_next, which
+	 * is exactly the case in question.
+	 */
+	uint64_t	 emitted_hwm;
 
 	/*
 	 * SPSC OWNERSHIP, CHECKED RATHER THAN INTENDED (DESIGN.md §21.7).

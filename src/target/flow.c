@@ -457,6 +457,8 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	/* storage is per (flow, class); coalescing only ever merges within one */
 	const int pc = (int)(prio < MTP_PRIO_CLASSES ? prio
 						     : MTP_PRIO_CLASSES - 1);
+	/* the program function that issued this pkt_gen, for the fault dump */
+	const void *issuer = __builtin_return_address(0);
 	struct bp *bp;
 	uint8_t cls = 0;
 	uint32_t key = 0;
@@ -532,7 +534,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 						last->base_seq,
 						last->payload.len + payload->len,
 						&ext, REF_SITE_MERGE_TAKE,
-						last);
+						last, issuer);
 
 				if (reffed != 0)
 					g_mrg[MRG_REF_FAIL]++;
@@ -543,7 +545,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 					tgt_tx_ref_release(last->unit,
 							   last->base_seq,
 							   REF_SITE_MERGE_REL,
-							   last);
+							   last, issuer);
 					last->payload = ext;
 					/* the NEWER header: stale ack, window
 					 * or echo on a merged segment is what
@@ -639,7 +641,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		 * stays valid until the program flushes this range, which is
 		 * the guarantee that makes deferral safe (internal.h §3). */
 		if (tgt_tx_ref(payload->u, payload->off, payload->len,
-			       &bp->payload, REF_SITE_COMMIT, bp) < 0) {
+			       &bp->payload, REF_SITE_COMMIT, bp, issuer) < 0) {
 			f->scratch_out[pc] = 0;	/* abandoned, not committed */
 			return -1;
 		}
