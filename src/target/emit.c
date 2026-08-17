@@ -267,6 +267,15 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 
 		if (end > bp->unit->emitted_hwm)
 			bp->unit->emitted_hwm = end;
+
+		/* One predictable-not-taken branch on the emit path; the store
+		 * runs a few thousand times a second, not per segment. */
+		if (bp->unit->probe_wanted && seg_len) {
+			bp->unit->probe_seq_end = end;
+			bp->unit->probe_us = mtp_now_us();
+			bp->unit->probe_wanted = 0;
+			bp->unit->probe_pending = 1;
+		}
 	}
 
 	/*

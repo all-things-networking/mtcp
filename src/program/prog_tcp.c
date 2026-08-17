@@ -429,6 +429,7 @@ static uint64_t g_refuse[REF__N];
 static uint64_t g_avail_bucket[6];
 static uint64_t g_rtt_bucket[6], g_rtt_sum, g_rtt_n, g_rtt_max;
 static uint64_t g_cwnd_sum, g_inflight_sum;
+static uint64_t g_ack_hist[8], g_ack_sum, g_ack_n, g_ack_max;
 static uint64_t g_inf_hist[8];	/* flow-microseconds by unacknowledged bytes */
 static uint64_t g_recv_calls, g_recv_bytes, g_recv_empty, g_recv_nohead;
 
@@ -542,6 +543,10 @@ prog_sample_inflight(uint64_t now_us)
 			 * every flow in this stage for ever and reported 99.8%
 			 * occupancy that was entirely the bug.
 			 */
+			/* ARM ON THE CLOCK, not on the last probe closing. */
+			if (!c->tx.probe_wanted && !c->tx.probe_pending)
+				c->tx.probe_wanted = 1;
+
 			if (c->stage == ST_AWAIT_EMIT
 			    && mtp_tx_emitted(&c->tx) + c->snd_base
 			       >= c->stage_seq) {
@@ -655,6 +660,25 @@ prog_report_recv(void)
 		(unsigned long long)g_recv_bytes,
 		(unsigned long long)g_recv_empty,
 		(unsigned long long)g_recv_nohead);
+}
+
+void
+prog_report_acklat(void)
+{
+	static const char *n[8] = { "< 50 us", "< 100 us", "< 250 us",
+				    "< 500 us", "< 1 ms", "< 2.5 ms",
+				    "< 10 ms", ">= 10 ms" };
+	int i;
+
+	fprintf(stderr, "EMISSION -> covering ACK (clock-armed; bias REDUCED, not removed): "
+		"%llu samples, mean %llu us, max %llu us\n",
+		(unsigned long long)g_ack_n,
+		(unsigned long long)(g_ack_n ? g_ack_sum / g_ack_n : 0),
+		(unsigned long long)g_ack_max);
+	for (i = 0; i < 8; i++)
+		fprintf(stderr, "  %-9s %10llu  %5.1f%%\n", n[i],
+			(unsigned long long)g_ack_hist[i],
+			g_ack_n ? 100.0 * (double)g_ack_hist[i] / (double)g_ack_n : 0.0);
 }
 
 void
@@ -1085,6 +1109,33 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 			g_rtt_max = d;
 		c->probe_us = 0;
 	}
+	/*
+	 * UNITS: probe_seq_end is unit-relative, e->ack is absolute. Saying
+	 * that out loud is the rule adopted after a unit-relative offset was
+	 * compared against an absolute sequence and reported 99.8% occupancy
+	 * that was entirely the bug.
+	 */
+	if (c->tx.probe_pending
+	    && (uint64_t)(e->ack - c->snd_base) >= c->tx.probe_seq_end) {
+		uint64_t d = mtp_now_us() - c->tx.probe_us;
+		unsigned b;
+
+		if (d < 50)		b = 0;
+		else if (d < 100)	b = 1;
+		else if (d < 250)	b = 2;
+		else if (d < 500)	b = 3;
+		else if (d < 1000)	b = 4;
+		else if (d < 2500)	b = 5;
+		else if (d < 10000)	b = 6;
+		else			b = 7;
+		g_ack_hist[b]++;
+		g_ack_sum += d;
+		g_ack_n++;
+		if (d > g_ack_max)
+			g_ack_max = d;
+		c->tx.probe_pending = 0;
+	}
+
 	if (c->fin_pending && (int32_t)(e->ack - (c->fin_seq + 1)) >= 0)
 		c->fin_pending = false;
 	if (c->stage == ST_AWAIT_ACK && (int32_t)(e->ack - c->stage_seq) >= 0) {

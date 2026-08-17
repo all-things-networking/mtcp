@@ -170,6 +170,24 @@ struct mtp_data_unit {
 	uint32_t	 short_run_max;	/* longest such run seen on this unit */
 	uint64_t	 short_events;	/* flushes that fell short, total */
 	uint64_t	 short_bytes;	/* bytes not advanced, summed */
+	/*
+	 * ACKNOWLEDGEMENT-LATENCY PROBE, armed on a CLOCK and stamped at
+	 * EMISSION.
+	 *
+	 * The generation-armed probe it replaces re-armed the instant the
+	 * previous one closed, so a fast round trip was resampled sooner and the
+	 * mean came out about a third of the value Little's law demanded. Arming
+	 * from the sampler's tick decorrelates it: which segment gets measured no
+	 * longer depends on how quickly the last one came back.
+	 *
+	 * `probe_seq_end` is UNIT-RELATIVE, like base_seq -- the acknowledgement
+	 * is absolute and the comparison must add snd_base.
+	 */
+	uint8_t		 probe_wanted;	/* the clock asked for a sample */
+	uint8_t		 probe_pending;	/* one is outstanding */
+	uint64_t	 probe_seq_end;	/* unit-relative end of the sampled segment */
+	uint64_t	 probe_us;	/* when it was handed to the driver */
+
 	uint8_t		 short_alarmed;	/* the loud report has been made once */
 
 	/*
