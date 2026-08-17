@@ -430,6 +430,7 @@ static uint64_t g_avail_bucket[6];
 static uint64_t g_rtt_bucket[6], g_rtt_sum, g_rtt_n, g_rtt_max;
 static uint64_t g_cwnd_sum, g_inflight_sum;
 static uint64_t g_ack_hist[8], g_ack_sum, g_ack_n, g_ack_max;
+static uint64_t g_emit_unacked;	/* byte-microseconds, emitted and unacked */
 static uint64_t g_inf_hist[8];	/* flow-microseconds by unacknowledged bytes */
 static uint64_t g_recv_calls, g_recv_bytes, g_recv_empty, g_recv_nohead;
 
@@ -528,6 +529,28 @@ prog_sample_inflight(uint64_t now_us)
 			inflight += (uint64_t)(c->send_next - c->send_una);
 
 			/*
+			 * EMITTED-unacknowledged, alongside GENERATED-
+			 * unacknowledged above. This is the aggregate that
+			 * measures exactly what the emission-to-ACK probe
+			 * samples, so Little's law over it and the probe's mean
+			 * become directly comparable with the definitional
+			 * difference -- blueprints generated but not yet on the
+			 * wire -- removed.
+			 *
+			 * UNITS: emitted_hwm is unit-relative; send_una and
+			 * snd_base are absolute, so the acknowledged position
+			 * is brought into unit space before subtracting.
+			 */
+			{
+				uint64_t acked = (uint64_t)(c->send_una
+							    - c->snd_base);
+				uint64_t emit = mtp_tx_emitted(&c->tx);
+
+				if (emit > acked)
+					g_emit_unacked += (emit - acked) * dt;
+			}
+
+			/*
 			 * Generated-to-emitted is the target's to observe, and
 			 * it is observed here rather than pushed from the emit
 			 * path: a hook on every segment would be an instrument
@@ -602,6 +625,11 @@ prog_report_inflight(void)
 			   ? (g_live_integral * 100) / g_inf_span_us : 0;
 	int i;
 
+	fprintf(stderr,
+		"time-averaged EMITTED-unacked: %llu B across all flows -- "
+		"Little's law over exactly what the emission probe samples\n",
+		(unsigned long long)(g_inf_span_us
+				     ? g_emit_unacked / g_inf_span_us : 0));
 	fprintf(stderr,
 		"time-averaged in flight: %llu B across all flows over %llu us "
 		"(%llu samples)\n"
