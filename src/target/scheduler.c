@@ -747,6 +747,7 @@ SchedStep(struct core_ctx *core,
 	 * a static is the right scope; a local was simply the wrong one.
 	 */
 	static uint64_t iters, t_prev_us;
+	struct transport *t_of = TransportOf(core);
 	int rx_inf, tx_inf, i;
 
 
@@ -872,6 +873,28 @@ SchedStep(struct core_ctx *core,
 		 * its contents matters until that is ruled out.
 		 */
 		for (tx_inf = 0; tx_inf < CONFIG.eths_num; tx_inf++) {
+			if (t_of->staged) {
+				struct timeval tv2;
+				uint64_t now2, gap;
+				unsigned b, d;
+
+				gettimeofday(&tv2, NULL);
+				now2 = (uint64_t)tv2.tv_sec * 1000000u
+				     + (uint64_t)tv2.tv_usec;
+				gap = now2 - t_of->stage_first_us;
+				for (b = 0; b < 7 && gap >= (1ull << b); b++)
+					;
+				t_of->stage_hist[b]++;
+				t_of->stage_sum += gap;
+				t_of->stage_n++;
+				if (gap > t_of->stage_max)
+					t_of->stage_max = gap;
+				for (d = 0; d < 7 && t_of->staged > (1u << d);
+				     d++)
+					;
+				t_of->depth_hist[d]++;
+				t_of->staged = 0;
+			}
 			int sent = core->iom->send_pkts(ctx, tx_inf);
 
 			if (sent > 0)
@@ -1167,7 +1190,30 @@ SchedReport(struct core_ctx *core)
 					     "<128ms", ">=128ms" };
 		int k;
 
-		TRACE_INFO("CPU %d: INTER-POLL gap: %llu samples, mean %llu us, "
+		{
+		static const char *sn[8] = { "<1us", "<2us", "<4us", "<8us",
+					     "<16us", "<32us", "<64us", ">=64us" };
+		static const char *dn[8] = { "1", "2", "<=4", "<=8", "<=16",
+					     "<=32", "<=64", ">64" };
+		struct transport *tt = TransportOf(core);
+		int k;
+
+		TRACE_INFO("CPU %d: STAGING -> device flush: %llu flushes, "
+			   "mean %llu us, max %llu us\n", ctx->cpu,
+			   (unsigned long long)tt->stage_n,
+			   (unsigned long long)(tt->stage_n ? tt->stage_sum / tt->stage_n : 0),
+			   (unsigned long long)tt->stage_max);
+		for (k = 0; k < 8; k++)
+			TRACE_INFO("    %-7s %10llu  %6.2f%%\n", sn[k],
+				   (unsigned long long)tt->stage_hist[k],
+				   tt->stage_n ? 100.0 * (double)tt->stage_hist[k] / (double)tt->stage_n : 0.0);
+		TRACE_INFO("CPU %d: frames staged per flush:\n", ctx->cpu);
+		for (k = 0; k < 8; k++)
+			TRACE_INFO("    %-7s %10llu  %6.2f%%\n", dn[k],
+				   (unsigned long long)tt->depth_hist[k],
+				   tt->stage_n ? 100.0 * (double)tt->depth_hist[k] / (double)tt->stage_n : 0.0);
+	}
+	TRACE_INFO("CPU %d: INTER-POLL gap: %llu samples, mean %llu us, "
 			   "LENGTH-BIASED mean %llu us, expected wait %llu us, "
 			   "max %llu us\n", ctx->cpu,
 			   (unsigned long long)g_gap_n,

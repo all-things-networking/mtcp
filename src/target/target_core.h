@@ -169,6 +169,15 @@ struct transport {
 	volatile uint8_t	 app_state;	/* 0 running, 1 in write, 2 waiting */
 	uint64_t		 app_sleeps, app_wakes, app_timeouts;
 
+	/* Staging-to-flush: when the FIRST frame of this pass was handed an
+	 * mbuf, and how many have been staged since. The per-iteration clock
+	 * cannot measure this -- it is read once per pass, so if staging and
+	 * flushing share a pass it reads zero by construction. */
+	uint64_t		 stage_first_us;
+	uint32_t		 staged;
+	uint64_t		 stage_hist[8], stage_n, stage_sum, stage_max;
+	uint64_t		 depth_hist[8];
+
 	uint64_t		 flush_short;		/* flushes that could not reach upto */
 	uint64_t		 flush_short_bytes;
 	uint32_t		 flush_short_run_max;	/* longest consecutive run */

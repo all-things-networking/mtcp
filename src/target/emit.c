@@ -260,6 +260,22 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	}
 	f->ip_id++;			/* per-flow counter from 0; ip_out.c:147 */
 
+	/*
+	 * STAGED, not sent. IPOutput has taken an mbuf from the driver's
+	 * transmit buffer; the frame reaches the device at send_pkts, at the
+	 * end of the pass. A FRESH clock read, because core->cur_us is read
+	 * once per pass and would report zero for anything staged and flushed
+	 * within one.
+	 */
+	if (!t->staged) {
+		struct timeval tv;
+
+		gettimeofday(&tv, NULL);
+		t->stage_first_us = (uint64_t)tv.tv_sec * 1000000u
+				  + (uint64_t)tv.tv_usec;
+	}
+	t->staged++;
+
 	/* The wire's own high-water, in stream space. Set here because this is
 	 * the last point at which a segment can still fail to go out. */
 	if (bp->unit) {
