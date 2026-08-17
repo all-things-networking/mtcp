@@ -78,6 +78,7 @@ struct shim_flow_state {
 
 static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
 static uint64_t g_pend_dropped, g_pend_dedup;
+static uint64_t g_wr_calls, g_wr_asked, g_wr_got, g_wr_short, g_wr_refused;
 static struct shim_sock	 g_sock[SHIM_MAX_SOCK];
 static struct core_ctx	*g_shim_core;
 static pthread_t	 g_shim_stack;
@@ -253,6 +254,16 @@ mtcp_destroy_context(mctx_t mctx)
 	}
 	if (g_shim_core)
 		SchedReport(g_shim_core);	/* the loop is ours, so is the report */
+	fprintf(stderr, "shim write: %llu calls, asked %llu, got %llu (%.1f%%), "
+		"%llu short, %llu refused; mean asked %llu, mean got %llu\n",
+		(unsigned long long)g_wr_calls,
+		(unsigned long long)g_wr_asked,
+		(unsigned long long)g_wr_got,
+		g_wr_asked ? 100.0 * (double)g_wr_got / (double)g_wr_asked : 0.0,
+		(unsigned long long)g_wr_short,
+		(unsigned long long)g_wr_refused,
+		(unsigned long long)(g_wr_calls ? g_wr_asked / g_wr_calls : 0),
+		(unsigned long long)(g_wr_calls ? g_wr_got / g_wr_calls : 0));
 	fprintf(stderr, "shim accept queue: %llu duplicate pushes suppressed, "
 		"%llu dropped for want of a slot\n",
 		(unsigned long long)g_pend_dedup,
@@ -389,8 +400,25 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	/* CR-E: copies into the flow's ring on THIS thread and returns what was
 	 * accepted; the stack invokes the program's SEND for the extent. */
 	wrote = mtp_app_send(g_sock[sockid].flow, buf, (uint32_t)len);
-	if (wrote > 0)
+
+	/*
+	 * IS THE APPLICATION WRITING LESS, OR ARE WE ACCEPTING LESS?
+	 *
+	 * epserver moves 39-40 KB per writable event against tcpserver's 65 KB
+	 * (RESULTS 2026-08-17). That is either how epserver chunks -- its
+	 * business -- or a short return from here cutting it off, which is
+	 * ours. The two are indistinguishable from the byte total alone and
+	 * separated by what each call ASKS for against what it GETS.
+	 */
+	g_wr_calls++;
+	g_wr_asked += (uint64_t)len;
+	if (wrote > 0) {
+		g_wr_got += (uint64_t)wrote;
+		if ((size_t)wrote < len)
+			g_wr_short++;
 		return wrote;
+	}
+	g_wr_refused++;
 	errno = EAGAIN;
 	return -1;
 }
