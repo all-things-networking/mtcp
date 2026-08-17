@@ -147,6 +147,11 @@ struct transport {
 	 * The rate, not the crash, is the measurable. */
 	uint64_t		 overlap_rtx;
 	uint64_t		 overlap_new;
+	uint64_t		 overlap_merge_ok;	/* superseding its own: by design */
+	uint64_t		 overlap_merge_bad;	/* a merge over something else */
+	uint64_t		 below_wire_rtx;	/* commit below emitted_hwm */
+	uint64_t		 below_wire_new;	/* starts below, has new bytes on top */
+	uint64_t		 below_wire_dead;	/* entirely below: can never drain */
 
 	/*
 	 * High-water pending blueprints per class, so the ring depths are sized

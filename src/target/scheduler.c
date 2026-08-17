@@ -790,13 +790,48 @@ SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu)
  * the numbers RESULTS.md is written from went with them.
  */
 void
-tgt_note_overlap(const struct mtp_data_unit *u, uint64_t live_base,
-		 uint32_t live_len, uint64_t new_base, uint32_t new_len,
-		 uint8_t new_is_rtx)
+tgt_note_below_wire(uint64_t base, uint32_t len, uint64_t hwm, uint8_t is_rtx)
 {
 	struct transport *t = TransportOf(g_core[0]);
 	static uint32_t shown;
 
+	/*
+	 * For a retransmit, committing below the wire is the DEFINITION of the
+	 * operation, so that arm of the count is background by construction.
+	 * The arm that can indicate a defect is a fresh commit that lies
+	 * ENTIRELY below the wire: such a blueprint can contribute no byte the
+	 * peer has not seen, so nothing will ever drain it, and its reference
+	 * pins the flush forever. A fresh commit that merely STARTS below the
+	 * wire still has new bytes at its top and can drain normally.
+	 */
+	if (is_rtx)
+		t->below_wire_rtx++;
+	else if (base + len <= hwm)
+		t->below_wire_dead++;
+	else
+		t->below_wire_new++;
+
+	if (base + len <= hwm && !is_rtx && shown++ < 8)
+		fprintf(stderr, "BELOW-WIRE-DEAD commit [%llu,%llu) len=%u %s "
+			"(wire at %llu, %llu bytes below)\n",
+			(unsigned long long)base,
+			(unsigned long long)(base + len), len,
+			is_rtx ? "RTX" : "new", (unsigned long long)hwm,
+			(unsigned long long)(hwm - base));
+}
+
+void
+tgt_note_overlap(const struct mtp_data_unit *u, uint64_t live_base,
+		 uint32_t live_len, uint64_t new_base, uint32_t new_len,
+		 uint8_t new_is_rtx, uint8_t expected)
+{
+	struct transport *t = TransportOf(g_core[0]);
+	static uint32_t shown;
+
+	if (expected) {
+		t->overlap_merge_ok++;
+		return;			/* §18's own mechanism, working */
+	}
 	if (new_is_rtx)
 		t->overlap_rtx++;
 	else
@@ -887,9 +922,16 @@ SchedReport(struct core_ctx *core)
 		   TransportOf(core)->ring_hwm[0], bp_depth(0),
 		   TransportOf(core)->ring_hwm[1], bp_depth(1),
 		   TransportOf(core)->ring_hwm[2], bp_depth(2));
-	TRACE_INFO("CPU %d: OVERLAPPING COMMITS: rtx=%lu new=%lu\n", ctx->cpu,
+	TRACE_INFO("CPU %d: COMMITS BELOW THE WIRE: rtx=%lu partial=%lu DEAD=%lu\n", ctx->cpu,
+		   (unsigned long)TransportOf(core)->below_wire_rtx,
+		   (unsigned long)TransportOf(core)->below_wire_new,
+		   (unsigned long)TransportOf(core)->below_wire_dead);
+	TRACE_INFO("CPU %d: OVERLAPPING COMMITS: rtx=%lu new=%lu "
+		   "merge_bad=%lu (merge_ok=%lu, by design)\n", ctx->cpu,
 		   (unsigned long)TransportOf(core)->overlap_rtx,
-		   (unsigned long)TransportOf(core)->overlap_new);
+		   (unsigned long)TransportOf(core)->overlap_new,
+		   (unsigned long)TransportOf(core)->overlap_merge_bad,
+		   (unsigned long)TransportOf(core)->overlap_merge_ok);
 	TRACE_INFO("CPU %d: flushes asking past the wire: %lu\n", ctx->cpu,
 		   (unsigned long)TransportOf(core)->flush_past_emitted);
 	TRACE_INFO("CPU %d: boundary crossings: app->stack send=%lu notify=%lu; "

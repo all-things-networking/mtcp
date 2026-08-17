@@ -242,7 +242,7 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 		"  overshoot   = %llu bytes  (%.2f MSS at 1448)\n"
 		"  head_seq    = %llu\n"
 		"  tail_seq    = %llu   (held %llu of cap %u)\n"
-		"  min is %llu bytes behind head, %llu behind tail\n"
+		"  min is %lld bytes %s head, %llu behind tail\n"
 		"  emitted_hwm = %llu   (highest byte actually on the wire)\n"
 		"  upto - emitted = %lld   (POSITIVE = freeing past the wire)\n"
 		"  owner flow  = %p\n"
@@ -253,7 +253,8 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 		(unsigned long long)u->head_seq,
 		(unsigned long long)u->tail_seq,
 		(unsigned long long)(u->tail_seq - u->head_seq), u->cap,
-		(unsigned long long)(u->head_seq - lo),
+		(long long)((int64_t)u->head_seq - (int64_t)lo),
+		lo > u->head_seq ? "ABOVE (unseen in the first 7 failures)" : "behind",
 		(unsigned long long)(u->tail_seq - lo),
 		(unsigned long long)u->emitted_hwm,
 		(long long)((int64_t)upto - (int64_t)u->emitted_hwm),
@@ -422,18 +423,55 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 	 * been shown to move on identical code, so run-to-run comparison of
 	 * outcomes cannot distinguish a code change from that variation.
 	 */
+	/*
+	 * THE MERGE PATH OVERLAPS BY DESIGN and must not be counted: coalescing
+	 * takes a WIDER reference at the same base and then releases the
+	 * narrower one, so the two are briefly live together (DESIGN.md §18).
+	 * Counting it drowned the signal -- 9722 "overlaps" in a run, every
+	 * dumped one same-base-wider-extent, which is that merge and not a
+	 * defect.
+	 */
+	/*
+	 * COMMITTING OVER DATA ALREADY ON THE WIRE.
+	 *
+	 * The overlap test below asks whether the new extent intersects a
+	 * reference that is live RIGHT NOW -- which misses the case where the
+	 * earlier blueprint has already drained and released. Then no overlap
+	 * is recorded, yet the new blueprint still holds a reference for bytes
+	 * that have gone out, never drains, and pins the flush. That is the
+	 * second failure family exactly: zero overlaps, an untouched blueprint,
+	 * and a reference sitting ABOVE head_seq because the released earlier
+	 * one let the head advance.
+	 *
+	 * This predicate needs no other reference to exist. If it is non-zero
+	 * in runs where the overlap count is zero, the two families are one
+	 * fault with different release timing.
+	 */
+	if (seq < u->emitted_hwm && tgt_note_below_wire)
+		tgt_note_below_wire(seq, len, u->emitted_hwm, kind);
+
 	{
 		uint32_t i;
 
 		for (i = 0; i < u->live_refs; i++) {
 			uint64_t a = u->ref_base[i], b = a + u->ref_len[i];
+			int expected;
 
-			if (seq < b && a < seq + len) {
-				if (tgt_note_overlap)
-					tgt_note_overlap(u, a, u->ref_len[i],
-							 seq, len, kind);
-				break;
-			}
+			if (!(seq < b && a < seq + len))
+				continue;
+			/*
+			 * A merge overlapping the reference it is SUPERSEDING
+			 * -- same base -- is by design (DESIGN.md §18) and is
+			 * counted separately, not discarded. Excluding merges
+			 * outright hid a case where a merge overlaps something
+			 * ELSE, which is not by design and which the counter
+			 * then reported as zero.
+			 */
+			expected = (site == REF_SITE_MERGE_TAKE && a == seq);
+			if (tgt_note_overlap)
+				tgt_note_overlap(u, a, u->ref_len[i], seq, len,
+						 kind, (uint8_t)expected);
+			break;
 		}
 	}
 

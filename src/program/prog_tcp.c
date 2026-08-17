@@ -600,6 +600,19 @@ static bool
 unacked_on_wire(const struct tcp_ctx *c)
 {
 	uint64_t acked = (uint64_t)(c->send_una - c->snd_base);
+	static int on_generation = -1;
+
+	/*
+	 * A RUNTIME TOGGLE, so both arms of the comparison come from ONE
+	 * binary. The overlap rate is 3-5 events per minute and the crash rate
+	 * has been shown to move on identical code, so the two arms must differ
+	 * in nothing but this -- not in build, not in staging, not in session.
+	 * MTP_RTO_ARM_ON_GENERATION restores the old behaviour.
+	 */
+	if (on_generation < 0)
+		on_generation = getenv("MTP_RTO_ARM_ON_GENERATION") ? 1 : 0;
+	if (on_generation)
+		return c->send_una != c->send_next;	/* generated */
 
 	return c->tx_open && mtp_tx_emitted(&c->tx) > acked;
 }

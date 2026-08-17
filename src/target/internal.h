@@ -155,7 +155,12 @@ __attribute__((weak)) void tgt_report_at_fault(void);
 __attribute__((weak)) void tgt_note_overlap(const struct mtp_data_unit *u,
 					    uint64_t live_base, uint32_t live_len,
 					    uint64_t new_base, uint32_t new_len,
-					    uint8_t new_is_rtx);
+					    uint8_t new_is_rtx, uint8_t expected);
+
+/* A commit whose base is below the wire's high-water: it covers bytes already
+ * emitted, whether or not the blueprint that sent them is still live. */
+__attribute__((weak)) void tgt_note_below_wire(uint64_t base, uint32_t len,
+					       uint64_t hwm, uint8_t is_rtx);
 
 struct bp {
 	/* The earliest byte this blueprint will transmit. Used for two things,
