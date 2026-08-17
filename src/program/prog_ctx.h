@@ -127,6 +127,16 @@ struct tcp_ctx {
 	struct mtp_data_unit rx;
 	bool     tx_open;
 	/*
+	 * A FIN is outstanding. It CONSUMES SEQUENCE SPACE AND CARRIES NO
+	 * PAYLOAD, so the wire-based unacked test -- emitted payload against
+	 * acknowledged payload -- cannot see it, and without this the
+	 * retransmission timer is never armed for a FIN that is the only thing
+	 * left. Condition B, and section 21.1 constraint 5: the answer is in
+	 * the design, not in a reaper.
+	 */
+	bool     fin_pending;
+	uint32_t fin_seq;
+	/*
 	 * The application has closed its send direction. The peer's FIN closes
 	 * the peer's path only (D-20: the rule is per-path), so our FIN waits
 	 * for this. A one-shot server sets it when it hands over its object.

@@ -84,7 +84,7 @@ fstate(flow_t *f)
 	return &g_flow[id];
 }
 
-static void shim_collect_ready(void);
+static int shim_collect_ready(void);
 
 static int
 sock_alloc(flow_t *flow)
@@ -427,7 +427,12 @@ mtcp_epoll_ctl(mctx_t mctx, int epid, int op, int sockid,
  * the shim, and it is on the parity register as a behavioural difference from
  * the donor (RESULTS 2026-08-15).
  */
-static void
+/* Returns how many readiness entries it took, so the caller can tell "nothing
+ * happened" from "something happened and was filed into g_sock". Returning void
+ * is what made the blocking version sleep on top of work it had just collected:
+ * the caller tested its own output counter, which is zero at that point by
+ * construction. */
+static int
 shim_collect_ready(void)
 {
 	struct mtp_ready ready[64];
@@ -451,6 +456,7 @@ shim_collect_ready(void)
 		if (ready[i].kinds & (1u << MTP_NOTIF_WRITABLE))
 			g_sock[sid].ready |= MTCP_EPOLLOUT;
 	}
+	return n;
 }
 
 /*
@@ -465,7 +471,7 @@ int
 mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 		int maxevents, int timeout)
 {
-	int i, n = 0;
+	int i, n = 0, got;
 
 	(void)mctx; (void)epid;
 
@@ -484,7 +490,7 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 	 * iteration. With the stack always running, a write reaches the ring
 	 * and is drained by the pass already in flight.
 	 */
-	shim_collect_ready();
+	got = shim_collect_ready();
 
 	/*
 	 * BLOCK WHEN THERE IS NOTHING, as the donor does. mTCP's
@@ -499,7 +505,7 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 	 * a 4 ms slice instead of the donor's 63.7 us -- which cost four
 	 * fifths of our throughput.
 	 */
-	if (n == 0 && timeout != 0 && g_pend_head == g_pend_tail) {
+	if (got == 0 && timeout != 0 && g_pend_head == g_pend_tail) {
 		TransportWait(g_shim_core, timeout);
 		shim_collect_ready();
 	}

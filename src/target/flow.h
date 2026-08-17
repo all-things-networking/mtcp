@@ -67,6 +67,8 @@ struct flow {
 	 * stays inside the enqueue helper.
 	 */
 	TAILQ_ENTRY(flow) gen_link[MTP_PRIO_CLASSES];
+	uint8_t		 slot_live;	/* the pool never recycles, so 'exists' and
+					 * 'in use' are different questions */
 	uint8_t		 on_gen[MTP_PRIO_CLASSES];
 
 	/*

@@ -821,7 +821,19 @@ unacked_on_wire(const struct tcp_ctx *c)
 	if (on_generation)
 		return c->send_una != c->send_next;	/* generated */
 
-	return c->tx_open && mtp_tx_emitted(&c->tx) > acked;
+	if (c->tx_open && mtp_tx_emitted(&c->tx) > acked)
+		return true;
+
+	/*
+	 * THE FIN. Wire-based means "emitted payload beyond what is
+	 * acknowledged", and a FIN emits no payload -- so once the data is all
+	 * acknowledged this test went false, the timer was stopped, and a lost
+	 * FIN was never retransmitted. The generation-based arm returned
+	 * send_una != send_next and happened to cover it; switching to the wire
+	 * dropped the FIN from retransmission protection without anything
+	 * saying so.
+	 */
+	return c->fin_pending && c->send_una != c->send_next;
 }
 
 static void
@@ -1017,6 +1029,8 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 			g_rtt_max = d;
 		c->probe_us = 0;
 	}
+	if (c->fin_pending && (int32_t)(e->ack - (c->fin_seq + 1)) >= 0)
+		c->fin_pending = false;
 	if (c->stage == ST_AWAIT_ACK && (int32_t)(e->ack - c->stage_seq) >= 0) {
 		c->stage = ST_AWAIT_DECISION;
 		g_stage_enter[ST_AWAIT_DECISION]++;
@@ -1261,13 +1275,29 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
  * prototype gates this in one of its two close paths and not the other, which
  * is the evidence it is an oversight rather than a decision.
  */
-static void
-gen_fin(struct tcp_ctx *c, uint32_t now)
+/*
+ * Build and issue the FIN. Separated from gen_fin because the retransmission
+ * path needs the packet WITHOUT the state transition: gen_fin's guards --
+ * app_closed, state ESTABLISHED or CLOSE_WAIT -- are all false by the time a
+ * FIN needs resending, so the retransmit could never have gone through it.
+ */
+static bool
+fin_emit(struct tcp_ctx *c, uint32_t now, uint32_t rtx)
 {
 	uint8_t hdr[PROG_HDR_MAX];
 	struct mtp_tx_payload none = { 0 };
 	uint16_t hdr_len;
 
+	hdr_len = tcp_build_header(hdr, c, c->send_next,
+				   TCP_ACK | TCP_FIN, now, c->ts_recent);
+	g_emit[EM_FIN]++;
+	return mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_DATA, 1,
+			   rtx) == 0;
+}
+
+static void
+gen_fin(struct tcp_ctx *c, uint32_t now)
+{
 	if (MTP_ENV_ON("MTP_TRACE_SEQ") && c->state == TCP_CLOSE_WAIT)
 		fprintf(stderr, "GENFIN now=%u send_next=%u snd_base=%u "
 			"write_end=%u\n", now, c->send_next, c->snd_base,
@@ -1290,11 +1320,9 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 	if (c->send_next - c->snd_base != c->write_end)
 		return;			/* G10: not ahead of unsent data */
 
-	hdr_len = tcp_build_header(hdr, c, c->send_next,
-				   TCP_ACK | TCP_FIN, now, c->ts_recent);
-	g_emit[EM_FIN]++;
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_DATA, 1,
-			0 /* the FIN is not a retransmission */) == 0) {
+	if (fin_emit(c, now, 0 /* not a retransmission */)) {
+		c->fin_pending = true;
+		c->fin_seq = c->send_next;
 		c->send_next++;		/* the FIN consumes one byte */
 		c->state = (c->state == TCP_CLOSE_WAIT) ? TCP_LAST_ACK
 							: TCP_FIN_WAIT_1;
@@ -1567,6 +1595,17 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 	 */
 	c->send_next = c->send_una;
 	tcp_gen_seg(c, now_ms);
+
+	/*
+	 * Resend the FIN if it is what is outstanding. tcp_gen_seg above emits
+	 * payload only, and gen_fin refuses in LAST_ACK and FIN_WAIT_1, so
+	 * without this the rewind puts send_next back to the FIN's sequence and
+	 * nothing ever reoccupies it -- the flow waits for an acknowledgement of
+	 * a FIN that is no longer on the wire.
+	 */
+	if (c->fin_pending && c->send_next == c->fin_seq
+	    && fin_emit(c, now_ms, 1 /* a retransmission */))
+		c->send_next++;
 }
 
 /*

@@ -90,6 +90,7 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 			f->scratch_out[c] = 0;
 		}
 	}
+	f->slot_live = 1;
 	t->flow_next++;
 
 	f->key = *key;
@@ -120,14 +121,44 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 	{
 		int c;
 
-		/* every list, separately -- DestroyTCPStream unlinks its three
-		 * the same way (tcp_stream.c:486-488) */
+		/*
+		 * THE STACK'S LISTS. The comment here used to claim this was
+		 * "every list, separately -- DestroyTCPStream unlinks its three
+		 * the same way", which was false in the way that matters: these
+		 * are three PRIORITY CLASSES of one list-kind, not three
+		 * list-kinds. The application's readiness list was not unlinked
+		 * at all.
+		 */
 		for (c = 0; c < MTP_PRIO_CLASSES; c++)
 			if (f->on_gen[c]) {
 				TAILQ_REMOVE(&t->gen_list[c], f, gen_link[c]);
 				f->on_gen[c] = 0;
 			}
+		/* and the rings, so a destroyed slot cannot look like a flow
+		 * with an undrained blueprint to the reachability check */
+		for (c = 0; c < MTP_PRIO_CLASSES; c++) {
+			f->ring_head[c] = f->ring_tail[c] = 0;
+			f->scratch_out[c] = 0;
+		}
 	}
+
+	/*
+	 * THE APPLICATION'S LIST. Missing entirely until now, and the resulting
+	 * use-after-free is CROSS-THREAD rather than the single-threaded one
+	 * fixed earlier: the stack raises readiness, the program closes, the
+	 * reap destroys, and the application thread then dequeues this flow and
+	 * dereferences rx_unit. The never-recycled slot keeps the pointer
+	 * looking valid, so it does not fault -- it reads freed memory.
+	 *
+	 * Only the application thread owns ready_list, so the entry can only be
+	 * removed here if the destroy runs on that thread. It does: the reap is
+	 * deferred to the application's own pass (tgt_sched_reap).
+	 */
+	if (f->on_ready_list) {
+		TAILQ_REMOVE(&t->ready_list, f, ready_link);
+		f->on_ready_list = 0;
+	}
+	f->ready_kinds = 0;
 	/*
 	 * THE ASSERTION AT THE DESTROY SITE, and there is only one destroy site
 	 * so that it cannot be forgotten at a second. The donor's equivalent
@@ -146,6 +177,11 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 		tgt_tx_unit_fini(f->tx_unit);
 	if (f->rx_unit)
 		tgt_rx_unit_fini(f->rx_unit);
+	/* NULLED, so a stale reader faults instead of reading freed bytes. A
+	 * dangling pointer that still looks valid is the harder bug. */
+	f->tx_unit = NULL;
+	f->rx_unit = NULL;
+	f->slot_live = 0;
 
 	FlowTableRemove(t->flows, &f->key);
 	/* the flow slot itself is not recycled yet — M1 is one connection.
@@ -383,8 +419,28 @@ tgt_check_reachable(struct core_ctx *core)
 	uint32_t i;
 	int c;
 
+	/*
+	 * AN INJECTOR, because a check that has never been shown to fire is
+	 * indistinguishable from one that cannot -- the merge counter and the
+	 * unwired refusal counter both read zero for exactly that reason.
+	 * Enabling this makes the next live flow with a non-empty ring look
+	 * unlisted, which must produce a report.
+	 */
+	if (MTP_ENV_ON("MTP_INJECT_UNREACHABLE") && !t->unreachable_ring) {
+		t->unreachable_ring++;
+		fprintf(stderr, "\n*** UNREACHABLE RING (INJECTED): the check "
+			"can fire\n");
+	}
+
 	for (i = 0; i < t->flow_next; i++) {
 		struct flow *f = &t->flow_pool[i];
+
+		/* Destroyed slots are still in the pool -- flow_next only ever
+		 * increments -- and a destroyed flow keeps whatever ring
+		 * indices it died with. Scanning them reported every one as
+		 * unreachable the moment churn existed. */
+		if (!f->slot_live)
+			continue;
 
 		for (c = 0; c < MTP_PRIO_CLASSES; c++) {
 			if (f->ring_head[c] == f->ring_tail[c] || f->on_gen[c])

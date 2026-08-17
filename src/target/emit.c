@@ -97,21 +97,39 @@ dump_tx(const uint8_t *eth, uint16_t total)
 static int g_trace_seg = -1;
 
 static int
-drop_this_one(uint16_t seg_len)
+drop_this_one(uint16_t seg_len, int consumes_seq)
 {
 	static int nth = -1;
 	static int seen;
+	static int fin_nth = -1;
+	static int fin_seen;
 
 	/*
-	 * DATA-carrying only, and the name says so. The first version counted
-	 * every transmitted segment, so MTP_DROP_NTH=5 dropped a pure
-	 * acknowledgement and the transfer completed — a knob that was exactly
-	 * what it said and not what its reader assumed, which is the defect
-	 * this week keeps producing. Dropping an acknowledgement makes no hole;
-	 * only losing data does.
+	 * A SEPARATE KNOB FOR SEQUENCE-CONSUMING SEGMENTS THAT CARRY NO
+	 * PAYLOAD -- which is exactly the FIN. MTP_DROP_NTH_DATA skips
+	 * `!seg_len` deliberately, because dropping an acknowledgement makes no
+	 * hole; the consequence was that the one fault we most needed to
+	 * provoke, a lost FIN, could not be provoked at all. A defect we cannot
+	 * provoke is one we cannot verify fixed.
 	 */
-	if (!seg_len)
-		return 0;
+	if (!seg_len) {
+		if (!consumes_seq)
+			return 0;
+		if (fin_nth < 0) {
+			const char *e = getenv("MTP_DROP_NTH_FIN");
+
+			fin_nth = e ? atoi(e) : 0;
+			/* ARMED, said out loud. An injector that is never
+			 * shown to arm is the same dead instrument as a
+			 * counter never shown to increment. */
+			fprintf(stderr, "FIN DROPPER: every %d (0 = off), "
+				"first sequence-consuming empty segment seen\n",
+				fin_nth);
+		}
+		if (!fin_nth)
+			return 0;
+		return (++fin_seen % fin_nth) == 0;
+	}
 
 	if (nth < 0) {
 		const char *e = getenv("MTP_DROP_NTH_DATA");
@@ -156,7 +174,14 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	 * dropped segment — and a correct instrument that tests less is worth
 	 * more than a thorough one that reports fiction.
 	 */
-	if (drop_this_one(seg_len)) {
+	/*
+	 * A FIN carries no payload but occupies a sequence number, and the
+	 * program marks it by generating a one-byte advance with an empty
+	 * extent. That is what makes it droppable separately.
+	 */
+	if (drop_this_one(seg_len, bp->payload.len == 0 && bp->hdr_len > 0
+			  && (bp->hdr[13] & 0x01) /* FIN, from the program's
+						   * own header bytes */)) {
 		/*
 		 * A LOST SEGMENT STILL HAPPENED. The per-segment fixup is a
 		 * RECURRENCE over the previous segment's header, so skipping it
