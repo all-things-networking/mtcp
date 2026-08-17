@@ -152,7 +152,8 @@ struct transport {
 	uint64_t		 release_base_mismatch;	/* release names a base the take did not */
 	uint64_t		 unreachable_ring;	/* ring non-empty, flow not listed */
 	uint64_t		 emit_refused;		/* emit_bp said no: walk abandoned */
-	uint64_t		 emit_refused_route;	/* ...ARP or route miss */
+	uint64_t		 emit_refused_arp;	/* ...ARP entry absent */
+	uint64_t		 emit_refused_noframe;	/* ...no transmit frame: back-pressure */
 	uint64_t		 emit_refused_offload;	/* ...offload not advertised */
 	uint64_t		 drain_pass;		/* monotonic drain-pass number */
 	uint8_t			 forced_drain_gave_up;	/* ...on the most recent forced one */

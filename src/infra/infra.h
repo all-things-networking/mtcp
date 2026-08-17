@@ -221,6 +221,17 @@ struct core_ctx
 	 * references (DESIGN.md §3.5, mTCP core.c:790). */
 	uint32_t cur_ts;
 
+	/*
+	 * Why the last IPOutput returned NULL. It has TWO unrelated NULL
+	 * returns -- an ARP miss, which is a lookup that should succeed on a
+	 * configured peer, and EthernetOutput refusing, which is the transmit
+	 * buffer being full and is ordinary back-pressure. The caller cannot
+	 * tell them apart from the return value, and collapsing them is the
+	 * inherited debt B identified in the donor. One field, so the caller
+	 * can count them separately.
+	 */
+	enum { IPOUT_OK = 0, IPOUT_NO_ARP, IPOUT_NO_FRAME } last_ipout_fail;
+
 	/* variables related to logger */
 	int sp_fd;
 	log_thread_context *logger;

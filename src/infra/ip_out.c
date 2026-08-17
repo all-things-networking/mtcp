@@ -123,12 +123,14 @@ IPOutput(struct core_ctx *core, int *nif_out, uint8_t *is_external,
 		 * the caller retries sending the packet later */
 		RequestARP(core, (*is_external) ? (CONFIG.gateway)->daddr : daddr,
 			   nif, core->cur_ts);
+		core->last_ipout_fail = IPOUT_NO_ARP;
 		return NULL;
 	}
 
 	iph = (struct iphdr *)EthernetOutput(core, ETH_P_IP,
 			nif, haddr, payloadlen + IP_HEADER_LEN);
 	if (!iph) {
+		core->last_ipout_fail = IPOUT_NO_FRAME;
 		return NULL;
 	}
 

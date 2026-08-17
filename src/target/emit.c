@@ -221,7 +221,16 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 		 * not the same set and the difference has the sign of the gap
 		 * we are trying to measure. */
 		t->tx_suppressed++;
-		t->emit_refused_route++;
+		/*
+		 * BY THE REAL CAUSE. Calling all of this a "route miss" repeated
+		 * the mistake it was built to fix: IPOutput has two unrelated
+		 * NULL returns and the name came from the first branch in the
+		 * comment above, not from a measurement.
+		 */
+		if (core->last_ipout_fail == IPOUT_NO_ARP)
+			t->emit_refused_arp++;
+		else
+			t->emit_refused_noframe++;
 		return -1;
 	}
 	f->ip_id++;			/* per-flow counter from 0; ip_out.c:147 */

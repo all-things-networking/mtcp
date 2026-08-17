@@ -867,12 +867,13 @@ tgt_report_at_fault(void)
 	fprintf(stderr,
 		"  forced drains: %llu, of which the LAST one ABANDONED: %s\n"
 		"  drains abandoned by an emit_bp refusal, all callers: %llu\n"
-		"    of which route/ARP miss: %llu, offload refusal: %llu\n"
+		"    of which ARP absent: %llu, no transmit frame: %llu, offload refusal: %llu\n"
 		"  UNREACHABLE RINGS seen (ring non-empty, flow unlisted): %llu\n",
 		(unsigned long long)t->forced_drains,
 		t->forced_drain_gave_up ? "YES" : "no",
 		(unsigned long long)t->emit_refused,
-		(unsigned long long)t->emit_refused_route,
+		(unsigned long long)t->emit_refused_arp,
+		(unsigned long long)t->emit_refused_noframe,
 		(unsigned long long)t->emit_refused_offload,
 		(unsigned long long)t->unreachable_ring);
 	SchedReport(g_core[0]);
@@ -950,9 +951,10 @@ SchedReport(struct core_ctx *core)
 	 * is a defect on its own terms, and a run that never faults is exactly
 	 * where it would otherwise go unseen. */
 	tgt_check_reachable(core);
-	TRACE_INFO("CPU %d: EMIT REFUSALS: total=%llu route=%llu offload=%llu (drain passes %llu)\n",
+	TRACE_INFO("CPU %d: EMIT REFUSALS: total=%llu arp=%llu noframe=%llu offload=%llu (drain passes %llu)\n",
 		   ctx->cpu, (unsigned long long)TransportOf(core)->emit_refused,
-		   (unsigned long long)TransportOf(core)->emit_refused_route,
+		   (unsigned long long)TransportOf(core)->emit_refused_arp,
+		   (unsigned long long)TransportOf(core)->emit_refused_noframe,
 		   (unsigned long long)TransportOf(core)->emit_refused_offload,
 		   (unsigned long long)TransportOf(core)->drain_pass);
 	TRACE_INFO("CPU %d: RELEASE BASE MISMATCHES: %llu\n", ctx->cpu,
