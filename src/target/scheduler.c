@@ -790,6 +790,31 @@ SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu)
  * the numbers RESULTS.md is written from went with them.
  */
 void
+tgt_note_overlap(const struct mtp_data_unit *u, uint64_t live_base,
+		 uint32_t live_len, uint64_t new_base, uint32_t new_len,
+		 uint8_t new_is_rtx)
+{
+	struct transport *t = TransportOf(g_core[0]);
+	static uint32_t shown;
+
+	if (new_is_rtx)
+		t->overlap_rtx++;
+	else
+		t->overlap_new++;
+
+	/* the first few in full; after that the counters carry it */
+	if (shown++ < 5)
+		fprintf(stderr, "OVERLAP live [%llu,%llu) len=%u  X  new "
+			"[%llu,%llu) len=%u %s\n",
+			(unsigned long long)live_base,
+			(unsigned long long)(live_base + live_len), live_len,
+			(unsigned long long)new_base,
+			(unsigned long long)(new_base + new_len), new_len,
+			new_is_rtx ? "RTX" : "new");
+	(void)u;
+}
+
+void
 tgt_report_at_fault(void)
 {
 	SchedReport(g_core[0]);
@@ -862,6 +887,9 @@ SchedReport(struct core_ctx *core)
 		   TransportOf(core)->ring_hwm[0], bp_depth(0),
 		   TransportOf(core)->ring_hwm[1], bp_depth(1),
 		   TransportOf(core)->ring_hwm[2], bp_depth(2));
+	TRACE_INFO("CPU %d: OVERLAPPING COMMITS: rtx=%lu new=%lu\n", ctx->cpu,
+		   (unsigned long)TransportOf(core)->overlap_rtx,
+		   (unsigned long)TransportOf(core)->overlap_new);
 	TRACE_INFO("CPU %d: flushes asking past the wire: %lu\n", ctx->cpu,
 		   (unsigned long)TransportOf(core)->flush_past_emitted);
 	TRACE_INFO("CPU %d: boundary crossings: app->stack send=%lu notify=%lu; "

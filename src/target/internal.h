@@ -150,6 +150,13 @@ __attribute__((weak)) void tgt_note_flush_past_wire(void);
 /* Counters, printed from the fault path because an abort skips the epilogue. */
 __attribute__((weak)) void tgt_report_at_fault(void);
 
+/* An overlapping commit, counted at the moment it is made. Weak for the same
+ * reason as the dumps: the unit tests link tx_stream.c without the scheduler. */
+__attribute__((weak)) void tgt_note_overlap(const struct mtp_data_unit *u,
+					    uint64_t live_base, uint32_t live_len,
+					    uint64_t new_base, uint32_t new_len,
+					    uint8_t new_is_rtx);
+
 struct bp {
 	/* The earliest byte this blueprint will transmit. Used for two things,
 	 * both the target's own business: deriving each segment's offset, and

@@ -410,7 +410,35 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 	 * previous version asserted increasing order to protect a head pointer
 	 * that no longer exists.
 	 */
+	/*
+	 * OVERLAP DETECTED AT THE MOMENT IT IS CREATED, and COUNTED rather than
+	 * fatal. The flush assertion catches the downstream consequence once
+	 * per run at best -- one bit per sixty seconds. This is the thing we
+	 * actually care about, and it yields a rate: hundreds of events per
+	 * run, each with both authors and both retransmit flags.
+	 *
+	 * A rate is sensitive to a change that a binary crash-or-not needs
+	 * dozens of runs to see -- which matters because the crash rate has
+	 * been shown to move on identical code, so run-to-run comparison of
+	 * outcomes cannot distinguish a code change from that variation.
+	 */
+	{
+		uint32_t i;
+
+		for (i = 0; i < u->live_refs; i++) {
+			uint64_t a = u->ref_base[i], b = a + u->ref_len[i];
+
+			if (seq < b && a < seq + len) {
+				if (tgt_note_overlap)
+					tgt_note_overlap(u, a, u->ref_len[i],
+							 seq, len, kind);
+				break;
+			}
+		}
+	}
+
 	assert(u->live_refs < MTP_MAX_LIVE_REFS);
+	u->ref_len[u->live_refs] = len;
 	u->ref_base[u->live_refs++] = seq;
 	ref_log_put(u, 0 /* take */, site, seq, len, bp, caller, kind);
 	return 0;
@@ -455,6 +483,7 @@ tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base, uint8_t site,
 			continue;
 		/* Compact: move the last entry into the hole. Order carries no
 		 * meaning now, so this is the whole removal. */
+		u->ref_len[i] = u->ref_len[u->live_refs - 1];
 		u->ref_base[i] = u->ref_base[--u->live_refs];
 		ref_log_put(u, 1 /* release */, site, base, 0, bp, caller, kind);
 		return;

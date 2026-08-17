@@ -67,6 +67,7 @@ src/target/scheduler.c:503: static uint64_t seen;
 src/target/scheduler.c:702:static void
 src/target/scheduler.c:713:static void *
 src/target/scheduler.c:764: static struct sched_thread_arg arg;
+src/target/scheduler.c:798: static uint32_t shown;
 src/target/scheduler.c:95:static void
 src/target/timers.c:193: static uint32_t last;
 src/target/timers.c:196: static uint64_t n;
@@ -75,4 +76,4 @@ src/target/tx_stream.c:113:static void
 src/target/tx_stream.c:229:static void
 src/target/tx_stream.c:27:static void
 src/target/tx_stream.c:319: static uint64_t flushes;
-src/target/tx_stream.c:477:static uint64_t
+src/target/tx_stream.c:506:static uint64_t

@@ -143,6 +143,11 @@ struct transport {
 	 */
 	uint64_t		 flush_past_emitted;
 
+	/* Overlapping commits, by whether the NEW one is a retransmission.
+	 * The rate, not the crash, is the measurable. */
+	uint64_t		 overlap_rtx;
+	uint64_t		 overlap_new;
+
 	/*
 	 * High-water pending blueprints per class, so the ring depths are sized
 	 * from what the classes actually hold rather than from one number

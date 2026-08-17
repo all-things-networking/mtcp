@@ -111,6 +111,9 @@ struct mtp_data_unit {
 	 * this is gone with the bug it caused (DESIGN.md §18); the minimum is
 	 * computed on demand instead of being tracked. */
 	uint64_t	 ref_base[MTP_MAX_LIVE_REFS];
+	/* extents, so an overlapping commit is detectable at the moment it is
+	 * made rather than at the flush that trips over it later */
+	uint32_t	 ref_len[MTP_MAX_LIVE_REFS];
 	uint32_t	 live_refs;
 
 	/*
