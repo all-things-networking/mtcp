@@ -459,6 +459,18 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 		upto = u->tail_seq;
 	OWN(u, w_head_tid, "tx head_seq");	/* the STACK's index */
 	u->head_seq = upto;
+
+	/*
+	 * SPACE APPEARING IS THE TRANSITION. want_space is set by a truncated
+	 * write and cleared here, once, when the ring actually gains room --
+	 * rather than re-tested on every poll. The application asking again for
+	 * a ring that is still full simply re-sets it, which is the same
+	 * contract as before with none of the re-evaluation.
+	 */
+	if (u->want_space && tgt_tx_space(u) && u->owner && tgt_ready_edge) {
+		u->want_space = 0;
+		tgt_ready_edge(u->owner, MTP_NOTIF_WRITABLE);
+	}
 	return 0;
 }
 

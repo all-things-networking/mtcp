@@ -187,28 +187,69 @@ TransportWait(struct core_ctx *core, int timeout_ms)
 	return slept;
 }
 
-static void
-ready_level_check(struct transport *t, struct flow *f)
+/*
+ * READINESS IS A TRANSITION, NOT A CONDITION RE-EVALUATED PER POLL.
+ * docs/DESIGN-READINESS.md.
+ *
+ * This replaces ready_level_check, which ran over every dequeued flow and
+ * re-raised while the condition still held. mTCP has no such step -- B
+ * establishes three producers of EPOLLIN and no fourth, with the bit cleared on
+ * delivery and never re-enqueued, so "still readable" is not a condition it can
+ * observe. Same observable API, and the old mechanism made one ignored socket
+ * cost O(polls) for ever: five stranded flows produced 16.3 million raises
+ * against 178 reads (RESULTS 2026-08-17).
+ *
+ * The three producers now live where their transitions happen -- arrival here,
+ * the short read inside the read, registration unchanged -- and nothing
+ * re-evaluates.
+ */
+void
+tgt_ready_edge(void *owner, int kind)
 {
+	struct flow *f = (struct flow *)owner;
+
+	if (f)
+		ready_raise(TransportOf(g_core[0]), f, kind);
+}
+
+/*
+ * REGISTRATION: the third producer, and the one whose absence broke the shim
+ * completely when the first two were built.
+ *
+ * The design note listed three producers and called registration "unchanged" --
+ * true of mTCP, false of us, because our shim had no registration edge at all.
+ * Under the old poll-time re-evaluation it did not need one: a flow that became
+ * readable before the application had a socket for it was simply re-presented
+ * on the next poll. With that gone, the event raised before the handover is the
+ * only one there will ever be, and it is delivered to a socket that does not
+ * exist yet. Every connection stalled holding its unread request.
+ *
+ * So the application says "I am now interested in this flow", and anything
+ * already true is raised once, here.
+ */
+void
+mtp_ready_arm(flow_t *flow)
+{
+	struct flow *f = (struct flow *)flow;
+	struct transport *t = TransportOf(g_core[0]);
+
+	if (!f)
+		return;
 	if (f->rx_unit && f->rx_unit->tail_seq > f->rx_unit->head_seq)
 		ready_raise(t, f, MTP_NOTIF_READABLE);
-
-	/*
-	 * WRITABLE, D-23, and it gets BOTH HALVES for the same reason READABLE
-	 * does. want_space is set by the truncated write — the establishment —
-	 * and this is the maintenance: while the application is waiting and the
-	 * ring has room, the flow keeps being presented. A program that had to
-	 * re-issue would be the edge-triggered stall arriving in a second place,
-	 * and that argument was settled once already (§17.6a).
-	 *
-	 * Cleared here rather than by the application, because the target is
-	 * what knows the space exists. The application asking again for a ring
-	 * that is still full simply re-sets it.
-	 */
-	if (f->tx_unit && f->tx_unit->want_space && tgt_tx_space(f->tx_unit)) {
+	if (f->tx_unit && tgt_tx_space(f->tx_unit)) {
 		f->tx_unit->want_space = 0;
 		ready_raise(t, f, MTP_NOTIF_WRITABLE);
 	}
+}
+
+static void
+ready_after_input(struct transport *t, struct flow *f)
+{
+	/* ARRIVAL: the program merged bytes during this packet's dispatch. An
+	 * edge, because it is caused by the packet we just processed. */
+	if (f->rx_unit && f->rx_unit->tail_seq > f->rx_unit->head_seq)
+		ready_raise(t, f, MTP_NOTIF_READABLE);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -282,7 +323,6 @@ TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max)
 		 * that belongs here. Rule 4 asks the target not to know
 		 * protocols; it does not ask it to be minimal.
 		 */
-		ready_level_check(t, f);
 	}
 	return n;
 }
@@ -428,8 +468,12 @@ mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 	 * its OWN bookkeeping — occupancy — when deciding whether to re-present
 	 * READABLE. The unit's layout is the target's under D-19; this is not
 	 * reading program state. */
-	if (t->cur_flow)
+	if (t->cur_flow) {
 		t->cur_flow->rx_unit = u;
+		/* the flow this stream belongs to, so a SHORT READ can name who
+		 * to wake from inside the read itself */
+		u->owner = t->cur_flow;
+	}
 }
 
 void
@@ -632,7 +676,7 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 	mtp_program_net_input(l4, l4_len, iph, cur_ts);
 	/* the edge: whatever the program merged is now readable */
 	if (TransportOf(core)->cur_flow)
-		ready_level_check(TransportOf(core), TransportOf(core)->cur_flow);
+		ready_after_input(TransportOf(core), TransportOf(core)->cur_flow);
 	TransportOf(core)->cur_iph = NULL;
 	TransportOf(core)->cur_flow = NULL;
 

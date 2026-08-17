@@ -120,5 +120,16 @@ mtp_rx_flush_and_notify(struct mtp_data_unit *u, uint32_t len,
 		memcpy(dst + first, u->buf, len - first);
 	}
 	u->head_seq += len;
+
+	/*
+	 * THE SHORT READ RE-ARMS, AND IT DOES SO HERE, INSIDE THE READ.
+	 * docs/DESIGN-READINESS.md. Not after the read in the caller: a read
+	 * that empties the stream concurrently with an arrival would then lose
+	 * the arrival, and with no poll-time re-evaluation to repair it that
+	 * loss is permanent. This is the one placement the design cannot get
+	 * wrong quietly.
+	 */
+	if (u->tail_seq > u->head_seq && u->owner && tgt_ready_edge)
+		tgt_ready_edge(u->owner, MTP_NOTIF_READABLE);
 	return (int)len;
 }

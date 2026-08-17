@@ -397,6 +397,15 @@ int mtp_timer_start(struct mtp_timer *t, uint64_t ns);
 /* Wall clock in microseconds, read once per stack iteration. For measurement
  * only: protocol timing uses the 1 ms tick both references use. */
 uint64_t mtp_now_us(void);
+
+/*
+ * Registration edge: the application has just taken an interest in this flow,
+ * so raise once anything that is already true. Readiness is otherwise raised
+ * only on transitions (docs/DESIGN-READINESS.md), and without this a condition
+ * that became true before the application could name the flow is never
+ * reported.
+ */
+void mtp_ready_arm(flow_t *f);
 int mtp_timer_stop(struct mtp_timer *t);
 
 /*============================================================================*

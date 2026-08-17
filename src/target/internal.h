@@ -146,6 +146,7 @@ __attribute__((weak)) void prog_dump_flow_state(void *owner);
 /* Counts a flush asking to free past what the wire has carried. Weak for the
  * same reason as the dumps above. */
 __attribute__((weak)) void prog_sample_inflight(uint64_t now_us);
+__attribute__((weak)) void tgt_ready_edge(void *owner, int kind);
 __attribute__((weak)) void tgt_note_flush_past_wire(void);
 __attribute__((weak)) void tgt_note_flush_short(uint64_t behind, uint32_t run);
 

@@ -178,6 +178,24 @@ serve(struct core_ctx *core, uint32_t now, void *arg)
 		if (!(ready[i].kinds & (1u << MTP_NOTIF_READABLE)))
 			continue;
 
+		/*
+		 * THE ACCEPTANCE TEST FOR docs/DESIGN-READINESS.md, and it is
+		 * B's shape rather than "fewer raises than before": an
+		 * application that is told a socket is readable and never
+		 * reads. The property is that the NUMBER OF NOTIFICATIONS DOES
+		 * NOT DEPEND ON HOW OFTEN READINESS IS POLLED -- B measured the
+		 * donor at 4 events for 5 polls and 4 events for 160 669 211
+		 * polls, the same four.
+		 *
+		 * The counters live in the target and print from its exit
+		 * report, deliberately: the correct outcome here is an
+		 * application that goes quiet, and a quiet application cannot
+		 * report on itself. B's first attempt read `waits=1 events=0`
+		 * from a loop that had stopped, and the silence WAS the result.
+		 */
+		if (MTP_ENV_ON("MTP_IGNORE_READABLE"))
+			continue;
+
 		memset(&op, 0, sizeof(op));
 		op.kind = MTP_APP_RECV;
 		op.flow = ready[i].flow;

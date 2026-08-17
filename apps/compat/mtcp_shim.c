@@ -446,6 +446,11 @@ mtcp_epoll_ctl(mctx_t mctx, int epid, int op, int sockid,
 	case MTCP_EPOLL_CTL_ADD:
 	case MTCP_EPOLL_CTL_MOD:
 		g_sock[sockid].interest = event ? event->events : 0;
+		/* The registration edge. epserver adds interest to a socket it
+		 * has just accepted, and the request that arrived before the
+		 * accept is already sitting in the stream. */
+		if (g_sock[sockid].flow)
+			mtp_ready_arm(g_sock[sockid].flow);
 		return 0;
 	case MTCP_EPOLL_CTL_DEL:
 		g_sock[sockid].interest = 0;
