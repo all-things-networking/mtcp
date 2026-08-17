@@ -1024,11 +1024,13 @@ SchedReport(struct core_ctx *core)
 		void prog_report_avail(void);
 		void prog_report_rtt(void);
 		void prog_report_inflight(void);
+		void prog_report_stages(void);
 
 		prog_report_refusals();
 		prog_report_avail();
 		prog_report_rtt();
 		prog_report_inflight();
+		prog_report_stages();
 		{ void tgt_report_merges(void); tgt_report_merges(); }
 	}
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,

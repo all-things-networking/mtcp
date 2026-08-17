@@ -454,6 +454,8 @@ static uint64_t g_inf_integral, g_inf_span_us, g_inf_last_us, g_inf_samples;
  * the time-weighted mean live count and not the configured concurrency.
  */
 static uint64_t g_live_integral, g_live_max, g_ctx_created, g_ctx_destroyed;
+static uint64_t g_stage_occ[ST__N];	/* byte-microseconds... flow-microseconds */
+static uint64_t g_stage_enter[ST__N];	/* how many times each stage began */
 static uint32_t g_live_series[12];	/* live count in each 5 s of the run */
 static uint64_t g_first_us;
 static uint64_t g_avail_sum, g_avail_max, g_bind_cwnd, g_bind_peer;
@@ -501,9 +503,35 @@ prog_sample_inflight(uint64_t now_us)
 	if (g_inf_last_us) {
 		uint64_t dt = now_us - g_inf_last_us;
 
-		for (i = 0; i < g_live_n; i++)
-			inflight += (uint64_t)(g_live[i]->send_next
-					       - g_live[i]->send_una);
+		for (i = 0; i < g_live_n; i++) {
+			struct tcp_ctx *c = g_live[i];
+
+			inflight += (uint64_t)(c->send_next - c->send_una);
+
+			/*
+			 * Generated-to-emitted is the target's to observe, and
+			 * it is observed here rather than pushed from the emit
+			 * path: a hook on every segment would be an instrument
+			 * on the hot path, which is what this project has been
+			 * burned by three times. The occupancy is unaffected --
+			 * the stage is credited for whatever time it was in.
+			 */
+			/*
+			 * UNITS. emitted_hwm is an offset INTO THE UNIT --
+			 * pay.off is `send_next - snd_base` -- while stage_seq
+			 * is an absolute sequence. Comparing them directly was
+			 * false for every object after the first, which parked
+			 * every flow in this stage for ever and reported 99.8%
+			 * occupancy that was entirely the bug.
+			 */
+			if (c->stage == ST_AWAIT_EMIT
+			    && mtp_tx_emitted(&c->tx) + c->snd_base
+			       >= c->stage_seq) {
+				c->stage = ST_AWAIT_ACK;
+				g_stage_enter[ST_AWAIT_ACK]++;
+			}
+			g_stage_occ[c->stage] += dt;
+		}
 		g_inf_integral += inflight * dt;
 		g_live_integral += (uint64_t)g_live_n * dt;
 		g_inf_span_us += dt;
@@ -520,6 +548,26 @@ prog_sample_inflight(uint64_t now_us)
 	if (!g_first_us)
 		g_first_us = now_us;
 	g_inf_last_us = now_us;
+}
+
+void
+prog_report_stages(void)
+{
+	static const char *n[ST__N] = { "idle (nothing to send)",
+					"awaiting the send decision",
+					"awaiting emission (drain)",
+					"awaiting the acknowledgement" };
+	uint64_t busy = g_stage_occ[ST_AWAIT_DECISION] + g_stage_occ[ST_AWAIT_EMIT]
+		      + g_stage_occ[ST_AWAIT_ACK];
+	int i;
+
+	fprintf(stderr, "send-loop occupancy, flow-microseconds, time-weighted "
+		"(busy total %llu):\n", (unsigned long long)busy);
+	for (i = 0; i < ST__N; i++)
+		fprintf(stderr, "  %-30s %14llu  %5.1f%% of busy   entered %llu\n",
+			n[i], (unsigned long long)g_stage_occ[i],
+			busy ? 100.0 * (double)g_stage_occ[i] / (double)busy : 0.0,
+			(unsigned long long)g_stage_enter[i]);
 }
 
 void
@@ -968,6 +1016,10 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		if (d > g_rtt_max)
 			g_rtt_max = d;
 		c->probe_us = 0;
+	}
+	if (c->stage == ST_AWAIT_ACK && (int32_t)(e->ack - c->stage_seq) >= 0) {
+		c->stage = ST_AWAIT_DECISION;
+		g_stage_enter[ST_AWAIT_DECISION]++;
 	}
 
 	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
@@ -1770,6 +1822,9 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			c->probe_seq = c->send_next;
 			c->probe_us = mtp_now_us();
 		}
+		c->stage = ST_AWAIT_EMIT;
+		c->stage_seq = c->send_next;
+		g_stage_enter[ST_AWAIT_EMIT]++;
 		if (c->send_next > c->send_high)
 			c->send_high = c->send_next;
 		if (unacked_on_wire(c))

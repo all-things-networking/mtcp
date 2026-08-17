@@ -97,6 +97,13 @@ struct tcp_ctx {
 	/* One outstanding round-trip probe per flow: sequence to clear it and
 	 * the microsecond it was generated. Measurement only -- srtt below is
 	 * the protocol's estimate and is in the donor's 1 ms ticks. */
+	/* Which stage of the send loop this flow is waiting in, and the sequence
+	 * that clears the current one. Occupancy is accumulated against the clock
+	 * (see prog_sample_inflight), never as an average of per-event samples:
+	 * a per-event mean is resample-biased and cost us a factor of ~2.3 once
+	 * already. */
+	uint8_t  stage;
+	uint32_t stage_seq;
 	uint32_t probe_seq;
 	uint64_t probe_us;
 
@@ -148,6 +155,10 @@ struct tcp_ctx {
 /* How many flows the in-flight sampler tracks. Sized to the configured
  * concurrency ceiling; a run beyond it under-reports rather than corrupting. */
 #define MTP_MAX_FLOWS_SAMPLED 1024
+
+/* Stages of one turn of the send loop. IDLE is separated from the rest so a
+ * flow with nothing to send is never counted as latency. */
+enum { ST_IDLE = 0, ST_AWAIT_DECISION, ST_AWAIT_EMIT, ST_AWAIT_ACK, ST__N };
 
 void     prog_sample_inflight(uint64_t now_us);
 void     tcp_on_payload_merged(struct tcp_ctx *c, uint32_t new_recv_next);
