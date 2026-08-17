@@ -111,6 +111,16 @@ struct tcp_ctx {
 	 */
 	uint64_t una_advanced_us;
 
+	/*
+	 * In loss recovery: a retransmission is outstanding and the
+	 * acknowledgement for it has not arrived. Splits the in-flight integral
+	 * so Little's law can be applied to retransmitted and clean bytes
+	 * separately -- the two must reconstruct the overall loop, which is the
+	 * check that the split is sound.
+	 */
+	uint32_t rtx_mark;
+	bool     in_rtx;
+
 	uint8_t  stage;
 	uint32_t stage_seq;
 	uint32_t probe_seq;

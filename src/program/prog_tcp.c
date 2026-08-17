@@ -431,6 +431,8 @@ static uint64_t g_rtt_bucket[6], g_rtt_sum, g_rtt_n, g_rtt_max;
 static uint64_t g_cwnd_sum, g_inflight_sum;
 static uint64_t g_ack_hist[8], g_ack_sum, g_ack_n, g_ack_max;
 static uint64_t g_emit_unacked;
+static uint64_t g_int_rtx, g_int_clean, g_bytes_rtx, g_bytes_clean;
+static uint64_t g_rto_sum, g_rto_n, g_rto_max;
 #define MIN64(a,b) ((a) < (b) ? (a) : (b))
 static uint64_t g_ring_hist[8], g_ring_empty_by[3];
 static uint64_t g_gap_full, g_gap_full_dt, g_gap_all, g_gap_all_dt;
@@ -616,6 +618,10 @@ prog_sample_inflight(uint64_t now_us)
 					unsigned b;
 
 					g_emit_unacked += (emit - acked) * dt;
+					if (c->in_rtx)
+						g_int_rtx += (emit - acked) * dt;
+					else
+						g_int_clean += (emit - acked) * dt;
 
 					/*
 					 * THE TAIL. Time-sampled, so a stuck
@@ -791,6 +797,19 @@ prog_report_inflight(void)
 			fprintf(stderr, "  %-8s %5.1f%% of stuck-flow time\n",
 				n[k], tot ? 100.0 * (double)g_age_hist[k] / (double)tot : 0.0);
 	}
+	fprintf(stderr,
+		"LOOP SPLIT by whether the flow was in loss recovery:\n"
+		"  clean : integral %llu B.us / %llu B  -> W = %llu us  (%.2f%% of bytes)\n"
+		"  in rtx: integral %llu B.us / %llu B  -> W = %llu us  (%.2f%% of bytes)\n"
+		"  RTO in use: mean %llu ms, max %llu ms over %llu samples\n",
+		(unsigned long long)g_int_clean, (unsigned long long)g_bytes_clean,
+		(unsigned long long)(g_bytes_clean ? g_int_clean / g_bytes_clean : 0),
+		100.0 * (double)g_bytes_clean / (double)(g_bytes_clean + g_bytes_rtx + 1),
+		(unsigned long long)g_int_rtx, (unsigned long long)g_bytes_rtx,
+		(unsigned long long)(g_bytes_rtx ? g_int_rtx / g_bytes_rtx : 0),
+		100.0 * (double)g_bytes_rtx / (double)(g_bytes_clean + g_bytes_rtx + 1),
+		(unsigned long long)(g_rto_n ? g_rto_sum / g_rto_n : 0),
+		(unsigned long long)g_rto_max, (unsigned long long)g_rto_n);
 	fprintf(stderr,
 		"time-averaged EMITTED-unacked: %llu B across all flows -- "
 		"Little's law over exactly what the emission probe samples\n",
@@ -1278,6 +1297,18 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		return;
 	}
 	g_rx[RXS_ACK_ADVANCED]++;
+	if (c->in_rtx)
+		g_bytes_rtx += acked;
+	else
+		g_bytes_clean += acked;
+	if (c->in_rtx && (int32_t)(e->ack - c->rtx_mark) >= 0)
+		c->in_rtx = false;
+	if (c->have_rtt) {
+		g_rto_sum += c->rto_ms;
+		g_rto_n++;
+		if (c->rto_ms > g_rto_max)
+			g_rto_max = c->rto_ms;
+	}
 	c->una_advanced_us = mtp_now_us();
 
 	/*
@@ -2208,6 +2239,10 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	rtx = c->send_next < c->send_high;
 	if (rtx) {
 		g_emit[EM_DATA_RTX]++;
+		if (!c->in_rtx) {
+			c->in_rtx = true;
+			c->rtx_mark = c->send_high;
+		}
 		if (MTP_ENV_ON("MTP_TRACE_EV"))
 			fprintf(stderr, "EV rtx off=%u len=%u\n",
 				c->send_next - c->snd_base, to_send);
