@@ -455,9 +455,29 @@ emit_bp(struct core_ctx *core, struct flow *f, struct bp *bp)
 static void
 release_bp(struct bp *bp)
 {
-	if (bp->payload.len && bp->unit)
-		tgt_tx_ref_release(bp->unit, bp->base_seq, REF_SITE_DRAIN_REL, bp,
-				   NULL, 0);
+	if (!bp->payload.len || !bp->unit)
+		return;
+
+	/*
+	 * MEASURED, NOT FIXED, on purpose: the release still uses base_seq, so
+	 * this run reports the existing code's behaviour rather than a change's.
+	 * A mismatch means the release is naming a base the take never used.
+	 */
+	if (bp->ref_base != bp->base_seq) {
+		struct transport *t = TransportOf(g_core[0]);
+
+		if (t->release_base_mismatch++ == 0)
+			fprintf(stderr,
+				"\n*** RELEASE BASE MISMATCH: taken at %llu, "
+				"releasing %llu (delta %+lld), paylen=%u\n",
+				(unsigned long long)bp->ref_base,
+				(unsigned long long)bp->base_seq,
+				(long long)((int64_t)bp->base_seq
+					    - (int64_t)bp->ref_base),
+				bp->payload.len);
+	}
+	tgt_tx_ref_release(bp->unit, bp->base_seq, REF_SITE_DRAIN_REL, bp,
+			   NULL, 0);
 }
 
 /*----------------------------------------------------------------------------*/

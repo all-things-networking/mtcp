@@ -170,6 +170,10 @@ struct bp {
 	uint64_t	base_seq;
 
 	payref_t	payload;
+	/* The base the payload reference was TAKEN at. Separate from base_seq
+	 * because the merge path rewrites base_seq afterwards, and the release
+	 * is by identity -- it must name the base the take used. */
+	uint64_t	ref_base;
 	struct mtp_data_unit *unit;	/* the payload's unit, so the drain can
 					 * end the reference's liveness */
 

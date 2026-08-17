@@ -563,6 +563,9 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 			if (payload && payload->len && last->payload.len &&
 			    payload->off == end) {
 				payref_t ext;
+				/* the base the take is about to use, kept
+				 * because base_seq may be rewritten below */
+				const uint64_t took_at = last->base_seq;
 
 				/* ONE call: tgt_tx_ref TAKES a reference, so
 				 * asking twice to count the failure would
@@ -629,6 +632,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 							memcpy(last->hdr + keep_off, keep, kl);
 					}
 					last->hdr_len = hdr_len;
+					last->ref_base = took_at;
 					if (!inherit)
 						last->base_seq = payload->off;
 					TransportOf(g_core[0])->merges++;
@@ -684,6 +688,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 			return -1;
 		}
 		bp->unit = payload->u;
+		bp->ref_base = payload->off;
 	}
 
 	tgt_bp_commit(f, bp);

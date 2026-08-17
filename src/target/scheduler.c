@@ -947,6 +947,8 @@ SchedReport(struct core_ctx *core)
 	 * is a defect on its own terms, and a run that never faults is exactly
 	 * where it would otherwise go unseen. */
 	tgt_check_reachable(core);
+	TRACE_INFO("CPU %d: RELEASE BASE MISMATCHES: %llu\n", ctx->cpu,
+		   (unsigned long long)TransportOf(core)->release_base_mismatch);
 	TRACE_INFO("CPU %d: UNREACHABLE RINGS (ring non-empty, flow unlisted): %llu\n",
 		   ctx->cpu, (unsigned long long)TransportOf(core)->unreachable_ring);
 	TRACE_INFO("CPU %d: COMMITS BELOW THE WIRE: rtx=%lu partial=%lu DEAD=%lu\n", ctx->cpu,
