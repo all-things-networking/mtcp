@@ -435,6 +435,8 @@ static uint64_t g_emit_unacked;
 static uint64_t g_ring_hist[8], g_ring_empty_by[3];
 static uint64_t g_gap_full, g_gap_full_dt, g_gap_all, g_gap_all_dt;
 static uint32_t g_sws_rw;
+static uint64_t g_sws_cwnd, g_sws_peer, g_sws_infl, g_sws_bind[2];
+static uint64_t g_sws_cwnd_h[6], g_sws_peer_h[6];
 static uint64_t g_sws_withheld, g_sws_n, g_sws_max;
 static uint64_t g_age_hist[8], g_age_time, g_age_dt, g_age_max, g_age_max_at;
 static unsigned g_age_max_flow;	/* byte-microseconds, emitted and unacked */
@@ -755,6 +757,30 @@ prog_report_inflight(void)
 		"max %llu B\n", (unsigned long long)g_sws_n,
 		(unsigned long long)(g_sws_n ? g_sws_withheld / g_sws_n : 0),
 		(unsigned long long)g_sws_max);
+	{
+		uint64_t t = g_sws_bind[0] + g_sws_bind[1];
+		static const char *e[6] = { "<4K", "<16K", "<64K", "<256K",
+					    "<1M", ">=1M" };
+		int k;
+
+		fprintf(stderr, "  AT THOSE DECISIONS: mean cwnd %llu, mean "
+			"peer window %llu, mean inflight %llu; binding arm "
+			"cwnd %llu / peer %llu\n",
+			(unsigned long long)(t ? g_sws_cwnd / t : 0),
+			(unsigned long long)(t ? g_sws_peer / t : 0),
+			(unsigned long long)(t ? g_sws_infl / t : 0),
+			(unsigned long long)g_sws_bind[0],
+			(unsigned long long)g_sws_bind[1]);
+		fprintf(stderr, "  cwnd:");
+		for (k = 0; k < 6; k++)
+			fprintf(stderr, " %s %.1f%%", e[k],
+				t ? 100.0 * (double)g_sws_cwnd_h[k] / (double)t : 0.0);
+		fprintf(stderr, "\n  peer:");
+		for (k = 0; k < 6; k++)
+			fprintf(stderr, " %s %.1f%%", e[k],
+				t ? 100.0 * (double)g_sws_peer_h[k] / (double)t : 0.0);
+		fprintf(stderr, "\n");
+	}
 	fprintf(stderr, "AGE of the oldest unacknowledged byte, "
 			"time-sampled (mean %llu us, max %llu us on flow %u "
 			"at t=%llu):\n",
@@ -2087,6 +2113,33 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 				/* what the rule is holding back, for
 				 * comparison against the donor's mean */
 				g_sws_rw = (uint32_t)rw;
+				/*
+				 * WHICH ARM OF THE MIN IS SMALL. rw is
+				 * MIN(cwnd, peer) - inflight, and the three
+				 * ways it can be under one MSS have three
+				 * different owners: our congestion control,
+				 * the peer's advertised window, or inflight
+				 * being large. A mean of rw cannot tell them
+				 * apart and neither can a mean of cwnd.
+				 */
+				g_sws_cwnd += c->cwnd;
+				g_sws_peer += c->send_wnd;
+				g_sws_infl += inflight_here;
+				g_sws_bind[c->cwnd <= c->send_wnd ? 0 : 1]++;
+				{
+					unsigned k;
+					uint32_t v;
+
+					for (k = 0, v = 4096;
+					     k < 5 && c->cwnd >= v; k++, v *= 4)
+						;
+					g_sws_cwnd_h[k]++;
+					for (k = 0, v = 4096;
+					     k < 5 && c->send_wnd >= v;
+					     k++, v *= 4)
+						;
+					g_sws_peer_h[k]++;
+				}
 				break;
 			}
 
