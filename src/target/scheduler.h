@@ -46,6 +46,7 @@ extern volatile sig_atomic_t SchedStopRequested;
  * the target rather than being driven by it (DESIGN.md §20). SchedRun is this
  * in a loop; there is only one copy of the body. */
 int  TransportWait(struct core_ctx *core, int timeout_ms);
+void SchedStop(void);
 void SchedStep(struct core_ctx *core,
 	       void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg);
 

@@ -232,6 +232,9 @@ void
 mtcp_destroy_context(mctx_t mctx)
 {
 	(void)mctx;
+	/* Stop it before joining it. Without this the join never returns and
+	 * the process dies on SIGKILL with no report. */
+	SchedStop();
 	if (g_shim_stack) {
 		pthread_join(g_shim_stack, NULL);
 		g_shim_stack = 0;

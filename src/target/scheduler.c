@@ -642,6 +642,18 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 volatile sig_atomic_t SchedStopRequested;
 
 /*
+ * Ask the stack thread to finish. Needed because tearing down a context joins
+ * that thread, and nothing else ever set the flag -- so the shim's shutdown
+ * blocked in pthread_join until the harness sent SIGKILL, which is why the
+ * shimmed arm never printed an epilogue and carried no counters.
+ */
+void
+SchedStop(void)
+{
+	SchedStopRequested = 1;
+}
+
+/*
  * ONE iteration of the loop, exposed so the APPLICATION can drive the target
  * instead of the target driving the application. The mTCP compatibility shim
  * needs that inversion: epserver owns its own event loop and calls
