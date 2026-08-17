@@ -433,6 +433,7 @@ static uint64_t g_ack_hist[8], g_ack_sum, g_ack_n, g_ack_max;
 static uint64_t g_emit_unacked;
 static uint64_t g_int_rtx, g_int_clean, g_bytes_rtx, g_bytes_clean;
 static uint64_t g_rto_sum, g_rto_n, g_rto_max;
+static uint64_t g_nodata_held[7], g_nodata_held_sum, g_nodata_n;
 #define MIN64(a,b) ((a) < (b) ? (a) : (b))
 static uint64_t g_ring_hist[8], g_ring_empty_by[3];
 static uint64_t g_gap_full, g_gap_full_dt, g_gap_all, g_gap_all_dt;
@@ -757,6 +758,20 @@ prog_report_inflight(void)
 		for (k = 0; k < 3; k++)
 			fprintf(stderr, " %s %.1f%%", w[k],
 				et ? 100.0 * (double)g_ring_empty_by[k] / (double)et : 0.0);
+		fprintf(stderr, "\n");
+	}
+	{
+		static const char *n[7] = { "<4K", "<16K", "<64K", "<256K",
+					    "<1M", "<4M", ">=4M" };
+		int k;
+
+		fprintf(stderr, "AT 'nothing buffered': %llu decisions, mean "
+			"ring held %llu B\n  held:",
+			(unsigned long long)g_nodata_n,
+			(unsigned long long)(g_nodata_n ? g_nodata_held_sum / g_nodata_n : 0));
+		for (k = 0; k < 7; k++)
+			fprintf(stderr, " %s %.1f%%", n[k],
+				g_nodata_n ? 100.0 * (double)g_nodata_held[k] / (double)g_nodata_n : 0.0);
 		fprintf(stderr, "\n");
 	}
 	fprintf(stderr, "SWS hold-off: %llu deferrals, mean withheld %llu B, "
@@ -2177,6 +2192,45 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			avail_here = c->write_end - (seq - c->snd_base);
 			if (!avail_here) {
 				why = REF_NODATA;
+				/*
+				 * WHAT THE FLOW LOOKS LIKE WHEN IT REPORTS
+				 * NOTHING BUFFERED.
+				 *
+				 * The "backlog is large" branch is impossible
+				 * here BY CONSTRUCTION -- avail_here == 0 IS
+				 * this exit -- so the discriminating quantity
+				 * is not the backlog but the RING HELD, which
+				 * at this point equals what is in flight:
+				 * held is written-minus-acknowledged and
+				 * written has caught up with generated.
+				 *
+				 *   held near zero -> the flow is genuinely
+				 *     idle, nothing outstanding and nothing
+				 *     written: the application has not come
+				 *     round to it. Starvation.
+				 *
+				 *   held large -> the flow has everything it
+				 *     was given on the wire and is waiting for
+				 *     acknowledgements. "Nothing buffered" is
+				 *     true and misleading: the flow is not
+				 *     starved, it is acknowledgement-bound,
+				 *     and counting it as starvation overstates
+				 *     the application's share.
+				 */
+				{
+					uint64_t held = c->tx.tail_seq
+						      - c->tx.head_seq;
+					unsigned b;
+					uint64_t lim;
+
+					for (b = 0, lim = 4096;
+					     b < 6 && held >= lim;
+					     b++, lim *= 4)
+						;
+					g_nodata_held[b]++;
+					g_nodata_held_sum += held;
+					g_nodata_n++;
+				}
 				break;
 			}
 
