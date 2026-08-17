@@ -53,6 +53,7 @@ struct shim_sock {
 	uint32_t interest;	/* what epoll_ctl last asked for */
 	uint32_t ready;		/* what the target reported this iteration */
 	uint8_t	 in_use;
+	int	 next_free;	/* free-list link; valid only while !in_use */
 	uint8_t	 is_listener;
 };
 
@@ -71,6 +72,7 @@ struct shim_sock {
  * them useful. mTCP's own path is not O(registered sockets); we added that.
  */
 static int     g_rdy[SHIM_MAX_SOCK];
+static int     g_sock_free = -1;	/* head of the free socket list */
 static int     g_rdy_n;
 
 struct shim_flow_state {
@@ -115,21 +117,29 @@ static int shim_collect_ready(void);
 static int
 sock_alloc(flow_t *flow)
 {
-	int i;
+	int i = g_sock_free;
 
-	for (i = SHIM_LISTENER + 1; i < SHIM_MAX_SOCK; i++) {
-		if (g_sock[i].in_use)
-			continue;
-		g_sock[i].in_use = 1;
-		g_sock[i].flow = flow;
-		g_sock[i].interest = 0;
-		g_sock[i].is_listener = 0;
-		if (flow)
-			fstate(flow)->sockid = i;
-		return i;
+	/*
+	 * A FREE LIST, NOT A SEARCH. This was a linear walk of the whole table
+	 * looking for a clear `in_use` -- the same shape as the readiness scan
+	 * that turned out to be 25.58% of the process (RESULTS 2026-08-17).
+	 *
+	 * It is COLD, once per accept, and this buys nothing measurable. It is
+	 * changed because leaving one instance of a shape in place after
+	 * removing the other is how the next person learns it is acceptable.
+	 */
+	if (i < 0) {
+		errno = EMFILE;
+		return -1;
 	}
-	errno = EMFILE;
-	return -1;
+	g_sock_free = g_sock[i].next_free;
+	g_sock[i].in_use = 1;
+	g_sock[i].flow = flow;
+	g_sock[i].interest = 0;
+	g_sock[i].is_listener = 0;
+	if (flow)
+		fstate(flow)->sockid = i;
+	return i;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -176,10 +186,43 @@ mtcp_init(const char *config_file)
 	}
 	memset(g_sock, 0, sizeof(g_sock));
 	memset(g_flow, 0, sizeof(g_flow));
+	{
+		int i;
+
+		/* descending, so ids are handed out ascending */
+		g_sock_free = -1;
+		for (i = SHIM_MAX_SOCK - 1; i > SHIM_LISTENER; i--) {
+			g_sock[i].next_free = g_sock_free;
+			g_sock_free = i;
+		}
+	}
 
 	if (InfraInit(config_file) < 0) {
 		fprintf(stderr, "mtcp_shim: InfraInit(%s) failed\n",
 			config_file ? config_file : "(null)");
+		return -1;
+	}
+
+	/*
+	 * THREE BOUNDS THAT MUST AGREE, AND NOTHING USED TO CHECK.
+	 *
+	 * SHIM_MAX_SOCK sizes g_sock, g_flow and g_rdy here; the target sizes
+	 * its flow and blueprint pools from CONFIG.max_concurrency
+	 * (flow.c:26-37); SHIM_PENDING bounds the accept backlog. Today all
+	 * three happen to fit because the conf says 4096 -- a defensive
+	 * constant that silently agrees is worse than one that disagrees,
+	 * because it teaches you it is safe.
+	 *
+	 * fstate() indexes g_flow by the target's flow id, so if the conf ever
+	 * exceeds SHIM_MAX_SOCK the failure is an abort inside fstate on a
+	 * perfectly valid flow, long after the cause. Fail here instead, where
+	 * the number that is wrong is on the screen.
+	 */
+	if (CONFIG.max_concurrency > SHIM_MAX_SOCK) {
+		fprintf(stderr, "mtcp_shim: max_concurrency %d exceeds "
+			"SHIM_MAX_SOCK %d -- the shim's socket and flow tables "
+			"are indexed by flow id and would be overrun\n",
+			CONFIG.max_concurrency, SHIM_MAX_SOCK);
 		return -1;
 	}
 	return 0;
@@ -462,6 +505,11 @@ mtcp_close(mctx_t mctx, int sockid)
 	if (g_sock[sockid].flow)
 		mtp_app_close(g_sock[sockid].flow);
 	memset(&g_sock[sockid], 0, sizeof(g_sock[sockid]));
+	/* after the memset, or it would be zeroed away */
+	if (sockid != SHIM_LISTENER) {
+		g_sock[sockid].next_free = g_sock_free;
+		g_sock_free = sockid;
+	}
 	return 0;
 }
 
