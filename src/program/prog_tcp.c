@@ -425,6 +425,10 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 enum { REF_STATE, REF_WINDOW, REF_SWS, REF_NODATA, REF_SENT, REF__N };
 static uint64_t g_refuse[REF__N];
 
+/* Available-window census — see the discriminator in tcp_gen_seg. */
+static uint64_t g_avail_bucket[6];
+static uint64_t g_avail_sum, g_avail_max, g_bind_cwnd, g_bind_peer;
+
 /*
  * THE RECEIVE PATH, STAGE BY STAGE — the same instrument pointed the other way.
  *
@@ -444,6 +448,34 @@ static uint64_t g_tmr[TMR__N];
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
        RXS_ACK_ADVANCED, RXS_RST, RXS_ACK_PAST_NEXT, RXS__N };
 static uint64_t g_rx[RXS__N];
+
+void
+prog_report_avail(void)
+{
+	static const char *n[6] = { "avail <= 0        (window-limited)",
+				    "avail < 1 MSS     ",
+				    "avail < 4 MSS     ",
+				    "avail < 16 MSS    ",
+				    "avail < 64 MSS    ",
+				    "avail >= 64 MSS   (decision-limited)" };
+	uint64_t tot = 0;
+	int i;
+
+	for (i = 0; i < 6; i++)
+		tot += g_avail_bucket[i];
+	fprintf(stderr, "send-window census: %llu generation decisions\n",
+		(unsigned long long)tot);
+	for (i = 0; i < 6; i++)
+		fprintf(stderr, "  %s %10llu  %5.1f%%\n", n[i],
+			(unsigned long long)g_avail_bucket[i],
+			tot ? 100.0 * (double)g_avail_bucket[i] / (double)tot : 0.0);
+	fprintf(stderr, "  mean available %llu B, max %llu B; binding window: "
+		"cwnd %llu, peer %llu\n",
+		(unsigned long long)(tot ? g_avail_sum / tot : 0),
+		(unsigned long long)g_avail_max,
+		(unsigned long long)g_bind_cwnd,
+		(unsigned long long)g_bind_peer);
+}
 
 void
 prog_report_refusals(void)
@@ -1409,6 +1441,38 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	}
 
 	win = c->cwnd < c->send_wnd ? c->cwnd : c->send_wnd;
+
+	/*
+	 * THE DISCRIMINATOR: available send window at the moment the program is
+	 * asked to generate. Two opposite faults look identical from outside --
+	 * window-limited (allowed to send nothing) and decision-limited (allowed
+	 * to send and not doing it) -- and this one series separates them.
+	 *
+	 * Bucketed and accumulated, never logged per event. Instrumentation cost
+	 * has been the measurement twice today; this is six compares and one
+	 * increment on a path that already computes every term it needs.
+	 */
+	{
+		int64_t avail = (int64_t)win
+			      - (int64_t)(c->send_next - c->send_una);
+		unsigned b;
+
+		if (avail <= 0)			b = 0;
+		else if (avail < 1448)		b = 1;
+		else if (avail < 4 * 1448)	b = 2;
+		else if (avail < 16 * 1448)	b = 3;
+		else if (avail < 64 * 1448)	b = 4;
+		else				b = 5;
+		g_avail_bucket[b]++;
+		g_avail_sum += avail > 0 ? (uint64_t)avail : 0;
+		if (avail > (int64_t)g_avail_max)
+			g_avail_max = (uint64_t)avail;
+		/* which of the two windows is the binding one, when either is */
+		if (c->cwnd <= c->send_wnd)
+			g_bind_cwnd++;
+		else
+			g_bind_peer++;
+	}
 
 	/*
 	 * THE DONOR'S LOOP PREDICATE, not a restatement of it.

@@ -1006,8 +1006,10 @@ SchedReport(struct core_ctx *core)
 		   (unsigned long)TransportOf(core)->poll_entries);
 	{	/* the program's own account of why it emitted nothing */
 		void prog_report_refusals(void);
+		void prog_report_avail(void);
 
 		prog_report_refusals();
+		prog_report_avail();
 		{ void tgt_report_merges(void); tgt_report_merges(); }
 	}
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,
