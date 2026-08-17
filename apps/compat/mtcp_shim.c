@@ -48,6 +48,7 @@
  * that namespace.
  */
 struct shim_sock {
+	uint8_t on_rdy;		/* already on g_rdy this pass; keeps it duplicate-free */
 	flow_t	*flow;		/* NULL = free, or the listener */
 	uint32_t interest;	/* what epoll_ctl last asked for */
 	uint32_t ready;		/* what the target reported this iteration */
@@ -61,6 +62,17 @@ struct shim_sock {
  * own that pointer's lifetime, and a recycled slot would hand it one it had
  * seen before belonging to a different connection.
  */
+/*
+ * The sockets with readiness set THIS pass. Replaces two O(SHIM_MAX_SOCK)
+ * walks per call: one to clear every flag and one to find the few that were
+ * set. Measured 2026-08-17: mtcp_epoll_wait was 25.58% of the whole process --
+ * two thirds of the application thread -- doing 8192 slot visits per call to
+ * service at most 8 live sockets, 7.2 billion visits in one run, 0.098% of
+ * them useful. mTCP's own path is not O(registered sockets); we added that.
+ */
+static int     g_rdy[SHIM_MAX_SOCK];
+static int     g_rdy_n;
+
 struct shim_flow_state {
 	int sockid;
 	/*
@@ -540,6 +552,12 @@ shim_collect_ready(void)
 			g_sock[sid].ready |= MTCP_EPOLLIN;
 		if (ready[i].kinds & (1u << MTP_NOTIF_WRITABLE))
 			g_sock[sid].ready |= MTCP_EPOLLOUT;
+		/* one entry per socket per pass; the flag is the guard */
+		if (g_sock[sid].ready && !g_sock[sid].on_rdy
+		    && g_rdy_n < SHIM_MAX_SOCK) {
+			g_sock[sid].on_rdy = 1;
+			g_rdy[g_rdy_n++] = sid;
+		}
 	}
 	return n;
 }
@@ -556,12 +574,16 @@ int
 mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 		int maxevents, int timeout)
 {
-	int i, n = 0, got;
+	int i, k, n = 0, got;
 
 	(void)mctx; (void)epid;
 
-	for (i = 0; i < SHIM_MAX_SOCK; i++)
-		g_sock[i].ready = 0;
+	/* Clear only what was set last pass -- g_rdy names exactly those. */
+	for (i = 0; i < g_rdy_n; i++) {
+		g_sock[g_rdy[i]].ready = 0;
+		g_sock[g_rdy[i]].on_rdy = 0;
+	}
+	g_rdy_n = 0;
 
 	/*
 	 * DOES NOT PUMP THE TARGET. It used to call SchedStep here, which made
@@ -604,10 +626,11 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 		n++;
 	}
 
-	for (i = SHIM_LISTENER + 1; i < SHIM_MAX_SOCK && n < maxevents; i++) {
+	for (k = 0; k < g_rdy_n && n < maxevents; k++) {
 		uint32_t hit;
 
-		if (!g_sock[i].in_use)
+		i = g_rdy[k];
+		if (i == SHIM_LISTENER || !g_sock[i].in_use)
 			continue;
 		/* level-triggered: report only what was asked for */
 		hit = g_sock[i].ready & g_sock[i].interest;
