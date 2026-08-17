@@ -337,8 +337,17 @@ drain_this_core(void *arg)
 {
 	struct core_ctx *core = arg;
 
-	TransportOf(core)->forced_drains++;
+	struct transport *t = TransportOf(core);
+	uint64_t before = t->drain_gave_up;
+
+	t->forced_drains++;
 	tgt_drain(core);
+	/*
+	 * Whether THIS drain reached everything, not whether any drain ever
+	 * gave up. tx_flush treats "I called drain" as "the drain happened",
+	 * and the buffer-full path makes those two different things.
+	 */
+	t->forced_drain_gave_up = (t->drain_gave_up != before);
 }
 
 void
@@ -852,6 +861,14 @@ tgt_note_overlap(const struct mtp_data_unit *u, uint64_t live_base,
 void
 tgt_report_at_fault(void)
 {
+	struct transport *t = TransportOf(g_core[0]);
+
+	fprintf(stderr,
+		"  forced drains: %llu, of which the LAST one ABANDONED: %s\n"
+		"  drains abandoned on a full transmit buffer, all callers: %llu\n",
+		(unsigned long long)t->forced_drains,
+		t->forced_drain_gave_up ? "YES" : "no",
+		(unsigned long long)t->drain_gave_up);
 	SchedReport(g_core[0]);
 }
 
