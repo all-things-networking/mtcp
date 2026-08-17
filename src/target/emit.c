@@ -664,6 +664,11 @@ tgt_drain(struct core_ctx *core)
 	 * nothing puts it back, so a check every 1024 passes finds it just as
 	 * surely, a few microseconds later, for a thousandth of the cost.
 	 */
-	if ((t->drain_pass & 1023) == 0)
+	/* The sampling interval is switchable at runtime so the cost of the
+	 * check can be measured against itself in one binary -- the question
+	 * "was the server CPU-bound" needs both arms and a rebuild between them
+	 * is a second variable. */
+	if ((t->drain_pass & (MTP_ENV_ON("MTP_INVARIANT_EVERY_PASS") ? 0 : 1023))
+	    == 0)
 		tgt_check_reachable(core);
 }
