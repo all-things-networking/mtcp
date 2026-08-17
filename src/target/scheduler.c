@@ -873,7 +873,7 @@ SchedStep(struct core_ctx *core,
 		 * its contents matters until that is ruled out.
 		 */
 		for (tx_inf = 0; tx_inf < CONFIG.eths_num; tx_inf++) {
-			if (t_of->staged) {
+			if (t_of->staged && t_of->stage_first_us) {
 				struct timeval tv2;
 				uint64_t now2, gap;
 				unsigned b, d;

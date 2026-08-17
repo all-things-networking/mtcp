@@ -267,7 +267,7 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	 * once per pass and would report zero for anything staged and flushed
 	 * within one.
 	 */
-	if (!t->staged) {
+	if (!t->staged && !MTP_ENV_ON("MTP_NO_STAGECLOCK")) {
 		struct timeval tv;
 
 		gettimeofday(&tv, NULL);
