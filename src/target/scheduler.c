@@ -490,6 +490,13 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 			     "keep the buffer size the donor is measured "
 			     "with.\n", CONFIG.sndbuf_size, cap);
 
+	/* Said out loud once per unit: the capacity that will refuse writes,
+	 * and the configured value it came from. Rule 1 makes this a parity
+	 * parameter, so a run must be able to state it rather than have it
+	 * inferred from behaviour. */
+	TRACE_CONFIG("transmit ring: %u bytes (sndbuf = %d)\n", cap,
+		     CONFIG.sndbuf_size);
+
 	if (tgt_tx_unit_init(u, size, cap, drain_this_core, core) < 0)
 		TRACE_ERROR("could not allocate a %u byte transmit ring\n", cap);
 

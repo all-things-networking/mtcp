@@ -79,6 +79,7 @@ struct shim_flow_state {
 static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
 static uint64_t g_pend_dropped, g_pend_dedup;
 static uint64_t g_wr_calls, g_wr_asked, g_wr_got, g_wr_short, g_wr_refused;
+static uint64_t g_wr_ringfull, g_wr_noflow;
 static struct shim_sock	 g_sock[SHIM_MAX_SOCK];
 static struct core_ctx	*g_shim_core;
 static pthread_t	 g_shim_stack;
@@ -255,13 +256,16 @@ mtcp_destroy_context(mctx_t mctx)
 	if (g_shim_core)
 		SchedReport(g_shim_core);	/* the loop is ours, so is the report */
 	fprintf(stderr, "shim write: %llu calls, asked %llu, got %llu (%.1f%%), "
-		"%llu short, %llu refused; mean asked %llu, mean got %llu\n",
+		"%llu short, %llu refused (%llu ring full, %llu no flow); "
+		"mean asked %llu, mean got %llu\n",
 		(unsigned long long)g_wr_calls,
 		(unsigned long long)g_wr_asked,
 		(unsigned long long)g_wr_got,
 		g_wr_asked ? 100.0 * (double)g_wr_got / (double)g_wr_asked : 0.0,
 		(unsigned long long)g_wr_short,
 		(unsigned long long)g_wr_refused,
+		(unsigned long long)g_wr_ringfull,
+		(unsigned long long)g_wr_noflow,
 		(unsigned long long)(g_wr_calls ? g_wr_asked / g_wr_calls : 0),
 		(unsigned long long)(g_wr_calls ? g_wr_got / g_wr_calls : 0));
 	fprintf(stderr, "shim accept queue: %llu duplicate pushes suppressed, "
@@ -418,6 +422,17 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 			g_wr_short++;
 		return wrote;
 	}
+	/*
+	 * BY CAUSE. "Refused" merged two unrelated outcomes: a full transmit
+	 * ring, which is back-pressure and expected, and a missing flow or
+	 * unit, which is a defect. One counter cannot say which capacity ran
+	 * out, and this project has twice compared the wrong one because a
+	 * single code covered two conditions.
+	 */
+	if (wrote == 0)
+		g_wr_ringfull++;
+	else
+		g_wr_noflow++;
 	g_wr_refused++;
 	errno = EAGAIN;
 	return -1;

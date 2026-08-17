@@ -429,6 +429,7 @@ static uint64_t g_refuse[REF__N];
 static uint64_t g_avail_bucket[6];
 static uint64_t g_rtt_bucket[6], g_rtt_sum, g_rtt_n, g_rtt_max;
 static uint64_t g_cwnd_sum, g_inflight_sum;
+static uint64_t g_inf_hist[8];	/* flow-microseconds by unacknowledged bytes */
 static uint64_t g_recv_calls, g_recv_bytes, g_recv_empty, g_recv_nohead;
 
 /*
@@ -507,6 +508,22 @@ prog_sample_inflight(uint64_t now_us)
 		for (i = 0; i < g_live_n; i++) {
 			struct tcp_ctx *c = g_live[i];
 
+			{
+				/*
+				 * PER-FLOW DISTRIBUTION, time-weighted. A mean
+				 * cannot say whether we sit at a ceiling or
+				 * average one, and "how much do we hold
+				 * unacknowledged" is only a limiter if it is
+				 * pinned rather than merely low.
+				 */
+				uint64_t q = (uint64_t)(c->send_next
+						        - c->send_una);
+				unsigned b = 0;
+
+				while (b < 7 && q >= (16384ull << b))
+					b++;
+				g_inf_hist[b] += dt;
+			}
 			inflight += (uint64_t)(c->send_next - c->send_una);
 
 			/*
@@ -616,6 +633,20 @@ prog_report_recv(void)
 			stuck++;
 			unread += g_live[i]->rx.tail_seq - g_live[i]->rx.head_seq;
 		}
+	{
+		static const char *n[8] = { "<16K", "16-32K", "32-64K",
+					    "64-128K", "128-256K", "256-512K",
+					    "512K-1M", ">=1M" };
+		uint64_t tot = 0;
+		int k;
+
+		for (k = 0; k < 8; k++)
+			tot += g_inf_hist[k];
+		fprintf(stderr, "unacknowledged per flow, time-weighted:\n");
+		for (k = 0; k < 8; k++)
+			fprintf(stderr, "  %-9s %5.1f%%\n", n[k],
+				tot ? 100.0 * (double)g_inf_hist[k] / (double)tot : 0.0);
+	}
 	fprintf(stderr, "  live flows with unread bytes: %u of %u, %llu bytes "
 		"total\n", stuck, g_live_n, (unsigned long long)unread);
 	fprintf(stderr, "app RECV: %llu calls, %llu bytes, %llu returned "
