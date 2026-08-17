@@ -221,6 +221,10 @@ struct core_ctx
 	 * references (DESIGN.md §3.5, mTCP core.c:790). */
 	uint32_t cur_ts;
 
+	/* the same instant in microseconds, from the same gettimeofday: cur_ts
+	 * is 1 ms ticks and cannot separate a 100 us round trip from a 28 ms one */
+	uint64_t cur_us;
+
 	/*
 	 * Why the last IPOutput returned NULL. It has TWO unrelated NULL
 	 * returns -- an ARP miss, which is a lookup that should succeed on a

@@ -427,6 +427,8 @@ static uint64_t g_refuse[REF__N];
 
 /* Available-window census — see the discriminator in tcp_gen_seg. */
 static uint64_t g_avail_bucket[6];
+static uint64_t g_rtt_bucket[6], g_rtt_sum, g_rtt_n, g_rtt_max;
+static uint64_t g_cwnd_sum, g_inflight_sum;
 static uint64_t g_avail_sum, g_avail_max, g_bind_cwnd, g_bind_peer;
 
 /*
@@ -450,6 +452,24 @@ enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
 static uint64_t g_rx[RXS__N];
 
 void
+prog_report_rtt(void)
+{
+	static const char *n[6] = { "< 200 us", "< 1 ms  ", "< 5 ms  ",
+				    "< 20 ms ", "< 50 ms ", ">= 50 ms" };
+	int i;
+
+	fprintf(stderr, "effective round trip (generation -> covering ACK): "
+		"%llu samples, mean %llu us, max %llu us\n",
+		(unsigned long long)g_rtt_n,
+		(unsigned long long)(g_rtt_n ? g_rtt_sum / g_rtt_n : 0),
+		(unsigned long long)g_rtt_max);
+	for (i = 0; i < 6; i++)
+		fprintf(stderr, "  %s %10llu  %5.1f%%\n", n[i],
+			(unsigned long long)g_rtt_bucket[i],
+			g_rtt_n ? 100.0 * (double)g_rtt_bucket[i] / (double)g_rtt_n : 0.0);
+}
+
+void
 prog_report_avail(void)
 {
 	static const char *n[6] = { "avail <= 0        (window-limited)",
@@ -469,8 +489,13 @@ prog_report_avail(void)
 		fprintf(stderr, "  %s %10llu  %5.1f%%\n", n[i],
 			(unsigned long long)g_avail_bucket[i],
 			tot ? 100.0 * (double)g_avail_bucket[i] / (double)tot : 0.0);
-	fprintf(stderr, "  mean available %llu B, max %llu B; binding window: "
-		"cwnd %llu, peer %llu\n",
+	fprintf(stderr,
+		"  BYTES:  mean cwnd %llu, mean in flight %llu, mean available "
+		"%llu, max available %llu\n"
+		"  COUNTS: decisions where cwnd bound %llu, where the peer's "
+		"window bound %llu\n",
+		(unsigned long long)(tot ? g_cwnd_sum / tot : 0),
+		(unsigned long long)(tot ? g_inflight_sum / tot : 0),
 		(unsigned long long)(tot ? g_avail_sum / tot : 0),
 		(unsigned long long)g_avail_max,
 		(unsigned long long)g_bind_cwnd,
@@ -817,6 +842,31 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		return;
 	}
 	g_rx[RXS_ACK_ADVANCED]++;
+
+	/*
+	 * Close the probe: this is EFFECTIVE round trip -- generation to the
+	 * acknowledgement that covers it -- not network round trip. The two
+	 * differ by however long the segment waited to be drained and however
+	 * long the acknowledgement waited to be processed, which is exactly
+	 * the interval in question.
+	 */
+	if (c->probe_us && (int32_t)(e->ack - c->probe_seq) >= 0) {
+		uint64_t d = mtp_now_us() - c->probe_us;
+		unsigned b;
+
+		if (d < 200)		b = 0;
+		else if (d < 1000)	b = 1;
+		else if (d < 5000)	b = 2;
+		else if (d < 20000)	b = 3;
+		else if (d < 50000)	b = 4;
+		else			b = 5;
+		g_rtt_bucket[b]++;
+		g_rtt_sum += d;
+		g_rtt_n++;
+		if (d > g_rtt_max)
+			g_rtt_max = d;
+		c->probe_us = 0;
+	}
 
 	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "ACK  ack=%u una=%u next=%u acked=%u%s\n",
@@ -1465,6 +1515,12 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 		else				b = 5;
 		g_avail_bucket[b]++;
 		g_avail_sum += avail > 0 ? (uint64_t)avail : 0;
+		/* IN BYTES, and labelled as such. The binding-window figures
+		 * below are COUNTS of decisions; reporting them beside a byte
+		 * mean invited exactly the misreading that produced a derived
+		 * round trip of 28 ms against a measured 843 us. */
+		g_cwnd_sum += c->cwnd;
+		g_inflight_sum += (uint64_t)(c->send_next - c->send_una);
 		if (avail > (int64_t)g_avail_max)
 			g_avail_max = (uint64_t)avail;
 		/* which of the two windows is the binding one, when either is */
@@ -1599,6 +1655,14 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, PRIO_DATA, 1,
 			rtx) == 0) {
 		c->send_next += to_send;
+
+		/* Arm the round-trip probe if one is not outstanding. O(1),
+		 * no allocation, and at most one sample in flight per flow --
+		 * the shape TCP's own RTTM uses, for the same reason. */
+		if (!c->probe_us) {
+			c->probe_seq = c->send_next;
+			c->probe_us = mtp_now_us();
+		}
 		if (c->send_next > c->send_high)
 			c->send_high = c->send_next;
 		if (unacked_on_wire(c))

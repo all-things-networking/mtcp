@@ -94,6 +94,12 @@ struct tcp_ctx {
 	 * CEILING (differences.md §1.1), so on this testbed the effective
 	 * timeout is about 3 ms — roughly twenty times the measured round
 	 * trip. A retransmission on an idle link is therefore a real event. */
+	/* One outstanding round-trip probe per flow: sequence to clear it and
+	 * the microsecond it was generated. Measurement only -- srtt below is
+	 * the protocol's estimate and is in the donor's 1 ms ticks. */
+	uint32_t probe_seq;
+	uint64_t probe_us;
+
 	uint32_t srtt;		/* scaled by 8, as the donor keeps it */
 	uint32_t mdev;		/* the donor's mean deviation; rttvar tracks it */
 	uint32_t rttvar;

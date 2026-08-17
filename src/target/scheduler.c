@@ -605,6 +605,8 @@ SchedStep(struct core_ctx *core,
 		gettimeofday(&tv, NULL);
 		ts = TIMEVAL_TO_TS(&tv);
 		core->cur_ts = ts;
+		core->cur_us = (uint64_t)tv.tv_sec * 1000000u
+			     + (uint64_t)tv.tv_usec;
 
 		for (rx_inf = 0; rx_inf < CONFIG.eths_num; rx_inf++) {
 			int recv_cnt = core->iom->recv_pkts(ctx, rx_inf);
@@ -765,6 +767,12 @@ uint32_t
 SchedNow(struct core_ctx *core)
 {
 	return core->cur_ts;
+}
+
+uint64_t
+mtp_now_us(void)
+{
+	return g_core[0]->cur_us;
 }
 
 pthread_t
@@ -1007,9 +1015,11 @@ SchedReport(struct core_ctx *core)
 	{	/* the program's own account of why it emitted nothing */
 		void prog_report_refusals(void);
 		void prog_report_avail(void);
+		void prog_report_rtt(void);
 
 		prog_report_refusals();
 		prog_report_avail();
+		prog_report_rtt();
 		{ void tgt_report_merges(void); tgt_report_merges(); }
 	}
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,

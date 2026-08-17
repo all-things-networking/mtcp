@@ -393,6 +393,10 @@ struct mtp_timer {
 };
 
 int mtp_timer_start(struct mtp_timer *t, uint64_t ns);
+
+/* Wall clock in microseconds, read once per stack iteration. For measurement
+ * only: protocol timing uses the 1 ms tick both references use. */
+uint64_t mtp_now_us(void);
 int mtp_timer_stop(struct mtp_timer *t);
 
 /*============================================================================*
