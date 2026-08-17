@@ -174,6 +174,7 @@ struct bp {
 	 * because the merge path rewrites base_seq afterwards, and the release
 	 * is by identity -- it must name the base the take used. */
 	uint64_t	ref_base;
+	uint64_t	last_visit_pass;	/* last drain pass that reached it */
 	struct mtp_data_unit *unit;	/* the payload's unit, so the drain can
 					 * end the reference's liveness */
 

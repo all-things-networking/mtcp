@@ -338,7 +338,7 @@ drain_this_core(void *arg)
 	struct core_ctx *core = arg;
 
 	struct transport *t = TransportOf(core);
-	uint64_t before = t->drain_gave_up;
+	uint64_t before = t->emit_refused;
 
 	t->forced_drains++;
 	tgt_drain(core);
@@ -347,7 +347,7 @@ drain_this_core(void *arg)
 	 * gave up. tx_flush treats "I called drain" as "the drain happened",
 	 * and the buffer-full path makes those two different things.
 	 */
-	t->forced_drain_gave_up = (t->drain_gave_up != before);
+	t->forced_drain_gave_up = (t->emit_refused != before);
 }
 
 void
@@ -866,11 +866,14 @@ tgt_report_at_fault(void)
 	tgt_check_reachable(g_core[0]);
 	fprintf(stderr,
 		"  forced drains: %llu, of which the LAST one ABANDONED: %s\n"
-		"  drains abandoned on a full transmit buffer, all callers: %llu\n"
+		"  drains abandoned by an emit_bp refusal, all callers: %llu\n"
+		"    of which route/ARP miss: %llu, offload refusal: %llu\n"
 		"  UNREACHABLE RINGS seen (ring non-empty, flow unlisted): %llu\n",
 		(unsigned long long)t->forced_drains,
 		t->forced_drain_gave_up ? "YES" : "no",
-		(unsigned long long)t->drain_gave_up,
+		(unsigned long long)t->emit_refused,
+		(unsigned long long)t->emit_refused_route,
+		(unsigned long long)t->emit_refused_offload,
 		(unsigned long long)t->unreachable_ring);
 	SchedReport(g_core[0]);
 }
@@ -947,6 +950,11 @@ SchedReport(struct core_ctx *core)
 	 * is a defect on its own terms, and a run that never faults is exactly
 	 * where it would otherwise go unseen. */
 	tgt_check_reachable(core);
+	TRACE_INFO("CPU %d: EMIT REFUSALS: total=%llu route=%llu offload=%llu (drain passes %llu)\n",
+		   ctx->cpu, (unsigned long long)TransportOf(core)->emit_refused,
+		   (unsigned long long)TransportOf(core)->emit_refused_route,
+		   (unsigned long long)TransportOf(core)->emit_refused_offload,
+		   (unsigned long long)TransportOf(core)->drain_pass);
 	TRACE_INFO("CPU %d: RELEASE BASE MISMATCHES: %llu\n", ctx->cpu,
 		   (unsigned long long)TransportOf(core)->release_base_mismatch);
 	TRACE_INFO("CPU %d: UNREACHABLE RINGS (ring non-empty, flow unlisted): %llu\n",

@@ -275,6 +275,56 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 							: MTP_REF_LOG;
 		uint32_t i;
 
+		/*
+		 * THE SURVIVING REFERENCE, CROSS-REFERENCED. The history and the
+		 * live-reference list were two artefacts to correlate by hand,
+		 * which is slow and is where a wrong pairing gets read in. This
+		 * answers directly: which take is this, and what became of it.
+		 *
+		 * A take with no matching release is the reference that faulted.
+		 * If the log has WRAPPED past it the tally will be short a take
+		 * rather than wrong, so the count of events is printed too.
+		 */
+		{
+			uint32_t takes = 0, rels = 0, j;
+			const struct ref_event *last_take = NULL;
+
+			for (j = 0; j < n; j++) {
+				uint32_t k2 = (u->ref_log_n - n + j)
+					      & (MTP_REF_LOG - 1);
+				const struct ref_event *e = &u->ref_log[k2];
+
+				if (e->base != lo)
+					continue;
+				if (e->op) {
+					rels++;
+				} else {
+					takes++;
+					last_take = e;
+				}
+			}
+			fprintf(stderr,
+				"  THE MINIMUM base=%llu: %u take(s), %u "
+				"release(s) in the last %u of %u events\n",
+				(unsigned long long)lo, takes, rels, n,
+				u->ref_log_n);
+			if (last_take)
+				fprintf(stderr,
+					"    last take: [%llu,%llu) len=%u %s%s"
+					" bp=%p issued by %p\n",
+					(unsigned long long)last_take->base,
+					(unsigned long long)(last_take->base
+							     + last_take->len),
+					last_take->len,
+					last_take->kind ? "RTX " : "new ",
+					sn[last_take->site], last_take->bp,
+					last_take->caller);
+			else
+				fprintf(stderr, "    no take for this base in "
+					"the window -- the log has wrapped "
+					"past it\n");
+		}
+
 		fprintf(stderr, "  reference history, oldest first "
 			"(%u events total):\n", u->ref_log_n);
 		for (i = 0; i < n; i++) {

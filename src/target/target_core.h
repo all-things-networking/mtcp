@@ -151,7 +151,10 @@ struct transport {
 	uint64_t		 overlap_merge_bad;	/* a merge over something else */
 	uint64_t		 release_base_mismatch;	/* release names a base the take did not */
 	uint64_t		 unreachable_ring;	/* ring non-empty, flow not listed */
-	uint64_t		 drain_gave_up;		/* buffer full: walk abandoned */
+	uint64_t		 emit_refused;		/* emit_bp said no: walk abandoned */
+	uint64_t		 emit_refused_route;	/* ...ARP or route miss */
+	uint64_t		 emit_refused_offload;	/* ...offload not advertised */
+	uint64_t		 drain_pass;		/* monotonic drain-pass number */
 	uint8_t			 forced_drain_gave_up;	/* ...on the most recent forced one */
 	uint64_t		 below_wire_rtx;	/* commit below emitted_hwm */
 	uint64_t		 below_wire_new;	/* starts below, has new bytes on top */

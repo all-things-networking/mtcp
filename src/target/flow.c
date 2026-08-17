@@ -718,18 +718,25 @@ tgt_dump_flow_bps(void *owner, uint64_t base)
 
 		if (f->ring_head[c] == f->ring_tail[c])
 			continue;
-		fprintf(stderr, "  blueprints, class %d (head=%u tail=%u):\n",
-			c, f->ring_head[c], f->ring_tail[c]);
+		fprintf(stderr, "  blueprints, class %d (head=%u tail=%u), "
+			"drain is on pass %llu:\n",
+			c, f->ring_head[c], f->ring_tail[c],
+			(unsigned long long)TransportOf(g_core[0])->drain_pass);
 		for (i = f->ring_head[c]; i != f->ring_tail[c];
 		     i = (uint16_t)((i + 1) % bp_depth(c))) {
 			struct bp *b = &f->ring[c][i];
 
 			fprintf(stderr,
 				"    [%2u] base=%llu paylen=%u seg %u/%u "
-				"seg_off=%u%s\n", i,
+				"seg_off=%u last_visit=%llu%s%s\n", i,
 				(unsigned long long)b->base_seq,
 				b->payload.len, b->seg_idx, b->seg_count,
 				b->seg_off,
+				(unsigned long long)b->last_visit_pass,
+				/* separates NEVER VISITED from visited and
+				 * unable to complete: different faults */
+				b->last_visit_pass ? ""
+						   : "  <- NEVER VISITED",
 				b->base_seq == base ? "   <- HOLDS THE MINIMUM"
 						    : "");
 		}

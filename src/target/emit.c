@@ -221,6 +221,7 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 		 * not the same set and the difference has the sign of the gap
 		 * we are trying to measure. */
 		t->tx_suppressed++;
+		t->emit_refused_route++;
 		return -1;
 	}
 	f->ip_id++;			/* per-flow counter from 0; ip_out.c:147 */
@@ -349,6 +350,7 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 				    "offload this packet asked for; it would "
 				    "go out unsummed and be dropped by the "
 				    "peer, so it is not sent\n");
+			t->emit_refused_offload++;
 			return -1;
 		}
 	}
@@ -488,6 +490,11 @@ tgt_drain(struct core_ctx *core)
 	struct flow *f, *tmp;
 	int c;
 
+	/* Which pass we are on, so a blueprint can record the last one that
+	 * reached it. The reachability invariant proves the ring is on the
+	 * list; it does not prove the walk got to this entry. */
+	t->drain_pass++;
+
 	t->ring_drain_calls++;
 
 	/*
@@ -564,6 +571,7 @@ tgt_drain(struct core_ctx *core)
 		while (f->ring_head[c] != f->ring_tail[c]) {
 			struct bp *bp = &f->ring[c][f->ring_head[c]];
 
+			bp->last_visit_pass = t->drain_pass;
 			if (emit_bp(core, f, bp) < 0) {
 				/*
 				 * The transmit buffer is full. Leave this flow
@@ -611,7 +619,17 @@ tgt_drain(struct core_ctx *core)
 				 * failing to tell an ARP miss from a full
 				 * buffer is shared inherited debt rather than
 				 * a divergence.
+				 *
+				 * COUNTED HERE, at the return itself. The
+				 * previous attempt anchored on a comment line
+				 * that was not the end of the comment, matched
+				 * nothing, and left the counter reading zero
+				 * for three sets of runs -- which was then
+				 * read as "this path is never taken". A
+				 * counter that is never incremented is
+				 * indistinguishable from a path never taken.
 				 */
+				t->emit_refused++;
 				return;
 			}
 			release_bp(bp);
