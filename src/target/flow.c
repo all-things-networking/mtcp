@@ -361,6 +361,43 @@ tgt_sched_take_notifications(struct core_ctx *core)
 }
 
 /*----------------------------------------------------------------------------*/
+/*
+ * THE REACHABILITY INVARIANT: if a class's ring is non-empty, the flow must be
+ * on that class's gen_list, or the drain will never walk it.
+ *
+ * Membership is PER CLASS, so a flow can be on class 0's list and absent from
+ * class 2's. A blueprint committed into an unlisted class would sit at
+ * seg 0/0 for ever holding its payload reference, while the flow still looks
+ * reachable and the drain still completes -- which fits every survivor of this
+ * week's eliminations.
+ *
+ * A property, not a state dump: it can fire in a run that never faults, and an
+ * unreachable ring is a defect whether or not a flush trips over it.
+ */
+void
+tgt_check_reachable(struct core_ctx *core)
+{
+	struct transport *t = TransportOf(core);
+	uint32_t i;
+	int c;
+
+	for (i = 0; i < t->flow_next; i++) {
+		struct flow *f = &t->flow_pool[i];
+
+		for (c = 0; c < MTP_PRIO_CLASSES; c++) {
+			if (f->ring_head[c] == f->ring_tail[c] || f->on_gen[c])
+				continue;
+			if (t->unreachable_ring++ == 0)
+				fprintf(stderr,
+					"\n*** UNREACHABLE RING: flow %u class "
+					"%d head=%u tail=%u -- committed but "
+					"the flow is on no list for it\n", i, c,
+					f->ring_head[c], f->ring_tail[c]);
+		}
+	}
+}
+
+/*----------------------------------------------------------------------------*/
 static inline uint16_t ring_next(uint16_t i, int c)
 {
 	return (uint16_t)((i + 1) % bp_depth(c));

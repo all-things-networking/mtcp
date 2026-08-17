@@ -149,6 +149,7 @@ struct transport {
 	uint64_t		 overlap_new;
 	uint64_t		 overlap_merge_ok;	/* superseding its own: by design */
 	uint64_t		 overlap_merge_bad;	/* a merge over something else */
+	uint64_t		 unreachable_ring;	/* ring non-empty, flow not listed */
 	uint64_t		 drain_gave_up;		/* buffer full: walk abandoned */
 	uint8_t			 forced_drain_gave_up;	/* ...on the most recent forced one */
 	uint64_t		 below_wire_rtx;	/* commit below emitted_hwm */

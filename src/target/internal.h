@@ -343,6 +343,7 @@ uint64_t TimerFires(void);
 /* `prio` is the PROGRAM's class for this packet; the target attaches no
  * meaning to the value and only drains higher before lower. */
 void tgt_sched_enqueue(flow_t *f, uint32_t prio);
+void tgt_check_reachable(struct core_ctx *core);
 
 /* CR-E: hand published send extents to the program. Stack thread, before the
  * drain; tgt_deliver_send does one flow and is also the single-threaded path. */

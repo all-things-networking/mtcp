@@ -603,4 +603,9 @@ tgt_drain(struct core_ctx *core)
 		TAILQ_REMOVE(&t->gen_list[c], f, gen_link[c]);
 		f->on_gen[c] = 0;
 	}
+
+	/* After a COMPLETE walk only: the early return above leaves flows
+	 * listed on purpose, so checking there would report back-pressure as a
+	 * defect. */
+	tgt_check_reachable(core);
 }

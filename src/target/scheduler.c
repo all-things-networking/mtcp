@@ -863,12 +863,15 @@ tgt_report_at_fault(void)
 {
 	struct transport *t = TransportOf(g_core[0]);
 
+	tgt_check_reachable(g_core[0]);
 	fprintf(stderr,
 		"  forced drains: %llu, of which the LAST one ABANDONED: %s\n"
-		"  drains abandoned on a full transmit buffer, all callers: %llu\n",
+		"  drains abandoned on a full transmit buffer, all callers: %llu\n"
+		"  UNREACHABLE RINGS seen (ring non-empty, flow unlisted): %llu\n",
 		(unsigned long long)t->forced_drains,
 		t->forced_drain_gave_up ? "YES" : "no",
-		(unsigned long long)t->drain_gave_up);
+		(unsigned long long)t->drain_gave_up,
+		(unsigned long long)t->unreachable_ring);
 	SchedReport(g_core[0]);
 }
 
@@ -939,6 +942,13 @@ SchedReport(struct core_ctx *core)
 		   TransportOf(core)->ring_hwm[0], bp_depth(0),
 		   TransportOf(core)->ring_hwm[1], bp_depth(1),
 		   TransportOf(core)->ring_hwm[2], bp_depth(2));
+
+	/* In the CLEAN-run report as well as the fault one: an unreachable ring
+	 * is a defect on its own terms, and a run that never faults is exactly
+	 * where it would otherwise go unseen. */
+	tgt_check_reachable(core);
+	TRACE_INFO("CPU %d: UNREACHABLE RINGS (ring non-empty, flow unlisted): %llu\n",
+		   ctx->cpu, (unsigned long long)TransportOf(core)->unreachable_ring);
 	TRACE_INFO("CPU %d: COMMITS BELOW THE WIRE: rtx=%lu partial=%lu DEAD=%lu\n", ctx->cpu,
 		   (unsigned long)TransportOf(core)->below_wire_rtx,
 		   (unsigned long)TransportOf(core)->below_wire_new,
