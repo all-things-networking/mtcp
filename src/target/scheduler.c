@@ -705,6 +705,8 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 }
 /*----------------------------------------------------------------------------*/
 volatile sig_atomic_t SchedStopRequested;
+static uint64_t g_gap_hist[10], g_gap_sum, g_gap_sq, g_gap_n, g_gap_max;
+static uint64_t g_rx_hist[8], g_rx_n, g_rx_pkts;
 
 /*
  * Ask the stack thread to finish. Needed because tearing down a context joins
@@ -737,7 +739,14 @@ SchedStep(struct core_ctx *core,
 	struct thread_ctx *ctx = core->ctx;
 	struct timeval tv = {0};
 	uint32_t ts;
-	uint64_t iters = 0;
+	/*
+	 * STATIC, because SchedStep is called ONCE PER ITERATION from the outer
+	 * loop -- these were locals, so `iters` was always 0 and `t_prev_us`
+	 * always 0. The inter-poll histogram recorded nothing at all, and the
+	 * every-1024th sampler ran on every pass instead. One stack thread, so
+	 * a static is the right scope; a local was simply the wrong one.
+	 */
+	static uint64_t iters, t_prev_us;
 	int rx_inf, tx_inf, i;
 
 
@@ -748,6 +757,31 @@ SchedStep(struct core_ctx *core,
 		core->cur_us = (uint64_t)tv.tv_sec * 1000000u
 			     + (uint64_t)tv.tv_usec;
 
+		/*
+		 * INTER-POLL INTERVAL. An acknowledgement lands at a moment the
+		 * stack did not choose, so what it waits for is not the MEAN
+		 * gap but the LENGTH-BIASED one: a random instant is more
+		 * likely to fall inside a long gap than a short one. The
+		 * expected wait is sum(gap^2) / (2 * sum(gap)), and a mean of
+		 * gaps would understate it by exactly the factor the tail
+		 * contributes -- which is the quantity in question.
+		 */
+		if (t_prev_us) {
+			uint64_t gap = core->cur_us - t_prev_us;
+			unsigned b;
+			uint64_t lim;
+
+			for (b = 0, lim = 2; b < 9 && gap >= lim; b++, lim *= 4)
+				;
+			g_gap_hist[b]++;
+			g_gap_sum += gap;
+			g_gap_sq += gap * gap;
+			g_gap_n++;
+			if (gap > g_gap_max)
+				g_gap_max = gap;
+		}
+		t_prev_us = core->cur_us;
+
 		/* Time-weighted, so the mean does not depend on when the
 		 * program happens to be busy. Every 1024th iteration. */
 		if ((iters & 1023) == 0 && prog_sample_inflight)
@@ -756,6 +790,17 @@ SchedStep(struct core_ctx *core,
 
 		for (rx_inf = 0; rx_inf < CONFIG.eths_num; rx_inf++) {
 			int recv_cnt = core->iom->recv_pkts(ctx, rx_inf);
+			{
+				/* A large burst means its FIRST packet waited
+				 * the whole preceding gap. */
+				unsigned b = 0;
+				int v = recv_cnt;
+
+				while (b < 7 && v) { b++; v >>= 1; }
+				g_rx_hist[b]++;
+				g_rx_n++;
+				g_rx_pkts += (uint64_t)(recv_cnt > 0 ? recv_cnt : 0);
+			}
 
 			for (i = 0; i < recv_cnt; i++) {
 				uint16_t len;
@@ -1116,6 +1161,30 @@ SchedReport(struct core_ctx *core)
 	 * is a defect on its own terms, and a run that never faults is exactly
 	 * where it would otherwise go unseen. */
 	tgt_check_reachable(core);
+	{
+		static const char *n[10] = { "<2us", "<8us", "<32us", "<128us",
+					     "<512us", "<2ms", "<8ms", "<32ms",
+					     "<128ms", ">=128ms" };
+		int k;
+
+		TRACE_INFO("CPU %d: INTER-POLL gap: %llu samples, mean %llu us, "
+			   "LENGTH-BIASED mean %llu us, expected wait %llu us, "
+			   "max %llu us\n", ctx->cpu,
+			   (unsigned long long)g_gap_n,
+			   (unsigned long long)(g_gap_n ? g_gap_sum / g_gap_n : 0),
+			   (unsigned long long)(g_gap_sum ? g_gap_sq / g_gap_sum : 0),
+			   (unsigned long long)(g_gap_sum ? g_gap_sq / (2 * g_gap_sum) : 0),
+			   (unsigned long long)g_gap_max);
+		for (k = 0; k < 10; k++)
+			TRACE_INFO("    %-8s %10llu  %6.3f%%\n", n[k],
+				   (unsigned long long)g_gap_hist[k],
+				   g_gap_n ? 100.0 * (double)g_gap_hist[k] / (double)g_gap_n : 0.0);
+		TRACE_INFO("CPU %d: receive bursts: %llu polls, %llu packets, "
+			   "mean %.2f per poll\n", ctx->cpu,
+			   (unsigned long long)g_rx_n,
+			   (unsigned long long)g_rx_pkts,
+			   g_rx_n ? (double)g_rx_pkts / (double)g_rx_n : 0.0);
+	}
 	TRACE_INFO("CPU %d: APP SLEEP: slept %llu, woken by the stack %llu, timed out %llu\n",
 		   ctx->cpu, (unsigned long long)TransportOf(core)->app_sleeps,
 		   (unsigned long long)TransportOf(core)->app_wakes,
