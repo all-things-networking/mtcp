@@ -430,7 +430,11 @@ static uint64_t g_avail_bucket[6];
 static uint64_t g_rtt_bucket[6], g_rtt_sum, g_rtt_n, g_rtt_max;
 static uint64_t g_cwnd_sum, g_inflight_sum;
 static uint64_t g_ack_hist[8], g_ack_sum, g_ack_n, g_ack_max;
-static uint64_t g_emit_unacked;	/* byte-microseconds, emitted and unacked */
+static uint64_t g_emit_unacked;
+static uint32_t g_sws_rw;
+static uint64_t g_sws_withheld, g_sws_n, g_sws_max;
+static uint64_t g_age_hist[8], g_age_time, g_age_dt, g_age_max, g_age_max_at;
+static unsigned g_age_max_flow;	/* byte-microseconds, emitted and unacked */
 static uint64_t g_inf_hist[8];	/* flow-microseconds by unacknowledged bytes */
 static uint64_t g_recv_calls, g_recv_bytes, g_recv_empty, g_recv_nohead;
 
@@ -546,8 +550,34 @@ prog_sample_inflight(uint64_t now_us)
 							    - c->snd_base);
 				uint64_t emit = mtp_tx_emitted(&c->tx);
 
-				if (emit > acked)
+				if (emit > acked) {
+					uint64_t age, a;
+					unsigned b;
+
 					g_emit_unacked += (emit - acked) * dt;
+
+					/*
+					 * THE TAIL. Time-sampled, so a stuck
+					 * flow is counted for every tick it
+					 * stays stuck rather than contributing
+					 * one late sample when it finally
+					 * moves.
+					 */
+					if (!c->una_advanced_us)
+						c->una_advanced_us = now_us;
+					age = now_us - c->una_advanced_us;
+					for (b = 0, a = 100; b < 7 && age >= a;
+					     b++, a *= 5)
+						;
+					g_age_hist[b] += dt;
+					g_age_time += age * dt;
+					g_age_dt += dt;
+					if (age > g_age_max) {
+						g_age_max = age;
+						g_age_max_flow = i;
+						g_age_max_at = now_us;
+					}
+				}
 			}
 
 			/*
@@ -625,6 +655,29 @@ prog_report_inflight(void)
 			   ? (g_live_integral * 100) / g_inf_span_us : 0;
 	int i;
 
+	{
+		static const char *n[8] = { "<100us", "<500us", "<2.5ms",
+					    "<12.5ms", "<62ms", "<312ms",
+					    "<1.6s", ">=1.6s" };
+		uint64_t tot = 0;
+		int k;
+
+		for (k = 0; k < 8; k++)
+			tot += g_age_hist[k];
+		fprintf(stderr, "SWS hold-off: %llu deferrals, mean withheld %llu B, "
+		"max %llu B\n", (unsigned long long)g_sws_n,
+		(unsigned long long)(g_sws_n ? g_sws_withheld / g_sws_n : 0),
+		(unsigned long long)g_sws_max);
+	fprintf(stderr, "AGE of the oldest unacknowledged byte, "
+			"time-sampled (mean %llu us, max %llu us on flow %u "
+			"at t=%llu):\n",
+			(unsigned long long)(g_age_dt ? g_age_time / g_age_dt : 0),
+			(unsigned long long)g_age_max, g_age_max_flow,
+			(unsigned long long)g_age_max_at);
+		for (k = 0; k < 8; k++)
+			fprintf(stderr, "  %-8s %5.1f%% of stuck-flow time\n",
+				n[k], tot ? 100.0 * (double)g_age_hist[k] / (double)tot : 0.0);
+	}
 	fprintf(stderr,
 		"time-averaged EMITTED-unacked: %llu B across all flows -- "
 		"Little's law over exactly what the emission probe samples\n",
@@ -1112,6 +1165,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		return;
 	}
 	g_rx[RXS_ACK_ADVANCED]++;
+	c->una_advanced_us = mtp_now_us();
 
 	/*
 	 * Close the probe: this is EFFECTIVE round trip -- generation to the
@@ -1943,6 +1997,9 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			}
 			if (rw < PARITY_MSS_ADVERTISED && inflight_here > 0) {
 				why = REF_SWS;
+				/* what the rule is holding back, for
+				 * comparison against the donor's mean */
+				g_sws_rw = (uint32_t)rw;
 				break;
 			}
 
@@ -1962,6 +2019,19 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 
 	if (to_send == 0) {
 		g_refuse[why]++;
+		if (why == REF_SWS) {
+			/*
+			 * WITHHELD ONLY WHEN NOTHING WENT OUT. The census
+			 * records the loop's EXIT REASON and is counted only
+			 * on the to_send == 0 path, so a hold-off here is a
+			 * genuine deferral rather than "the loop filled the
+			 * window and stopped".
+			 */
+			g_sws_withheld += g_sws_rw;
+			g_sws_n++;
+			if (g_sws_rw > g_sws_max)
+				g_sws_max = g_sws_rw;
+		}
 		if (why == REF_WINDOW) {
 			c->probe.ctx = c;
 			mtp_timer_start(&c->probe,

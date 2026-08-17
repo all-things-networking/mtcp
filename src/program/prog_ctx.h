@@ -102,6 +102,15 @@ struct tcp_ctx {
 	 * (see prog_sample_inflight), never as an average of per-event samples:
 	 * a per-event mean is resample-biased and cost us a factor of ~2.3 once
 	 * already. */
+	/*
+	 * When send_una last moved. Time since then is a LOWER BOUND on the age
+	 * of the oldest unacknowledged byte, and unlike a probe it can be
+	 * sampled while the flow is stuck -- a flow frozen for 50 ms is seen
+	 * fifty times, not once. That is the only way to see a tail an
+	 * event-armed probe cannot arm during.
+	 */
+	uint64_t una_advanced_us;
+
 	uint8_t  stage;
 	uint32_t stage_seq;
 	uint32_t probe_seq;
