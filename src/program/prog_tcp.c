@@ -447,6 +447,15 @@ static uint64_t g_cwnd_sum, g_inflight_sum;
 static struct tcp_ctx *g_live[MTP_MAX_FLOWS_SAMPLED];
 static unsigned g_live_n;
 static uint64_t g_inf_integral, g_inf_span_us, g_inf_last_us, g_inf_samples;
+/*
+ * Live-context census. Two questions: is the count STEADY or GROWING -- a
+ * lifecycle characteristic against a leak in the destroy path reworked this
+ * week -- and what the correct denominator is for per-flow in-flight, which is
+ * the time-weighted mean live count and not the configured concurrency.
+ */
+static uint64_t g_live_integral, g_live_max, g_ctx_created, g_ctx_destroyed;
+static uint32_t g_live_series[12];	/* live count in each 5 s of the run */
+static uint64_t g_first_us;
 static uint64_t g_avail_sum, g_avail_max, g_bind_cwnd, g_bind_peer;
 
 /*
@@ -477,6 +486,7 @@ prog_unregister(const struct tcp_ctx *c)
 	for (i = 0; i < g_live_n; i++)
 		if (g_live[i] == c) {
 			g_live[i] = g_live[--g_live_n];
+			g_ctx_destroyed++;
 			return;
 		}
 }
@@ -495,9 +505,20 @@ prog_sample_inflight(uint64_t now_us)
 			inflight += (uint64_t)(g_live[i]->send_next
 					       - g_live[i]->send_una);
 		g_inf_integral += inflight * dt;
+		g_live_integral += (uint64_t)g_live_n * dt;
 		g_inf_span_us += dt;
 		g_inf_samples++;
+		if (g_live_n > g_live_max)
+			g_live_max = g_live_n;
+		{
+			uint64_t slot = (now_us - g_first_us) / 5000000u;
+
+			if (slot < 12)
+				g_live_series[slot] = g_live_n;
+		}
 	}
+	if (!g_first_us)
+		g_first_us = now_us;
 	g_inf_last_us = now_us;
 }
 
@@ -506,12 +527,30 @@ prog_report_inflight(void)
 {
 	uint64_t mean = g_inf_span_us ? g_inf_integral / g_inf_span_us : 0;
 
+	uint64_t live_x100 = g_inf_span_us
+			   ? (g_live_integral * 100) / g_inf_span_us : 0;
+	int i;
+
 	fprintf(stderr,
 		"time-averaged in flight: %llu B across all flows over %llu us "
-		"(%llu samples, %u flows live at exit)\n",
+		"(%llu samples)\n"
+		"  live contexts: time-weighted mean %llu.%02llu, max %llu, "
+		"at exit %u; created %llu, destroyed %llu, outstanding %lld\n"
+		"  per-flow in flight at the MEASURED mean live count: %llu B\n"
+		"  live count per 5 s:",
 		(unsigned long long)mean,
 		(unsigned long long)g_inf_span_us,
-		(unsigned long long)g_inf_samples, g_live_n);
+		(unsigned long long)g_inf_samples,
+		(unsigned long long)(live_x100 / 100),
+		(unsigned long long)(live_x100 % 100),
+		(unsigned long long)g_live_max, g_live_n,
+		(unsigned long long)g_ctx_created,
+		(unsigned long long)g_ctx_destroyed,
+		(long long)g_ctx_created - (long long)g_ctx_destroyed,
+		(unsigned long long)(live_x100 ? mean * 100 / live_x100 : 0));
+	for (i = 0; i < 12; i++)
+		fprintf(stderr, " %u", g_live_series[i]);
+	fprintf(stderr, "\n");
 }
 
 void
@@ -1246,6 +1285,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 			return -1;
 		if (g_live_n < MTP_MAX_FLOWS_SAMPLED)
 			g_live[g_live_n++] = c;
+		g_ctx_created++;
 		c->rcv_wnd = PARITY_INITIAL_WINDOW;
 		c->loc_port = e.dport;
 		c->rem_port = e.sport;
