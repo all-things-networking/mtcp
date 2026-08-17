@@ -429,6 +429,7 @@ static uint64_t g_refuse[REF__N];
 static uint64_t g_avail_bucket[6];
 static uint64_t g_rtt_bucket[6], g_rtt_sum, g_rtt_n, g_rtt_max;
 static uint64_t g_cwnd_sum, g_inflight_sum;
+static uint64_t g_recv_calls, g_recv_bytes, g_recv_empty, g_recv_nohead;
 
 /*
  * TIME-AVERAGED in-flight, so Little's law can be checked as an identity.
@@ -599,6 +600,30 @@ prog_report_inflight(void)
 	for (i = 0; i < 12; i++)
 		fprintf(stderr, " %u", g_live_series[i]);
 	fprintf(stderr, "\n");
+}
+
+void
+prog_report_recv(void)
+{
+	unsigned i, stuck = 0;
+	uint64_t unread = 0;
+
+	/* Which flows are PERMANENTLY readable: the level-triggered re-arm
+	 * fires while tail exceeds head, so any flow left in that state is
+	 * re-presented on every poll for the rest of its life. */
+	for (i = 0; i < g_live_n; i++)
+		if (g_live[i]->rx.tail_seq > g_live[i]->rx.head_seq) {
+			stuck++;
+			unread += g_live[i]->rx.tail_seq - g_live[i]->rx.head_seq;
+		}
+	fprintf(stderr, "  live flows with unread bytes: %u of %u, %llu bytes "
+		"total\n", stuck, g_live_n, (unsigned long long)unread);
+	fprintf(stderr, "app RECV: %llu calls, %llu bytes, %llu returned "
+		"nothing, %llu left head_seq unmoved\n",
+		(unsigned long long)g_recv_calls,
+		(unsigned long long)g_recv_bytes,
+		(unsigned long long)g_recv_empty,
+		(unsigned long long)g_recv_nohead);
 }
 
 void
@@ -1488,9 +1513,28 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 			return -1;
 		a.data = (const uint8_t *)op->data.base;
 		a.len = op->len;
-		got = mtp_rx_flush_and_notify(&c->rx, op->len, a);
-		if (got > 0)
-			sock_recv(c, (uint32_t)got);
+		{
+			/*
+			 * DID THE APPLICATION ACTUALLY TAKE THE BYTES? The
+			 * level-triggered re-arm re-raises READABLE while
+			 * tail_seq > head_seq, so a read that returns data
+			 * without consuming it -- or a read never issued --
+			 * both present as an unbounded re-arm. These separate
+			 * them: calls, bytes, and whether the head moved.
+			 */
+			uint64_t before = c->rx.head_seq;
+
+			got = mtp_rx_flush_and_notify(&c->rx, op->len, a);
+			g_recv_calls++;
+			if (got > 0) {
+				g_recv_bytes += (uint64_t)got;
+				sock_recv(c, (uint32_t)got);
+			} else {
+				g_recv_empty++;
+			}
+			if (c->rx.head_seq == before)
+				g_recv_nohead++;
+		}
 		return got;
 	}
 	case MTP_APP_SEND: {
