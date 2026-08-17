@@ -471,6 +471,19 @@ int mtp_app_close(flow_t *f);
  * order on the wire -- which is why the acceptance test has a second half that
  * inspects the target's source for exactly that.
  */
+/*
+ * A DEBUG SWITCH READ ONCE, NOT PER PACKET. `getenv` walks environ and
+ * strcmps every entry; the trace guards sit on the packet path, and perf put
+ * getenv + strncmp at 3.6% of the server's cycles with every trace switched
+ * OFF (RESULTS 2026-08-17). The result cannot change during a run, so the
+ * lookup is cached per site.
+ */
+#define MTP_ENV_ON(name) __extension__ ({			\
+	static signed char cached_ = -1;			\
+	if (cached_ < 0)					\
+		cached_ = getenv(name) ? 1 : 0;			\
+	cached_; })
+
 #define MTP_PRIO_CLASSES 3
 
 void *mtp_ctx_of(flow_t *f);

@@ -591,7 +591,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 					 * or echo on a merged segment is what
 					 * building this on the wrong axis
 					 * would produce */
-					if (getenv("MTP_TRACE_EV")) {
+					if (MTP_ENV_ON("MTP_TRACE_EV")) {
 						/* the exact question: whose
 						 * sequence does the merged
 						 * segment carry? */
@@ -637,7 +637,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 						last->base_seq = payload->off;
 					TransportOf(g_core[0])->merges++;
 					g_mrg[MRG_OK]++;
-					if (getenv("MTP_TRACE_EV"))
+					if (MTP_ENV_ON("MTP_TRACE_EV"))
 						fprintf(stderr,
 							"EV merge base=%llu len=%u\n",
 							(unsigned long long)last->base_seq,

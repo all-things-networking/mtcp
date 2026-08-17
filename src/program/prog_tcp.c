@@ -610,7 +610,7 @@ unacked_on_wire(const struct tcp_ctx *c)
 	 * MTP_RTO_ARM_ON_GENERATION restores the old behaviour.
 	 */
 	if (on_generation < 0)
-		on_generation = getenv("MTP_RTO_ARM_ON_GENERATION") ? 1 : 0;
+		on_generation = MTP_ENV_ON("MTP_RTO_ARM_ON_GENERATION") ? 1 : 0;
 	if (on_generation)
 		return c->send_una != c->send_next;	/* generated */
 
@@ -786,7 +786,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	}
 	g_rx[RXS_ACK_ADVANCED]++;
 
-	if (getenv("MTP_TRACE_SEQ"))
+	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "ACK  ack=%u una=%u next=%u acked=%u%s\n",
 			e->ack, c->send_una, c->send_next, acked,
 			(int32_t)(c->send_next - e->ack) < 0
@@ -859,7 +859,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 static void
 proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
-	if (getenv("MTP_TRACE_SEQ"))
+	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "PROCRECV state=%u seq=%u recv_next=%u paylen=%u "
 			"flags=0x%x\n", c->state, e->seq, c->recv_next,
 			e->payload_len, e->flags);
@@ -1032,7 +1032,7 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 	struct mtp_tx_payload none = { 0 };
 	uint16_t hdr_len;
 
-	if (getenv("MTP_TRACE_SEQ") && c->state == TCP_CLOSE_WAIT)
+	if (MTP_ENV_ON("MTP_TRACE_SEQ") && c->state == TCP_CLOSE_WAIT)
 		fprintf(stderr, "GENFIN now=%u send_next=%u snd_base=%u "
 			"write_end=%u\n", now, c->send_next, c->snd_base,
 			c->write_end);
@@ -1234,7 +1234,7 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 		 */
 		struct tcp_ctx *c;
 
-		if (getenv("MTP_TRACE_SEQ"))
+		if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 			fprintf(stderr, "APPOP send now=%u flow=%p len=%u\n",
 				now_ms, (void *)op->flow, op->len);
 		if (!op->flow) {
@@ -1309,7 +1309,7 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 
 	/* retransmit from the oldest unacknowledged byte, not the unsent tail
 	 * (G13 — the prototype sizes this from the wrong end) */
-	if (getenv("MTP_TRACE_SEQ"))
+	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "RTO  rewind next %u -> una %u\n",
 			c->send_next, c->send_una);
 	/*
@@ -1495,7 +1495,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			mtp_timer_start(&c->probe,
 					(uint64_t)PARITY_PROBE_MS * 1000000ULL);
 		}
-		if (why == REF_WINDOW && getenv("MTP_TRACE_SEQ"))
+		if (why == REF_WINDOW && MTP_ENV_ON("MTP_TRACE_SEQ"))
 			fprintf(stderr, "REFUSE window cwnd=%u peer=%u una=%u "
 				"next=%u inflight=%u write_end=%u\n", c->cwnd,
 				c->send_wnd, c->send_una, c->send_next,
@@ -1510,7 +1510,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	pay.u   = &c->tx;
 	pay.off = c->send_next - c->snd_base;	/* into the unit, not the stream */
 
-	if (getenv("MTP_TRACE_SEQ"))
+	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "SEND una=%u next=%u base=%u off=%llu len=%u "
 			"inflight=%u\n", c->send_una, c->send_next, c->snd_base,
 			(unsigned long long)pay.off, to_send,
@@ -1526,7 +1526,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	rtx = c->send_next < c->send_high;
 	if (rtx) {
 		g_emit[EM_DATA_RTX]++;
-		if (getenv("MTP_TRACE_EV"))
+		if (MTP_ENV_ON("MTP_TRACE_EV"))
 			fprintf(stderr, "EV rtx off=%u len=%u\n",
 				c->send_next - c->snd_base, to_send);
 	} else {
@@ -1569,7 +1569,7 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 	g_app_bytes += (uint64_t)len;
 	c->write_end += len;
 
-	if (getenv("MTP_TRACE_SEQ"))
+	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "APPSEND state=%u extent=%u write_end=%u "
 			"send_next=%u snd_base=%u cwnd=%u send_wnd=%u\n",
 			c->state, len, c->write_end, c->send_next,

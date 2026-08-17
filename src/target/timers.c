@@ -117,13 +117,13 @@ mtp_timer_start(struct mtp_timer *t, uint64_t ns)
 	 * would be choosing without knowing. What is NOT acceptable is that it
 	 * is silent, so it says so when it happens.
 	 */
-	if (!ticks && getenv("MTP_TRACE_SEQ"))
+	if (!ticks && MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "ARM  zero interval rounded up to one tick "
 			"— see DESIGN-CLOSE.md §5\n");
 	t->deadline = wheel_now + (ticks ? ticks : 1);
 	t->armed = 1;
 
-	if (getenv("MTP_TRACE_SEQ"))
+	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "ARM  ns=%llu ticks=%u now=%u deadline=%u "
 			"in_range=%d bucket=%u\n", (unsigned long long)ns,
 			ticks, wheel_now, t->deadline,
@@ -189,7 +189,7 @@ TimerTick(uint32_t now)
 	 * a concurrency investigation is exactly when someone reaches for this
 	 * trace, and exactly when it would produce a plausible wrong number.
 	 */
-	if (getenv("MTP_TRACE_SEQ")) {
+	if (MTP_ENV_ON("MTP_TRACE_SEQ")) {
 		static uint32_t last;
 
 		if (now != last) {

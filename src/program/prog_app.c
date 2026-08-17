@@ -107,7 +107,7 @@ sock_recv(struct tcp_ctx *c, uint32_t delivered_now)
 	 * which of the three moved; three can. Collapsing them into one
 	 * observable is how three runs went on the retransmit path.
 	 */
-	if (getenv("MTP_TRACE_SEQ"))
+	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "RECV got=%u delivered=%u recv_next=%u "
 			"held=%u rcv_wnd=%u field=%u\n",
 			delivered_now, c->delivered, c->recv_next,

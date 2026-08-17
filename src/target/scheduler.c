@@ -951,7 +951,7 @@ SchedReport(struct core_ctx *core)
 		   "frames dropped as corrupt=%lu%s\n", ctx->cpu,
 		   rxc.csum_seen ? "yes" : "NO (frames are trusted)",
 		   (unsigned long)rxc.csum_bad,
-		   getenv("MTP_CORRUPT_NTH_RX") ? " [INJECTOR ON]" : "");
+		   MTP_ENV_ON("MTP_CORRUPT_NTH_RX") ? " [INJECTOR ON]" : "");
 	TRACE_INFO("CPU %d: pending blueprints high-water per class: "
 		   "c0=%u/%u c1=%u/%u c2=%u/%u (used/depth)\n", ctx->cpu,
 		   TransportOf(core)->ring_hwm[0], bp_depth(0),

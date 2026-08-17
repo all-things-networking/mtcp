@@ -258,7 +258,7 @@ emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	 * corruption is in payload. Deliberately not built around one candidate.
 	 */
 	if (g_trace_seg < 0)
-		g_trace_seg = getenv("MTP_TRACE_SEG") ? 1 : 0;
+		g_trace_seg = MTP_ENV_ON("MTP_TRACE_SEG") ? 1 : 0;
 	if (g_trace_seg) {
 		fprintf(stderr,
 			"SEG bp=%p flow=%p base=%llu off=%u len=%u idx=%u/%u "
@@ -651,8 +651,19 @@ tgt_drain(struct core_ctx *core)
 		f->on_gen[c] = 0;
 	}
 
-	/* After a COMPLETE walk only: the early return above leaves flows
+	/*
+	 * After a COMPLETE walk only: the early return above leaves flows
 	 * listed on purpose, so checking there would report back-pressure as a
-	 * defect. */
-	tgt_check_reachable(core);
+	 * defect.
+	 *
+	 * SAMPLED, NOT EVERY PASS. The drain runs tens of millions of times a
+	 * minute and this is O(flows x classes) over the whole pool, which perf
+	 * measured at 17.2% of the server's cycles -- the single largest
+	 * consumer, larger than the receive path (RESULTS 2026-08-17). An
+	 * unreachable ring is a PERMANENT state: once a flow's ring is orphaned
+	 * nothing puts it back, so a check every 1024 passes finds it just as
+	 * surely, a few microseconds later, for a thousandth of the cost.
+	 */
+	if ((t->drain_pass & 1023) == 0)
+		tgt_check_reachable(core);
 }

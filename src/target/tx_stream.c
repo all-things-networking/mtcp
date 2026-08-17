@@ -366,7 +366,7 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 {
 	uint64_t upto = u->head_seq + len;
 
-	if (getenv("MTP_TRACE_REF")) {
+	if (MTP_ENV_ON("MTP_TRACE_REF")) {
 		static uint64_t flushes;
 
 		if (!(++flushes % 8) || u->live_refs)
@@ -379,7 +379,7 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 				(unsigned long long)(u->tail_seq - u->head_seq),
 				u->cap);
 	}
-	if (getenv("MTP_TRACE_REF") && u->live_refs)
+	if (MTP_ENV_ON("MTP_TRACE_REF") && u->live_refs)
 		fprintf(stderr, "FLUSH upto=%llu min=%llu live=%u\n",
 			(unsigned long long)upto,
 			(unsigned long long)tx_ref_min(u), u->live_refs);
