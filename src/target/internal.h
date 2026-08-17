@@ -146,6 +146,14 @@ __attribute__((weak)) void prog_dump_flow_state(void *owner);
 /* Counts a flush asking to free past what the wire has carried. Weak for the
  * same reason as the dumps above. */
 __attribute__((weak)) void tgt_note_flush_past_wire(void);
+__attribute__((weak)) void tgt_note_flush_short(uint64_t behind, uint32_t run);
+
+/*
+ * Consecutive short flushes that mean a stall rather than a transient. Set
+ * from the measured back-pressure recovery, not from a round number: see
+ * RESULTS 2026-08-17 for the observed maximum run and the margin over it.
+ */
+#define MTP_FLUSH_STALL_PASSES 512
 
 /* Counters, printed from the fault path because an abort skips the epilogue. */
 __attribute__((weak)) void tgt_report_at_fault(void);

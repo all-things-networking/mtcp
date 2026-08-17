@@ -160,6 +160,19 @@ struct mtp_data_unit {
 	uint64_t	 emitted_hwm;
 
 	/*
+	 * Flush shortfall: how far short of `upto` the last flush had to stop,
+	 * and for how many consecutive flushes. Replacing an assertion with a
+	 * clamp trades a loud fault for a silent one unless the shortfall is
+	 * counted -- a transient is one or two passes, a stall is unbounded, and
+	 * only the run length tells them apart.
+	 */
+	uint32_t	 short_run;	/* consecutive flushes that fell short */
+	uint32_t	 short_run_max;	/* longest such run seen on this unit */
+	uint64_t	 short_events;	/* flushes that fell short, total */
+	uint64_t	 short_bytes;	/* bytes not advanced, summed */
+	uint8_t		 short_alarmed;	/* the loud report has been made once */
+
+	/*
 	 * SPSC OWNERSHIP, CHECKED RATHER THAN INTENDED (DESIGN.md §21.7).
 	 *
 	 * NOT debug-only. The configuration we measure is the configuration

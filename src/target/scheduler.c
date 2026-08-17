@@ -880,6 +880,17 @@ tgt_report_at_fault(void)
 }
 
 void
+tgt_note_flush_short(uint64_t behind, uint32_t run)
+{
+	struct transport *t = TransportOf(g_core[0]);
+
+	t->flush_short++;
+	t->flush_short_bytes += behind;
+	if (run > t->flush_short_run_max)
+		t->flush_short_run_max = run;
+}
+
+void
 tgt_note_flush_past_wire(void)
 {
 	TransportOf(g_core[0])->flush_past_emitted++;
@@ -951,6 +962,12 @@ SchedReport(struct core_ctx *core)
 	 * is a defect on its own terms, and a run that never faults is exactly
 	 * where it would otherwise go unseen. */
 	tgt_check_reachable(core);
+	TRACE_INFO("CPU %d: FLUSH SHORTFALLS: %llu flushes, %llu bytes, longest "
+		   "consecutive run %u (stall threshold %u)\n", ctx->cpu,
+		   (unsigned long long)TransportOf(core)->flush_short,
+		   (unsigned long long)TransportOf(core)->flush_short_bytes,
+		   TransportOf(core)->flush_short_run_max,
+		   MTP_FLUSH_STALL_PASSES);
 	TRACE_INFO("CPU %d: EMIT REFUSALS: total=%llu arp=%llu noframe=%llu offload=%llu (drain passes %llu)\n",
 		   ctx->cpu, (unsigned long long)TransportOf(core)->emit_refused,
 		   (unsigned long long)TransportOf(core)->emit_refused_arp,

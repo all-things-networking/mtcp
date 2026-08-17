@@ -406,9 +406,53 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 	if (upto > u->emitted_hwm && u->owner && tgt_note_flush_past_wire)
 		tgt_note_flush_past_wire();
 
-	if (u->live_refs && upto > tx_ref_min(u)) {
-		tx_dump_ref_fault(u, upto);
-		assert(0 && "flush past a live reference — see the dump above");
+	/*
+	 * A FLUSH THAT CANNOT REACH `upto` ADVANCES AS FAR AS IT CAN.
+	 *
+	 * The assertion this replaces encoded "the forced drain always
+	 * succeeds", which is false: the drain abandons its walk when
+	 * EthernetOutput has no transmit frame, and that back-pressure is
+	 * ordinary -- measured at ~5.4 per MB in every run, faulting or clean
+	 * (RESULTS 2026-08-17). Back-pressure clears, so the emission the
+	 * drain gave up on succeeds on a later pass; nothing is lost by
+	 * leaving acknowledged bytes in the ring until it does.
+	 *
+	 * Not a parity question: the donor holds no payload reference across a
+	 * failed emission, so it has no equivalent to match.
+	 *
+	 * THE SHORTFALL IS COUNTED because the failure this must not become is
+	 * a silent one. A clamp with no counter converts "crashes at 128 MB"
+	 * into "quietly stops making progress at 128 MB".
+	 */
+	if (u->live_refs) {
+		uint64_t min = tx_ref_min(u);
+
+		if (upto > min) {
+			u->short_events++;
+			u->short_bytes += upto - min;
+			if (++u->short_run > u->short_run_max)
+				u->short_run_max = u->short_run;
+			if (tgt_note_flush_short)
+				tgt_note_flush_short(upto - min, u->short_run);
+
+			/* Loud, once, with the same terms the fault dump
+			 * prints -- an unbounded run is a stall and a stall is
+			 * a failing test, not a slow pass. */
+			if (u->short_run >= MTP_FLUSH_STALL_PASSES
+			    && !u->short_alarmed) {
+				u->short_alarmed = 1;
+				fprintf(stderr, "\n*** FLUSH STALLED: %u "
+					"consecutive flushes short, %llu bytes "
+					"behind\n", u->short_run,
+					(unsigned long long)(upto - min));
+				tx_dump_ref_fault(u, upto);
+			}
+			upto = min;
+		} else {
+			u->short_run = 0;
+		}
+	} else {
+		u->short_run = 0;
 	}
 
 	if (upto > u->tail_seq)

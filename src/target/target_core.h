@@ -151,6 +151,9 @@ struct transport {
 	uint64_t		 overlap_merge_bad;	/* a merge over something else */
 	uint64_t		 release_base_mismatch;	/* release names a base the take did not */
 	uint64_t		 unreachable_ring;	/* ring non-empty, flow not listed */
+	uint64_t		 flush_short;		/* flushes that could not reach upto */
+	uint64_t		 flush_short_bytes;
+	uint32_t		 flush_short_run_max;	/* longest consecutive run */
 	uint64_t		 emit_refused;		/* emit_bp said no: walk abandoned */
 	uint64_t		 emit_refused_arp;	/* ...ARP entry absent */
 	uint64_t		 emit_refused_noframe;	/* ...no transmit frame: back-pressure */
