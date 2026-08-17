@@ -434,6 +434,7 @@ static uint64_t g_emit_unacked;
 static uint64_t g_int_rtx, g_int_clean, g_bytes_rtx, g_bytes_clean;
 static uint64_t g_rto_sum, g_rto_n, g_rto_max;
 static uint64_t g_nodata_held[7], g_nodata_held_sum, g_nodata_n;
+static uint64_t g_nodata_cwnd, g_nodata_peer, g_nodata_infl, g_nodata_atwin, g_nodata_nearwin;
 #define MIN64(a,b) ((a) < (b) ? (a) : (b))
 static uint64_t g_ring_hist[8], g_ring_empty_by[3];
 static uint64_t g_gap_full, g_gap_full_dt, g_gap_all, g_gap_all_dt;
@@ -773,6 +774,16 @@ prog_report_inflight(void)
 			fprintf(stderr, " %s %.1f%%", n[k],
 				g_nodata_n ? 100.0 * (double)g_nodata_held[k] / (double)g_nodata_n : 0.0);
 		fprintf(stderr, "\n");
+		fprintf(stderr, "  at that exit: mean in flight %llu B, mean "
+			"cwnd %llu B, mean peer %llu B; AT the window %llu "
+			"(%.1f%%), within one MSS %llu (%.1f%%)\n",
+			(unsigned long long)(g_nodata_n ? g_nodata_infl / g_nodata_n : 0),
+			(unsigned long long)(g_nodata_n ? g_nodata_cwnd / g_nodata_n : 0),
+			(unsigned long long)(g_nodata_n ? g_nodata_peer / g_nodata_n : 0),
+			(unsigned long long)g_nodata_atwin,
+			g_nodata_n ? 100.0 * (double)g_nodata_atwin / (double)g_nodata_n : 0.0,
+			(unsigned long long)g_nodata_nearwin,
+			g_nodata_n ? 100.0 * (double)g_nodata_nearwin / (double)g_nodata_n : 0.0);
 	}
 	fprintf(stderr, "SWS hold-off: %llu deferrals, mean withheld %llu B, "
 		"max %llu B\n", (unsigned long long)g_sws_n,
@@ -2230,6 +2241,31 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 					g_nodata_held[b]++;
 					g_nodata_held_sum += held;
 					g_nodata_n++;
+
+					/*
+					 * IS THE WINDOW ALREADY FULL HERE?
+					 * If in-flight at this exit is at or
+					 * above MIN(cwnd, peer), then we are
+					 * window-blocked and reporting
+					 * "nothing buffered" -- the exit is
+					 * mislabelled and the application is
+					 * not the constraint. If it is well
+					 * below, we genuinely have room and
+					 * nothing to put in it.
+					 */
+					{
+						uint32_t win = c->cwnd < c->send_wnd
+							     ? c->cwnd : c->send_wnd;
+
+						g_nodata_cwnd += c->cwnd;
+						g_nodata_peer += c->send_wnd;
+						g_nodata_infl += inflight_here;
+						if (inflight_here >= win)
+							g_nodata_atwin++;
+						else if (inflight_here + PARITY_MSS_ADVERTISED
+							 >= win)
+							g_nodata_nearwin++;
+					}
 				}
 				break;
 			}
