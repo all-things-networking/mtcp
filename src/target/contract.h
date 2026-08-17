@@ -424,6 +424,13 @@ uint64_t mtp_now_us(void);
  * reported.
  */
 void mtp_ready_arm(flow_t *f);
+
+/* The application declares what it is doing, for attribution of an idle ring. */
+void mtp_app_state(int state);
+int  mtp_app_state_read(void);
+#define MTP_APP_RUNNING 0
+#define MTP_APP_IN_WRITE 1
+#define MTP_APP_WAITING 2
 int mtp_timer_stop(struct mtp_timer *t);
 
 /*============================================================================*

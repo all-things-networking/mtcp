@@ -403,7 +403,9 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 		return -1;
 	/* CR-E: copies into the flow's ring on THIS thread and returns what was
 	 * accepted; the stack invokes the program's SEND for the extent. */
+	mtp_app_state(MTP_APP_IN_WRITE);
 	wrote = mtp_app_send(g_sock[sockid].flow, buf, (uint32_t)len);
+	mtp_app_state(MTP_APP_RUNNING);
 
 	/*
 	 * IS THE APPLICATION WRITING LESS, OR ARE WE ACCEPTING LESS?

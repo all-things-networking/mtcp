@@ -431,6 +431,9 @@ static uint64_t g_rtt_bucket[6], g_rtt_sum, g_rtt_n, g_rtt_max;
 static uint64_t g_cwnd_sum, g_inflight_sum;
 static uint64_t g_ack_hist[8], g_ack_sum, g_ack_n, g_ack_max;
 static uint64_t g_emit_unacked;
+#define MIN64(a,b) ((a) < (b) ? (a) : (b))
+static uint64_t g_ring_hist[8], g_ring_empty_by[3];
+static uint64_t g_gap_full, g_gap_full_dt, g_gap_all, g_gap_all_dt;
 static uint32_t g_sws_rw;
 static uint64_t g_sws_withheld, g_sws_n, g_sws_max;
 static uint64_t g_age_hist[8], g_age_time, g_age_dt, g_age_max, g_age_max_at;
@@ -550,6 +553,62 @@ prog_sample_inflight(uint64_t now_us)
 							    - c->snd_base);
 				uint64_t emit = mtp_tx_emitted(&c->tx);
 
+				{
+					/*
+					 * RING OCCUPANCY, time-weighted. The
+					 * contradiction this tests: the ring
+					 * refuses 16% of writes and is empty at
+					 * 24.6% of generation decisions. Those
+					 * cannot both describe a steady level.
+					 */
+					uint64_t held = c->tx.tail_seq
+						      - c->tx.head_seq;
+					unsigned rb;
+
+					if (!held) {
+						rb = 0;
+						g_ring_empty_by[
+						  mtp_app_state_read() % 3] += dt;
+					} else if (held >= c->tx.cap) {
+						rb = 7;
+						/*
+						 * THE GAP, CONDITIONED ON THE
+						 * FULL PHASE. A time-average of
+						 * generated-minus-emitted over
+						 * the whole run would hide a
+						 * sharp divergence confined to
+						 * exactly the periods when the
+						 * ring is full -- which is when
+						 * generation can run ahead of
+						 * emission at all.
+						 */
+						g_gap_full += (uint64_t)
+						  (c->send_next - c->send_una
+						   - MIN64(c->send_next
+							   - c->send_una,
+							   mtp_tx_emitted(&c->tx)
+							   - (c->send_una
+							      - c->snd_base)))
+						  * dt;
+						g_gap_full_dt += dt;
+					} else {
+						rb = 1 + (unsigned)((held * 6)
+								    / c->tx.cap);
+					}
+					g_ring_hist[rb] += dt;
+					{
+						uint64_t gen = c->send_next
+							     - c->send_una;
+						uint64_t em = mtp_tx_emitted(&c->tx)
+							    - (c->send_una
+							       - c->snd_base);
+
+						g_gap_all += (gen - MIN64(gen, em))
+							     * dt;
+						g_gap_all_dt += dt;
+					}
+				}
+
 				if (emit > acked) {
 					uint64_t age, a;
 					unsigned b;
@@ -596,8 +655,11 @@ prog_sample_inflight(uint64_t now_us)
 			 * every flow in this stage for ever and reported 99.8%
 			 * occupancy that was entirely the bug.
 			 */
-			/* ARM ON THE CLOCK, not on the last probe closing. */
-			if (!c->tx.probe_wanted && !c->tx.probe_pending)
+			/* ARM ON THE CLOCK, not on the last probe closing.
+			 * Switchable so the aggregate can be re-taken with
+			 * the emit-path stamp inert, in ONE binary. */
+			if (!MTP_ENV_ON("MTP_NO_ACKPROBE")
+			    && !c->tx.probe_wanted && !c->tx.probe_pending)
 				c->tx.probe_wanted = 1;
 
 			if (c->stage == ST_AWAIT_EMIT
@@ -664,7 +726,32 @@ prog_report_inflight(void)
 
 		for (k = 0; k < 8; k++)
 			tot += g_age_hist[k];
-		fprintf(stderr, "SWS hold-off: %llu deferrals, mean withheld %llu B, "
+		{
+		static const char *n[8] = { "EMPTY", "<1/6", "<2/6", "<3/6",
+					    "<4/6", "<5/6", "<6/6", "FULL" };
+		static const char *w[3] = { "running", "in a write", "waiting" };
+		uint64_t tot = 0, et = 0;
+		int k;
+
+		for (k = 0; k < 8; k++)
+			tot += g_ring_hist[k];
+		for (k = 0; k < 3; k++)
+			et += g_ring_empty_by[k];
+		fprintf(stderr, "generated-minus-emitted, time-weighted: all %llu B, "
+		"WHILE THE RING IS FULL %llu B\n",
+		(unsigned long long)(g_gap_all_dt ? g_gap_all / g_gap_all_dt : 0),
+		(unsigned long long)(g_gap_full_dt ? g_gap_full / g_gap_full_dt : 0));
+	fprintf(stderr, "TRANSMIT RING occupancy, time-weighted:\n");
+		for (k = 0; k < 8; k++)
+			fprintf(stderr, "  %-6s %5.1f%%\n", n[k],
+				tot ? 100.0 * (double)g_ring_hist[k] / (double)tot : 0.0);
+		fprintf(stderr, "  when EMPTY the application was:");
+		for (k = 0; k < 3; k++)
+			fprintf(stderr, " %s %.1f%%", w[k],
+				et ? 100.0 * (double)g_ring_empty_by[k] / (double)et : 0.0);
+		fprintf(stderr, "\n");
+	}
+	fprintf(stderr, "SWS hold-off: %llu deferrals, mean withheld %llu B, "
 		"max %llu B\n", (unsigned long long)g_sws_n,
 		(unsigned long long)(g_sws_n ? g_sws_withheld / g_sws_n : 0),
 		(unsigned long long)g_sws_max);

@@ -173,6 +173,7 @@ TransportWait(struct core_ctx *core, int timeout_ms)
 		ts.tv_nsec -= 1000000000L;
 	}
 
+	t->app_state = MTP_APP_WAITING;
 	pthread_mutex_lock(&t->app_lock);
 	if (fq_is_empty(&t->q_ready) && TAILQ_EMPTY(&t->ready_list)
 	    && SchedRunning(core)) {
@@ -184,6 +185,7 @@ TransportWait(struct core_ctx *core, int timeout_ms)
 		slept = 1;
 	}
 	pthread_mutex_unlock(&t->app_lock);
+	t->app_state = MTP_APP_RUNNING;
 	return slept;
 }
 
@@ -227,6 +229,18 @@ tgt_ready_edge(void *owner, int kind)
  * So the application says "I am now interested in this flow", and anything
  * already true is raised once, here.
  */
+int
+mtp_app_state_read(void)
+{
+	return TransportOf(g_core[0])->app_state;
+}
+
+void
+mtp_app_state(int state)
+{
+	TransportOf(g_core[0])->app_state = (uint8_t)state;
+}
+
 void
 mtp_ready_arm(flow_t *flow)
 {

@@ -162,6 +162,11 @@ struct transport {
 	pthread_mutex_t		 app_lock;
 	pthread_cond_t		 app_cv;
 	volatile int		 app_waiting;
+	/* What the application thread is doing, sampled by the stack when the
+	 * transmit ring is empty. Distinguishes a capacity problem from a
+	 * scheduling one: a ring that is empty while the application is blocked
+	 * in a write is not the same fault as one empty while it waits. */
+	volatile uint8_t	 app_state;	/* 0 running, 1 in write, 2 waiting */
 	uint64_t		 app_sleeps, app_wakes, app_timeouts;
 
 	uint64_t		 flush_short;		/* flushes that could not reach upto */
