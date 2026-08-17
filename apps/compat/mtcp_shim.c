@@ -63,9 +63,21 @@ struct shim_sock {
  */
 struct shim_flow_state {
 	int sockid;
+	/*
+	 * Already queued for accept. Without it a flow that becomes readable
+	 * before the application accepts it is pushed on EVERY poll, is then
+	 * accepted more than once, and sock_alloc repoints fstate->sockid at
+	 * the newest socket -- while the application is still polling the
+	 * first. Readiness is then filed against a socket nobody watches, the
+	 * request is never read, and the level-triggered re-arm re-presents the
+	 * flow for the rest of its life. Five such flows cost more than half
+	 * this arm's throughput (RESULTS 2026-08-17).
+	 */
+	uint8_t pending;
 };
 
 static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
+static uint64_t g_pend_dropped, g_pend_dedup;
 static struct shim_sock	 g_sock[SHIM_MAX_SOCK];
 static struct core_ctx	*g_shim_core;
 static pthread_t	 g_shim_stack;
@@ -241,6 +253,10 @@ mtcp_destroy_context(mctx_t mctx)
 	}
 	if (g_shim_core)
 		SchedReport(g_shim_core);	/* the loop is ours, so is the report */
+	fprintf(stderr, "shim accept queue: %llu duplicate pushes suppressed, "
+		"%llu dropped for want of a slot\n",
+		(unsigned long long)g_pend_dedup,
+		(unsigned long long)g_pend_dropped);
 }
 int  mtcp_core_affinitize(int cpu)     { (void)cpu; return 0; }
 int  mtcp_setsock_nonblock(mctx_t m, int s) { (void)m; (void)s; return 0; }
@@ -298,9 +314,24 @@ static void
 pending_push(flow_t *f)
 {
 	int next = (g_pend_tail + 1) % SHIM_PENDING;
+	struct shim_flow_state *st = fstate(f);
 
-	if (next == g_pend_head)
-		return;			/* full: the flow waits for a later poll */
+	/* AT MOST ONCE. The guard is here rather than at the call site for the
+	 * same reason the target's membership guards are: a second producer
+	 * cannot omit a guard it cannot reach. */
+	if (st->sockid > 0 || st->pending) {
+		g_pend_dedup++;
+		return;
+	}
+	if (next == g_pend_head) {
+		/* Was a silent return. With the dedup above this needs one
+		 * slot per unaccepted flow, so reaching it means the
+		 * application has stopped accepting -- which is worth saying,
+		 * not swallowing. */
+		g_pend_dropped++;
+		return;
+	}
+	st->pending = 1;
 	g_pending[g_pend_tail] = f;
 	g_pend_tail = next;
 }
@@ -317,6 +348,7 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 	}
 	f = g_pending[g_pend_head];
 	g_pend_head = (g_pend_head + 1) % SHIM_PENDING;
+	fstate(f)->pending = 0;
 	return sock_alloc(f);
 }
 
