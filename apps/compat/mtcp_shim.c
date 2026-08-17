@@ -467,7 +467,7 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 {
 	int i, n = 0;
 
-	(void)mctx; (void)epid; (void)timeout;
+	(void)mctx; (void)epid;
 
 	for (i = 0; i < SHIM_MAX_SOCK; i++)
 		g_sock[i].ready = 0;
@@ -485,6 +485,24 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 	 * and is drained by the pass already in flight.
 	 */
 	shim_collect_ready();
+
+	/*
+	 * BLOCK WHEN THERE IS NOTHING, as the donor does. mTCP's
+	 * mtcp_epoll_wait with a negative timeout goes to pthread_cond_wait
+	 * with no spin first, and its stack thread wakes it -- 15 695
+	 * voluntary context switches a second on the donor's application
+	 * thread against 0 on its stack thread (B, 2026-08-17).
+	 *
+	 * Returning immediately with nothing was our shim approximating that
+	 * call rather than matching it. On one core with a stack thread that
+	 * never blocks, the two threads then alternate only on preemption, at
+	 * a 4 ms slice instead of the donor's 63.7 us -- which cost four
+	 * fifths of our throughput.
+	 */
+	if (n == 0 && timeout != 0 && g_pend_head == g_pend_tail) {
+		TransportWait(g_shim_core, timeout);
+		shim_collect_ready();
+	}
 
 	/* The listener first: epserver checks for it by socket id and accepts
 	 * everything queued before looking at the rest. */

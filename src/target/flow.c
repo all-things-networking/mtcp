@@ -36,6 +36,8 @@ FlowPoolInit(struct core_ctx *core)
 	 * ported queue wraps at capacity rather than masking. */
 	if (fq_init(&t->q_notify, (fq_index_t)CONFIG.max_concurrency) < 0)
 		return -1;
+	pthread_mutex_init(&t->app_lock, NULL);
+	pthread_cond_init(&t->app_cv, NULL);
 	if (fq_init(&t->q_ready, (fq_index_t)CONFIG.max_concurrency) < 0)
 		return -1;
 	if (fq_init(&t->q_send, (fq_index_t)CONFIG.max_concurrency) < 0)

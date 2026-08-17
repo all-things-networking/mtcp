@@ -21,6 +21,7 @@
 #include "upcall.h"
 #include <pthread.h>
 #include <sched.h>
+#include <time.h>
 
 #include "scheduler.h"
 /* Nothing here calls the contract yet. Included so that the compiler reads it
@@ -113,6 +114,13 @@ ready_raise(struct transport *t, struct flow *f, int kind)
 	if (t->stack_tid != 0 &&
 	    t->stack_tid == (uint64_t)(uintptr_t)pthread_self()) {
 		t->cross_ready++;
+		/*
+		 * Wake the application if it is asleep. Read unlocked as a fast
+		 * path: if it is about to sleep but has not set the flag, its
+		 * own re-check under the lock sees this entry and it does not
+		 * sleep at all. The stack takes the lock only to signal, which
+		 * is the one place it may briefly block -- as the donor's does.
+		 */
 		if (fq_enqueue(&t->q_ready, f) != 0) {
 			fprintf(stderr, "\n*** READY QUEUE FULL: capacity is "
 				"flow count and the membership guard should "
@@ -120,9 +128,63 @@ ready_raise(struct transport *t, struct flow *f, int kind)
 			fflush(stderr);
 			abort();
 		}
+		if (t->app_waiting) {
+			pthread_mutex_lock(&t->app_lock);
+			t->app_wakes++;
+			pthread_cond_signal(&t->app_cv);
+			pthread_mutex_unlock(&t->app_lock);
+		}
 		return;
 	}
 	TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
+}
+
+/*
+ * Sleep until the stack publishes readiness. The donor's discipline: the
+ * application does not spin, it blocks, and the thread that creates the work
+ * hands the core over.
+ *
+ * The bounded wait is a SAFETY NET, not the mechanism -- a lost wakeup would
+ * otherwise be an unbounded hang, and rule 5 says to treat a hang as a failing
+ * test. `app_timeouts` counts how often it fires so we can tell whether it is
+ * ever load-bearing; it should be a handful per run and never a rate.
+ */
+int
+TransportWait(struct core_ctx *core, int timeout_ms)
+{
+	struct transport *t = TransportOf(core);
+	struct timespec ts;
+	int slept = 0;
+
+	/* Switchable so the 2x2 against sched_yield comes from ONE binary. A
+	 * comparison across builds is a second variable, and this week has
+	 * twice produced a wrong answer that way. */
+	if (MTP_ENV_ON("MTP_NOBLOCK"))
+		return 0;
+
+	if (!fq_is_empty(&t->q_ready) || !TAILQ_EMPTY(&t->ready_list))
+		return 0;
+
+	clock_gettime(CLOCK_REALTIME, &ts);
+	ts.tv_nsec += (timeout_ms > 0 && timeout_ms < 100 ? timeout_ms : 100)
+		      * 1000000L;
+	if (ts.tv_nsec >= 1000000000L) {
+		ts.tv_sec++;
+		ts.tv_nsec -= 1000000000L;
+	}
+
+	pthread_mutex_lock(&t->app_lock);
+	if (fq_is_empty(&t->q_ready) && TAILQ_EMPTY(&t->ready_list)
+	    && SchedRunning(core)) {
+		t->app_waiting = 1;
+		t->app_sleeps++;
+		if (pthread_cond_timedwait(&t->app_cv, &t->app_lock, &ts))
+			t->app_timeouts++;
+		t->app_waiting = 0;
+		slept = 1;
+	}
+	pthread_mutex_unlock(&t->app_lock);
+	return slept;
 }
 
 static void
@@ -977,6 +1039,10 @@ SchedReport(struct core_ctx *core)
 	 * is a defect on its own terms, and a run that never faults is exactly
 	 * where it would otherwise go unseen. */
 	tgt_check_reachable(core);
+	TRACE_INFO("CPU %d: APP SLEEP: slept %llu, woken by the stack %llu, timed out %llu\n",
+		   ctx->cpu, (unsigned long long)TransportOf(core)->app_sleeps,
+		   (unsigned long long)TransportOf(core)->app_wakes,
+		   (unsigned long long)TransportOf(core)->app_timeouts);
 	TRACE_INFO("CPU %d: FLUSH SHORTFALLS: %llu flushes, %llu bytes, longest "
 		   "consecutive run %u (stall threshold %u)\n", ctx->cpu,
 		   (unsigned long long)TransportOf(core)->flush_short,

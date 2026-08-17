@@ -151,6 +151,19 @@ struct transport {
 	uint64_t		 overlap_merge_bad;	/* a merge over something else */
 	uint64_t		 release_base_mismatch;	/* release names a base the take did not */
 	uint64_t		 unreachable_ring;	/* ring non-empty, flow not listed */
+	/*
+	 * THE APPLICATION'S SLEEP. From mTCP: its application thread blocks in
+	 * mtcp_epoll_wait -> pthread_cond_wait with no spin first, and its stack
+	 * thread wakes it -- B measured 15 695 voluntary switches a second on the
+	 * donor's application thread against 0 on its stack thread. Two threads
+	 * that both spin on one core only alternate when preempted, at a 4 ms
+	 * slice; this hands the core over when the work appears.
+	 */
+	pthread_mutex_t		 app_lock;
+	pthread_cond_t		 app_cv;
+	volatile int		 app_waiting;
+	uint64_t		 app_sleeps, app_wakes, app_timeouts;
+
 	uint64_t		 flush_short;		/* flushes that could not reach upto */
 	uint64_t		 flush_short_bytes;
 	uint32_t		 flush_short_run_max;	/* longest consecutive run */

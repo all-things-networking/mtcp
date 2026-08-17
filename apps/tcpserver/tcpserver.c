@@ -470,8 +470,16 @@ main(int argc, char **argv)
 	{
 		pthread_t stack = SchedStartStack(core, ms, cpu);
 
-		while (SchedRunning(core))
+		while (SchedRunning(core)) {
 			serve(core, SchedNow(core), NULL);
+			/*
+			 * The control application blocks too, or it is not the
+			 * same experiment as the shim: it is what prices the
+			 * shim, so it must have the same relationship with the
+			 * stack thread.
+			 */
+			TransportWait(core, -1);
+		}
 
 		if (stack)
 			pthread_join(stack, NULL);

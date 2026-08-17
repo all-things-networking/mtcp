@@ -55,6 +55,12 @@ struct flow_queue {
 	struct flow * volatile	*q;
 };
 
+static inline int
+fq_is_empty(const struct flow_queue *fq)
+{
+	return fq->head == fq->tail;
+}
+
 static inline fq_index_t
 fq_next(const struct flow_queue *fq, fq_index_t i)
 {
