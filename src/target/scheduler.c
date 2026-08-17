@@ -598,6 +598,7 @@ SchedStep(struct core_ctx *core,
 	struct thread_ctx *ctx = core->ctx;
 	struct timeval tv = {0};
 	uint32_t ts;
+	uint64_t iters = 0;
 	int rx_inf, tx_inf, i;
 
 
@@ -607,6 +608,12 @@ SchedStep(struct core_ctx *core,
 		core->cur_ts = ts;
 		core->cur_us = (uint64_t)tv.tv_sec * 1000000u
 			     + (uint64_t)tv.tv_usec;
+
+		/* Time-weighted, so the mean does not depend on when the
+		 * program happens to be busy. Every 1024th iteration. */
+		if ((iters & 1023) == 0 && prog_sample_inflight)
+			prog_sample_inflight(core->cur_us);
+		iters++;
 
 		for (rx_inf = 0; rx_inf < CONFIG.eths_num; rx_inf++) {
 			int recv_cnt = core->iom->recv_pkts(ctx, rx_inf);
@@ -1016,10 +1023,12 @@ SchedReport(struct core_ctx *core)
 		void prog_report_refusals(void);
 		void prog_report_avail(void);
 		void prog_report_rtt(void);
+		void prog_report_inflight(void);
 
 		prog_report_refusals();
 		prog_report_avail();
 		prog_report_rtt();
+		prog_report_inflight();
 		{ void tgt_report_merges(void); tgt_report_merges(); }
 	}
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,

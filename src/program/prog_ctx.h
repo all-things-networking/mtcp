@@ -145,6 +145,11 @@ struct tcp_ctx {
 /* from the program's `context` initialiser */
 #define TCP_CTX_INIT	{ .rcv_wnd = PARITY_INITIAL_WINDOW }
 
+/* How many flows the in-flight sampler tracks. Sized to the configured
+ * concurrency ceiling; a run beyond it under-reports rather than corrupting. */
+#define MTP_MAX_FLOWS_SAMPLED 1024
+
+void     prog_sample_inflight(uint64_t now_us);
 void     tcp_on_payload_merged(struct tcp_ctx *c, uint32_t new_recv_next);
 void     sock_recv(struct tcp_ctx *c, uint32_t delivered_now);
 uint16_t tcp_window_field(const struct tcp_ctx *c, int is_syn);

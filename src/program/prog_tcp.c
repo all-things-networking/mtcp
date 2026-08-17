@@ -429,6 +429,24 @@ static uint64_t g_refuse[REF__N];
 static uint64_t g_avail_bucket[6];
 static uint64_t g_rtt_bucket[6], g_rtt_sum, g_rtt_n, g_rtt_max;
 static uint64_t g_cwnd_sum, g_inflight_sum;
+
+/*
+ * TIME-AVERAGED in-flight, so Little's law can be checked as an identity.
+ *
+ * The census above samples at the generation decision, which happens when there
+ * is data to send and therefore catches in-flight at its high points -- biased
+ * by construction, in the direction that made rate x RTT overshoot by 4x. This
+ * integrates in-flight against the clock instead: sum(bytes x microseconds),
+ * divided at the end by the elapsed microseconds it covers.
+ *
+ * Sampled every 1024th stack iteration rather than every one. At ~25M
+ * iterations a second that is still ~24k samples a second, the weighting makes
+ * the interval irrelevant to the mean, and it keeps the cost off a loop where
+ * instrumentation has twice become the measurement.
+ */
+static struct tcp_ctx *g_live[MTP_MAX_FLOWS_SAMPLED];
+static unsigned g_live_n;
+static uint64_t g_inf_integral, g_inf_span_us, g_inf_last_us, g_inf_samples;
 static uint64_t g_avail_sum, g_avail_max, g_bind_cwnd, g_bind_peer;
 
 /*
@@ -450,6 +468,51 @@ static uint64_t g_tmr[TMR__N];
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
        RXS_ACK_ADVANCED, RXS_RST, RXS_ACK_PAST_NEXT, RXS__N };
 static uint64_t g_rx[RXS__N];
+
+static void
+prog_unregister(const struct tcp_ctx *c)
+{
+	unsigned i;
+
+	for (i = 0; i < g_live_n; i++)
+		if (g_live[i] == c) {
+			g_live[i] = g_live[--g_live_n];
+			return;
+		}
+}
+
+/* Called by the stack loop, every 1024th iteration. */
+void
+prog_sample_inflight(uint64_t now_us)
+{
+	uint64_t inflight = 0;
+	unsigned i;
+
+	if (g_inf_last_us) {
+		uint64_t dt = now_us - g_inf_last_us;
+
+		for (i = 0; i < g_live_n; i++)
+			inflight += (uint64_t)(g_live[i]->send_next
+					       - g_live[i]->send_una);
+		g_inf_integral += inflight * dt;
+		g_inf_span_us += dt;
+		g_inf_samples++;
+	}
+	g_inf_last_us = now_us;
+}
+
+void
+prog_report_inflight(void)
+{
+	uint64_t mean = g_inf_span_us ? g_inf_integral / g_inf_span_us : 0;
+
+	fprintf(stderr,
+		"time-averaged in flight: %llu B across all flows over %llu us "
+		"(%llu samples, %u flows live at exit)\n",
+		(unsigned long long)mean,
+		(unsigned long long)g_inf_span_us,
+		(unsigned long long)g_inf_samples, g_live_n);
+}
 
 void
 prog_report_rtt(void)
@@ -1181,6 +1244,8 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		c = mtp_new_ctx(&k, sizeof(*c));
 		if (!c)
 			return -1;
+		if (g_live_n < MTP_MAX_FLOWS_SAMPLED)
+			g_live[g_live_n++] = c;
 		c->rcv_wnd = PARITY_INITIAL_WINDOW;
 		c->loc_port = e.dport;
 		c->rem_port = e.sport;
@@ -1215,6 +1280,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	if ((e.flags & TCP_ACK) && e.ack == c->send_next) {
 		if (c->state == TCP_LAST_ACK) {
 			c->state = TCP_CLOSED;
+			prog_unregister(c);
 			mtp_del_ctx(&k);
 		} else if (c->state == TCP_FIN_WAIT_1) {
 			c->state = TCP_FIN_WAIT_2;
@@ -1374,6 +1440,7 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 	if (t == &c->tw) {
 		g_tmr[TMR_TIMEWAIT]++;
 		c->state = TCP_CLOSED;
+		prog_unregister(c);
 		mtp_del_ctx(&c->key);
 		return;
 	}
