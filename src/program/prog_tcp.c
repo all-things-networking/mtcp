@@ -12,7 +12,13 @@
  *                    checksum16_t checksum; uint16 urg_ptr;
  *                    tcp_options opts; data_t data; }
  *
- *     seg_rule seg_seq(x) [ TCPBP::seq_no, x, prev.hdr.seq_no + prev.payload_len ]
+ *     bp.data = unseg_data(addr, to_send, MSS,
+ *                          [TCPBP::seq_no, ctx.send_next,
+ *                           prev.seq_no + prev.payload_len]);
+ *
+ * The rule is an argument to the segmentation, written at the call as every
+ * reference program writes it -- not a free-standing `seg_rule` declaration
+ * named in a `deploy` block, which was ours and is gone (2026-08-18).
  */
 #include <stdbool.h>
 #include <stdio.h>

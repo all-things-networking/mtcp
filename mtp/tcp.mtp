@@ -118,7 +118,8 @@ context tcp_ctx {
     timer_t rto_timer -> tcp_timeout; // CR-6: expiry raises this event
 }
 
-// Cross-flow, declared `global` in deploy. One listening endpoint. Matching a
+// Cross-flow. ONE LISTENING ENDPOINT, which is a limitation and change 2 on
+// the register. Matching a
 // listener is protocol policy — G8 is "match on ip AND port", which is a
 // statement about TCP — so the target does not hold it. mTCP matches on port
 // alone, so a socket bound to one address answers for every address on the
@@ -141,14 +142,20 @@ pkt_bp TCPBP { uint16 src_port, dst_port; uint32 seq_no, ack_seq;
 //   every non-SYN, exactly 12 bytes:  NOP NOP Timestamp
 opt_list tcp_options { ... }
 
-// §seg_rule
+// §segmentation
 // ---------------------------------------------------------------------------
+// THE RULE IS WRITTEN AT THE CALL, not declared apart from it. Every reference
+// program does it that way -- `bp.data = unseg_data(addr, len, MSS, [...])` --
+// and a free-standing `seg_rule` named in a `deploy` block was ours. The rule
+// is an argument to the segmentation, so it belongs where the segmentation is.
+//
 // TCP's recurrence is PER BYTE, which is why it is safe under coalescing and
 // under anything else that changes how a blueprint is split. A protocol whose
 // recurrence is per PACKET is not: QUIC advances its packet number once per
 // packet, pkt_gen does not report how it split, and the program's prediction is
 // then wrong. Worth knowing before copying this line into another program.
-seg_rule seg_seq(x) [ TCPBP::seq_no, x, prev.hdr.seq_no + prev.payload_len ]
+//
+// The call site is in §gen_seg.
 
 // §app_parser
 // ---------------------------------------------------------------------------
@@ -280,6 +287,17 @@ app_parser socket {
 //   an oversight. Implement the per-path rule, not either list.
 //
 // §gen_seg                the send decision, under min(cwnd, peer window)
+//
+//   WRITTEN OUT, because this line does not exist in the tree yet: the
+//   processors below are prose and their C lives in src/program/prog_tcp.c.
+//   This is the form every reference program uses, and the segmentation rule
+//   is the fourth argument rather than a separate declaration:
+//
+//       bp.data = unseg_data(addr, to_send, MSS,
+//                            [TCPBP::seq_no,
+//                             ctx.send_next,
+//                             prev.seq_no + prev.payload_len]);
+//
 // §proc_fin               teardown
 // §proc_timeout           retransmission timeout, with backoff
 //
@@ -298,13 +316,6 @@ dispatch tcp_dispatch {
     app_listen  -> { sock_listen };
     app_recv    -> { sock_recv };
     app_send    -> { record_data, gen_seg };
-}
-
-deploy {
-    parser   parse_tcp;
-    context  tcp_ctx    per_flow;
-    context  tcp_global global;
-    seg_rule seg_seq;
 }
 
 // §absence_register
