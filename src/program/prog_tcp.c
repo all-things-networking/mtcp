@@ -30,6 +30,38 @@
 #include "prog_params.h"
 #include "prog_ctx.h"
 
+/*
+ * INSTRUMENTATION, INERT UNLESS ENABLED AT RUN TIME.
+ *
+ * D-03's rule applied to our own program rather than to a reference. Sixty-nine
+ * counter and histogram sites accumulated across this investigation with no
+ * guard of any kind: every one ran in every build, on the packet path, whether
+ * or not anyone was reading them.
+ *
+ * One branch on a file-scope int, resolved once. The branch predicts perfectly
+ * and the counters cost nothing when off; the point is not the cycles saved but
+ * that a measurement build and a shipping build stop being the same binary by
+ * accident.
+ *
+ * MTP_INSTR=1 turns them on. Default OFF -- "inert unless enabled" means the
+ * default is inert, or the rule says nothing.
+ *
+ * NOT gated: fault detection, the reference-fault dump, the reachability
+ * invariant and the assertions. Those are correctness, not measurement, and
+ * D-03 does not ask for them to be switchable.
+ */
+static int g_instr = -1;
+
+static inline int instr_on(void)
+{
+	if (g_instr < 0)
+		g_instr = getenv("MTP_INSTR") ? 1 : 0;
+	return g_instr;
+}
+
+#define INSTR(stmt) do { if (instr_on()) { stmt; } } while (0)
+
+
 /* Field offsets within the serialised header. The compiler knows these from
  * the pkt_bp declaration; nothing outside src/program/ does. */
 #define TCPH_SEQ	4
@@ -389,7 +421,7 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_SYN | TCP_ACK,
 				   now, c->ts_recent);
-	g_emit[EM_SYNACK]++;
+	INSTR(g_emit[EM_SYNACK]++);
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1, 0 /* not a retransmission */) == 0) {
 		c->send_next++;			/* the SYN-ACK consumes one */
 		c->snd_base = c->send_next;	/* ...so data starts one past */
@@ -543,7 +575,7 @@ prog_sample_inflight(uint64_t now_us)
 
 				while (b < 7 && q >= (16384ull << b))
 					b++;
-				g_inf_hist[b] += dt;
+				INSTR(g_inf_hist[b] += dt);
 			}
 			inflight += (uint64_t)(c->send_next - c->send_una);
 
@@ -579,8 +611,8 @@ prog_sample_inflight(uint64_t now_us)
 
 					if (!held) {
 						rb = 0;
-						g_ring_empty_by[
-						  mtp_app_state_read() % 3] += dt;
+						INSTR(g_ring_empty_by[
+						  mtp_app_state_read() % 3] += dt);
 					} else if (held >= c->tx.cap) {
 						rb = 7;
 						/*
@@ -594,20 +626,20 @@ prog_sample_inflight(uint64_t now_us)
 						 * generation can run ahead of
 						 * emission at all.
 						 */
-						g_gap_full += (uint64_t)
+						INSTR(g_gap_full += (uint64_t)
 						  (c->send_next - c->send_una
 						   - MIN64(c->send_next
 							   - c->send_una,
 							   mtp_tx_emitted(&c->tx)
 							   - (c->send_una
 							      - c->snd_base)))
-						  * dt;
-						g_gap_full_dt += dt;
+						  * dt);
+						INSTR(g_gap_full_dt += dt);
 					} else {
 						rb = 1 + (unsigned)((held * 6)
 								    / c->tx.cap);
 					}
-					g_ring_hist[rb] += dt;
+					INSTR(g_ring_hist[rb] += dt);
 					{
 						uint64_t gen = c->send_next
 							     - c->send_una;
@@ -615,9 +647,9 @@ prog_sample_inflight(uint64_t now_us)
 							    - (c->send_una
 							       - c->snd_base);
 
-						g_gap_all += (gen - MIN64(gen, em))
-							     * dt;
-						g_gap_all_dt += dt;
+						INSTR(g_gap_all += (gen - MIN64(gen, em))
+							     * dt);
+						INSTR(g_gap_all_dt += dt);
 					}
 				}
 
@@ -625,11 +657,11 @@ prog_sample_inflight(uint64_t now_us)
 					uint64_t age, a;
 					unsigned b;
 
-					g_emit_unacked += (emit - acked) * dt;
+					INSTR(g_emit_unacked += (emit - acked) * dt);
 					if (c->in_rtx)
-						g_int_rtx += (emit - acked) * dt;
+						INSTR(g_int_rtx += (emit - acked) * dt);
 					else
-						g_int_clean += (emit - acked) * dt;
+						INSTR(g_int_clean += (emit - acked) * dt);
 
 					/*
 					 * THE TAIL. Time-sampled, so a stuck
@@ -644,9 +676,9 @@ prog_sample_inflight(uint64_t now_us)
 					for (b = 0, a = 100; b < 7 && age >= a;
 					     b++, a *= 5)
 						;
-					g_age_hist[b] += dt;
-					g_age_time += age * dt;
-					g_age_dt += dt;
+					INSTR(g_age_hist[b] += dt);
+					INSTR(g_age_time += age * dt);
+					INSTR(g_age_dt += dt);
 					if (age > g_age_max) {
 						g_age_max = age;
 						g_age_max_flow = i;
@@ -1295,9 +1327,9 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	uint32_t acked;
 
-	g_rx[RXS_ACK_CALLED]++;
+	INSTR(g_rx[RXS_ACK_CALLED]++);
 	if (!conn_exists(c) || !(e->flags & TCP_ACK)) {
-		g_rx[RXS_ACK_NOFLAG]++;
+		INSTR(g_rx[RXS_ACK_NOFLAG]++);
 		return;
 	}
 
@@ -1306,7 +1338,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	acked = e->ack - c->send_una;
 	if ((int32_t)acked <= 0) {
-		g_rx[RXS_ACK_DUP]++;
+		INSTR(g_rx[RXS_ACK_DUP]++);
 		/*
 		 * ADVANCES NOTHING, BUT IT IS STILL AN EVENT. The window above
 		 * has just been refreshed from this segment, and a peer whose
@@ -1316,30 +1348,42 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		 * window had reopened and never acted on it, and the flow
 		 * stalled with data buffered and a window that was open.
 		 *
-		 * The donor reaches the same place by a different route: it
-		 * puts the stream on the send list and re-runs the flush every
-		 * event-loop iteration. A closed window can only reopen by the
-		 * peer telling us, and that telling is an rx event, so an
-		 * rx-driven retry and a per-iteration retry are observably
-		 * identical — there is nothing to retry between segments. That
-		 * is why this needs no new entry point and the contract's
-		 * three keep their monopoly (D-15/D-16).
+		 * CORRECTED 2026-08-18. This used to say the donor "puts the
+		 * stream on the send list and re-runs the flush every
+		 * event-loop iteration", so that an rx-driven retry and a
+		 * per-iteration retry were "observably identical". B has
+		 * withdrawn that: THE SEND LIST IS DRAINED, NOT PERSISTENT --
+		 * cleared at tcp_out.c:806 with explicit removals at three
+		 * further sites. A stream flushed once is off the list, and a
+		 * later attempt needs a fresh AddtoSendList. The equivalence
+		 * holds only where a branch explicitly re-adds.
+		 *
+		 * So the justification for generating here is D-25 -- without
+		 * it a reopened window is learned and never acted on, and the
+		 * flow stalls with data buffered -- and NOT an equivalence with
+		 * the donor. Whether the donor attempts a send on a duplicate
+		 * beyond the third is a parity question still open with B; its
+		 * dup_acks == 3 branch does re-add at tcp_in.c:464. Recorded
+		 * for the tcp_ack document, not acted on here.
+		 *
+		 * This still needs no new entry point and the contract's three
+		 * keep their monopoly (D-15/D-16).
 		 */
 		tcp_gen_seg(c, now);
 		return;
 	}
-	g_rx[RXS_ACK_ADVANCED]++;
+	INSTR(g_rx[RXS_ACK_ADVANCED]++);
 	if (c->in_rtx)
-		g_bytes_rtx += acked;
+		INSTR(g_bytes_rtx += acked);
 	else
-		g_bytes_clean += acked;
+		INSTR(g_bytes_clean += acked);
 	if (c->in_rtx && (int32_t)(e->ack - c->rtx_mark) >= 0)
 		c->in_rtx = false;
 	if (c->have_rtt) {
-		g_rto_sum += c->rto_ms;
-		g_rto_n++;
+		INSTR(g_rto_sum += c->rto_ms);
+		INSTR(g_rto_n++);
 		if (c->rto_ms > g_rto_max)
-			g_rto_max = c->rto_ms;
+			INSTR(g_rto_max = c->rto_ms);
 	}
 	c->una_advanced_us = mtp_now_us();
 
@@ -1360,11 +1404,11 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		else if (d < 20000)	b = 3;
 		else if (d < 50000)	b = 4;
 		else			b = 5;
-		g_rtt_bucket[b]++;
-		g_rtt_sum += d;
-		g_rtt_n++;
+		INSTR(g_rtt_bucket[b]++);
+		INSTR(g_rtt_sum += d);
+		INSTR(g_rtt_n++);
 		if (d > g_rtt_max)
-			g_rtt_max = d;
+			INSTR(g_rtt_max = d);
 		c->probe_us = 0;
 	}
 	/*
@@ -1386,11 +1430,11 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		else if (d < 2500)	b = 5;
 		else if (d < 10000)	b = 6;
 		else			b = 7;
-		g_ack_hist[b]++;
-		g_ack_sum += d;
-		g_ack_n++;
+		INSTR(g_ack_hist[b]++);
+		INSTR(g_ack_sum += d);
+		INSTR(g_ack_n++);
 		if (d > g_ack_max)
-			g_ack_max = d;
+			INSTR(g_ack_max = d);
 		c->tx.probe_pending = 0;
 	}
 
@@ -1430,7 +1474,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		 * was absence of the INSTRUMENT, not absence of the condition.
 		 * A counter costs an increment on a path already taken.
 		 */
-		g_rx[RXS_ACK_PAST_NEXT]++;
+		INSTR(g_rx[RXS_ACK_PAST_NEXT]++);
 		c->send_next = e->ack;
 		c->cwnd = c->ssthresh;
 	}
@@ -1513,7 +1557,7 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		uint16_t plen = tcp_build_header(phdr, c, c->send_next, TCP_ACK,
 						 now, c->ts_recent);
 
-		g_emit[EM_PROBE_REPLY]++;
+		INSTR(g_emit[EM_PROBE_REPLY]++);
 		mtp_pkt_gen(c->f, phdr, plen, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */);
 		return;
 	}
@@ -1548,7 +1592,7 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
-	g_emit[EM_ACK_DATA]++;
+	INSTR(g_emit[EM_ACK_DATA]++);
 	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */);
 }
 
@@ -1607,7 +1651,7 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	/* built before the transition, deliberately */
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
-	g_emit[EM_ACK_FIN]++;
+	INSTR(g_emit[EM_ACK_FIN]++);
 	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */);
 
 	/*
@@ -1655,7 +1699,7 @@ fin_emit(struct tcp_ctx *c, uint32_t now, uint32_t rtx)
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next,
 				   TCP_ACK | TCP_FIN, now, c->ts_recent);
-	g_emit[EM_FIN]++;
+	INSTR(g_emit[EM_FIN]++);
 	return mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_DATA, 1,
 			   rtx) == 0;
 }
@@ -1738,7 +1782,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		return 0;
 	}
 
-	g_rx[RXS_CTX]++;
+	INSTR(g_rx[RXS_CTX]++);
 	/*
 	 * INBOUND RST, counted and nothing else. DESIGN-CLOSE.md §5 records that
 	 * this program has no RST path: a peer that has gone away answers our
@@ -1748,7 +1792,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	 * If resets are not arriving in quantity, the reading is dead.
 	 */
 	if (e.flags & TCP_RST)
-		g_rx[RXS_RST]++;
+		INSTR(g_rx[RXS_RST]++);
 	proc_open_done(c, &e, now_ms);
 	proc_ack(c, &e, now_ms);
 	proc_recv(c, &e, now_ms);
@@ -1865,15 +1909,15 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 			uint64_t before = c->rx.head_seq;
 
 			got = mtp_rx_flush_and_notify(&c->rx, op->len, a);
-			g_recv_calls++;
+			INSTR(g_recv_calls++);
 			if (got > 0) {
-				g_recv_bytes += (uint64_t)got;
+				INSTR(g_recv_bytes += (uint64_t)got);
 				sock_recv(c, (uint32_t)got);
 			} else {
-				g_recv_empty++;
+				INSTR(g_recv_empty++);
 			}
 			if (c->rx.head_seq == before)
-				g_recv_nohead++;
+				INSTR(g_recv_nohead++);
 		}
 		return got;
 	}
@@ -1937,19 +1981,19 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 	 * happens, and it is the donor's behaviour rather than an omission.
 	 */
 	if (t == &c->probe) {
-		g_tmr[TMR_PROBE]++;
+		INSTR(g_tmr[TMR_PROBE]++);
 		send_window_probe(c, now_ms);
 		return;
 	}
 	if (t == &c->tw) {
-		g_tmr[TMR_TIMEWAIT]++;
+		INSTR(g_tmr[TMR_TIMEWAIT]++);
 		c->state = TCP_CLOSED;
 		prog_unregister(c);
 		mtp_del_ctx(&c->key);
 		return;
 	}
 
-	g_tmr[TMR_RTO]++;
+	INSTR(g_tmr[TMR_RTO]++);
 	if (++c->rtx_count > PARITY_MAX_RTX) {
 		c->state = TCP_CLOSED;		/* G11: closed at 16 */
 		mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_ERROR });
@@ -2028,7 +2072,7 @@ send_window_probe(struct tcp_ctx *c, uint32_t now)
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next - 1, TCP_ACK, now,
 				   c->ts_recent);
-	g_emit[EM_PROBE]++;
+	INSTR(g_emit[EM_PROBE]++);
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */) == 0)
 		c->last_ack_sent_ms = now;
 	mtp_timer_start(&c->probe, (uint64_t)PARITY_PROBE_MS * 1000000ULL);
@@ -2068,7 +2112,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	int why = REF_NODATA;
 
 	if (!send_side_open(c)) {
-		g_refuse[REF_STATE]++;
+		INSTR(g_refuse[REF_STATE]++);
 		return;
 	}
 
@@ -2095,21 +2139,21 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 		else if (avail < 16 * 1448)	b = 3;
 		else if (avail < 64 * 1448)	b = 4;
 		else				b = 5;
-		g_avail_bucket[b]++;
-		g_avail_sum += avail > 0 ? (uint64_t)avail : 0;
+		INSTR(g_avail_bucket[b]++);
+		INSTR(g_avail_sum += avail > 0 ? (uint64_t)avail : 0);
 		/* IN BYTES, and labelled as such. The binding-window figures
 		 * below are COUNTS of decisions; reporting them beside a byte
 		 * mean invited exactly the misreading that produced a derived
 		 * round trip of 28 ms against a measured 843 us. */
-		g_cwnd_sum += c->cwnd;
-		g_inflight_sum += (uint64_t)(c->send_next - c->send_una);
+		INSTR(g_cwnd_sum += c->cwnd);
+		INSTR(g_inflight_sum += (uint64_t)(c->send_next - c->send_una));
 		if (avail > (int64_t)g_avail_max)
-			g_avail_max = (uint64_t)avail;
+			INSTR(g_avail_max = (uint64_t)avail);
 		/* which of the two windows is the binding one, when either is */
 		if (c->cwnd <= c->send_wnd)
-			g_bind_cwnd++;
+			INSTR(g_bind_cwnd++);
 		else
-			g_bind_peer++;
+			INSTR(g_bind_peer++);
 	}
 
 	/*
@@ -2185,10 +2229,10 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 				 * being large. A mean of rw cannot tell them
 				 * apart and neither can a mean of cwnd.
 				 */
-				g_sws_cwnd += c->cwnd;
-				g_sws_peer += c->send_wnd;
-				g_sws_infl += inflight_here;
-				g_sws_bind[c->cwnd <= c->send_wnd ? 0 : 1]++;
+				INSTR(g_sws_cwnd += c->cwnd);
+				INSTR(g_sws_peer += c->send_wnd);
+				INSTR(g_sws_infl += inflight_here);
+				INSTR(g_sws_bind[c->cwnd <= c->send_wnd ? 0 : 1]++);
 				{
 					unsigned k;
 					uint32_t v;
@@ -2196,12 +2240,12 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 					for (k = 0, v = 4096;
 					     k < 5 && c->cwnd >= v; k++, v *= 4)
 						;
-					g_sws_cwnd_h[k]++;
+					INSTR(g_sws_cwnd_h[k]++);
 					for (k = 0, v = 4096;
 					     k < 5 && c->send_wnd >= v;
 					     k++, v *= 4)
 						;
-					g_sws_peer_h[k]++;
+					INSTR(g_sws_peer_h[k]++);
 				}
 				break;
 			}
@@ -2244,9 +2288,9 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 					     b < 6 && held >= lim;
 					     b++, lim *= 4)
 						;
-					g_nodata_held[b]++;
-					g_nodata_held_sum += held;
-					g_nodata_n++;
+					INSTR(g_nodata_held[b]++);
+					INSTR(g_nodata_held_sum += held);
+					INSTR(g_nodata_n++);
 
 					/*
 					 * IS THE WINDOW ALREADY FULL HERE?
@@ -2263,14 +2307,14 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 						uint32_t win = c->cwnd < c->send_wnd
 							     ? c->cwnd : c->send_wnd;
 
-						g_nodata_cwnd += c->cwnd;
-						g_nodata_peer += c->send_wnd;
-						g_nodata_infl += inflight_here;
+						INSTR(g_nodata_cwnd += c->cwnd);
+						INSTR(g_nodata_peer += c->send_wnd);
+						INSTR(g_nodata_infl += inflight_here);
 						if (inflight_here >= win)
-							g_nodata_atwin++;
+							INSTR(g_nodata_atwin++);
 						else if (inflight_here + PARITY_MSS_ADVERTISED
 							 >= win)
-							g_nodata_nearwin++;
+							INSTR(g_nodata_nearwin++);
 					}
 				}
 				break;
@@ -2285,7 +2329,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	}
 
 	if (to_send == 0) {
-		g_refuse[why]++;
+		INSTR(g_refuse[why]++);
 		if (why == REF_SWS) {
 			/*
 			 * WITHHELD ONLY WHEN NOTHING WENT OUT. The census
@@ -2294,10 +2338,10 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			 * genuine deferral rather than "the loop filled the
 			 * window and stopped".
 			 */
-			g_sws_withheld += g_sws_rw;
-			g_sws_n++;
+			INSTR(g_sws_withheld += g_sws_rw);
+			INSTR(g_sws_n++);
 			if (g_sws_rw > g_sws_max)
-				g_sws_max = g_sws_rw;
+				INSTR(g_sws_max = g_sws_rw);
 		}
 		if (why == REF_WINDOW) {
 			c->probe.ctx = c;
@@ -2311,7 +2355,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 				c->send_next - c->send_una, c->write_end);
 		return;
 	}
-	g_refuse[REF_SENT]++;
+	INSTR(g_refuse[REF_SENT]++);
 
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
@@ -2334,7 +2378,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	 */
 	rtx = c->send_next < c->send_high;
 	if (rtx) {
-		g_emit[EM_DATA_RTX]++;
+		INSTR(g_emit[EM_DATA_RTX]++);
 		if (!c->in_rtx) {
 			c->in_rtx = true;
 			c->rtx_mark = c->send_high;
@@ -2343,7 +2387,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			fprintf(stderr, "EV rtx off=%u len=%u\n",
 				c->send_next - c->snd_base, to_send);
 	} else {
-		g_emit[EM_DATA]++;
+		INSTR(g_emit[EM_DATA]++);
 	}
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, PRIO_DATA, 1,
 			rtx) == 0) {
