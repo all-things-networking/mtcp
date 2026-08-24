@@ -103,6 +103,7 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	f->pending_close = 0;
 	f->app_detached = 0;
 	f->pending_destroy = 0;
+	f->proto_done = 0;
 	f->on_send_q = 0;
 	f->ctx = NULL;
 	/* §24: the slot index IS the identifier. Slots are not recycled, so it
@@ -183,6 +184,12 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 	f->rx_unit = NULL;
 	f->slot_live = 0;
 
+	/*
+	 * BEFORE the context goes. Its timer objects are fields inside it, and
+	 * the wheel holds pointers to them.
+	 */
+	if (f->ctx)
+		tgt_timers_drop_ctx(f->ctx);
 	FlowTableRemove(t->flows, &f->key);
 	/* the flow slot itself is not recycled yet — M1 is one connection.
 	 * A free list lands with connection reaping (A3), which M1 excludes. */
@@ -298,6 +305,12 @@ mtp_app_close(flow_t *f)
 	f->app_detached = 1;
 	f->pending_close = 1;
 	tgt_publish_app_op(f);
+	/*
+	 * The second of the two events, if the protocol finished first: this is
+	 * what queues the flow for destruction in that ordering. A no-op in the
+	 * other, where del_ctx has yet to run and will do the queueing itself.
+	 */
+	tgt_flow_app_detached(f);
 	return 0;
 }
 

@@ -102,6 +102,13 @@ struct flow {
 	 * glibc leaves a just-freed small block intact.
 	 */
 	uint8_t		 pending_destroy;
+	/*
+	 * The program's del_ctx has run: the PROTOCOL is finished with this
+	 * flow. Distinct from pending_destroy, which means both sides are
+	 * finished and the flow is queued. Distinct from app_detached, which is
+	 * the other side saying the same thing.
+	 */
+	uint8_t		 proto_done;
 	TAILQ_ENTRY(flow) destroy_link;
 	uint8_t		 scratch_out[MTP_PRIO_CLASSES];	/* a tgt_bp_new() awaiting commit */
 };

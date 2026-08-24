@@ -400,7 +400,28 @@ int
 mtp_del_ctx(const flowkey_t *key)
 {
 	struct transport *t = TransportOf(g_core[0]);
-	struct flow *f = FlowTableLookup(t->flows, key);
+	/*
+	 * TWO DEREFERENCES, NOT ONE, AND THAT WAS THE BUG. FlowTableLookup
+	 * returns the CONTEXT; the flow handle is the first word of it, which is
+	 * why mtp_ctx_lookup twenty lines above reads `*(struct flow **)ctx`.
+	 * This function assigned the context pointer straight into a
+	 * `struct flow *` -- legal C, since void* converts to any object pointer
+	 * without a cast, so -Wall -Werror had nothing to say.
+	 *
+	 * Everything after it then operated on the program's TCP context as
+	 * though it were a flow: `pending_destroy = 1` wrote into whatever
+	 * tcp_ctx field sits at that offset, TAILQ_INSERT_TAIL wrote two
+	 * pointers into it, and FlowDestroy freed `tx_unit`/`rx_unit` read out
+	 * of context bytes and asserted on an `app_detached` that was never the
+	 * flow's.
+	 *
+	 * It is why the lifecycle counters could not compose: del_ctx and the
+	 * application's detach were reading and writing DIFFERENT OBJECTS, so
+	 * each could truthfully report that the other had not happened yet
+	 * (del_ctx=113, detach=113, late=0, destroyed=0).
+	 */
+	void *ctx = FlowTableLookup(t->flows, key);
+	struct flow *f = ctx ? *(struct flow **)ctx : NULL;
 
 	/*
 	 * MARKS, DOES NOT FREE. This is called from inside a program entry
@@ -413,32 +434,74 @@ mtp_del_ctx(const flowkey_t *key)
 	 * The stack destroys at the end of its pass instead, when no program
 	 * call is on the stack.
 	 */
-	if (!f)
+	if (!f) {
+		t->n_delctx_miss++;
 		return -1;
-	if (!f->pending_destroy) {
+	}
+	t->n_delctx++;
+	if (f->proto_done)
+		return 0;			/* already said once */
+	f->proto_done = 1;
+
+	/*
+	 * AND IT ONLY JOINS THE DESTROY LIST ONCE THE APPLICATION HAS LET GO.
+	 * The two events are independent and either can come first, so whichever
+	 * is second is what queues the flow -- here, or in tgt_app_detach.
+	 *
+	 * The list is therefore only ever walked to destroy, never to look. The
+	 * first version of this put every finished flow on the list and had the
+	 * reap skip the ones the application still held, which is correct and
+	 * costs a walk of every closed connection on every pass: it measured
+	 * ~700 million held-visits in a 13-second run, growing with the number
+	 * of connections the run had completed.
+	 */
+	if (f->app_detached && !f->pending_destroy) {
 		f->pending_destroy = 1;
 		TAILQ_INSERT_TAIL(&t->destroy_list, f, destroy_link);
+	} else if (!f->app_detached) {
+		t->awaiting_app++;	/* a GAUGE, not a total: see the report */
 	}
 	return 0;
 }
 
 /*
- * End of pass, no program call in flight: now it is safe -- FOR A FLOW THE
- * APPLICATION HAS LET GO OF.
+ * The application has let go. If the protocol had already finished, this is the
+ * second of the two events and the flow can now be queued for destruction.
  *
- * DESTRUCTION WAITS FOR BOTH SIDES. The program's `del_ctx` says the protocol
- * is finished with the flow; `app_detached` says the application is. They are
- * not the same moment and neither implies the other, so a flow whose protocol
- * has finished first stays on the list until the application catches up. The
- * next pass picks it up.
+ * Called from the application thread, which is the thread the reap runs on, so
+ * the insert needs no more synchronisation than the reap's own removal.
+ */
+void
+tgt_flow_app_detached(struct flow *f)
+{
+	struct transport *t = TransportOf(g_core[0]);
+
+	t->n_detach++;
+	if (f->proto_done && !f->pending_destroy) {
+		t->n_detach_late++;
+		f->pending_destroy = 1;
+		TAILQ_INSERT_TAIL(&t->destroy_list, f, destroy_link);
+		t->awaiting_app--;
+	}
+}
+
+/*
+ * End of pass, no program call in flight: now it is safe.
  *
- * WHY THIS WAS NOT NEEDED BEFORE, which is the whole lesson. Every del_ctx that
- * actually reached here came from LAST_ACK -- the peer closed first, so the
- * application had already closed and detached, and destruction after detach was
- * a property of the ONE path that could get here. The TIME_WAIT path, where WE
- * close first, was passing a zeroed key to del_ctx and silently destroying
- * nothing. Fixing that key turned the second path on and it aborted on the
- * FlowDestroy assertion within one connection.
+ * DESTRUCTION WAITS FOR BOTH SIDES, and the waiting happens off this list.
+ * The program's `del_ctx` says the protocol is finished with the flow;
+ * `app_detached` says the application is. Neither implies the other and either
+ * can come first, so whichever arrives second is what queues the flow. Nothing
+ * reaches this list before both have happened, so the reap never inspects a
+ * flow it cannot destroy.
+ *
+ * WHY THE PAIRING WAS NOT NEEDED BEFORE, which is the whole lesson. Every
+ * del_ctx that actually reached here came from LAST_ACK -- the peer closed
+ * first, so the application had already closed and detached, and "destroy only
+ * after detach" was a property of the ONE path that could get here. The
+ * TIME_WAIT path, where WE close first, was passing a zeroed key to del_ctx and
+ * silently destroying nothing. Fixing that key turned the second path on and it
+ * aborted on the FlowDestroy assertion within one connection.
  *
  * So the assertion did its job exactly as its own comment predicted: "the
  * donor's equivalent safety is emergent -- it destroys in states only reachable
@@ -449,19 +512,12 @@ void
 tgt_sched_reap(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
-	struct flow *f, *next;
+	struct flow *f;
 
-	for (f = TAILQ_FIRST(&t->destroy_list); f != NULL; f = next) {
-		next = TAILQ_NEXT(f, destroy_link);
-		if (!f->app_detached) {
-			/* Counted, because a flow that sits here for ever is a
-			 * leak wearing a queue, and it would otherwise be
-			 * invisible: nothing else reports this list's depth. */
-			t->reap_held++;
-			continue;
-		}
+	while ((f = TAILQ_FIRST(&t->destroy_list)) != NULL) {
 		TAILQ_REMOVE(&t->destroy_list, f, destroy_link);
 		f->pending_destroy = 0;
+		t->n_destroyed++;
 		FlowDestroy(core, f);
 	}
 }
@@ -1281,9 +1337,22 @@ SchedReport(struct core_ctx *core)
 		   (unsigned long long)TransportOf(core)->release_base_mismatch);
 	TRACE_INFO("CPU %d: UNREACHABLE RINGS (ring non-empty, flow unlisted): %llu\n",
 		   ctx->cpu, (unsigned long long)TransportOf(core)->unreachable_ring);
-	TRACE_INFO("CPU %d: REAP HELD (protocol done, application still attached): "
-		   "%llu passes\n", ctx->cpu,
-		   (unsigned long long)TransportOf(core)->reap_held);
+	/*
+	 * A GAUGE READ AT EXIT, not a total. It is the number of flows whose
+	 * protocol finished and whose application never let go -- so a non-zero
+	 * value is a real leak, one context and two ring buffers each, and it
+	 * says how many rather than that it happened.
+	 */
+	TRACE_INFO("CPU %d: LIFECYCLE: del_ctx=%llu (miss %llu) detach=%llu "
+		   "(late %llu) destroyed=%llu\n", ctx->cpu,
+		   (unsigned long long)TransportOf(core)->n_delctx,
+		   (unsigned long long)TransportOf(core)->n_delctx_miss,
+		   (unsigned long long)TransportOf(core)->n_detach,
+		   (unsigned long long)TransportOf(core)->n_detach_late,
+		   (unsigned long long)TransportOf(core)->n_destroyed);
+	TRACE_INFO("CPU %d: FLOWS STILL AWAITING THE APPLICATION AT EXIT "
+		   "(protocol finished, never detached): %llu\n", ctx->cpu,
+		   (unsigned long long)TransportOf(core)->awaiting_app);
 	TRACE_INFO("CPU %d: COMMITS BELOW THE WIRE: rtx=%lu partial=%lu DEAD=%lu\n", ctx->cpu,
 		   (unsigned long)TransportOf(core)->below_wire_rtx,
 		   (unsigned long)TransportOf(core)->below_wire_new,

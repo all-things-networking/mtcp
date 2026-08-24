@@ -40,10 +40,23 @@ struct transport {
 	struct flow_table	*flows;
 	struct listener_table	*listeners;
 
-	/* Reap passes that found a flow the program had finished with and the
-	 * application had not. A flow parked there for ever is a leak wearing a
-	 * queue, and nothing else reports this list's depth. */
-	uint64_t		 reap_held;
+	/* GAUGE: flows whose protocol has finished and whose application has not
+	 * let go. Rises on del_ctx, falls when the detach arrives, and whatever
+	 * is left at exit is a real leak -- a context and two ring buffers each.
+	 * Nothing else reports it. */
+	uint64_t		 awaiting_app;
+	/*
+	 * THE FIVE THAT MUST COMPOSE. del_ctx and detach are the two events;
+	 * destroyed is what should equal the number of flows that saw both.
+	 * They are here because the gauge above read 112-of-112 while the
+	 * application had demonstrably called close 112 times, and those two
+	 * cannot both be true.
+	 */
+	uint64_t		 n_delctx;	/* del_ctx calls that found a flow */
+	uint64_t		 n_delctx_miss;	/* ...and ones that did not */
+	uint64_t		 n_detach;	/* app close calls */
+	uint64_t		 n_detach_late;	/* ...that found proto_done */
+	uint64_t		 n_destroyed;	/* flows actually destroyed */
 
 	struct flow		*flow_pool;
 	struct bp		*bp_pool;

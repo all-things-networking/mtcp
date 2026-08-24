@@ -110,6 +110,14 @@ int tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 
 /* The receive unit's base is a sequence number, not zero: the peer's ISN + 1.
  * Passing it here is the bridge, so nothing downstream has to convert. */
+/* Take every timer belonging to this context off the wheel. Called before the
+ * context is freed: the timer objects are fields INSIDE it. */
+void tgt_timers_drop_ctx(const void *ctx);
+
+/* The application has let go of a flow. Queues it for destruction if the
+ * program's del_ctx has already run; a no-op otherwise. */
+void tgt_flow_app_detached(struct flow *f);
+
 int tgt_rx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 		     uint64_t base);
 

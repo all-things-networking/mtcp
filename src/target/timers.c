@@ -140,6 +140,65 @@ mtp_timer_start(struct mtp_timer *t, uint64_t ns)
 	return 0;
 }
 
+/*
+ * EVERY TIMER BELONGING TO A CONTEXT, OFF THE WHEEL.
+ *
+ * A timer object lives INSIDE the program's context — the program declares
+ * `timer_t rto_timer` as a context field — so freeing the context frees the
+ * wheel's list nodes underneath it. The next sweep then walks `b->wnext` through
+ * freed memory.
+ *
+ * IT IS DONE HERE AND NOT BY THE PROGRAM, deliberately. A generated program
+ * would emit "stop each declared timer, then delete the context" and that would
+ * be correct — and it would also be a rule the next program has to remember,
+ * enforced by nothing, with a dangling pointer as the penalty for forgetting.
+ * The target owns the wheel and the target frees the context, so the target
+ * scrubs. `mtp_timer` already carries `ctx` for the callback, so this needs
+ * nothing new from the program.
+ *
+ * The sweep is O(wheel) and runs once per destroyed flow. It has never run
+ * before today: `mtp_del_ctx` was passing the CONTEXT where a `struct flow *`
+ * was expected, so no flow was ever really destroyed and no context was ever
+ * really freed. Fixing that turned this path on and the stack segfaulted in
+ * TimerTick within a handful of connections.
+ */
+void
+tgt_timers_drop_ctx(const void *ctx)
+{
+	unsigned i;
+
+	for (i = 0; i < WHEEL_BUCKETS; i++) {
+		struct mtp_timer **pp = &wheel[i];
+
+		while (*pp) {
+			if ((*pp)->ctx == ctx) {
+				struct mtp_timer *dead = *pp;
+
+				*pp = dead->wnext;
+				dead->armed = 0;
+				dead->wnext = NULL;
+			} else {
+				pp = &(*pp)->wnext;
+			}
+		}
+	}
+	{
+		struct mtp_timer **pp = &overflow;
+
+		while (*pp) {
+			if ((*pp)->ctx == ctx) {
+				struct mtp_timer *dead = *pp;
+
+				*pp = dead->wnext;
+				dead->armed = 0;
+				dead->wnext = NULL;
+			} else {
+				pp = &(*pp)->wnext;
+			}
+		}
+	}
+}
+
 int
 mtp_timer_stop(struct mtp_timer *t)
 {
