@@ -2122,6 +2122,14 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		c->rcv_wnd = PARITY_INITIAL_WINDOW;
 		c->loc_port = e.dport;
 		c->rem_port = e.sport;
+		/*
+		 * OUR OWN COPY OF THE KEY. The field was declared for exactly
+		 * this and never assigned, so the TIME_WAIT timer's
+		 * `mtp_del_ctx(&c->key)` has been deleting a zeroed key since
+		 * D-24 landed -- silently, because nothing checks the return.
+		 * Every connection that reached TIME_WAIT leaked its context.
+		 */
+		c->key = k;
 		/* generated from: tcp_syn -> { proc_passive_open } */
 		proc_passive_open(c, &e, now_ms);
 		return 0;
