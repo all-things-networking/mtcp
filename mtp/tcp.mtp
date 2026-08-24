@@ -110,6 +110,11 @@ context tcp_ctx {
     uint32 dup_acks;
 
     uint32 recv_next;                 // next in-order byte; the cumulative ack
+    sliding_wnd rx_wnd;               // the receive window: what has arrived,
+                                      // and where the holes are. THE WINDOW
+                                      // TRACKS THE HOLES -- that is what the
+                                      // primitive is for, so the program keeps
+                                      // nothing beside it
     uint32 delivered;                 // what the application has taken,
                                       // accumulated from rx_flush_and_notify
     uint32 rcv_wnd = INITIAL_WINDOW;  // §window_rule owns every write to this
@@ -287,7 +292,9 @@ app_parser socket {
 // §proc_passive_open      a SYN with no context, and a listener that matches
 // §proc_open_done         the acknowledgement that completes a passive open
 // §record_data            application data appended to the transmit stream
-// §proc_recv              in-order payload; merges, recomputes the window
+// §proc_recv              payload, in order or not: stores it at its own
+//                         sequence number, marks the range in rx_wnd, slides,
+//                         and recomputes the window if the boundary moved
 // §send_ack               acknowledgement generation.
 //
 //   THE POST-FIN SUPPRESSION IS PER-PATH, NOT PER-CONNECTION (D-20, corrected).
@@ -404,7 +411,12 @@ dispatch tcp_dispatch {
 // decides whether its absence is a parity difference or a shared property:
 //
 //   fast_retransmit      donor HAS it. M2. A parity difference until then.
-//   out_of_order_reasm   donor HAS it. M2. Does not fire at -c 1 on a clean LAN.
+//
+//   out_of_order_reasm   CLOSED 2026-08-24. §proc_recv marks the arrived range
+//                        in rx_wnd and slides; the target's receive stream
+//                        stores a segment at its own sequence number instead of
+//                        refusing it. Kept visible here for one release so the
+//                        register reads as a record rather than a snapshot.
 //   window_probe         donor HAS it, and it is a WINDOW-BLOCKED probe, not a
 //                        zero-window one — it fires when the peer's window is
 //                        merely small. M2.

@@ -410,6 +410,8 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * subtracted. Nothing type-checks it and the wire is where it shows.
 	 */
 	c->rcv_base = c->recv_next;
+	/* the boundary starts where the peer's first data byte will */
+	mtp_sw_init(&c->rx_wnd, c->recv_next);
 	c->delivered = c->rcv_base;
 	c->ts_recent = e->ts_val;
 
@@ -1497,8 +1499,8 @@ proc_congestion(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
  * places the dispatch was hand-inlined.
  */
 static void
-proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
-	 struct tcp_scratch *sc, uint32_t now)
+proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
+	 uint32_t now)
 {
 	uint32_t acked;
 
@@ -1526,7 +1528,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
 		if (c->state == TCP_LAST_ACK) {
 			c->state = TCP_CLOSED;
 			prog_unregister(c);
-			mtp_del_ctx(k);
+			mtp_del_ctx(&c->key);
 			/*
 			 * THE CONTEXT IS GONE. Every processor after this one
 			 * in the chain would run against freed memory, so the
@@ -1707,9 +1709,6 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 
 	if (!e->payload_len)
 		return;
-	if (e->seq != c->recv_next)
-		return;			/* out of order: M2, and it does not
-					 * fire at -c 1 on a clean LAN */
 
 	/*
 	 * The bytes actually go into the receive stream now. Until this landed
@@ -1725,13 +1724,45 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 	{
 		struct mtp_rx_addr a = { .data = e->payload, .len = e->payload_len };
 
+		/*
+		 * Store the bytes at their OWN sequence number. The target
+		 * copies to an offset; it does not interpret and reports
+		 * nothing back. A refusal here is the window being full, not
+		 * the segment being out of order.
+		 */
 		if (mtp_add_rx_data_seg(&c->rx, a, e->payload_len, e->seq) < 0)
-			return;		/* refused: not in order, M2 */
+			return;
 	}
 
-	/* §window_rule recompute point 1: payload merged in order. Nothing
-	 * else in this program may write rcv_wnd. */
-	tcp_on_payload_merged(c, c->recv_next + e->payload_len);
+	/*
+	 * Mark the range as arrived, wherever it landed, then advance over
+	 * everything contiguously arrived. THERE IS NO IN-ORDER BRANCH BECAUSE
+	 * THERE DOES NOT NEED TO BE ONE: a segment past the boundary marks a
+	 * range the slide does not reach, and a later segment that fills the
+	 * gap lets the same slide run past both.
+	 *
+	 * Duplicates, overlaps and multiple holes need no code at all. Marking
+	 * a range twice is the same as marking it once; a partial overlap marks
+	 * the union; two losses leave two runs and the slide stops at the
+	 * first.
+	 */
+	mtp_sw_set(&c->rx_wnd, e->seq, e->seq + e->payload_len);
+	{
+		uint32_t next = (uint32_t)mtp_sw_slide(&c->rx_wnd);
+
+		/*
+		 * Stored past a gap: the boundary did not move, so nothing new
+		 * is acknowledged and the window rule has nothing to
+		 * recompute. THE ACKNOWLEDGEMENT STILL GOES OUT, repeating the
+		 * same cumulative number -- that duplicate is what tells the
+		 * peer where the hole is, and suppressing it would remove the
+		 * only signal that triggers the peer's fast retransmit.
+		 */
+		if (next != c->recv_next)
+			/* §window_rule recompute point 1: payload merged in
+			 * order. Nothing else in this program writes rcv_wnd. */
+			tcp_on_payload_merged(c, next);
+	}
 
 	INSTR(g_emit[EM_ACK_DATA]++);
 	sc->ack_now = true;
@@ -1813,6 +1844,9 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 					 * the hole performs it (C) */
 
 	c->recv_next = e->seq + 1;	/* the FIN consumes one byte */
+	mtp_sw_set(&c->rx_wnd, e->seq, e->seq + 1);
+	mtp_sw_slide(&c->rx_wnd);	/* keep the window's boundary and
+					 * recv_next the same number */
 	c->fin_consumed = true;		/* ...which is not data: G14 */
 
 	INSTR(g_emit[EM_ACK_FIN]++);
@@ -1917,8 +1951,9 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
  * Each dispatch takes a fresh scratchpad: it exists for the length of one
  * chain and nothing carries across events.
  *
- * `k` is threaded through because `del_ctx` takes the flow's key and the
- * dispatch is what performed the lookup. The processors do not re-derive it.
+ * `del_ctx` takes the flow's key, and the context keeps its own copy for
+ * exactly that: a timer chain outlives the packet that created the flow and has
+ * no key to hand.
  */
 
 /*
@@ -1986,8 +2021,7 @@ parse_tcp_events(const struct tcp_ev *e, enum tcp_event_kind out[EV_KIND__N])
  *                              proc_fast_retransmit, proc_congestion, proc_ack,
  *                              gen_seg, gen_fin } */
 static bool
-dispatch_tcp_ack(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
-		 uint32_t now)
+dispatch_tcp_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	struct tcp_scratch sc = { 0 };
 
@@ -1996,7 +2030,7 @@ dispatch_tcp_ack(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
 	proc_rtt(c, e, now);
 	proc_fast_retransmit(c, e, now);
 	proc_congestion(c, e, now);
-	proc_ack(c, e, k, &sc, now);
+	proc_ack(c, e, &sc, now);
 	if (sc.ctx_dead)
 		return false;
 	tcp_gen_seg(c, now);
@@ -2006,12 +2040,11 @@ dispatch_tcp_ack(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
 
 /* generated from: tcp_data -> { proc_ack, proc_recv, send_ack } */
 static bool
-dispatch_tcp_data(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
-		  uint32_t now)
+dispatch_tcp_data(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	struct tcp_scratch sc = { 0 };
 
-	proc_ack(c, e, k, &sc, now);
+	proc_ack(c, e, &sc, now);
 	if (sc.ctx_dead)
 		return false;
 	proc_recv(c, e, &sc, now);
@@ -2021,12 +2054,11 @@ dispatch_tcp_data(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
 
 /* generated from: tcp_fin -> { proc_ack, proc_fin, send_ack } */
 static bool
-dispatch_tcp_fin(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
-		 uint32_t now)
+dispatch_tcp_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	struct tcp_scratch sc = { 0 };
 
-	proc_ack(c, e, k, &sc, now);
+	proc_ack(c, e, &sc, now);
 	if (sc.ctx_dead)
 		return false;
 	proc_fin(c, e, &sc, now);
@@ -2044,10 +2076,9 @@ dispatch_tcp_fin(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
  * until that has been read.
  */
 static bool
-dispatch_tcp_synack(struct tcp_ctx *c, const struct tcp_ev *e,
-		    const flowkey_t *k, uint32_t now)
+dispatch_tcp_synack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
-	(void)c; (void)e; (void)k; (void)now;
+	(void)c; (void)e; (void)now;
 	return true;
 }
 
@@ -2119,10 +2150,10 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 			 * the first one and by nothing here */
 			alive = true;
 			break;
-		case EV_SYNACK: alive = dispatch_tcp_synack(c, &e, &k, now_ms); break;
-		case EV_ACK:    alive = dispatch_tcp_ack(c, &e, &k, now_ms);    break;
-		case EV_DATA:   alive = dispatch_tcp_data(c, &e, &k, now_ms);   break;
-		case EV_FIN:    alive = dispatch_tcp_fin(c, &e, &k, now_ms);    break;
+		case EV_SYNACK: alive = dispatch_tcp_synack(c, &e, now_ms); break;
+		case EV_ACK:    alive = dispatch_tcp_ack(c, &e, now_ms);    break;
+		case EV_DATA:   alive = dispatch_tcp_data(c, &e, now_ms);   break;
+		case EV_FIN:    alive = dispatch_tcp_fin(c, &e, now_ms);    break;
 		default:        alive = true;                                   break;
 		}
 		if (!alive)

@@ -83,6 +83,33 @@ typedef struct flow flow_t;
  */
 #define MTP_MAX_LIVE_REFS	64	/* == the blueprint ring depth */
 
+/*
+ * `sliding_wnd` — the language's window primitive (MTP_LANG.md §B). A boundary
+ * and the ranges that have arrived above it; `slide` advances the boundary to
+ * the first gap.
+ *
+ * IT TAKES NO SLIDE DISTANCE, unlike the contract reference's generated
+ * {lo, hi} helper, which cannot express a hole and therefore cannot express
+ * reassembly. docs/events/EVENT-DATA.md §1 and docs/DIVERGENCE.md.
+ */
+#define MTP_WND_MAX_RUNS 16		/* the donor bounds its equivalent with a
+					 * pool; this is where ours is */
+struct mtp_sliding_wnd {
+	uint64_t	head;
+	struct { uint64_t lo, hi; } run[MTP_WND_MAX_RUNS];
+	unsigned	n;
+};
+
+void     mtp_sw_init(struct mtp_sliding_wnd *w, uint64_t head);
+void     mtp_sw_set(struct mtp_sliding_wnd *w, uint64_t a, uint64_t b);
+uint64_t mtp_sw_slide(struct mtp_sliding_wnd *w);
+uint64_t mtp_sw_head(const struct mtp_sliding_wnd *w);
+uint64_t mtp_sw_extent(const struct mtp_sliding_wnd *w);
+/* Ranges the window had no room to remember, since start of day. Not a
+ * correctness failure -- the peer retransmits what it refuses -- but a cliff,
+ * so it is counted rather than absorbed. */
+uint64_t mtp_sw_overflows(void);
+
 /* Power of two: the log wraps and keeps the most recent events. */
 #define MTP_REF_LOG	256	/* long enough to hold both partners of an
 				 * overlap: firing B lost one because a 32-entry
@@ -103,7 +130,17 @@ struct mtp_data_unit {
 	uint64_t	 size;		/* MTP_SIZE_INF, or a message length */
 
 	uint64_t	 head_seq;	/* first byte still held */
-	uint64_t	 tail_seq;	/* one past the last byte held */
+	uint64_t	 tail_seq;	/* one past the last byte held --
+					 * CONTIGUOUSLY, on a receive unit:
+					 * bytes stored past a gap are in the
+					 * ring and are not readable */
+
+	/*
+	 * RECEIVE UNITS ONLY: which ranges above head_seq have arrived. Its
+	 * head is tail_seq, and this is the only thing in the target that knows
+	 * a hole exists. A transmit unit leaves it zeroed.
+	 */
+	struct mtp_sliding_wnd arrived;
 
 	/* Bases of every committed-and-undrained blueprint referencing this
 	 * unit — internal.h §3. UNORDERED, and a multiset: entries may repeat,

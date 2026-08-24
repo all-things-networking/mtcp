@@ -54,6 +54,20 @@ struct tcp_ctx {
 	uint32_t rcv_base;	/* sequence of the first data byte the peer sends */
 
 	uint32_t recv_next;	/* next in-order sequence expected; the cumulative ACK */
+
+	/*
+	 * mtp/tcp.mtp: `sliding_wnd rx_wnd`. THE WINDOW TRACKS THE HOLES, which
+	 * is what the primitive is for, so the program keeps nothing beside it:
+	 * no held-run list, no out-of-order counter, no in-order branch. Mark
+	 * what arrived, slide, read the boundary back.
+	 *
+	 * The target's receive unit keeps one of its own, for the boundary the
+	 * APPLICATION may read to. The arithmetic is done twice because the two
+	 * boundaries answer different questions and the contract has no read
+	 * side by which either could ask the other -- withdrawn deliberately,
+	 * see contract.h. Two small tables per flow is the price of that.
+	 */
+	struct mtp_sliding_wnd rx_wnd;
 	uint32_t delivered;	/* what the application has taken, accumulated from
 				 * mtp_rx_flush_and_notify()'s return value */
 

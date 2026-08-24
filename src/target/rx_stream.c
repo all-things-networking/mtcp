@@ -4,12 +4,19 @@
  * Same shape as the transmit ring and the same independence: capacity is a
  * parameter, nothing here reaches infra.h, so it is testable without a NIC.
  *
- * IN-ORDER ONLY. M1 excludes out-of-order reassembly (both references have it,
- * so its absence is a parity gap and it is declared in tcp.mtp's absence
- * register). A segment that does not start at the unit's tail is REFUSED
- * rather than buffered, and the caller must not advance its receive sequence.
- * Refusing loudly is the point: silently accepting one would put a hole in the
- * delivered stream that only a content check would ever find.
+ * OUT-OF-ORDER SEGMENTS ARE STORED, at their own offset. That is the donor's
+ * shape as well as ours: mTCP calls RBPut unconditionally (tcp_in.c:645) and
+ * has no out-of-order branch in its receive path at all, because the
+ * reassembly is one level down, inside the buffer.
+ *
+ * `head_seq` is the first byte still held and `tail_seq` is one past the last
+ * CONTIGUOUSLY held byte -- the boundary the application may read to. Bytes
+ * beyond a gap are in the ring and are not readable, which is exactly the
+ * property that makes a hole invisible to everything downstream: `tail_seq`
+ * advances over the contiguous prefix only, while later segments sit stored.
+ *
+ * THE WINDOW IS WHAT KNOWS WHERE THE HOLES ARE. This file does no interval
+ * arithmetic of its own; it marks what arrived and reads back a boundary.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,6 +51,7 @@ tgt_rx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 	u->head_seq = base;
 	u->tail_seq = base;
 	u->established = base ? 1 : 0;
+	mtp_sw_init(&u->arrived, base);
 	u->buf = malloc(u->cap);
 	return u->buf ? 0 : -1;
 }
@@ -71,11 +79,26 @@ mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
 		u->head_seq = offset;
 		u->tail_seq = offset;
 		u->established = 1;
+		mtp_sw_init(&u->arrived, offset);
 	}
 
-	if (offset != u->tail_seq)
-		return -1;			/* out of order: refused */
-	if (u->tail_seq - u->head_seq + len > u->cap)
+	/*
+	 * Wholly behind the boundary: every byte has already been delivered or
+	 * is already held. Not an error and not a refusal -- a retransmission
+	 * the peer sent because our acknowledgement was lost looks exactly like
+	 * this, and it must not read as a failure to store.
+	 */
+	if ((int64_t)(offset + len - u->head_seq) <= 0)
+		return 0;
+	/* the part below the boundary is already here; keep the rest */
+	if ((int64_t)(offset - u->head_seq) < 0) {
+		uint64_t skip = u->head_seq - offset;
+
+		addr.data += skip;
+		len -= (uint32_t)skip;
+		offset = u->head_seq;
+	}
+	if (offset + len - u->head_seq > u->cap)
 		return -1;			/* would overrun the window */
 
 	at = rx_off(u, offset);
@@ -86,7 +109,14 @@ mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
 		memcpy(u->buf + at, addr.data, first);
 		memcpy(u->buf, addr.data + first, len - first);
 	}
-	u->tail_seq += len;
+	/*
+	 * Mark, then slide. The boundary lands wherever the arrivals reach --
+	 * one past this segment if it was in order, unchanged if it sits past a
+	 * gap, past several segments at once if this one filled the gap. There
+	 * is no in-order branch because there does not need to be one.
+	 */
+	mtp_sw_set(&u->arrived, offset, offset + len);
+	u->tail_seq = mtp_sw_slide(&u->arrived);
 	return (int)len;
 }
 
