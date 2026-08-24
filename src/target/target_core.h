@@ -40,6 +40,11 @@ struct transport {
 	struct flow_table	*flows;
 	struct listener_table	*listeners;
 
+	/* Reap passes that found a flow the program had finished with and the
+	 * application had not. A flow parked there for ever is a leak wearing a
+	 * queue, and nothing else reports this list's depth. */
+	uint64_t		 reap_held;
+
 	struct flow		*flow_pool;
 	struct bp		*bp_pool;
 	uint32_t		 flow_next;

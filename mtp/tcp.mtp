@@ -90,7 +90,11 @@ event tcp_data     : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
                                  addr_t hold_addr; uint32 data_len; }
 event tcp_fin      : net_event { uint32 seq, ack; uint16 window; uint32 ts_val; }
 event tcp_synack   : net_event { uint32 seq, ack; uint16 window; uint32 ts_val; }
-event tcp_timeout  : timer_event { }
+// ONE EVENT PER TIMER. No fields on any of them -- a timer identifies itself by
+// which event it raises, which is why there is no timer id anywhere.
+event tcp_rto_timeout      : timer_event { }
+event tcp_timewait_timeout : timer_event { }
+event tcp_probe_timeout    : timer_event { }
 event app_close    : app_event { }
 event app_bind     : app_event { uint32 ip; uint16 port; }
 event app_listen   : app_event { }
@@ -122,7 +126,18 @@ context tcp_ctx {
     uint32 ts_recent;                 // the peer's timestamp, echoed in ours
     uint32 rtx_count;
 
-    timer_t rto_timer -> tcp_timeout; // CR-6: expiry raises this event
+    // THREE TIMERS, THREE EVENTS. One `timer_t` per deadline, each bound at
+    // declaration to the event its expiry raises (CR-6). One declared timer and
+    // three in the C was DEFERRED.md C2: the C told them apart by comparing
+    // addresses, which is a question a program should not be answering.
+    //
+    // The donor has three lists as well -- retransmission, TIME_WAIT and
+    // connection-idle -- and parity is measured against the donor, so the count
+    // follows it rather than the paper's single ack_timeout.
+    timer_t rto_timer   -> tcp_rto_timeout;
+    timer_t tw_timer    -> tcp_timewait_timeout;
+    timer_t probe_timer -> tcp_probe_timeout;   // D-25 piece 2, the
+                                                // window-BLOCKED probe
 }
 
 // Cross-flow. ONE LISTENING ENDPOINT, which is a limitation and change 2 on
@@ -367,7 +382,9 @@ app_parser socket {
 //                             prev.seq_no + prev.payload_len]);
 //
 // §proc_fin               teardown
-// §proc_timeout           retransmission timeout, with backoff
+// §proc_rto               retransmission timeout, with backoff
+// §proc_timewait_done      the TIME_WAIT interval expired; the context goes
+// §proc_probe              the window-blocked probe fires
 //
 // (Bodies follow the paper's imperative, pointer-free form; see
 //  src/program/prog_tcp.c for the emitted C of those written so far.)
@@ -382,7 +399,9 @@ dispatch tcp_dispatch {
                      gen_seg, gen_fin };
     tcp_data    -> { proc_recv, send_ack };
     tcp_fin     -> { proc_fin, send_ack };
-    tcp_timeout -> { proc_timeout };
+    tcp_rto_timeout      -> { proc_rto };
+    tcp_timewait_timeout -> { proc_timewait_done };
+    tcp_probe_timeout    -> { proc_probe };
     app_bind    -> { sock_bind };
     app_listen  -> { sock_listen };
     app_recv    -> { sock_recv };

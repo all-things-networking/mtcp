@@ -2347,9 +2347,24 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 	}
 }
 
-/* No timers are armed until the RTO lands, so nothing reaches this yet. */
+/*----------------------------------------------------------------------------*/
 /*
- * mtp/tcp.mtp §proc_timeout — the retransmission timer fired.
+ * THE TIMER CHAINS — one timer, one event, one chain.
+ *
+ * The program declared ONE timer and the C ran THREE (DEFERRED.md C2): `rto`,
+ * `tw` and `probe` all arrived at a single handler that told them apart by
+ * comparing addresses. A timer is bound at declaration to the event its expiry
+ * raises — `timer_t rto_timer -> tcp_rto_timeout` — so the compiler emits one
+ * object and one callback per declared timer, and "which timer fired" is not a
+ * question the program should be answering at run time.
+ *
+ * `mtp_program_timer` below is the PARSER for the timer side: it maps a fired
+ * timer object to the event it raises, exactly as `parse_tcp_events` maps a
+ * segment to its events. Nothing else compares timer addresses any more.
+ */
+
+/*
+ * mtp/tcp.mtp §proc_rto — the retransmission timer fired.
  *
  * After an RTO the donor sets cwnd = MSS and ssthresh = max(cwnd/2, 2*MSS).
  * One segment leaves, and B established WHY: cwnd == MSS while a segment
@@ -2357,41 +2372,9 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
  * regardless of which constant it is compared against. It is NOT the
  * 1460-versus-1448 mismatch, which was the earlier and wrong explanation.
  */
-void
-mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
+static void
+proc_rto(struct tcp_ctx *c, uint32_t now_ms)
 {
-	struct tcp_ctx *c = t->ctx;
-
-	if (!c || c->state == TCP_CLOSED)
-		return;
-
-	/*
-	 * D-24 — TIME_WAIT expiring. Reproduces the DONOR'S GUARD, not its
-	 * timer value: even at tcp_timewait = 0 the state must be entered and
-	 * left, because skipping it does not skip a wait, it removes the place
-	 * the final acknowledgement is owed from. The acknowledgement was
-	 * committed to the target in the iteration that entered this state, so
-	 * by the time this fires it has drained and the context can go.
-	 *
-	 * NOTHING RETRANSMITS THAT ACKNOWLEDGEMENT, deliberately: the donor does
-	 * not. If it is lost the stream is already gone, the peer's retransmitted
-	 * FIN finds no flow-table entry and is answered with a bare RST, and
-	 * teardown completes on that instead. That is wire-observable when it
-	 * happens, and it is the donor's behaviour rather than an omission.
-	 */
-	if (t == &c->probe) {
-		INSTR(g_tmr[TMR_PROBE]++);
-		send_window_probe(c, now_ms);
-		return;
-	}
-	if (t == &c->tw) {
-		INSTR(g_tmr[TMR_TIMEWAIT]++);
-		c->state = TCP_CLOSED;
-		prog_unregister(c);
-		mtp_del_ctx(&c->key);
-		return;
-	}
-
 	INSTR(g_tmr[TMR_RTO]++);
 	if (++c->rtx_count > PARITY_MAX_RTX) {
 		c->state = TCP_CLOSED;		/* G11: closed at 16 */
@@ -2433,6 +2416,86 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 	if (c->fin_pending && c->send_next == c->fin_seq
 	    && fin_emit(c, now_ms, 1 /* a retransmission */))
 		c->send_next++;
+}
+
+/*
+ * mtp/tcp.mtp §proc_timewait_done — D-24, the TIME_WAIT interval expired.
+ *
+ * Reproduces the DONOR'S GUARD, not its timer value: even at tcp_timewait = 0
+ * the state must be entered and left, because skipping it does not skip a wait,
+ * it removes the place the final acknowledgement is owed from. That
+ * acknowledgement was committed to the target in the iteration that entered
+ * this state, so by the time this fires it has drained and the context can go.
+ *
+ * NOTHING RETRANSMITS THAT ACKNOWLEDGEMENT, deliberately: the donor does not.
+ * If it is lost the stream is already gone, the peer's retransmitted FIN finds
+ * no flow-table entry and is answered with a bare RST, and teardown completes
+ * on that instead. Wire-observable when it happens, and the donor's behaviour
+ * rather than an omission.
+ */
+static void
+proc_timewait_done(struct tcp_ctx *c, uint32_t now_ms)
+{
+	(void)now_ms;
+	INSTR(g_tmr[TMR_TIMEWAIT]++);
+	c->state = TCP_CLOSED;
+	prog_unregister(c);
+	mtp_del_ctx(&c->key);
+}
+
+/* mtp/tcp.mtp §proc_probe — the window-blocked probe's timer fired. */
+static void
+proc_probe(struct tcp_ctx *c, uint32_t now_ms)
+{
+	INSTR(g_tmr[TMR_PROBE]++);
+	send_window_probe(c, now_ms);
+}
+
+/* generated from: tcp_rto_timeout -> { proc_rto } */
+static void
+dispatch_tcp_rto_timeout(struct tcp_ctx *c, uint32_t now_ms)
+{
+	proc_rto(c, now_ms);
+}
+
+/* generated from: tcp_timewait_timeout -> { proc_timewait_done } */
+static void
+dispatch_tcp_timewait_timeout(struct tcp_ctx *c, uint32_t now_ms)
+{
+	proc_timewait_done(c, now_ms);
+}
+
+/* generated from: tcp_probe_timeout -> { proc_probe } */
+static void
+dispatch_tcp_probe_timeout(struct tcp_ctx *c, uint32_t now_ms)
+{
+	proc_probe(c, now_ms);
+}
+
+/*
+ * The timer-side parser: which declared timer fired, hence which event.
+ *
+ * A generated version would not compare addresses at all -- each timer object
+ * would carry its own callback, emitted from its `-> event` binding. Ours
+ * compares, because the target's timer wheel hands back the object and one
+ * program entry point. That is the one place the emitted form and the
+ * hand-written one differ here, and it is a target-interface question rather
+ * than a program one.
+ */
+void
+mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
+{
+	struct tcp_ctx *c = t->ctx;
+
+	if (!c || c->state == TCP_CLOSED)
+		return;
+
+	if (t == &c->probe)
+		dispatch_tcp_probe_timeout(c, now_ms);
+	else if (t == &c->tw)
+		dispatch_tcp_timewait_timeout(c, now_ms);
+	else
+		dispatch_tcp_rto_timeout(c, now_ms);
 }
 
 /*

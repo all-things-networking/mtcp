@@ -422,14 +422,44 @@ mtp_del_ctx(const flowkey_t *key)
 	return 0;
 }
 
-/* End of pass, no program call in flight: now it is safe. */
+/*
+ * End of pass, no program call in flight: now it is safe -- FOR A FLOW THE
+ * APPLICATION HAS LET GO OF.
+ *
+ * DESTRUCTION WAITS FOR BOTH SIDES. The program's `del_ctx` says the protocol
+ * is finished with the flow; `app_detached` says the application is. They are
+ * not the same moment and neither implies the other, so a flow whose protocol
+ * has finished first stays on the list until the application catches up. The
+ * next pass picks it up.
+ *
+ * WHY THIS WAS NOT NEEDED BEFORE, which is the whole lesson. Every del_ctx that
+ * actually reached here came from LAST_ACK -- the peer closed first, so the
+ * application had already closed and detached, and destruction after detach was
+ * a property of the ONE path that could get here. The TIME_WAIT path, where WE
+ * close first, was passing a zeroed key to del_ctx and silently destroying
+ * nothing. Fixing that key turned the second path on and it aborted on the
+ * FlowDestroy assertion within one connection.
+ *
+ * So the assertion did its job exactly as its own comment predicted: "the
+ * donor's equivalent safety is emergent -- it destroys in states only reachable
+ * after the application has closed -- and a new path into one of those states
+ * breaks it silently." The new path was ours.
+ */
 void
 tgt_sched_reap(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
-	struct flow *f;
+	struct flow *f, *next;
 
-	while ((f = TAILQ_FIRST(&t->destroy_list)) != NULL) {
+	for (f = TAILQ_FIRST(&t->destroy_list); f != NULL; f = next) {
+		next = TAILQ_NEXT(f, destroy_link);
+		if (!f->app_detached) {
+			/* Counted, because a flow that sits here for ever is a
+			 * leak wearing a queue, and it would otherwise be
+			 * invisible: nothing else reports this list's depth. */
+			t->reap_held++;
+			continue;
+		}
 		TAILQ_REMOVE(&t->destroy_list, f, destroy_link);
 		f->pending_destroy = 0;
 		FlowDestroy(core, f);
@@ -1251,6 +1281,9 @@ SchedReport(struct core_ctx *core)
 		   (unsigned long long)TransportOf(core)->release_base_mismatch);
 	TRACE_INFO("CPU %d: UNREACHABLE RINGS (ring non-empty, flow unlisted): %llu\n",
 		   ctx->cpu, (unsigned long long)TransportOf(core)->unreachable_ring);
+	TRACE_INFO("CPU %d: REAP HELD (protocol done, application still attached): "
+		   "%llu passes\n", ctx->cpu,
+		   (unsigned long long)TransportOf(core)->reap_held);
 	TRACE_INFO("CPU %d: COMMITS BELOW THE WIRE: rtx=%lu partial=%lu DEAD=%lu\n", ctx->cpu,
 		   (unsigned long)TransportOf(core)->below_wire_rtx,
 		   (unsigned long)TransportOf(core)->below_wire_new,
