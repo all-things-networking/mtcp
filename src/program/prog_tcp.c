@@ -214,6 +214,28 @@ struct tcp_ev {
 };
 
 /*
+ * mtp/tcp.mtp §scratchpad — per-dispatch working state, one instance per
+ * event, discarded when the chain ends. It is how one processor tells the next
+ * something without either of them owning it.
+ *
+ * `ctx_dead` is not in the program's declared scratchpad and is not protocol
+ * state: it is how `del_ctx` ends the chain it was issued from. The context is
+ * freed the moment that instruction runs, so every later processor in the
+ * chain would read freed memory. A target that deferred destruction to the end
+ * of the pass would not need it; ours frees immediately.
+ */
+struct tcp_scratch {
+	uint32_t	acked;		/* new bytes this acknowledgement retired */
+	uint32_t	delivered;	/* bytes the application took */
+	bool		ack_now;	/* an acknowledgement is owed */
+	bool		ctx_dead;	/* del_ctx ran: stop the chain */
+};
+
+/* Defined below, forward-declared for the acknowledgement chain. */
+static void enter_time_wait(struct tcp_ctx *c);
+static void gen_fin(struct tcp_ctx *c, uint32_t now);
+
+/*
  * Options. The prototype's parser has two defects that must not reappear here,
  * and moving parsing into the program is exactly what makes them easy to
  * re-create: its option struct is an uninitialised stack local and its
@@ -1321,9 +1343,162 @@ estimate_rtt(struct tcp_ctx *c, uint32_t now, uint32_t ts_ecr)
 }
 
 /*----------------------------------------------------------------------------*/
-/* mtp/tcp.mtp §proc_ack — an acknowledgement of our data. */
+/*
+ * THE ACKNOWLEDGEMENT CHAIN — one processor per responsibility.
+ *
+ *   tcp_ack -> { proc_timestamp, proc_open_done, proc_rtt, proc_fast_retransmit,
+ *                proc_congestion, proc_ack, gen_seg, gen_fin }
+ *
+ * docs/events/EVENT-ACK.md §1, following the paper's decomposition of the same
+ * chain. THE SPLIT IS NOT COSMETIC: it puts each mechanism where its ABSENCE is
+ * visible. `proc_fast_retransmit` is a processor with no body rather than a
+ * branch nobody wrote inside a larger one.
+ *
+ * EVERY PROCESSOR GUARDS ITSELF. The dispatch decides which chain runs, never
+ * which link of it does — so a processor reached by two events (proc_ack is
+ * reached by tcp_ack, tcp_data and tcp_fin) needs no knowledge of which one.
+ *
+ * `acked` is recomputed in each processor rather than threaded through the
+ * scratchpad, because `proc_ack` is the only writer of `send_una` and it runs
+ * last: all three read the same value.
+ */
+
+/* mtp/tcp.mtp §proc_timestamp — record the peer's echo for our own. */
 static void
-proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+proc_timestamp(struct tcp_ctx *c, const struct tcp_ev *e)
+{
+	if (!conn_exists(c) || !(e->flags & TCP_ACK))
+		return;
+	c->ts_recent = e->ts_val;
+}
+
+/*
+ * mtp/tcp.mtp §proc_rtt — update the round-trip estimate.
+ *
+ * Guarded on the acknowledgement advancing, which is why it sits ahead of
+ * proc_ack in the chain: proc_ack is what moves send_una, so this must read it
+ * first.
+ */
+static void
+proc_rtt(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+{
+	if (!conn_exists(c) || !(e->flags & TCP_ACK))
+		return;
+	if ((int32_t)(e->ack - c->send_una) <= 0)
+		return;
+	estimate_rtt(c, now, e->ts_ecr);
+}
+
+/*
+ * mtp/tcp.mtp §proc_fast_retransmit — NOT IMPLEMENTED.
+ *
+ * `fast_retransmit` on the absence register: the donor retransmits and halves
+ * its window on the THIRD duplicate acknowledgement (tcp_in.c:464) and we do
+ * nothing. A rule-1 gap — the two stacks are not running the same protocol
+ * until it lands.
+ *
+ * It is a processor with an empty body ON PURPOSE. A missing mechanism should
+ * read as a missing body, not as a branch that was never written inside
+ * proc_ack, because the second is invisible and the first is not.
+ *
+ * D-30 settles what goes here: the donor's behaviour exactly, third duplicate
+ * only, INCLUDING its refusal to attempt a send on the fourth and later. That
+ * change and the removal of our per-duplicate attempt in gen_seg's caller are
+ * one change, and the per-iteration retry list lands before both.
+ */
+static void
+proc_fast_retransmit(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+{
+	(void)c; (void)e; (void)now;
+}
+
+/*
+ * mtp/tcp.mtp §proc_congestion — the send window and the congestion window.
+ *
+ * The peer's advertised window is refreshed by EVERY acknowledgement, including
+ * one that advances nothing: a window reopening IS an acknowledgement that
+ * advances nothing.
+ */
+static void
+proc_congestion(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+{
+	uint32_t acked;
+
+	(void)now;
+	if (!conn_exists(c) || !(e->flags & TCP_ACK))
+		return;
+
+	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
+
+	acked = e->ack - c->send_una;
+	if ((int32_t)acked <= 0)
+		return;
+
+	/*
+	 * An acknowledgement past send_next, and BOTH halves of the donor's
+	 * guard — before send_una moves, which is the ordering that makes the
+	 * comparison meaningful.
+	 *
+	 * This is the NORMAL outcome of a successful recovery, not an edge
+	 * case: after a retransmission fills a hole the receiver has been
+	 * holding later data out of order, so its cumulative acknowledgement
+	 * jumps past everything we rewound send_next to.
+	 *
+	 * Both halves or neither. Taking `snd_nxt = ack_seq` alone would match
+	 * the donor's sequence numbers exactly while diverging on its
+	 * congestion trajectory — which is the observable rule 1 names, and
+	 * which the packet count and the size histogram would both pass.
+	 *
+	 * IT LIVES HERE, AHEAD OF THE GROWTH, and the pair must stay in this
+	 * order: `cwnd = ssthresh` is a reset that the growth below then builds
+	 * on. Run the growth first and a recovery would be credited twice.
+	 */
+	if ((int32_t)(e->ack - c->send_next) > 0) {
+		/*
+		 * COUNTED UNCONDITIONALLY. The trace print in proc_ack is
+		 * getenv-gated and no run has ever enabled it, so "has this
+		 * ever happened?" was unanswerable from every log we hold --
+		 * absence of the string was absence of the INSTRUMENT, not
+		 * absence of the condition.
+		 */
+		INSTR(g_rx[RXS_ACK_PAST_NEXT]++);
+		c->send_next = e->ack;
+		c->cwnd = c->ssthresh;
+	}
+
+	/*
+	 * Congestion window growth, with the donor's granularity: packets is
+	 * floor(rmlen / 1448), and B found the packets++ at tcp_in.c:519 is
+	 * unreachable dead code — so AN ACKNOWLEDGEMENT COVERING FEWER THAN
+	 * 1448 NEW BYTES GROWS THE WINDOW BY NOTHING AT ALL. Reproduced; the
+	 * inventory's "rounded up" was corrected to this.
+	 *
+	 * ssthresh is 0 on a passive open (D-01), so cwnd < ssthresh is false
+	 * from the first acknowledgement and this is always congestion
+	 * avoidance. The server has no slow start. Reproduce, do not correct.
+	 */
+	{
+		uint32_t packets = acked / PARITY_MSS_PAYLOAD;
+
+		if (packets && c->cwnd >= c->ssthresh)
+			c->cwnd += (PARITY_MSS_ADVERTISED * PARITY_MSS_ADVERTISED)
+				   / c->cwnd * packets;
+		else if (packets)
+			c->cwnd += PARITY_MSS_ADVERTISED * packets;
+	}
+}
+
+/*
+ * mtp/tcp.mtp §proc_ack — retire the acknowledged bytes.
+ *
+ * It no longer calls the generator. `gen_seg` follows it in every chain that
+ * can send, so the duplicate case that used to call `tcp_gen_seg` inline
+ * simply returns and the dispatch runs it — DEFERRED.md D2, one of the two
+ * places the dispatch was hand-inlined.
+ */
+static void
+proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
+	 struct tcp_scratch *sc, uint32_t now)
 {
 	uint32_t acked;
 
@@ -1333,20 +1508,54 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		return;
 	}
 
-	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
-	c->ts_recent = e->ts_val;
+	/*
+	 * THE ACKNOWLEDGEMENT OF OUR OWN FIN, which consumes sequence space and
+	 * so is this processor's to retire. It sits ahead of the duplicate test
+	 * because a retransmitted acknowledgement of our FIN advances nothing
+	 * and must still complete the teardown.
+	 *
+	 * Reached from the tcp_fin chain as well, where proc_ack runs BEFORE
+	 * proc_fin: a segment carrying both the peer's FIN and the
+	 * acknowledgement of ours takes FIN_WAIT_1 -> FIN_WAIT_2 here and then
+	 * FIN_WAIT_2 -> TIME_WAIT in proc_fin. That is DESIGN-CLOSE.md §4's
+	 * "peer FIN and ack of ours -> TIME_WAIT" row, reached by the other of
+	 * its two routes; the CLOSING route is still live for the ordering
+	 * where the peer's FIN arrives first.
+	 */
+	if (e->ack == c->send_next) {
+		if (c->state == TCP_LAST_ACK) {
+			c->state = TCP_CLOSED;
+			prog_unregister(c);
+			mtp_del_ctx(k);
+			/*
+			 * THE CONTEXT IS GONE. Every processor after this one
+			 * in the chain would run against freed memory, so the
+			 * dispatch stops here. `del_ctx` ends the chain it is
+			 * issued from; nothing else in this program ends a
+			 * chain early.
+			 */
+			sc->ctx_dead = true;
+			return;
+		}
+		if (c->state == TCP_FIN_WAIT_1)
+			c->state = TCP_FIN_WAIT_2;
+		else if (c->state == TCP_CLOSING)
+			enter_time_wait(c);
+	}
 
 	acked = e->ack - c->send_una;
 	if ((int32_t)acked <= 0) {
 		INSTR(g_rx[RXS_ACK_DUP]++);
 		/*
-		 * ADVANCES NOTHING, BUT IT IS STILL AN EVENT. The window above
-		 * has just been refreshed from this segment, and a peer whose
-		 * window reopens tells us with exactly this: ack == send_una,
-		 * a larger window, no new data acknowledged. Returning here
-		 * used the segment and then discarded it, so we learned the
-		 * window had reopened and never acted on it, and the flow
-		 * stalled with data buffered and a window that was open.
+		 * ADVANCES NOTHING, BUT IT IS STILL AN EVENT. proc_congestion
+		 * has just refreshed the window from this segment, and a peer
+		 * whose window reopens tells us with exactly this: ack ==
+		 * send_una, a larger window, no new data acknowledged.
+		 *
+		 * D-25: the send attempt that acts on it is `gen_seg`, next in
+		 * the chain. It used to be called from here, which was the
+		 * dispatch hand-inlined; the behaviour is unchanged and the
+		 * shape is not.
 		 *
 		 * CORRECTED 2026-08-18. This used to say the donor "puts the
 		 * stream on the send list and re-runs the flush every
@@ -1355,24 +1564,16 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		 * withdrawn that: THE SEND LIST IS DRAINED, NOT PERSISTENT --
 		 * cleared at tcp_out.c:806 with explicit removals at three
 		 * further sites. A stream flushed once is off the list, and a
-		 * later attempt needs a fresh AddtoSendList. The equivalence
-		 * holds only where a branch explicitly re-adds.
+		 * later attempt needs a fresh AddtoSendList.
 		 *
-		 * So the justification for generating here is D-25 -- without
-		 * it a reopened window is learned and never acted on, and the
-		 * flow stalls with data buffered -- and NOT an equivalence with
-		 * the donor. Whether the donor attempts a send on a duplicate
-		 * beyond the third is a parity question still open with B; its
-		 * dup_acks == 3 branch does re-add at tcp_in.c:464. Recorded
-		 * for the tcp_ack document, not acted on here.
-		 *
-		 * This still needs no new entry point and the contract's three
-		 * keep their monopoly (D-15/D-16).
+		 * So attempting here is D-25, not an equivalence with the
+		 * donor -- and D-30 rules that it goes away once the
+		 * per-iteration retry list can take over the recovery.
 		 */
-		tcp_gen_seg(c, now);
 		return;
 	}
 	INSTR(g_rx[RXS_ACK_ADVANCED]++);
+	sc->acked = acked;
 	if (c->in_rtx)
 		INSTR(g_bytes_rtx += acked);
 	else
@@ -1451,36 +1652,7 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 			(int32_t)(c->send_next - e->ack) < 0
 			? "  <<< ack PAST send_next" : "");
 
-	/*
-	 * An acknowledgement past send_next, and BOTH halves of the donor's
-	 * guard — before send_una moves, which is the ordering that makes the
-	 * comparison meaningful.
-	 *
-	 * This is the NORMAL outcome of a successful recovery, not an edge
-	 * case: after a retransmission fills a hole the receiver has been
-	 * holding later data out of order, so its cumulative acknowledgement
-	 * jumps past everything we rewound send_next to.
-	 *
-	 * Both halves or neither. Taking `snd_nxt = ack_seq` alone would match
-	 * the donor's sequence numbers exactly while diverging on its
-	 * congestion trajectory — which is the observable rule 1 names, and
-	 * which the packet count and the size histogram would both pass.
-	 */
-	if ((int32_t)(e->ack - c->send_next) > 0) {
-		/*
-		 * COUNTED UNCONDITIONALLY. The print above is getenv-gated and
-		 * no run has ever enabled it, so "has this ever happened?" was
-		 * unanswerable from every log we hold -- absence of the string
-		 * was absence of the INSTRUMENT, not absence of the condition.
-		 * A counter costs an increment on a path already taken.
-		 */
-		INSTR(g_rx[RXS_ACK_PAST_NEXT]++);
-		c->send_next = e->ack;
-		c->cwnd = c->ssthresh;
-	}
-
 	c->send_una = e->ack;
-	estimate_rtt(c, now, e->ts_ecr);
 	mtp_tx_flush_and_notify(&c->tx, acked);
 
 	/* progress: cancel, and reset the backoff. Re-armed below if anything
@@ -1489,43 +1661,19 @@ proc_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	mtp_timer_stop(&c->rto);
 	if (unacked_on_wire(c))
 		arm_rto(c);
-
-	/*
-	 * Congestion window growth, with the donor's granularity: packets is
-	 * floor(rmlen / 1448), and B found the packets++ at tcp_in.c:519 is
-	 * unreachable dead code — so AN ACKNOWLEDGEMENT COVERING FEWER THAN
-	 * 1448 NEW BYTES GROWS THE WINDOW BY NOTHING AT ALL. Reproduced; the
-	 * inventory's "rounded up" was corrected to this.
-	 *
-	 * ssthresh is 0 on a passive open (D-01), so cwnd < ssthresh is false
-	 * from the first acknowledgement and this is always congestion
-	 * avoidance. The server has no slow start. Reproduce, do not correct.
-	 */
-	{
-		uint32_t packets = acked / PARITY_MSS_PAYLOAD;
-
-		if (packets && c->cwnd >= c->ssthresh)
-			c->cwnd += (PARITY_MSS_ADVERTISED * PARITY_MSS_ADVERTISED)
-				   / c->cwnd * packets;
-		else if (packets)
-			c->cwnd += PARITY_MSS_ADVERTISED * packets;
-	}
-
-	tcp_gen_seg(c, now);
 }
 
-/* mtp/tcp.mtp §proc_recv and §send_ack — in-order payload, then acknowledge. */
+/* mtp/tcp.mtp §proc_recv — in-order payload. The acknowledgement it owes is
+ * `send_ack`'s, next in the chain. */
 static void
-proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
+	  uint32_t now)
 {
+	(void)now;
 	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "PROCRECV state=%u seq=%u recv_next=%u paylen=%u "
 			"flags=0x%x\n", c->state, e->seq, c->recv_next,
 			e->payload_len, e->flags);
-	uint8_t hdr[PROG_HDR_MAX];
-	struct mtp_tx_payload none = { 0 };
-	uint16_t hdr_len;
-
 	/*
 	 * The data-acknowledgement path, silenced permanently once a FIN has
 	 * been accepted (D-20). One state test that says what it means, which
@@ -1552,13 +1700,8 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * legitimately arrives there.
 	 */
 	if (e->seq + 1 == c->recv_next) {
-		uint8_t phdr[PROG_HDR_MAX];
-		struct mtp_tx_payload none = { 0 };
-		uint16_t plen = tcp_build_header(phdr, c, c->send_next, TCP_ACK,
-						 now, c->ts_recent);
-
 		INSTR(g_emit[EM_PROBE_REPLY]++);
-		mtp_pkt_gen(c->f, phdr, plen, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */);
+		sc->ack_now = true;
 		return;
 	}
 
@@ -1590,10 +1733,36 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * else in this program may write rcv_wnd. */
 	tcp_on_payload_merged(c, c->recv_next + e->payload_len);
 
+	INSTR(g_emit[EM_ACK_DATA]++);
+	sc->ack_now = true;
+}
+
+/*
+ * mtp/tcp.mtp §send_ack — emit the acknowledgement the chain decided it owed.
+ *
+ * IT RE-TESTS NOTHING. Every guard that decides whether an acknowledgement is
+ * due — recv_side_open, the in-order test, the FIN's ordering — lives at the
+ * decision site, and this only acts on `sc.ack_now`. That is what makes it safe
+ * to run after proc_fin's state transition: the old code had to build the FIN's
+ * acknowledgement BEFORE the transition, because the guard that silences the
+ * data path would otherwise have silenced it too. With the decision separated
+ * from the emission, the ordering hazard is gone rather than commented.
+ */
+static void
+send_ack(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
+	 uint32_t now)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	struct mtp_tx_payload none = { 0 };
+	uint16_t hdr_len;
+
+	(void)e;
+	if (!sc->ack_now)
+		return;
 	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
 				   c->ts_recent);
-	INSTR(g_emit[EM_ACK_DATA]++);
-	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */);
+	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1,
+		    0 /* not a retransmission */);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1630,12 +1799,10 @@ enter_time_wait(struct tcp_ctx *c)
  * too.
  */
 static void
-proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
+	 uint32_t now)
 {
-	uint8_t hdr[PROG_HDR_MAX];
-	struct mtp_tx_payload none = { 0 };
-	uint16_t hdr_len;
-
+	(void)now;
 	if (!(e->flags & TCP_FIN))
 		return;
 	if (!recv_side_open(c))
@@ -1648,11 +1815,10 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	c->recv_next = e->seq + 1;	/* the FIN consumes one byte */
 	c->fin_consumed = true;		/* ...which is not data: G14 */
 
-	/* built before the transition, deliberately */
-	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
-				   c->ts_recent);
 	INSTR(g_emit[EM_ACK_FIN]++);
-	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */);
+	sc->ack_now = true;		/* send_ack emits it, after the transition
+					 * below; see send_ack on why that is now
+					 * safe */
 
 	/*
 	 * DESIGN-CLOSE.md §4. Where the peer's FIN takes us depends on whether
@@ -1740,18 +1906,165 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
 
 /*----------------------------------------------------------------------------*/
 /*
- * The generated dispatch: a static switch on event type calling the processors
- * directly, not a runtime table. One flow-table lookup per packet — two on a
- * passive open, where the flow lookup misses and the listener table is
- * consulted, which is once per connection rather than once per packet.
+ * THE DISPATCH — one function per event, which is what a compiler emits from
+ * `dispatch tcp_dispatch { ... }`. DEFERRED.md D1.
+ *
+ * What it replaces: `mtp_program_net_input` ran proc_open_done, proc_ack,
+ * proc_recv, proc_fin and gen_fin on EVERY packet and let each guard itself.
+ * That produced correct behaviour and was not the emitted form of the dispatch
+ * table — it is why proc_recv ran on a pure acknowledgement.
+ *
+ * Each dispatch takes a fresh scratchpad: it exists for the length of one
+ * chain and nothing carries across events.
+ *
+ * `k` is threaded through because `del_ctx` takes the flow's key and the
+ * dispatch is what performed the lookup. The processors do not re-derive it.
+ */
+
+/*
+ * mtp/tcp.mtp §net_parser — which events this segment raises.
+ *
+ * INCLUSIVE, AND THAT IS THE DONOR'S SHAPE, not a convenience. mTCP's
+ * Handle_TCP_ST_ESTABLISHED (tcp_in.c) runs three independent tests on one
+ * packet —
+ *
+ *      if (payloadlen > 0) { ProcessTCPPayload(...) }
+ *      if (tcph->ack)      { ProcessACK(...) }
+ *      if (tcph->fin)      { ... }
+ *
+ * — so a segment carrying payload, an acknowledgement and a FIN does all three
+ * jobs there. An exclusive classification, one event per segment, would drop
+ * the payload of a FIN that carries data and would fail to establish a
+ * connection whose handshake-completing acknowledgement carries the request.
+ * Neither is a design choice we are entitled to make: rule 1 says the two
+ * stacks put the same thing on the wire.
+ *
+ * ORDER: acknowledgement before payload, which is the reverse of the donor's
+ * internal order and is not observable — the donor defers both its
+ * acknowledgement and its send to the end of the pass, so nothing it emits
+ * depends on which ran first. Ours is ordered this way because proc_congestion
+ * lives in the tcp_ack chain and reads `ack - send_una`: let tcp_data's
+ * proc_ack retire the bytes first and the congestion window would see nothing
+ * newly acknowledged and stop growing.
+ *
+ * CONSEQUENCE, stated because it is easy to miss: `proc_ack` runs once per
+ * raised event, so a data segment calls it twice. The second call finds
+ * `acked == 0`, takes the duplicate branch and returns; the FIN-retirement
+ * block ahead of it is idempotent. The only trace is one extra RXS_ACK_DUP.
+ */
+enum tcp_event_kind {
+	EV_SYN,
+	EV_SYNACK,
+	EV_ACK,
+	EV_DATA,
+	EV_FIN,
+	EV_KIND__N
+};
+
+static unsigned
+parse_tcp_events(const struct tcp_ev *e, enum tcp_event_kind out[EV_KIND__N])
+{
+	unsigned n = 0;
+
+	if (e->flags & TCP_SYN) {
+		/* A handshake segment raises one event and nothing else: no
+		 * payload of ours is in sequence yet, and the acknowledgement
+		 * it may carry is the handshake's own. */
+		out[n++] = (e->flags & TCP_ACK) ? EV_SYNACK : EV_SYN;
+		return n;
+	}
+	if (e->flags & TCP_ACK)
+		out[n++] = EV_ACK;
+	if (e->payload_len)
+		out[n++] = EV_DATA;
+	if (e->flags & TCP_FIN)
+		out[n++] = EV_FIN;
+	return n;
+}
+
+/* generated from: tcp_ack -> { proc_timestamp, proc_open_done, proc_rtt,
+ *                              proc_fast_retransmit, proc_congestion, proc_ack,
+ *                              gen_seg, gen_fin } */
+static bool
+dispatch_tcp_ack(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
+		 uint32_t now)
+{
+	struct tcp_scratch sc = { 0 };
+
+	proc_timestamp(c, e);
+	proc_open_done(c, e, now);
+	proc_rtt(c, e, now);
+	proc_fast_retransmit(c, e, now);
+	proc_congestion(c, e, now);
+	proc_ack(c, e, k, &sc, now);
+	if (sc.ctx_dead)
+		return false;
+	tcp_gen_seg(c, now);
+	gen_fin(c, now);
+	return true;
+}
+
+/* generated from: tcp_data -> { proc_ack, proc_recv, send_ack } */
+static bool
+dispatch_tcp_data(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
+		  uint32_t now)
+{
+	struct tcp_scratch sc = { 0 };
+
+	proc_ack(c, e, k, &sc, now);
+	if (sc.ctx_dead)
+		return false;
+	proc_recv(c, e, &sc, now);
+	send_ack(c, e, &sc, now);
+	return true;
+}
+
+/* generated from: tcp_fin -> { proc_ack, proc_fin, send_ack } */
+static bool
+dispatch_tcp_fin(struct tcp_ctx *c, const struct tcp_ev *e, const flowkey_t *k,
+		 uint32_t now)
+{
+	struct tcp_scratch sc = { 0 };
+
+	proc_ack(c, e, k, &sc, now);
+	if (sc.ctx_dead)
+		return false;
+	proc_fin(c, e, &sc, now);
+	send_ack(c, e, &sc, now);
+	return true;
+}
+
+/*
+ * mtp/tcp.mtp §proc_synack — NOT IMPLEMENTED.
+ *
+ * `active_open` on the absence register. Nothing we run opens a connection, so
+ * a SYN-ACK reaching us is a segment for a connection we did not initiate.
+ * DEFERRED.md C7 and E1: the donor's active-open path is unread, and
+ * EVENT-SYNACK.md §3.2 is checked against the paper alone. It is not written to
+ * until that has been read.
+ */
+static bool
+dispatch_tcp_synack(struct tcp_ctx *c, const struct tcp_ev *e,
+		    const flowkey_t *k, uint32_t now)
+{
+	(void)c; (void)e; (void)k; (void)now;
+	return true;
+}
+
+/*
+ * The parse, the lookup, and the chain per event. ONE flow-table lookup per
+ * packet — two on a passive open, where the flow lookup misses and the listener
+ * table is consulted, which is once per connection rather than once per packet.
  */
 int
 mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		      uint32_t now_ms)
 {
+	enum tcp_event_kind evs[EV_KIND__N];
 	struct tcp_ev e;
 	struct tcp_ctx *c;
 	flowkey_t k;
+	unsigned n, i;
 
 	if (parse_packet(l4, len, &e) < 0)
 		return -1;
@@ -1778,6 +2091,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		c->rcv_wnd = PARITY_INITIAL_WINDOW;
 		c->loc_port = e.dport;
 		c->rem_port = e.sport;
+		/* generated from: tcp_syn -> { proc_passive_open } */
 		proc_passive_open(c, &e, now_ms);
 		return 0;
 	}
@@ -1793,29 +2107,26 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	 */
 	if (e.flags & TCP_RST)
 		INSTR(g_rx[RXS_RST]++);
-	proc_open_done(c, &e, now_ms);
-	proc_ack(c, &e, now_ms);
-	proc_recv(c, &e, now_ms);
-	proc_fin(c, &e, now_ms);
-	gen_fin(c, now_ms);
 
-	/*
-	 * The acknowledgement of OUR FIN. Runs after proc_fin, so a packet
-	 * carrying both the peer's FIN and the acknowledgement of ours takes
-	 * FIN_WAIT_1 -> CLOSING here and then CLOSING -> TIME_WAIT, which is
-	 * DESIGN-CLOSE.md §4's "peer FIN and ack of ours -> TIME_WAIT" row
-	 * without needing a row of its own.
-	 */
-	if ((e.flags & TCP_ACK) && e.ack == c->send_next) {
-		if (c->state == TCP_LAST_ACK) {
-			c->state = TCP_CLOSED;
-			prog_unregister(c);
-			mtp_del_ctx(&k);
-		} else if (c->state == TCP_FIN_WAIT_1) {
-			c->state = TCP_FIN_WAIT_2;
-		} else if (c->state == TCP_CLOSING) {
-			enter_time_wait(c);
+	n = parse_tcp_events(&e, evs);
+	for (i = 0; i < n; i++) {
+		bool alive;
+
+		switch (evs[i]) {
+		case EV_SYN:
+			/* a SYN for a context that already exists: a
+			 * retransmitted SYN, handled by the passive open on
+			 * the first one and by nothing here */
+			alive = true;
+			break;
+		case EV_SYNACK: alive = dispatch_tcp_synack(c, &e, &k, now_ms); break;
+		case EV_ACK:    alive = dispatch_tcp_ack(c, &e, &k, now_ms);    break;
+		case EV_DATA:   alive = dispatch_tcp_data(c, &e, &k, now_ms);   break;
+		case EV_FIN:    alive = dispatch_tcp_fin(c, &e, &k, now_ms);    break;
+		default:        alive = true;                                   break;
 		}
+		if (!alive)
+			return 0;	/* del_ctx ran: the context is gone */
 	}
 
 	/*
@@ -1830,6 +2141,34 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	 * written here rather than left to be noticed.
 	 */
 	return 0;
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * mtp/tcp.mtp §mark_closed — the application has no more to send.
+ *
+ * Split out of the close handler so that `app_close -> { mark_closed, gen_fin }`
+ * is a chain the dispatch runs, not a processor calling a generator. That
+ * direct call was the second of DEFERRED.md D2's two hand-inlined dispatches;
+ * the first was proc_ack's call to the generator.
+ */
+static void
+mark_closed(struct tcp_ctx *c, uint32_t now)
+{
+	(void)now;
+	c->app_closed = true;
+}
+
+/* generated from: app_close -> { mark_closed, gen_fin } */
+static void
+dispatch_app_close(struct tcp_ctx *c, uint32_t now)
+{
+	mark_closed(c, now);
+	/*
+	 * Attempted immediately, because the peer may already have finished and
+	 * no further packet will arrive to run a chain that contains gen_fin.
+	 */
+	gen_fin(c, now);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1877,8 +2216,7 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 		c = (struct tcp_ctx *)mtp_ctx_of(op->flow);
 		if (!c)
 			return -1;
-		c->app_closed = true;
-		gen_fin(c, now_ms);
+		dispatch_app_close(c, now_ms);
 		return 0;
 	}
 	case MTP_APP_RECV: {

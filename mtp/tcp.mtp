@@ -89,7 +89,9 @@ event tcp_ack      : net_event { uint32 seq, ack; uint16 window; uint32 ts_val; 
 event tcp_data     : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
                                  addr_t hold_addr; uint32 data_len; }
 event tcp_fin      : net_event { uint32 seq, ack; uint16 window; uint32 ts_val; }
+event tcp_synack   : net_event { uint32 seq, ack; uint16 window; uint32 ts_val; }
 event tcp_timeout  : timer_event { }
+event app_close    : app_event { }
 event app_bind     : app_event { uint32 ip; uint16 port; }
 event app_listen   : app_event { }
 event app_recv     : app_event { uint32 delivered; }
@@ -157,6 +159,46 @@ opt_list tcp_options { ... }
 //
 // The call site is in §gen_seg.
 
+// §net_parser
+// ---------------------------------------------------------------------------
+// parse_tcp : a segment -> the list of events it raises.
+//
+// INCLUSIVE, and that is the donor's shape rather than a convenience. mTCP's
+// Handle_TCP_ST_ESTABLISHED runs three independent tests on one packet --
+// payload, then acknowledgement, then FIN -- so a segment carrying all three
+// does all three jobs there. One event per segment would drop the payload of a
+// FIN that carries data, and would fail to establish a connection whose
+// handshake-completing acknowledgement carries the request.
+//
+//   SYN, no ACK           -> tcp_syn        (alone: nothing else is in sequence)
+//   SYN + ACK             -> tcp_synack     (alone, likewise)
+//   ACK                   -> tcp_ack
+//   payload               -> tcp_data
+//   FIN                   -> tcp_fin
+//
+// The last three compose. ORDER IS acknowledgement, payload, FIN -- the reverse
+// of the donor's internal order, which is not observable because it defers both
+// its acknowledgement and its send to the end of the pass. Ours is ordered this
+// way because §proc_congestion is in the tcp_ack chain and reads
+// `ack - send_una`: let tcp_data's §proc_ack retire the bytes first and the
+// congestion window sees nothing newly acknowledged and stops growing.
+//
+// §proc_ack therefore runs once per raised event. The second call finds nothing
+// newly acknowledged and returns; the FIN-retirement ahead of it is idempotent.
+
+// §scratchpad
+// ---------------------------------------------------------------------------
+// Per-dispatch working state: one instance per event, discarded when the chain
+// ends. How one processor tells the next something without either owning it.
+//
+//     scratchpad_t tcp_scratch { uint32 acked, delivered; bool ack_now; }
+//
+// The emitted C carries one field the program does not declare, `ctx_dead`, and
+// it is not protocol state: it is how `del_ctx` ends the chain it was issued
+// from. Our target frees the context immediately, so every later processor in
+// the chain would read freed memory. A target that deferred destruction to the
+// end of the pass would not need it.
+
 // §app_parser
 // ---------------------------------------------------------------------------
 // CR-7. The target defines the op schema (docs/DESIGN.md §17.1) and this
@@ -220,8 +262,27 @@ app_parser socket {
 // The sequence is 14600 unscaled on the SYN, then 14592, then 2048.
 
 // §coalesce               what a merged packet keeps (see §blueprint)
-// §proc_ack               an acknowledgement of our data: window, congestion,
-//                         and the guard for an ack past send_next
+//
+//   THE ACKNOWLEDGEMENT CHAIN, one responsibility per processor, following the
+//   paper's decomposition of the same chain. The split is not cosmetic: it puts
+//   each mechanism where its ABSENCE is visible, so a mechanism we do not have
+//   is a processor with an empty body rather than a branch nobody wrote inside
+//   a larger one.
+//
+// §proc_timestamp         record the peer's timestamp for our echo
+// §proc_rtt               the round-trip estimate; guarded on the
+//                         acknowledgement advancing, so it reads send_una
+//                         before §proc_ack moves it
+// §proc_fast_retransmit   NOT IMPLEMENTED -- see §absence_register. An empty
+//                         body on purpose
+// §proc_congestion        the peer's window, refreshed by every
+//                         acknowledgement including one that advances nothing;
+//                         then the congestion window, and the guard for an ack
+//                         past send_next
+// §proc_ack               retire the acknowledged bytes, and our own FIN, which
+//                         consumes sequence space
+// §proc_synack            NOT IMPLEMENTED -- active open, see §absence_register
+// §mark_closed            the application has no more to send
 // §gen_fin                our FIN, gated on send_next == write_end (G10)
 // §proc_passive_open      a SYN with no context, and a listener that matches
 // §proc_open_done         the acknowledgement that completes a passive open
@@ -308,15 +369,29 @@ app_parser socket {
 // ---------------------------------------------------------------------------
 dispatch tcp_dispatch {
     tcp_syn     -> { proc_passive_open };
-    tcp_ack     -> { proc_open_done, proc_ack, gen_seg };
-    tcp_data    -> { proc_recv, send_ack };
-    tcp_fin     -> { proc_fin };
+    tcp_synack  -> { proc_synack };
+    tcp_ack     -> { proc_timestamp, proc_open_done, proc_rtt,
+                     proc_fast_retransmit, proc_congestion, proc_ack,
+                     gen_seg, gen_fin };
+    tcp_data    -> { proc_ack, proc_recv, send_ack };
+    tcp_fin     -> { proc_ack, proc_fin, send_ack };
     tcp_timeout -> { proc_timeout };
     app_bind    -> { sock_bind };
     app_listen  -> { sock_listen };
     app_recv    -> { sock_recv };
     app_send    -> { record_data, gen_seg };
+    app_close   -> { mark_closed, gen_fin };
 }
+
+// proc_ack heads the tcp_data and tcp_fin chains because a data segment and a
+// FIN both acknowledge -- the same processor reached by three events, which is
+// the point of separating processors from events.
+//
+// gen_fin appears only where it can act. It waits on send_next == write_end,
+// and send_next only advances when gen_seg runs, so it follows gen_seg plus the
+// close chain that starts it. It is NOT in tcp_data or tcp_fin, which generate
+// nothing, and not in app_send, since an application that has closed may not
+// send.
 
 // §absence_register
 // ---------------------------------------------------------------------------

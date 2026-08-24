@@ -19,12 +19,23 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
 BASELINE=tools/statics.baseline
 
+# NO LINE NUMBERS, deliberately. The sweep used to carry them, which made the
+# gate fire on every edit that moved a line -- so it reported drift on a clean
+# tree and its output was 40 lines of noise around the one entry that mattered.
+# A gate nobody can read is a gate nobody runs. What it is actually asserting is
+# that THE SET has not changed, so the key is (file, declaration) and the count
+# is how many identical declarations that file holds.
 sweep() {
-  grep -rnE '^[[:space:]]*static ' --include=*.c src/target src/program apps \
+  grep -rE '^[[:space:]]*static ' --include=*.c src/target src/program apps \
     | grep -v 'static const' \
     | grep -vE '\('                       `# skip function definitions` \
     | sed -E 's/[[:space:]]+/ /g; s/ = .*/;/' \
-    | sort
+    | grep -E ';$|\{$'                    `# ...including the kernel style, \
+                                            where the return type is on a line \
+                                            of its own and so has no paren to \
+                                            skip on. A real declaration ends in \
+                                            ';', an anonymous aggregate in '{'` \
+    | sort | uniq -c | sed -E 's/^ *//'
 }
 
 cur=$(sweep)
