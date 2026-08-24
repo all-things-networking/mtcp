@@ -380,8 +380,8 @@ dispatch tcp_dispatch {
     tcp_ack     -> { proc_timestamp, proc_open_done, proc_rtt,
                      proc_fast_retransmit, proc_congestion, proc_ack,
                      gen_seg, gen_fin };
-    tcp_data    -> { proc_ack, proc_recv, send_ack };
-    tcp_fin     -> { proc_ack, proc_fin, send_ack };
+    tcp_data    -> { proc_recv, send_ack };
+    tcp_fin     -> { proc_fin, send_ack };
     tcp_timeout -> { proc_timeout };
     app_bind    -> { sock_bind };
     app_listen  -> { sock_listen };
@@ -390,9 +390,13 @@ dispatch tcp_dispatch {
     app_close   -> { mark_closed, gen_fin };
 }
 
-// proc_ack heads the tcp_data and tcp_fin chains because a data segment and a
-// FIN both acknowledge -- the same processor reached by three events, which is
-// the point of separating processors from events.
+// THE CHAINS DO NOT OVERLAP. proc_ack is in the tcp_ack chain and in no other,
+// so no processor runs twice for one segment. It headed tcp_data and tcp_fin as
+// well while the classification was EXCLUSIVE -- one event per segment, so a
+// data segment needed its own way to retire the acknowledgement. Under the
+// inclusive classification in §net_parser that is a repeat which buys nothing:
+// the only segment raising tcp_data or tcp_fin without also raising tcp_ack is
+// one with no ACK flag, and proc_ack's first guard refuses that anyway.
 //
 // gen_fin appears only where it can act. It waits on send_next == write_end,
 // and send_next only advances when gen_seg runs, so it follows gen_seg plus the

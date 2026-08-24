@@ -1833,18 +1833,38 @@ static void
 proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 	 uint32_t now)
 {
+	uint32_t fin_seq;
+
 	(void)now;
 	if (!(e->flags & TCP_FIN))
 		return;
 	if (!recv_side_open(c))
 		return;
-	if (e->seq != c->recv_next)
-		return;			/* a FIN ahead of a gap does not
-					 * transition; the segment that fills
-					 * the hole performs it (C) */
+	/*
+	 * THE FIN'S SEQUENCE IS PAST ITS OWN PAYLOAD, which is the donor's test
+	 * verbatim: `if (seq + payloadlen == cur_stream->rcv_nxt)`, tcp_in.c,
+	 * under its own comment "FIN packet is allowed to push payload". Testing
+	 * e->seq alone refuses a data-carrying FIN as out of order and the
+	 * connection never tears down.
+	 *
+	 * proc_recv has already run for this segment -- the parser raises
+	 * tcp_data before tcp_fin -- so recv_next is past the payload by now if
+	 * the payload was in order.
+	 */
+	fin_seq = e->seq + e->payload_len;
+	if (fin_seq != c->recv_next) {
+		/*
+		 * A FIN ahead of a gap does not transition; the segment that
+		 * fills the hole performs it. It is still ACKNOWLEDGED, which
+		 * is the donor's else branch (EnqueueACK with ACK_OPT_NOW) --
+		 * without it the peer learns nothing and retransmits blind.
+		 */
+		sc->ack_now = true;
+		return;
+	}
 
-	c->recv_next = e->seq + 1;	/* the FIN consumes one byte */
-	mtp_sw_set(&c->rx_wnd, e->seq, e->seq + 1);
+	c->recv_next = fin_seq + 1;	/* the FIN consumes one byte */
+	mtp_sw_set(&c->rx_wnd, fin_seq, fin_seq + 1);
 	mtp_sw_slide(&c->rx_wnd);	/* keep the window's boundary and
 					 * recv_next the same number */
 	c->fin_consumed = true;		/* ...which is not data: G14 */
@@ -1982,10 +2002,18 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
  * proc_ack retire the bytes first and the congestion window would see nothing
  * newly acknowledged and stop growing.
  *
- * CONSEQUENCE, stated because it is easy to miss: `proc_ack` runs once per
- * raised event, so a data segment calls it twice. The second call finds
- * `acked == 0`, takes the duplicate branch and returns; the FIN-retirement
- * block ahead of it is idempotent. The only trace is one extra RXS_ACK_DUP.
+ * THE CHAINS DO NOT OVERLAP. `proc_ack` is in the tcp_ack chain and in no
+ * other, so no processor runs twice for one segment. The dispatch table as
+ * first written had it heading tcp_data and tcp_fin as well -- correct under an
+ * exclusive classification, where a data segment raises tcp_data and nothing
+ * else and so needs its own way to retire the acknowledgement. Under an
+ * inclusive one that is a repeat, and the repeat buys nothing: proc_ack's first
+ * guard is `!(flags & ACK) -> return`, and the only segment that raises
+ * tcp_data or tcp_fin WITHOUT raising tcp_ack is one with no ACK flag, where
+ * proc_ack would return on that guard anyway.
+ *
+ * So each chain does its own job and the acknowledgement is done once, by the
+ * event that means "this segment acknowledges". Lead's call, 2026-08-24.
  */
 enum tcp_event_kind {
 	EV_SYN,
@@ -2038,29 +2066,23 @@ dispatch_tcp_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	return true;
 }
 
-/* generated from: tcp_data -> { proc_ack, proc_recv, send_ack } */
+/* generated from: tcp_data -> { proc_recv, send_ack } */
 static bool
 dispatch_tcp_data(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	struct tcp_scratch sc = { 0 };
 
-	proc_ack(c, e, &sc, now);
-	if (sc.ctx_dead)
-		return false;
 	proc_recv(c, e, &sc, now);
 	send_ack(c, e, &sc, now);
 	return true;
 }
 
-/* generated from: tcp_fin -> { proc_ack, proc_fin, send_ack } */
+/* generated from: tcp_fin -> { proc_fin, send_ack } */
 static bool
 dispatch_tcp_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
 	struct tcp_scratch sc = { 0 };
 
-	proc_ack(c, e, &sc, now);
-	if (sc.ctx_dead)
-		return false;
 	proc_fin(c, e, &sc, now);
 	send_ack(c, e, &sc, now);
 	return true;
