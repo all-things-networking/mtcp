@@ -157,4 +157,14 @@
 #define PARITY_RTO_MIN_MS	0
 #define PARITY_RTO_MAX_MS	0
 
+/*
+ * The most connections one listener will hold awaiting accept. The donor sizes
+ * its accept queue from the application's backlog argument at listen() time;
+ * ours is a compile-time bound because the program's context is a struct the
+ * compiler emits, and `pending_cap` below it is the RUNTIME bound the
+ * application actually asked for. Exceeding the compile-time one is a program
+ * that under-declared its own concurrency, not a connection to drop.
+ */
+#define PROG_MAX_BACKLOG 128
+
 #endif /* PROG_PARAMS_H */

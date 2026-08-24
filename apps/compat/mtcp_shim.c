@@ -344,6 +344,17 @@ mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
 	return SHIM_LISTENER;
 }
 
+/*
+ * THE BOUND ENDPOINT, REMEMBERED BY THE SHIM. The donor's API names a listener
+ * by socket id; the target's op schema names one by endpoint, because a context
+ * is found by the key the program builds. Bridging the two is exactly what this
+ * layer is for, and it means bind's address has to survive until listen.
+ *
+ * One entry, because SHIM_LISTENER is one socket. If the shim ever grows a
+ * second listening socket this becomes a field of g_sock, not a second global.
+ */
+static struct mtp_endpoint g_bound;
+
 int
 mtcp_bind(mctx_t mctx, int sockid, const struct sockaddr *addr, socklen_t len)
 {
@@ -355,6 +366,7 @@ mtcp_bind(mctx_t mctx, int sockid, const struct sockaddr *addr, socklen_t len)
 	op.kind = MTP_APP_BIND;
 	op.local.ip = in->sin_addr.s_addr;
 	op.local.port = in->sin_port;
+	g_bound = op.local;
 	return mtp_program_app_op(&op, 0) < 0 ? -1 : 0;
 }
 
@@ -363,9 +375,14 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
 {
 	struct mtp_app_op op;
 
-	(void)mctx; (void)sockid; (void)backlog;
+	(void)mctx; (void)sockid;
 	memset(&op, 0, sizeof(op));
 	op.kind = MTP_APP_LISTEN;
+	/* WHICH endpoint starts answering, and HOW MANY it may hold. Both were
+	 * discarded here: the program had one listener and no backlog, so
+	 * neither had anywhere to go. */
+	op.local = g_bound;
+	op.len = backlog > 0 ? (uint32_t)backlog : 0;
 	return mtp_program_app_op(&op, 0) < 0 ? -1 : 0;
 }
 

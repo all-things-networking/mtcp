@@ -31,6 +31,52 @@
 #define TCP_CLOSING	8	/* simultaneous close */
 #define TCP_TIME_WAIT	9
 
+/*
+ * mtp/tcp.mtp §tcp_listen_ctx — ONE INSTANCE PER LISTENING ENDPOINT.
+ *
+ * It was a single file-scope struct, so the program could hold exactly one
+ * listening socket (DEFERRED.md D4). There is no granularity keyword in MTP: a
+ * context is declared, there are as many instances as the protocol needs, and
+ * the endpoint being a FIELD of the context is what makes several listeners
+ * possible without any new machinery.
+ *
+ * It is stored like any other context, under a key the PROGRAM builds from
+ * (ip, port) — see key_of_listener. The target holds no listener table and no
+ * matching rule: "match on address AND port" is a statement about TCP (G8, and
+ * the donor matches on port alone), and protocol policy does not belong in
+ * target infrastructure.
+ */
+struct tcp_listen_ctx {
+	flow_t  *f;			/* the target's handle, first, as above */
+
+	uint32_t local_ip;		/* network order, compared against iph->daddr */
+	uint16_t local_port;		/* host order */
+	uint8_t  state;			/* ST_CLOSED until listen(); then ST_LISTEN */
+
+	/*
+	 * THE ACCEPT BACKLOG (C3/C4). `pending_cap` is protocol state: a SYN
+	 * arriving with the queue full must be dropped, and the cap is what
+	 * makes that decision expressible in the program rather than in the
+	 * target — or, as it is today, in the compatibility shim.
+	 */
+	uint32_t pending_cap;
+	uint32_t pending_n;
+	flow_t  *pending[PROG_MAX_BACKLOG];
+
+	/*
+	 * The object the application has posted to serve, per listener rather
+	 * than per process. A one-shot server hands it over once and every
+	 * accepted connection receives it; that is what epserver does with a
+	 * file, and it is enough to drive bulk send.
+	 *
+	 * It arrives through the app interface as a SEND op, not as something
+	 * this program invented — the bytes are the application's and the
+	 * program only decides when they go.
+	 */
+	const void *obj;
+	uint32_t    obj_len;
+};
+
 struct tcp_ctx {
 	/*
 	 * The target's handle for this flow, placed here by the target when it
@@ -187,6 +233,10 @@ struct tcp_ctx {
 	/* our own copy of the key, so a timer that outlives the packet path can
 	 * still name the context to destroy (D-24) */
 	flowkey_t key;
+	/* The endpoint that accepted this connection. Its object is what a
+	 * one-shot server serves, and its context is where the handshake's
+	 * readable event belongs. */
+	struct tcp_listen_ctx *lst;
 	bool     rx_open;
 	bool     fin_consumed;	/* the peer's FIN took a sequence number */	/* new_tx_ordered_data issued (lazily, as the
 				 * donor allocates its send buffer lazily) */

@@ -176,24 +176,12 @@ tcp_build_header(uint8_t *out, const struct tcp_ctx *c, uint32_t seq,
  * mTCP matches on port alone, so a socket bound to one address answers for
  * every address on the host. Matched on both here.
  */
-static struct {
-	uint32_t ip;
-	uint16_t port;
-	uint8_t  listening;
-
-	/*
-	 * The object the application has posted to serve. A one-shot server
-	 * hands it over once and every accepted connection receives it; that
-	 * is what epserver does with a file, and it is enough to drive bulk
-	 * send.
-	 *
-	 * It arrives through the app interface as a SEND op, not as something
-	 * this program invented — the bytes are the application's and the
-	 * program only decides when they go.
-	 */
-	const void *obj;
-	uint32_t    obj_len;
-} prog_listener;
+/*
+ * THE LISTEN CONTEXT WAS A FILE-SCOPE STRUCT, so this program could hold
+ * exactly one listening socket (DEFERRED.md D4). It is a context now, one
+ * instance per endpoint, stored under key_of_listener and reached the same way
+ * every other context is. Nothing about it is file-scope any more.
+ */
 
 #define TCP_FIN	0x01
 #define TCP_SYN	0x02
@@ -324,6 +312,26 @@ key_of_inbound(uint32_t loc_ip, uint32_t rem_ip, uint16_t loc_port,
 	memset(&k, 0, sizeof(k));	/* the target compares BYTES */
 	k.v0 = loc_ip; k.v1 = rem_ip; k.v2 = loc_port; k.v3 = rem_port;
 	return k;
+}
+
+/*
+ * The key of a LISTENING endpoint. Same table, same shape, and it cannot
+ * collide with a connection's: a connection always has a remote port, and this
+ * always has zero for both remote halves.
+ *
+ * WHICH IS WHY THE TARGET NEEDS NO LISTENER TABLE. Matching a listener is
+ * protocol policy — G8 is "match on address AND port", which is a statement
+ * about TCP, and the donor matches on port alone (fhash.c:137-143), so a socket
+ * bound to one address answers every address on its host. Encoding that choice
+ * as a KEY rather than as a table keeps it in the program, where a different
+ * protocol can choose differently. `src/target/flow_table.c` still carries a
+ * listener table keyed on (ip, port); it is unused and should go
+ * (DEFERRED.md F9).
+ */
+static flowkey_t
+key_of_listener(uint32_t loc_ip, uint16_t loc_port)
+{
+	return key_of_inbound(loc_ip, 0, loc_port, 0);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -1141,7 +1149,7 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_STATE });
 
 	/* the application posted an object before listening; serve it */
-	if (prog_listener.obj_len) {
+	if (c->lst && c->lst->obj_len) {
 		struct mtp_tx_addr addr;
 		int wrote;
 
@@ -1150,9 +1158,9 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		 * the application thread takes, except that this path already
 		 * runs on the stack thread, so it does both itself.
 		 */
-		addr.base = prog_listener.obj;
-		addr.len = prog_listener.obj_len;
-		wrote = mtp_add_tx_data(&c->tx, addr, prog_listener.obj_len);
+		addr.base = c->lst->obj;
+		addr.len = c->lst->obj_len;
+		wrote = mtp_add_tx_data(&c->tx, addr, c->lst->obj_len);
 		if (wrote > 0)
 			tcp_app_send(c, (uint32_t)wrote, now);
 		c->app_closed = true;	/* a one-shot server has said all it will */
@@ -2116,6 +2124,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	enum tcp_event_kind evs[EV_KIND__N];
 	struct tcp_ev e;
 	struct tcp_ctx *c;
+	struct tcp_listen_ctx *lst;
 	flowkey_t k;
 	unsigned n, i;
 
@@ -2131,10 +2140,20 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		/* G8: both halves must match. A miss is a miss — never a null
 		 * context handed onward, which is how the prototype turns a
 		 * missed lookup into a crash. */
-		if (!prog_listener.listening ||
-		    prog_listener.port != e.dport ||
-		    prog_listener.ip != iph->daddr)
-			return 0;
+		{
+			/*
+			 * G8: BOTH HALVES MUST MATCH, and the match is a
+			 * lookup now rather than a comparison against the one
+			 * listener there used to be. A miss is a miss — never a
+			 * null context handed onward, which is how the
+			 * prototype turns a missed lookup into a crash.
+			 */
+			flowkey_t lk = key_of_listener(iph->daddr, e.dport);
+
+			lst = mtp_ctx_lookup(&lk);
+			if (!lst || lst->state != TCP_LISTEN)
+				return 0;
+		}
 		c = mtp_new_ctx(&k, sizeof(*c));
 		if (!c)
 			return -1;
@@ -2152,6 +2171,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		 * Every connection that reached TIME_WAIT leaked its context.
 		 */
 		c->key = k;
+		c->lst = lst;		/* which endpoint accepted it */
 		/* generated from: tcp_syn -> { proc_passive_open } */
 		proc_passive_open(c, &e, now_ms);
 		return 0;
@@ -2245,8 +2265,13 @@ int
 mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 {
 	switch (op->kind) {
-	case MTP_APP_BIND:
+	case MTP_APP_BIND: {
 		/*
+		 * mtp/tcp.mtp §proc_bind — THIS EVENT IS WHAT BRINGS A LISTEN
+		 * CONTEXT INTO EXISTENCE. It exists after bind and is not yet
+		 * matchable: proc_passive_open tests for ST_LISTEN, so a SYN
+		 * for a bound-but-not-listening endpoint is dropped.
+		 *
 		 * The op's endpoint is in NETWORK order, as the schema
 		 * declares; this program works in host order once past the
 		 * parser. Converting here rather than at the comparison site
@@ -2254,14 +2279,47 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 		 * being out of step is what made the listener never match and
 		 * swallowed every SYN silently.
 		 */
-		prog_listener.ip = op->local.ip;	/* stays network order:
-							 * compared against
-							 * iph->daddr, which is */
-		prog_listener.port = ntohs(op->local.port);
+		struct tcp_listen_ctx *l;
+		flowkey_t k = key_of_listener(op->local.ip,
+					      ntohs(op->local.port));
+
+		if (mtp_ctx_lookup(&k))
+			return -1;		/* already bound */
+		l = mtp_new_ctx(&k, sizeof(*l));
+		if (!l)
+			return -1;
+		l->local_ip = op->local.ip;	/* stays network order:
+						 * compared against
+						 * iph->daddr, which is */
+		l->local_port = ntohs(op->local.port);
+		l->state = TCP_CLOSED;
 		return 0;
-	case MTP_APP_LISTEN:
-		prog_listener.listening = 1;
+	}
+	case MTP_APP_LISTEN: {
+		/*
+		 * mtp/tcp.mtp §proc_listen — the endpoint starts answering.
+		 * No instructions: it flips a state and sets a bound. Everything
+		 * that follows happens because proc_passive_open now finds a
+		 * listen context in ST_LISTEN.
+		 *
+		 * The analogue of the donor's ListenerHTInsert. bind created the
+		 * context and recorded the endpoint; this is where it becomes
+		 * matchable — which is also why the duplicate-endpoint check is
+		 * in bind above and the donor makes it here.
+		 */
+		struct tcp_listen_ctx *l;
+		flowkey_t k = key_of_listener(op->local.ip,
+					      ntohs(op->local.port));
+
+		l = mtp_ctx_lookup(&k);
+		if (!l)
+			return -1;		/* listen before bind */
+		l->state = TCP_LISTEN;
+		l->pending_cap = op->len ? op->len : PROG_MAX_BACKLOG;
+		if (l->pending_cap > PROG_MAX_BACKLOG)
+			l->pending_cap = PROG_MAX_BACKLOG;
 		return 0;
+	}
 	/*
 	 * mtp/tcp.mtp §sock_close. The application has no more to send. Our
 	 * FIN is gated on this and not on the peer's: a peer FIN closes the
@@ -2333,8 +2391,20 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 			fprintf(stderr, "APPOP send now=%u flow=%p len=%u\n",
 				now_ms, (void *)op->flow, op->len);
 		if (!op->flow) {
-			prog_listener.obj = op->data.base;
-			prog_listener.obj_len = op->len;
+			/*
+			 * Posted to a LISTENER, not to the process. The op
+			 * carries the endpoint for exactly this; with several
+			 * listeners there is no "the" listener to post to.
+			 */
+			struct tcp_listen_ctx *l;
+			flowkey_t lk = key_of_listener(op->local.ip,
+						       ntohs(op->local.port));
+
+			l = mtp_ctx_lookup(&lk);
+			if (!l)
+				return -1;
+			l->obj = op->data.base;
+			l->obj_len = op->len;
 			return 0;
 		}
 		c = (struct tcp_ctx *)mtp_ctx_of(op->flow);
