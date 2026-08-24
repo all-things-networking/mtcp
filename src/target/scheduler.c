@@ -401,12 +401,12 @@ mtp_del_ctx(const flowkey_t *key)
 {
 	struct transport *t = TransportOf(g_core[0]);
 	/*
-	 * TWO DEREFERENCES, NOT ONE, AND THAT WAS THE BUG. FlowTableLookup
-	 * returns the CONTEXT; the flow handle is the first word of it, which is
-	 * why mtp_ctx_lookup twenty lines above reads `*(struct flow **)ctx`.
-	 * This function assigned the context pointer straight into a
-	 * `struct flow *` -- legal C, since void* converts to any object pointer
-	 * without a cast, so -Wall -Werror had nothing to say.
+	 * FlowOfKey, NOT FlowTableLookup, AND THAT WAS THE BUG. The table returns
+	 * the CONTEXT; the flow handle is the first word of it. This function
+	 * assigned the context pointer straight into a `struct flow *` -- legal
+	 * C, since void* converts to any object pointer without a cast, so
+	 * -Wall -Werror had nothing to say. The accessor exists so the
+	 * dereference cannot be written wrong again; flow_table.h says why.
 	 *
 	 * Everything after it then operated on the program's TCP context as
 	 * though it were a flow: `pending_destroy = 1` wrote into whatever
@@ -420,8 +420,7 @@ mtp_del_ctx(const flowkey_t *key)
 	 * each could truthfully report that the other had not happened yet
 	 * (del_ctx=113, detach=113, late=0, destroyed=0).
 	 */
-	void *ctx = FlowTableLookup(t->flows, key);
-	struct flow *f = ctx ? *(struct flow **)ctx : NULL;
+	struct flow *f = FlowOfKey(t->flows, key);
 
 	/*
 	 * MARKS, DOES NOT FREE. This is called from inside a program entry

@@ -44,6 +44,7 @@
 #define LISTENER_TABLE_BINS	1024	/* mTCP's NUM_BINS_LISTENERS */
 
 struct flow_table;
+struct flow;
 struct listener_table;
 
 struct flow_table *FlowTableCreate(void);
@@ -57,6 +58,28 @@ void               FlowTableDestroy(struct flow_table *t);
  */
 void *FlowTableInsert(struct flow_table *t, const flowkey_t *key, size_t ctx_size);
 void *FlowTableLookup(struct flow_table *t, const flowkey_t *key);
+
+/*
+ * THE FLOW BEHIND A KEY, and the reason this exists rather than the two-line
+ * idiom at each call site.
+ *
+ * The table stores CONTEXTS. The flow handle is the first word of one, because
+ * the compiler places the target's handle first in the generated context
+ * struct — so a caller that wants the flow needs two dereferences, and a caller
+ * that writes one gets NO DIAGNOSTIC: `void *` converts to any object pointer
+ * without a cast, so `-Wall -Werror` is silent.
+ *
+ * That is not hypothetical. `mtp_del_ctx` wrote one dereference and spent its
+ * whole life treating the program's TCP context as a `struct flow` — writing
+ * list links into it and freeing ring pointers read out of its bytes. Nothing
+ * was ever destroyed. See docs/DIVERGENCE.md, appended 2026-08-24 (later).
+ */
+static inline struct flow *FlowOfKey(struct flow_table *t, const flowkey_t *key)
+{
+	void *ctx = FlowTableLookup(t, key);
+
+	return ctx ? *(struct flow **)ctx : NULL;
+}
 int   FlowTableRemove(struct flow_table *t, const flowkey_t *key);
 
 /*
