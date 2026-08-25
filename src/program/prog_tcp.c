@@ -197,6 +197,10 @@ struct tcp_ev {
 	uint32_t ts_val, ts_ecr;
 	uint8_t  wscale;
 	bool     has_wscale;
+	bool     has_ts;	/* a timestamp option was PRESENT, as against
+				 * ts_val happening to be zero. PAWS turns on
+				 * the difference: absent is a drop, zero is a
+				 * legal value */
 	const uint8_t *payload;
 	uint32_t payload_len;
 };
@@ -243,6 +247,7 @@ parse_options(struct tcp_ev *e, const uint8_t *o, uint32_t len)
 	e->ts_ecr = 0;
 	e->wscale = 0;
 	e->has_wscale = false;
+	e->has_ts = false;
 
 	while (i < len) {
 		uint8_t kind = o[i];
@@ -262,6 +267,7 @@ parse_options(struct tcp_ev *e, const uint8_t *o, uint32_t len)
 			memcpy(&e->ts_ecr, o + i + 6, 4);
 			e->ts_val = ntohl(e->ts_val);
 			e->ts_ecr = ntohl(e->ts_ecr);
+			e->has_ts = true;
 		}
 		if (kind == 3 && o[i + 1] == 3 && i + 3 <= len) {
 			e->wscale = o[i + 2];
@@ -419,6 +425,12 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * subtracted. Nothing type-checks it and the wire is where it shows.
 	 */
 	c->rcv_base = c->recv_next;
+	/*
+	 * PAWS applies only to a peer that timestamps, and the donor decides it
+	 * once, here, from the SYN's options (tcp_util.c:47-51). ts_recent is
+	 * seeded at the same moment and by the same line there.
+	 */
+	c->saw_timestamp = e->has_ts;
 	/* the boundary starts where the peer's first data byte will */
 	mtp_sw_init(&c->rx_wnd, c->recv_next);
 	c->delivered = c->rcv_base;
@@ -566,7 +578,7 @@ static uint64_t g_tmr[TMR__N];
 
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
        RXS_ACK_ADVANCED, RXS_RST, RXS_ACK_PAST_NEXT, RXS_BACKLOG_FULL,
-       RXS__N };
+       RXS_PAWS_NOTS, RXS_PAWS_OLD, RXS_SEQ_BAD, RXS__N };
 static uint64_t g_rx[RXS__N];
 
 static void
@@ -1049,11 +1061,25 @@ prog_report_refusals(void)
 	static const char *n[REF__N] = { "state-gate", "window-closed",
 					 "sws-holdoff", "nothing-buffered",
 					 "SENT" };
+	/*
+	 * ONE NAME PER COUNTER, and the array is sized by the enum so a missing
+	 * one is a compile error rather than a NULL passed to %s. It was short
+	 * by four: RXS_BACKLOG_FULL and the three validation counters were added
+	 * without extending it, and C zero-fills the rest.
+	 */
 	static const char *r[RXS__N] = { "reached dispatch", "flow ctx found",
 					 "proc_ack called", "  no ACK flag",
 					 "  DUPLICATE/STALE", "  ADVANCED una",
 					 "INBOUND RST (discarded)",
-		"ack past send_next" };
+					 "ack past send_next",
+					 "SYN dropped, backlog full",
+					 "PAWS: no timestamp",
+					 "PAWS: timestamp went back",
+					 "outside the receive window" };
+	/* A name for every counter, checked at compile time rather than by
+	 * whoever next adds one. */
+	_Static_assert(sizeof(r) / sizeof(r[0]) == RXS__N,
+		       "recv-path counter names are out of step with the enum");
 	int i;
 
 	for (i = 0; i < REF__N; i++)
@@ -1414,7 +1440,14 @@ proc_timestamp(struct tcp_ctx *c, const struct tcp_ev *e)
 {
 	if (!conn_exists(c) || !(e->flags & TCP_ACK))
 		return;
-	c->ts_recent = e->ts_val;
+	/*
+	 * ONLY FOR A PEER THAT DOES NOT TIMESTAMP. For one that does,
+	 * proc_validate has already set it -- before dispatch, and only for a
+	 * segment it accepted, which is the donor's placement. Setting it here
+	 * as well moved ts_recent on segments the donor would have rejected.
+	 */
+	if (!c->saw_timestamp)
+		c->ts_recent = e->ts_val;
 }
 
 /*
@@ -1744,12 +1777,6 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 	 * One byte behind what we expect next is the signature; nothing else
 	 * legitimately arrives there.
 	 */
-	if (e->seq + 1 == c->recv_next) {
-		INSTR(g_emit[EM_PROBE_REPLY]++);
-		sc->ack_now = true;
-		return;
-	}
-
 	if (!e->payload_len)
 		return;
 
@@ -2038,6 +2065,98 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
  */
 
 /*
+ * mtp/tcp.mtp §proc_validate — PAWS and the sequence-acceptability test.
+ *
+ * `seq_validation` and `paws`, off the list of mechanisms we did not have. Both
+ * run on EVERY packet, which is why their absence contaminated the
+ * cycles-per-byte comparison at its root: we were cheaper per packet partly
+ * because we validated less.
+ *
+ * IT IS THE DONOR'S ValidateSequence, reproduced rather than re-derived, and
+ * three things about it are worth stating because a standards-based
+ * implementation would differ:
+ *
+ *   - the acceptability test is on `seq + payloadlen` lying inside
+ *     [recv_next, recv_next + rcv_wnd]. RFC 793's test is on the segment's
+ *     first and last bytes separately; this is the donor's, and rule 1 says
+ *     reproduce the donor;
+ *   - a segment from a timestamping peer that carries NO timestamp is dropped.
+ *     The donor leaves a TODO where a standards-based handler would go;
+ *   - `ts_recent` is updated HERE, before dispatch, and only for a timestamping
+ *     peer. Ours updated it in proc_timestamp for any acknowledgement, so it
+ *     moved on segments the donor would have rejected.
+ *
+ * RETURNS FALSE TO DROP THE SEGMENT, having queued whatever acknowledgement the
+ * donor queues on that path. Called after the context lookup and before any
+ * event is raised, which is where the donor calls it -- ProcessTCPPacket, and
+ * only once the connection is past SYN_RCVD.
+ */
+static bool
+proc_validate(struct tcp_ctx *c, const struct tcp_ev *e,
+	      struct tcp_scratch *sc, uint32_t now)
+{
+	uint32_t seg_end;
+
+	(void)now;
+	/* Before the handshake completes there is nothing to validate against:
+	 * the donor guards the whole call with `state > TCP_ST_SYN_RCVD`. */
+	if (c->state == TCP_CLOSED || c->state == TCP_LISTEN ||
+	    c->state == TCP_SYN_RCVD)
+		return true;
+
+	/* --- PAWS ------------------------------------------------------- */
+	if (!(e->flags & TCP_RST) && c->saw_timestamp) {
+		if (!e->has_ts) {
+			INSTR(g_rx[RXS_PAWS_NOTS]++);
+			return false;		/* no timestamp from a peer that
+						 * timestamps: dropped */
+		}
+		if ((int32_t)(e->ts_val - c->ts_recent) < 0) {
+			/* RFC 1323: SEG.TSval < TS.Recent -> drop, and
+			 * acknowledge so the peer learns where we are. */
+			INSTR(g_rx[RXS_PAWS_OLD]++);
+			sc->ack_now = true;
+			return false;
+		}
+		c->ts_recent = e->ts_val;
+	}
+
+	/* --- sequence acceptability -------------------------------------- */
+	seg_end = e->seq + e->payload_len;
+	if ((int32_t)(seg_end - c->recv_next) >= 0 &&
+	    (int32_t)(seg_end - (c->recv_next + c->rcv_wnd)) <= 0)
+		return true;			/* acceptable */
+
+	INSTR(g_rx[RXS_SEQ_BAD]++);
+	if (e->flags & TCP_RST)
+		return false;			/* a reset outside the window is
+						 * ignored, not answered */
+
+	if (c->state == TCP_ESTABLISHED) {
+		/*
+		 * THE PEER'S WINDOW PROBE, and it lives here rather than in
+		 * proc_recv, which is where we had it. The donor answers it
+		 * from inside validation and then STOPS PROCESSING the segment
+		 * -- one byte behind what we expect next is deliberately
+		 * outside our window, so it can only be a probe.
+		 */
+		sc->ack_now = true;
+		if (e->seq + 1 == c->recv_next)
+			INSTR(g_emit[EM_PROBE_REPLY]++);
+	} else {
+		/*
+		 * Outside ESTABLISHED the donor puts the stream on its control
+		 * list -- an acknowledgement from the control path -- and
+		 * refreshes the TIME_WAIT deadline if that is where it is.
+		 */
+		if (c->state == TCP_TIME_WAIT)
+			enter_time_wait(c);
+		sc->ack_now = true;
+	}
+	return false;
+}
+
+/*
  * mtp/tcp.mtp §net_parser — which events this segment raises.
  *
  * INCLUSIVE, AND THAT IS THE DONOR'S SHAPE, not a convenience. mTCP's
@@ -2257,6 +2376,23 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	 */
 	if (e.flags & TCP_RST)
 		INSTR(g_rx[RXS_RST]++);
+
+	/*
+	 * VALIDATE BEFORE ANY EVENT IS RAISED. The donor calls ValidateSequence
+	 * from ProcessTCPPacket, after the flow lookup and before the state
+	 * handlers, and drops the segment on a false return -- so an
+	 * unacceptable segment reaches no processor at all. Its scratchpad is
+	 * separate because it belongs to no event; send_ack is called directly
+	 * for the acknowledgement the donor queues on those paths.
+	 */
+	{
+		struct tcp_scratch vsc = { 0 };
+
+		if (!proc_validate(c, &e, &vsc, now_ms)) {
+			send_ack(c, &e, &vsc, now_ms);
+			return 0;
+		}
+	}
 
 	n = parse_tcp_events(&e, evs);
 	for (i = 0; i < n; i++) {

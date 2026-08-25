@@ -149,6 +149,14 @@ struct tcp_ctx {
 
 	/* --- the peer's timestamp, echoed in ours ------------------------ */
 	uint32_t ts_recent;
+	/*
+	 * PAWS runs only against a peer that uses timestamps, and the donor
+	 * decides that once, from the SYN's options (tcp_util.c:47-51 sets
+	 * saw_timestamp and seeds ts_recent there). A peer that sent none is not
+	 * PAWS-checked at all -- so this is not an optimisation, it is the
+	 * condition the check is defined under.
+	 */
+	bool     saw_timestamp;
 
 	/* The retransmission estimator, from the donor. NO FLOOR AND NO
 	 * CEILING (differences.md §1.1), so on this testbed the effective
