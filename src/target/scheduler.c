@@ -646,6 +646,23 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 
 /*----------------------------------------------------------------------------*/
 /*
+ * mtp_ctx_endpoints — the addresses of a flow the target never saw a packet for.
+ * Resets the route cache with them, since the previous one was resolved for
+ * whatever address the flow was created with.
+ */
+void
+mtp_ctx_endpoints(flow_t *f, uint32_t local_ip, uint32_t remote_ip)
+{
+	if (!f)
+		return;
+	f->saddr = local_ip;
+	f->daddr = remote_ip;
+	f->nif_out = -1;
+	f->is_external = 0;
+}
+
+/*----------------------------------------------------------------------------*/
+/*
  * mtp_pkt_gen_orphan — a packet for a flow that does not exist.
  *
  * The offload offset is the program's, exactly as it is on the flow path: the

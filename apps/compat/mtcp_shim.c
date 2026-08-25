@@ -195,6 +195,23 @@ mtcp_init(const char *config_file)
 		}
 	}
 
+	/*
+	 * THE CORE COUNT COMES FROM setconf, NOT ONLY FROM THE CONF FILE.
+	 *
+	 * The donor takes it from the command line -- epwget's -N, via
+	 * mtcp_getconf / mtcp_setconf -- and its own client configuration on
+	 * this testbed carries no `num_cores` line at all. Ours read the conf
+	 * only, so CONFIG.num_cores stayed 0, the EAL coremask came out 0, and
+	 * the client died with "No lcores in coremask: [0]" before reaching any
+	 * of the stack.
+	 *
+	 * Applied BEFORE InfraInit so the conf file can still override it, which
+	 * is the donor's precedence: the file is the deployment and the flag is
+	 * the request.
+	 */
+	if (g_conf.num_cores > 0)
+		CONFIG.num_cores = g_conf.num_cores;
+
 	if (InfraInit(config_file) < 0) {
 		fprintf(stderr, "mtcp_shim: InfraInit(%s) failed\n",
 			config_file ? config_file : "(null)");
@@ -431,9 +448,19 @@ mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr,
 	      in_addr_t daddr, in_addr_t dport)
 {
 	(void)mctx; (void)num_addr; (void)daddr; (void)dport;
-	/* epwget calls this to seed the donor's address pool. We keep only the
-	 * base address: the pool itself is the port walk below. */
+	/*
+	 * epwget PASSES INADDR_ANY. `saddr` in epwget.c is set once, to
+	 * INADDR_ANY, and never assigned again -- so taking the argument
+	 * literally sent every SYN from 0.0.0.0, which the peer drops and which
+	 * no reply can return to. The donor resolves it through its per-core
+	 * address pool, which is built from the interface's own address.
+	 *
+	 * Ours is the interface address directly. The pool is the port walk in
+	 * mtcp_connect; there is one interface and one core.
+	 */
 	g_local_ip = saddr_base;
+	if (g_local_ip == INADDR_ANY && CONFIG.eths_num > 0)
+		g_local_ip = CONFIG.eths[0].ip_addr;
 	return 0;
 }
 

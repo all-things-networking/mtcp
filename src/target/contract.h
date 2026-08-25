@@ -616,6 +616,20 @@ struct mtp_notif {
 int mtp_pkt_gen_orphan(uint32_t local_ip, uint32_t remote_ip,
 		       const void *hdr, uint16_t hdr_len, int offload);
 
+/*
+ * Tell the target which endpoints a flow is between.
+ *
+ * NEEDED ONLY WHERE THERE IS NO PACKET TO TAKE THEM FROM. mtp_new_ctx derives
+ * L3 addressing from the segment being dispatched, deliberately -- "its key is
+ * a shape it may not read" -- and that holds for every path that ANSWERS
+ * something. An active open answers nothing: the program has the endpoints and
+ * the target has no packet, so the SYN went out toward 0.0.0.0 and the route
+ * lookup asserted.
+ *
+ * The program supplies addresses it already holds; the key stays opaque.
+ */
+void mtp_ctx_endpoints(flow_t *f, uint32_t local_ip, uint32_t remote_ip);
+
 void mtp_retry(flow_t *f);
 
 int mtp_notify(flow_t *f, const struct mtp_notif *msg);

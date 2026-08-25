@@ -293,6 +293,7 @@ struct tcp_scratch {
 /* Defined below, forward-declared for the acknowledgement chain. */
 static void enter_time_wait(struct tcp_ctx *c);
 static void gen_rst_from_ctx(struct tcp_ctx *c, const struct tcp_ev *e);
+static void gen_syn(struct tcp_ctx *c, uint32_t now);
 static int  record_data(struct tcp_ctx *c, struct mtp_tx_addr addr, uint32_t len);
 static void gen_fin(struct tcp_ctx *c, uint32_t now);
 
@@ -2646,6 +2647,33 @@ dispatch_tcp_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
  * until that has been read.
  */
 /*
+ * mtp/tcp.mtp §gen_syn — our SYN, emitted or re-attempted.
+ *
+ * Separate from proc_connect because it is issued twice in the ordinary case:
+ * once when the application asks, and again from the retry list once the
+ * address resolves.
+ */
+static void
+gen_syn(struct tcp_ctx *c, uint32_t now)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	struct mtp_tx_payload none = { 0 };
+	uint16_t hdr_len;
+
+	if (c->state != TCP_SYN_SENT || c->send_next != c->snd_base)
+		return;			/* already on the wire */
+
+	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_SYN, now, 0);
+	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1, 0) != 0) {
+		mtp_retry(c->f);	/* the address is not resolved yet */
+		return;
+	}
+	INSTR(g_emit[EM_SYN]++);
+	c->send_next++;			/* the SYN consumes one */
+	arm_rto(c);
+}
+
+/*
  * mtp/tcp.mtp §proc_synack — the peer accepted our connection.
  *
  * The donor's HandleActiveOpen plus the SYN_SENT arm of
@@ -3051,16 +3079,26 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 						 * one byte */
 		c->ssthresh = PARITY_SSTHRESH_ACTIVE;
 		c->state = TCP_SYN_SENT;
+		/* No packet created this flow, so the target has no addresses
+		 * for it. See contract.h. */
+		mtp_ctx_endpoints(c->f, c->local_ip, c->remote_ip);
 
-		hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_SYN,
-					   now_ms, 0);
-		INSTR(g_emit[EM_SYN]++);
-		if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1, 0) != 0) {
-			prog_unregister(c);
-			mtp_del_ctx(&k);
-			return -1;
-		}
-		c->send_next++;			/* the SYN consumes one */
+		/*
+		 * A REFUSED SYN IS NORMAL AND IS NOT A FAILED CONNECT.
+		 *
+		 * The first packet to an unresolved peer ALWAYS fails: the
+		 * target sends an ARP request and returns "retry later"
+		 * (ip_out.c:123-127). Destroying the context here -- which this
+		 * did -- meant every connect to a peer we had not spoken to
+		 * died, and since the client speaks first, that was every
+		 * connect. The server never saw a SYN.
+		 *
+		 * So it goes on the retry list and the SYN leaves when the
+		 * address resolves. That is D3 doing exactly what it was built
+		 * for, on a path that did not exist when it was built.
+		 */
+		(void)hdr; (void)none; (void)hdr_len;
+		gen_syn(c, now_ms);
 		tcp_touch_idle(c);
 		op->flow = c->f;		/* the caller needs the handle */
 		return 0;
@@ -3799,6 +3837,10 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 	 * by one thread only. Doing the generation on the application thread is
 	 * the race this representation exists to remove.
 	 */
+	if (c->state == TCP_SYN_SENT) {
+		gen_syn(c, now);	/* the handshake, not data */
+		return 0;
+	}
 	if (!send_side_open(c))
 		return -1;
 
