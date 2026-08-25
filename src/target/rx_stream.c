@@ -115,8 +115,36 @@ mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
 	 * gap, past several segments at once if this one filled the gap. There
 	 * is no in-order branch because there does not need to be one.
 	 */
-	mtp_sw_set(&u->arrived, offset, offset + len);
-	u->tail_seq = mtp_sw_slide(&u->arrived);
+	{
+		uint64_t before = u->tail_seq;
+
+		mtp_sw_set(&u->arrived, offset, offset + len);
+		u->tail_seq = mtp_sw_slide(&u->arrived);
+
+		/*
+		 * THE ARRIVAL EDGE, and it did not exist.
+		 *
+		 * READABLE was raised in exactly one place on this side: the
+		 * re-arm at the bottom of mtp_rx_flush_and_notify, AFTER a read.
+		 * Nothing raised it when data first arrived.
+		 *
+		 * A SERVER NEVER NOTICED. Its application registers interest on
+		 * a socket it has just accepted, by which time the request is
+		 * already in the stream, and mtp_ready_arm's registration edge
+		 * finds it. A CLIENT registers before any data exists: that edge
+		 * finds nothing, data then arrives, and nobody is told. Measured
+		 * before the fix: the 256 KB receive buffer filled completely
+		 * before the application was woken once, and it was woken about
+		 * once a second thereafter.
+		 *
+		 * Only when the in-order boundary MOVES. Bytes stored past a gap
+		 * are not readable, so they are not an edge, and the whole point
+		 * of tail_seq is that it answers exactly this question.
+		 */
+		if (u->tail_seq > before && u->tail_seq > u->head_seq &&
+		    u->owner && tgt_ready_edge)
+			tgt_ready_edge(u->owner, MTP_NOTIF_READABLE);
+	}
 	return (int)len;
 }
 

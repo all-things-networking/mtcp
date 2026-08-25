@@ -101,6 +101,14 @@ sock_recv(struct tcp_ctx *c, uint32_t delivered_now)
 	recompute_rcv_wnd(c);
 
 	/*
+	 * D11. Generation is the stack's, so this only ASKS: the retry list
+	 * runs the send chain on the stack thread, and that is where the
+	 * window update is built. See tcp_app_send.
+	 */
+	if (c->need_wnd_adv && c->rcv_wnd > PARITY_MSS_PAYLOAD)
+		mtp_retry(c->f);
+
+	/*
 	 * PRINTED SEPARATELY, on purpose. Three mechanisms run here for the
 	 * first time — the flush instruction's return, `delivered`'s advance,
 	 * and this recompute. If the window is wrong, one number cannot say

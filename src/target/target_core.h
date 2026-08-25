@@ -69,6 +69,7 @@ struct transport {
 	uint16_t		 orphan_ip_id;
 	uint32_t		 orphan_saddr, orphan_daddr;
 	uint64_t		 orphans_sent;
+	uint64_t		 ready_inserted, ready_coalesced;
 	/*
 	 * THE FIVE THAT MUST COMPOSE. del_ctx and detach are the two events;
 	 * destroyed is what should equal the number of flows that saw both.

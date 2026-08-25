@@ -101,9 +101,12 @@ ready_raise(struct transport *t, struct flow *f, int kind)
 
 	/* Guard inside, as for the generation queue: at most one entry per
 	 * flow, which is what makes the queue's flow-count capacity sound. */
-	if (f->on_ready_list)
+	if (f->on_ready_list) {
+		t->ready_coalesced++;	/* already queued: this raise adds no entry */
 		return;
+	}
 	f->on_ready_list = 1;
+	t->ready_inserted++;
 
 	/*
 	 * The application's own list when we ARE the application thread --
@@ -707,23 +710,30 @@ mtp_notify(flow_t *f, const struct mtp_notif *msg)
 {
 	struct transport *t = TransportOf(g_core[0]);
 
-	(void)f;
-	t->notifies[msg->kind & 3]++;
-
 	/*
-	 * COALESCED: a flow already on the list gains the kind and does not gain
-	 * an entry. The program issues a notification per merge, so without this
-	 * the list would grow once per received segment.
+	 * THROUGH ready_raise, WHICH ROUTES BY THREAD. This used to insert into
+	 * `ready_list` itself, from whichever thread the program happened to be
+	 * running on -- and the program runs on the STACK thread for every
+	 * network event, while TransportPoll's own comment says that list is
+	 * "Application thread only; the stack never touches ready_list".
 	 *
-	 * Level-triggering is the PROGRAM's: it re-issues while unread bytes
-	 * remain. The target only coalesces and delivers — it does not inspect
-	 * the unit to decide, which would be the target reading program state.
+	 * So it was a second writer to a single-writer list, and it never woke a
+	 * sleeping application, because the wake lives in the cross-thread arm
+	 * it was bypassing. On the server that path is barely used -- readiness
+	 * there comes from the receive stream's own re-arm, which does go
+	 * through ready_raise -- so it stayed invisible until the stack ran as a
+	 * CLIENT, where every readiness the application waits on is raised by
+	 * the program from the stack thread.
+	 *
+	 * Measured before the fix, one client run: 5960 notifications raised,
+	 * 107 entries ever delivered, 86 million polls finding nothing.
+	 *
+	 * Coalescing is unchanged and still deliberate: a flow already queued
+	 * gains the kind and does not gain an entry. Level-triggering is the
+	 * PROGRAM's -- it re-issues while unread bytes remain -- and the target
+	 * only coalesces and delivers.
 	 */
-	f->ready_kinds |= (1u << (msg->kind & 3));
-	if (!f->on_ready_list) {
-		TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
-		f->on_ready_list = 1;
-	}
+	ready_raise(t, (struct flow *)f, (int)(msg->kind & 3));
 	return 0;
 }
 
@@ -1438,6 +1448,20 @@ SchedReport(struct core_ctx *core)
 		   (unsigned long long)TransportOf(core)->n_detach,
 		   (unsigned long long)TransportOf(core)->n_detach_late,
 		   (unsigned long long)TransportOf(core)->n_destroyed);
+	/*
+	 * THREE NUMBERS THAT MUST AGREE. inserted is raises that queued a flow;
+	 * coalesced is raises that found it already queued; poll_entries is what
+	 * the application was actually handed. inserted should track
+	 * poll_entries closely -- a flow is queued, delivered, and queued again
+	 * -- and a large coalesced against a busy poller means the list is not
+	 * being drained by the thread that is polling it.
+	 */
+	TRACE_INFO("CPU %d: READY LIST: inserted %llu, coalesced %llu, "
+		   "delivered %llu, cross-thread %llu\n", ctx->cpu,
+		   (unsigned long long)TransportOf(core)->ready_inserted,
+		   (unsigned long long)TransportOf(core)->ready_coalesced,
+		   (unsigned long long)TransportOf(core)->poll_entries,
+		   (unsigned long long)TransportOf(core)->cross_ready);
 	TRACE_INFO("CPU %d: RETRIES (D3, generation re-attempted next pass): "
 		   "%llu\n", ctx->cpu,
 		   (unsigned long long)TransportOf(core)->retries);

@@ -189,7 +189,21 @@ tcp_build_header(uint8_t *out, struct tcp_ctx *c, uint32_t seq,
 	 * that could diverge with nothing else wrong. */
 	out[TCPH_FLAGS] = (uint8_t)(flags & ~(PARITY_SET_PSH ? 0 : 0x08));
 
-	w = htons(tcp_window_field(c, is_syn));
+	{
+		uint16_t field = tcp_window_field(c, is_syn);
+
+		/*
+		 * D11, ARM. The donor sets need_wnd_adv when the SCALED field
+		 * it is about to put on the wire is zero (tcp_out.c:304-309) --
+		 * not when rcv_wnd is small, but when the peer will read zero
+		 * and stop. Under a scale of 7 that happens with up to 127
+		 * bytes still free, which is why the test is on the field and
+		 * not on the window.
+		 */
+		if (field == 0)
+			c->need_wnd_adv = true;
+		w = htons(field);
+	}
 	memcpy(out + TCPH_WINDOW, &w, 2);
 
 	o = out + 20;
@@ -431,7 +445,7 @@ key_of_listener(uint32_t loc_ip, uint16_t loc_port)
  * these without reading protocol flags, which rule 4 forbids it.
  */
 enum { EM_SYNACK, EM_ACK_DATA, EM_ACK_FIN, EM_PROBE, EM_PROBE_REPLY, EM_FIN,
-       EM_DATA, EM_DATA_RTX, EM_RST, EM_SYN, EM__N };
+       EM_DATA, EM_DATA_RTX, EM_RST, EM_SYN, EM_WND_ADV, EM__N };
 /*
  * THE PROGRAM'S TRANSMIT SCHEDULING POLICY (D-17).
  *
@@ -3881,6 +3895,34 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 	if (c->state == TCP_SYN_SENT) {
 		gen_syn(c, now);	/* the handshake, not data */
 		return 0;
+	}
+	/*
+	 * D11, FIRE. The application drained and the window reopened; the peer
+	 * is still holding the zero we last advertised and will not send again
+	 * until something tells it otherwise. The donor enqueues an
+	 * acknowledgement on its ackq from CopyToUser and its stack sends it
+	 * (api.c:1144-1151), gated on the window now exceeding one segment.
+	 *
+	 * HERE RATHER THAN IN sock_recv because sock_recv runs on the
+	 * APPLICATION thread and generation is the stack's -- CR-E. sock_recv
+	 * raises the flag and asks for a retry; this is the retry.
+	 *
+	 * It is fatal for a CLIENT and invisible for a server. A server mostly
+	 * sends, so it has an acknowledgement to carry the new window on
+	 * anyway; a client mostly receives, and without this its window reopens
+	 * in its own state and nowhere else. Measured before the fix: data
+	 * arrived in 86 bursts over 15 seconds, one per peer window probe.
+	 */
+	if (c->need_wnd_adv && c->rcv_wnd > PARITY_MSS_PAYLOAD) {
+		uint8_t hdr[PROG_HDR_MAX];
+		struct mtp_tx_payload none = { 0 };
+		uint16_t hdr_len;
+
+		c->need_wnd_adv = false;
+		hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
+					   c->ts_recent);
+		INSTR(g_emit[EM_WND_ADV]++);
+		mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0);
 	}
 	if (!send_side_open(c))
 		return -1;

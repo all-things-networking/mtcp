@@ -128,6 +128,9 @@ struct tcp_ctx {
 	 * 14592 at all — a divergence in the first RTT of every connection.
 	 */
 	uint32_t rcv_wnd;
+	/* D11: we advertised a zero window field and owe the peer an update
+	 * once the application has drained. The donor's need_wnd_adv. */
+	bool     need_wnd_adv;
 
 	/* --- endpoints, for building outbound headers -------------------- */
 	uint16_t loc_port, rem_port;
