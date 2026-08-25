@@ -26,6 +26,10 @@ struct bp;
  * form as everything else this rework has been unwinding, and it stopped being
  * true the moment a second thread existed.
  */
+/* One entry per flow at most: the membership flag makes duplicates
+ * impossible, so this cannot need more than the flow pool holds. */
+#define MTP_RETRY_MAX	4096
+
 #define WHEEL_BUCKETS	4096		/* 1-tick buckets, ~4 s of range */
 
 struct timer_wheel {
@@ -45,6 +49,13 @@ struct transport {
 	 * is left at exit is a real leak -- a context and two ring buffers each.
 	 * Nothing else reports it. */
 	uint64_t		 awaiting_app;
+
+	/* D3: flows the program asked to re-attempt next pass, and how many
+	 * such attempts have been made. A flow blocked for a long time is
+	 * retried every pass, which is the donor's cost as well as ours. */
+	struct flow		*retry[MTP_RETRY_MAX];
+	unsigned		 retry_n;
+	uint64_t		 retries;
 	/*
 	 * THE FIVE THAT MUST COMPOSE. del_ctx and detach are the two events;
 	 * destroyed is what should equal the number of flows that saw both.

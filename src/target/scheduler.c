@@ -485,6 +485,43 @@ tgt_flow_app_detached(struct flow *f)
 }
 
 /*
+ * D3: re-attempt generation for every flow that asked. Runs on the stack
+ * thread, in the same position an inbound packet's chain would have run, so a
+ * retried attempt and an event-driven one reach the program identically.
+ *
+ * The list is TAKEN AND CLEARED first. A flow still blocked asks again from
+ * inside its own attempt, so it lands back on the list for the next pass --
+ * "retried every pass while blocked" is a fixed point rather than a rule
+ * enforced here, and the re-add cannot be walked by the sweep that emptied it.
+ */
+void
+tgt_sched_take_retries(struct core_ctx *core)
+{
+	struct transport *t = TransportOf(core);
+	struct flow *taken[MTP_RETRY_MAX];
+	unsigned n = t->retry_n, i;
+
+	if (!n)
+		return;
+	memcpy(taken, t->retry, n * sizeof(taken[0]));
+	t->retry_n = 0;
+	for (i = 0; i < n; i++) {
+		struct mtp_app_op op;
+
+		taken[i]->on_retry = 0;
+		if (!taken[i]->slot_live)
+			continue;	/* destroyed since it asked */
+		t->retries++;
+		memset(&op, 0, sizeof(op));
+		op.kind = MTP_APP_SEND;
+		op.flow = taken[i];
+		op.len = 0;		/* nothing new: attempt what is held */
+		op.flags = MTP_OP_PHASE_GENERATE;
+		mtp_program_app_op(&op, core->cur_ts);
+	}
+}
+
+/*
  * End of pass, no program call in flight: now it is safe.
  *
  * DESTRUCTION WAITS FOR BOTH SIDES, and the waiting happens off this list.
@@ -609,14 +646,29 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 
 /*----------------------------------------------------------------------------*/
 /*
+ * mtp_retry — the program asks for its generation to be attempted again on the
+ * next pass. contract.h says why the PROGRAM has to ask and the target cannot
+ * decide: only the program knows it has something unsent.
+ */
+void
+mtp_retry(flow_t *f)
+{
+	struct transport *t = TransportOf(g_core[0]);
+
+	if (!f || f->on_retry)
+		return;			/* the flag makes duplicates impossible */
+	if (t->retry_n >= MTP_RETRY_MAX)
+		return;			/* bounded. One entry per flow means a
+					 * live membership flag already makes
+					 * this unreachable; it is here so that
+					 * stays true if the flag ever is not */
+	f->on_retry = 1;
+	t->retry[t->retry_n++] = f;
+}
+
+/*
  * mtp_notify — the program tells the application something happened; the target
  * decides how to deliver it.
- *
- * The kernel maps each kind onto sk_data_ready and friends. Ours will map them
- * onto the epoll shim, which does not exist yet, so for now the kinds are
- * counted and the last one is kept. That is enough for the handshake — a
- * completed passive open raises STATE and nothing is waiting on it — and it is
- * a placeholder that is honest about being one rather than a silent no-op.
  */
 int
 mtp_notify(flow_t *f, const struct mtp_notif *msg)
@@ -945,6 +997,11 @@ SchedStep(struct core_ctx *core,
 			app(core, ts, app_arg);
 
 		TimerTick(ts);
+		/*
+		 * D3: THE PER-ITERATION RETRY, before the drain so anything it
+		 * generates leaves in this pass rather than the next.
+		 */
+		tgt_sched_take_retries(core);
 		tgt_drain(core);
 
 		/* nothing from the program is on the stack here */
@@ -1349,6 +1406,9 @@ SchedReport(struct core_ctx *core)
 		   (unsigned long long)TransportOf(core)->n_detach,
 		   (unsigned long long)TransportOf(core)->n_detach_late,
 		   (unsigned long long)TransportOf(core)->n_destroyed);
+	TRACE_INFO("CPU %d: RETRIES (D3, generation re-attempted next pass): "
+		   "%llu\n", ctx->cpu,
+		   (unsigned long long)TransportOf(core)->retries);
 	TRACE_INFO("CPU %d: FLOWS STILL AWAITING THE APPLICATION AT EXIT "
 		   "(protocol finished, never detached): %llu\n", ctx->cpu,
 		   (unsigned long long)TransportOf(core)->awaiting_app);

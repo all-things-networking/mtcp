@@ -110,6 +110,9 @@ int tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 
 /* The receive unit's base is a sequence number, not zero: the peer's ISN + 1.
  * Passing it here is the bridge, so nothing downstream has to convert. */
+/* D3: re-attempt generation for every flow that asked (mtp_retry). */
+void tgt_sched_take_retries(struct core_ctx *core);
+
 /* Take every timer belonging to this context off the wheel. Called before the
  * context is freed: the timer objects are fields INSIDE it. */
 void tgt_timers_drop_ctx(const void *ctx);

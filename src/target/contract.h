@@ -581,6 +581,29 @@ struct mtp_notif {
 	int32_t		err;
 };
 
+/*
+ * ATTEMPT THIS FLOW'S GENERATION AGAIN ON THE NEXT PASS.
+ *
+ * DEFERRED.md D3, and the donor's shape: a window-blocked stream stays on its
+ * send list and is retried every pass, sub-microsecond. Ours retried on EVENTS
+ * -- an inbound packet, a timer -- which coincides with the donor in the common
+ * case, because the window usually reopens BECAUSE an acknowledgement arrived
+ * and that acknowledgement runs our chain. It differs for back-pressure that
+ * resolves without an inbound packet, such as ring space freed by our own
+ * drain, where we waited for the next event or a 500 ms timeout.
+ *
+ * THE PROGRAM HAS TO ASK, because only the program knows it has something
+ * unsent: `write_end - send_next` is its own state and the target may not read
+ * it. The target keeps the list and re-runs the generate half; a flow that is
+ * still blocked asks again, so "retried every pass while blocked" is the fixed
+ * point rather than a rule the target enforces.
+ *
+ * It does NOT replace the closed-window probe. That recovers a window whose
+ * reopening was ANNOUNCED AND LOST, and no amount of retrying substitutes for a
+ * message that never arrives (D-25 piece 2).
+ */
+void mtp_retry(flow_t *f);
+
 int mtp_notify(flow_t *f, const struct mtp_notif *msg);
 
 /*============================================================================*

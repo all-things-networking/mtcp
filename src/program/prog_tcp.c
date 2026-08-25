@@ -3000,7 +3000,28 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 			if (g_sws_rw > g_sws_max)
 				INSTR(g_sws_max = g_sws_rw);
 		}
+		/*
+		 * D3: ASK TO BE ATTEMPTED AGAIN NEXT PASS. The donor keeps a
+		 * window-blocked stream on its send list and retries every
+		 * pass; we retried on EVENTS, which coincides with it whenever
+		 * the window reopens BECAUSE an acknowledgement arrived, and
+		 * differs for back-pressure that resolves without an inbound
+		 * packet -- ring space freed by our own drain, most of all.
+		 *
+		 * Asked for on every refusal that has something to send, not
+		 * only the window one: REF_SWS is also "held back, will go
+		 * later", and REF_NODATA and REF_STATE have nothing to retry.
+		 */
+		if (why == REF_WINDOW || why == REF_SWS)
+			mtp_retry(c->f);
 		if (why == REF_WINDOW) {
+			/*
+			 * AND THE PROBE AS WELL, not instead. The retry
+			 * recovers a window whose reopening is announced; this
+			 * recovers one whose announcement was LOST, and no
+			 * retry substitutes for a message that never arrives
+			 * (D-25 piece 2).
+			 */
 			c->probe.ctx = c;
 			mtp_timer_start(&c->probe,
 					(uint64_t)PARITY_PROBE_MS * 1000000ULL);
