@@ -2312,10 +2312,23 @@ proc_validate(struct tcp_ctx *c, const struct tcp_ev *e,
 	uint32_t seg_end;
 
 	(void)now;
-	/* Before the handshake completes there is nothing to validate against:
-	 * the donor guards the whole call with `state > TCP_ST_SYN_RCVD`. */
+	/*
+	 * Before the handshake completes there is nothing to validate against:
+	 * the donor guards the whole call with `state > TCP_ST_SYN_RCVD`, and
+	 * in ITS enum SYN_SENT sits BELOW SYN_RCVD -- so that one test excludes
+	 * both halves of a handshake.
+	 *
+	 * OURS APPENDED SYN_SENT AT THE END of the state list, because it was
+	 * added last, so the same comparison would have included it. Written out
+	 * as names for that reason: the donor's guard is an ordering and ours
+	 * cannot be, and a numeric comparison here would have been right by
+	 * accident until someone added a state.
+	 *
+	 * It cost a day: an active open validated its own SYN-ACK against a
+	 * recv_next of zero, rejected it, and the connection never completed.
+	 */
 	if (c->state == TCP_CLOSED || c->state == TCP_LISTEN ||
-	    c->state == TCP_SYN_RCVD)
+	    c->state == TCP_SYN_RCVD || c->state == TCP_SYN_SENT)
 		return true;
 
 	/* --- PAWS ------------------------------------------------------- */
@@ -2562,6 +2575,9 @@ parse_tcp_events(const struct tcp_ev *e, enum tcp_event_kind out[EV_KIND__N])
 		out[n++] = EV_RST;
 		return n;
 	}
+	if ((e->flags & (TCP_SYN | TCP_ACK)) == (TCP_SYN | TCP_ACK)
+	    && MTP_ENV_ON("MTP_TRACE_SEQ"))
+		fprintf(stderr, "PARSE synack seq=%u ack=%u\n", e->seq, e->ack);
 	if (e->flags & TCP_SYN) {
 		/* A handshake segment raises one event and nothing else: no
 		 * payload of ours is in sequence yet, and the acknowledgement
@@ -2695,6 +2711,9 @@ gen_syn(struct tcp_ctx *c, uint32_t now)
 static void
 proc_synack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
+	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
+		fprintf(stderr, "SYNACK state=%u ack=%u snd_base=%u next=%u\n",
+			c->state, e->ack, c->snd_base, c->send_next);
 	if (c->state != TCP_SYN_SENT)
 		return;
 

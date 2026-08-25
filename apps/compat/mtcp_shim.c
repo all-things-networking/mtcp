@@ -705,7 +705,17 @@ shim_collect_ready(void)
 		 * donor's shape), so this is "a connection is waiting" and it
 		 * belongs to SHIM_LISTENER.
 		 */
-		if (f == g_sock[SHIM_LISTENER].flow) {
+		/*
+		 * ...AND ONLY IF THAT SOCKET IS ACTUALLY LISTENING. A client
+		 * never calls listen(), so its FIRST socket gets SHIM_LISTENER's
+		 * id -- and without is_listener this test then claimed every
+		 * readiness for that connection as "a connection is waiting",
+		 * marked the wrong socket readable and dropped the WRITABLE the
+		 * handshake had just raised. The connection was established and
+		 * the application was never told.
+		 */
+		if (g_sock[SHIM_LISTENER].is_listener &&
+		    f == g_sock[SHIM_LISTENER].flow) {
 			g_sock[SHIM_LISTENER].ready |= MTCP_EPOLLIN;
 			continue;
 		}
@@ -715,6 +725,9 @@ shim_collect_ready(void)
 		if (sid <= 0 || sid >= SHIM_MAX_SOCK || g_sock[sid].flow != f)
 			continue;
 
+		if (getenv("MTP_SHIM_TRACE"))
+			fprintf(stderr, "SHIM ready sid=%d kinds=0x%x interest=0x%x\n",
+				sid, ready[i].kinds, g_sock[sid].interest);
 		if (ready[i].kinds & (1u << MTP_NOTIF_READABLE))
 			g_sock[sid].ready |= MTCP_EPOLLIN;
 		if (ready[i].kinds & (1u << MTP_NOTIF_WRITABLE))
@@ -797,6 +810,8 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 		g_sock[SHIM_LISTENER].ready &= ~(uint32_t)MTCP_EPOLLIN;
 	}
 
+	if (getenv("MTP_SHIM_TRACE") && (got || g_rdy_n))
+		fprintf(stderr, "SHIM wait got=%d rdy_n=%d\n", got, g_rdy_n);
 	for (k = 0; k < g_rdy_n && n < maxevents; k++) {
 		uint32_t hit;
 
