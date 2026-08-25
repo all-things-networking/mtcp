@@ -649,8 +649,29 @@ struct mtp_app_op {
 	struct mtp_endpoint	remote;
 	struct mtp_tx_addr	data;	/* SEND: the application's bytes */
 	uint32_t		len;
-	uint32_t		flags;
+	uint32_t		flags;	/* MTP_OP_PHASE_*, below */
 };
+
+/*
+ * WHICH HALF OF A SPLIT CHAIN THIS CALL IS RUNNING.
+ *
+ * `app_send -> { record_data, gen_seg }` is ONE chain that runs on TWO threads,
+ * and that is a placement decision of this target rather than anything the
+ * program says. `record_data` copies into the transmit stream and advances
+ * `write_end`; neither generates a packet, and the application cannot wait for a
+ * stack pass to have its bytes accepted, so it runs synchronously inside the
+ * call. `gen_seg` builds a blueprint and advances `send_next`, which is the
+ * stack's — putting it on the application thread is the race CR-E exists to
+ * remove.
+ *
+ * A COMPILER WOULD EMIT TWO ENTRY POINTS and the target would call each from
+ * the right thread. With one entry point in the contract, the phase rides on the
+ * op instead. The PROGRAM never branches on a thread; the generated dispatch
+ * branches on which half it was asked for, which is knowledge the compiler has
+ * because it made the placement.
+ */
+#define MTP_OP_PHASE_RECORD	0x1u	/* application thread: take the bytes */
+#define MTP_OP_PHASE_GENERATE	0x2u	/* stack thread: send what was taken */
 
 /*============================================================================*
  * 8. What the compiler emits, and what the target calls

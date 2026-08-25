@@ -221,6 +221,7 @@ struct tcp_scratch {
 
 /* Defined below, forward-declared for the acknowledgement chain. */
 static void enter_time_wait(struct tcp_ctx *c);
+static int  record_data(struct tcp_ctx *c, struct mtp_tx_addr addr, uint32_t len);
 static void gen_fin(struct tcp_ctx *c, uint32_t now);
 
 /*
@@ -1922,13 +1923,31 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 	 * and worth it — leaving it out wedges exactly the way the missing
 	 * active close did.
 	 */
-	if (c->state == TCP_FIN_WAIT_1)
+	if (c->state == TCP_FIN_WAIT_1) {
 		c->state = TCP_CLOSING;
-	else if (c->state == TCP_FIN_WAIT_2)
+	} else if (c->state == TCP_FIN_WAIT_2) {
 		enter_time_wait(c);
-	else
+	} else {
+		int was_established = (c->state == TCP_ESTABLISHED);
+
 		c->state = TCP_CLOSE_WAIT;
-	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_STATE });
+		/*
+		 * D8: READABLE, AND ONLY OUT OF ESTABLISHED. The donor raises a
+		 * read event here and nowhere else on the FIN path --
+		 * tcp_in.c:954, immediately after the CLOSE_WAIT transition and
+		 * inside the branch that only ESTABLISHED reaches. We were
+		 * issuing a STATE notification, on every transition.
+		 *
+		 * It is READABLE because that is what an application waiting on
+		 * a socket acts on: read() returning 0 is how end-of-stream is
+		 * delivered, and a state notification is not something the
+		 * donor's API has. The simultaneous-close and FIN_WAIT_2 rows
+		 * above raise nothing, which is also the donor.
+		 */
+		if (was_established)
+			mtp_notify(c->f, &(struct mtp_notif){
+					.kind = MTP_NOTIF_READABLE });
+	}
 }
 
 /*
@@ -2507,6 +2526,15 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 		c = (struct tcp_ctx *)mtp_ctx_of(op->flow);
 		if (!c)
 			return -1;
+		/*
+		 * generated from: app_send -> { record_data, gen_seg }, SPLIT
+		 * ACROSS THREADS. contract.h MTP_OP_PHASE_* says why, and why
+		 * the branch is here rather than anywhere in the program's own
+		 * logic: the compiler made the placement, so the dispatch it
+		 * emits is what knows about it.
+		 */
+		if (op->flags & MTP_OP_PHASE_RECORD)
+			return record_data(c, op->data, op->len);
 		return tcp_app_send(c, op->len, now_ms);
 	}
 	default:
@@ -3063,9 +3091,6 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 	if (!send_side_open(c))
 		return -1;
 
-	g_app_bytes += (uint64_t)len;
-	c->write_end += len;
-
 	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
 		fprintf(stderr, "APPSEND state=%u extent=%u write_end=%u "
 			"send_next=%u snd_base=%u cwnd=%u send_wnd=%u\n",
@@ -3074,6 +3099,36 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 
 	tcp_gen_seg(c, now);
 	return (int)len;
+}
+
+/*
+ * mtp/tcp.mtp §record_data — the application's bytes into the transmit stream.
+ *
+ * RUNS ON THE CALLING THREAD, which is what makes the instruction below the
+ * thing that causes the copy rather than a note about one that already
+ * happened. It touches the stream and `write_end`; neither generates a packet,
+ * so nothing here belongs to the stack.
+ *
+ * The count it returns is what the application is told it wrote. A short return
+ * is back-pressure, not an error.
+ */
+static int
+record_data(struct tcp_ctx *c, struct mtp_tx_addr addr, uint32_t len)
+{
+	int wrote;
+
+	if (!send_side_open(c))
+		return -1;
+	if (!c->tx_open)
+		return -1;		/* not established: no stream yet */
+
+	wrote = mtp_add_tx_data(&c->tx, addr, len);
+	if (wrote <= 0)
+		return wrote;
+
+	g_app_bytes += (uint64_t)wrote;
+	c->write_end += (uint32_t)wrote;
+	return wrote;
 }
 
 /*============================================================================*

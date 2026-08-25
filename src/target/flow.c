@@ -267,15 +267,33 @@ tgt_sched_enqueue(flow_t *f, uint32_t prio)
 int
 mtp_app_send(flow_t *f, const void *buf, uint32_t len)
 {
+	struct mtp_app_op op;
 	struct mtp_tx_addr addr;
 	int wrote;
 
 	if (!f || !f->tx_unit)
 		return -1;
 
+	/*
+	 * D6: THE PROGRAM TAKES THE BYTES, and the target does not take them
+	 * first. This used to call mtp_add_tx_data itself and publish, so by the
+	 * time the program's handler ran on the stack thread the bytes were
+	 * already copied and its `add_tx_data` was bookkeeping after the fact --
+	 * an instruction that was not what caused the effect.
+	 *
+	 * Now the record half of the chain runs here, synchronously, on the
+	 * calling thread, and issues the instruction that does the copy. The
+	 * generate half still runs on the stack thread; see MTP_OP_PHASE_*.
+	 */
+	memset(&op, 0, sizeof(op));
+	op.kind = MTP_APP_SEND;
+	op.flow = f;
 	addr.base = buf;
 	addr.len = len;
-	wrote = mtp_add_tx_data(f->tx_unit, addr, len);
+	op.data = addr;
+	op.len = len;
+	op.flags = MTP_OP_PHASE_RECORD;
+	wrote = mtp_program_app_op(&op, 0);
 	if (wrote <= 0)
 		return wrote;
 
@@ -371,6 +389,7 @@ tgt_deliver_send(struct core_ctx *core, struct flow *f)
 		op.kind = MTP_APP_SEND;
 		op.flow = f;
 		op.len = len;	/* CR-E: an EXTENT already in the ring */
+		op.flags = MTP_OP_PHASE_GENERATE;
 		mtp_program_app_op(&op, core->cur_ts);
 	}
 
