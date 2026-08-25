@@ -147,6 +147,34 @@ struct tcp_ctx {
 	uint8_t  snd_wscale;	/* the shift the peer asked for on its SYN */
 	uint32_t cwnd, ssthresh;
 
+	/*
+	 * THE DONOR'S WINDOW-UPDATE AND DUPLICATE-ACKNOWLEDGEMENT STATE.
+	 *
+	 * snd_wl1/snd_wl2 are RFC 793's: the sequence and acknowledgement
+	 * numbers of the segment that last moved the peer's window. They decide
+	 * whether a segment updates the window at all, and the duplicate test
+	 * then asks whether the window's right edge MOVED -- which is why
+	 * counting duplicates needs them and why send_wnd could not simply be
+	 * assigned on every acknowledgement as it was.
+	 *
+	 * D-01 already recorded snd_wl1 as a divergence masked by the ISN
+	 * freeze. It stops being masked here.
+	 */
+	uint32_t snd_wl1, snd_wl2;
+	/*
+	 * The window's right edge as it stood BEFORE this segment was allowed
+	 * to move it. The donor computes it at the top of ProcessACK
+	 * (tcp_in.c:326) and compares against it after the update, which is how
+	 * "the advertised window did not change" is expressed. Captured by
+	 * proc_window, read by proc_fast_retransmit, and meaningless outside
+	 * one chain.
+	 */
+	uint32_t right_wnd_edge;
+	uint32_t last_ack_seq;	/* the last acknowledgement number seen, for the
+				 * "ack_seq is old and unchanged" half */
+	uint32_t dup_acks;	/* consecutive duplicates, reset by any
+				 * non-duplicate */
+
 	/* --- the peer's timestamp, echoed in ours ------------------------ */
 	uint32_t ts_recent;
 	/*

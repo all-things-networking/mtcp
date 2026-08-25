@@ -221,6 +221,13 @@ struct tcp_scratch {
 	uint32_t	delivered;	/* bytes the application took */
 	bool		ack_now;	/* an acknowledgement is owed */
 	bool		ctx_dead;	/* del_ctx ran: stop the chain */
+	/*
+	 * The donor does NOT attempt a send on a fourth-or-later duplicate: it
+	 * inflates cwnd and re-adds nothing to its send list. gen_seg is the
+	 * next link in this chain and would otherwise attempt one, so the
+	 * decision is carried here rather than by gen_seg guessing.
+	 */
+	bool		no_send;
 };
 
 /* Defined below, forward-declared for the acknowledgement chain. */
@@ -578,7 +585,8 @@ static uint64_t g_tmr[TMR__N];
 
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
        RXS_ACK_ADVANCED, RXS_RST, RXS_ACK_PAST_NEXT, RXS_BACKLOG_FULL,
-       RXS_PAWS_NOTS, RXS_PAWS_OLD, RXS_SEQ_BAD, RXS__N };
+       RXS_PAWS_NOTS, RXS_PAWS_OLD, RXS_SEQ_BAD, RXS_FAST_RTX,
+       RXS_DUP_INFLATE, RXS__N };
 static uint64_t g_rx[RXS__N];
 
 static void
@@ -1075,7 +1083,9 @@ prog_report_refusals(void)
 					 "SYN dropped, backlog full",
 					 "PAWS: no timestamp",
 					 "PAWS: timestamp went back",
-					 "outside the receive window" };
+					 "outside the receive window",
+					 "FAST RETRANSMIT (3rd duplicate)",
+					 "  4th+ duplicate: inflate only" };
 	/* A name for every counter, checked at compile time rather than by
 	 * whoever next adds one. */
 	_Static_assert(sizeof(r) / sizeof(r[0]) == RXS__N,
@@ -1434,6 +1444,40 @@ estimate_rtt(struct tcp_ctx *c, uint32_t now, uint32_t ts_ecr)
  * last: all three read the same value.
  */
 
+/*
+ * mtp/tcp.mtp §proc_window — the peer's advertised window, RFC 793's rule.
+ *
+ * A SEPARATE PROCESSOR, AND AHEAD OF proc_fast_retransmit, because the donor
+ * updates the window BEFORE it counts duplicates and the duplicate test asks
+ * whether that update moved the right edge. Folded into proc_congestion, where
+ * it used to live, the test could not be written.
+ *
+ * The window moves only if this segment is newer than the one that last moved
+ * it, or is the same segment offering more (tcp_in.c:348-357). We assigned it
+ * unconditionally on every acknowledgement, so a reordered segment carrying a
+ * stale window shrank ours.
+ */
+static void
+proc_window(struct tcp_ctx *c, const struct tcp_ev *e)
+{
+	uint32_t cwindow;
+
+	if (!conn_exists(c) || !(e->flags & TCP_ACK))
+		return;
+	cwindow = (uint32_t)e->window << c->snd_wscale;
+
+	/* Before the update, for the duplicate test that follows. */
+	c->right_wnd_edge = c->snd_wl2 + c->send_wnd;
+
+	if ((int32_t)(c->snd_wl1 - e->seq) < 0 ||
+	    (c->snd_wl1 == e->seq && (int32_t)(c->snd_wl2 - e->ack) < 0) ||
+	    (c->snd_wl2 == e->ack && cwindow > c->send_wnd)) {
+		c->send_wnd = cwindow;
+		c->snd_wl1 = e->seq;
+		c->snd_wl2 = e->ack;
+	}
+}
+
 /* mtp/tcp.mtp §proc_timestamp — record the peer's echo for our own. */
 static void
 proc_timestamp(struct tcp_ctx *c, const struct tcp_ev *e)
@@ -1485,9 +1529,83 @@ proc_rtt(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
  * one change, and the per-iteration retry list lands before both.
  */
 static void
-proc_fast_retransmit(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+proc_fast_retransmit(struct tcp_ctx *c, const struct tcp_ev *e,
+		     struct tcp_scratch *sc, uint32_t now)
 {
-	(void)c; (void)e; (void)now;
+	bool dup = false;
+
+	(void)now;
+	if (!conn_exists(c) || !(e->flags & TCP_ACK))
+		return;
+
+	/*
+	 * THE DONOR'S FIVE CONDITIONS, in its own order (tcp_in.c:373-396):
+	 * the acknowledgement is old, carries no payload, leaves the window's
+	 * right edge where it was, and repeats the last one seen.
+	 *
+	 * `snd_wl2 + send_wnd` is the right edge AFTER proc_window has run, so
+	 * comparing it against the edge BEFORE is what "the window did not
+	 * change" means. proc_window is ahead of this processor in the chain
+	 * for exactly that reason.
+	 */
+	if ((int32_t)(e->ack - c->send_next) < 0 &&
+	    e->ack == c->last_ack_seq && e->payload_len == 0 &&
+	    c->snd_wl2 + c->send_wnd == c->right_wnd_edge) {
+		c->dup_acks++;
+		dup = true;
+	}
+	if (!dup) {
+		c->dup_acks = 0;
+		c->last_ack_seq = e->ack;
+		return;
+	}
+
+	if (c->dup_acks == PARITY_DUP_ACK_THRESH) {
+		/*
+		 * THE THIRD DUPLICATE, AND ONLY THE THIRD. Rewind to what the
+		 * peer is asking for, halve the window, and attempt one send.
+		 * gen_seg is the next link but one and does the attempt; this
+		 * processor does not generate.
+		 */
+		if ((int32_t)(e->ack - c->send_next) < 0)
+			c->send_next = e->ack;
+
+		c->ssthresh = (c->cwnd < c->send_wnd ? c->cwnd : c->send_wnd) / 2;
+		if (c->ssthresh < 2 * PARITY_MSS_ADVERTISED)
+			c->ssthresh = 2 * PARITY_MSS_ADVERTISED;
+		c->cwnd = c->ssthresh + 3 * PARITY_MSS_ADVERTISED;
+
+		if (c->rtx_count < PARITY_MAX_RTX)
+			c->rtx_count++;
+		INSTR(g_rx[RXS_FAST_RTX]++);
+		c->in_rtx = true;
+		c->rtx_mark = c->send_high;
+	} else if (c->dup_acks > PARITY_DUP_ACK_THRESH) {
+		/*
+		 * FOURTH AND LATER: INFLATE, AND ATTEMPT NOTHING. That is the
+		 * donor (tcp_in.c:466-473) and it is arguably wrong -- NewReno
+		 * inflates precisely so the sender clocks out one segment per
+		 * duplicate, and mTCP inflates and never attempts, so it does
+		 * no packet conservation during recovery.
+		 *
+		 * D-30: match the donor, defect included, because parity is
+		 * measured against the donor and "more correct than the donor"
+		 * is a divergence like any other. REVISIT before any writeup --
+		 * a reader will expect NewReno here.
+		 *
+		 * OUR PER-DUPLICATE SEND ATTEMPT DIES HERE. gen_seg follows in
+		 * this chain and would attempt one; the flag is what stops it,
+		 * and the per-iteration retry list (D3) is what took over the
+		 * recovery that attempt was doing.
+		 */
+		if (c->cwnd + PARITY_MSS_ADVERTISED > c->cwnd)
+			c->cwnd += PARITY_MSS_ADVERTISED;
+		INSTR(g_rx[RXS_DUP_INFLATE]++);
+		sc->no_send = true;
+	} else {
+		/* first and second: counted, nothing else, no attempt */
+		sc->no_send = true;
+	}
 }
 
 /*
@@ -1506,8 +1624,7 @@ proc_congestion(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	if (!conn_exists(c) || !(e->flags & TCP_ACK))
 		return;
 
-	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
-
+	/* The peer's window is proc_window's, ahead of this in the chain. */
 	acked = e->ack - c->send_una;
 	if ((int32_t)acked <= 0)
 		return;
@@ -2235,13 +2352,20 @@ dispatch_tcp_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 
 	proc_timestamp(c, e);
 	proc_open_done(c, e, now);
+	proc_window(c, e);
 	proc_rtt(c, e, now);
-	proc_fast_retransmit(c, e, now);
+	proc_fast_retransmit(c, e, &sc, now);
 	proc_congestion(c, e, now);
 	proc_ack(c, e, &sc, now);
 	if (sc.ctx_dead)
 		return false;
-	tcp_gen_seg(c, now);
+	/*
+	 * THE DONOR DOES NOT ATTEMPT A SEND ON A DUPLICATE it is not acting on
+	 * (D-30). We attempted on every one -- the D-25 stall fix -- and the
+	 * per-iteration retry list is what took that recovery over.
+	 */
+	if (!sc.no_send)
+		tcp_gen_seg(c, now);
 	gen_fin(c, now);
 	return true;
 }

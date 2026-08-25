@@ -167,4 +167,7 @@
  */
 #define PROG_MAX_BACKLOG 128
 
+/* tcp_in.c:417 -- the donor acts on the third duplicate and only the third. */
+#define PARITY_DUP_ACK_THRESH 3
+
 #endif /* PROG_PARAMS_H */
