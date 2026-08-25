@@ -433,20 +433,51 @@ dispatch tcp_dispatch {
 // NOT IMPLEMENTED, and each says whether the donor has it, because that is what
 // decides whether its absence is a parity difference or a shared property:
 //
-//   fast_retransmit      donor HAS it. M2. A parity difference until then.
+//   fast_retransmit      CLOSED 2026-08-25, with the duplicate-acknowledgement
+//                        change it is paired with (D-30). Demonstrated under
+//                        injected loss, not merely compiled: one dropped
+//                        segment produced one fast retransmit, sixteen
+//                        inflate-only duplicates and ZERO retransmission
+//                        timeouts.
 //
 //   out_of_order_reasm   CLOSED 2026-08-24. §proc_recv marks the arrived range
 //                        in rx_wnd and slides; the target's receive stream
 //                        stores a segment at its own sequence number instead of
 //                        refusing it. Kept visible here for one release so the
 //                        register reads as a record rather than a snapshot.
-//   window_probe         donor HAS it, and it is a WINDOW-BLOCKED probe, not a
-//                        zero-window one — it fires when the peer's window is
-//                        merely small. M2.
+//   window_probe         CLOSED, and it was already closed when this line was
+//                        written -- §send_window_probe has existed since D-25
+//                        piece 2. VERIFIED against the donor 2026-08-25, not
+//                        assumed: tcp_out.c:428-441 probes from the SEND path
+//                        when a send is refused and the blocking window is the
+//                        PEER's rather than cwnd, more than 500 ms since the
+//                        last acknowledgement it sent, as a pure ACK at
+//                        snd_nxt - 1 with no backoff.
+//
+//                        TWO DIVERGENCES, both recorded rather than closed:
+//                        ours fires from a TIMER armed on refusal where the
+//                        donor fires from the send path, and ours tests
+//                        `send_wnd <= cwnd` where the donor tests whether the
+//                        blocked amount exceeds peer_wnd specifically. Both
+//                        amount to "500 ms after being window-blocked".
+//
+//                        wack_sent is NOT reproduced and that is correct: it is
+//                        a per-call local on a branch that returns immediately,
+//                        so it cannot affect anything. Re-confirmed here.
 //   rst_emission         donor HAS it. Needs the per-core global ring. M2.
-//   seq_validation       donor HAS it. M2.
-//   paws                 donor HAS it. M2.
-//   idle_reaping         donor HAS it. M2.
+//   seq_validation       CLOSED 2026-08-25. §proc_validate, the donor's
+//                        ValidateSequence reproduced -- including its test on
+//                        seq + payloadlen rather than RFC 793's on first and
+//                        last byte separately.
+//   paws                 CLOSED 2026-08-25, in the same processor. A segment
+//                        from a timestamping peer carrying no timestamp is
+//                        dropped, which is the donor's behaviour where the
+//                        standard would answer it.
+//   idle_reaping         donor HAS it. Still absent. D-27 records that its 30 s
+//                        timeout is largely a workaround for its own close
+//                        path, so reproducing it reproduces a mechanism whose
+//                        necessity is not purely protocol -- a decision the
+//                        lead still owes.
 //   sack                 NEITHER has it. Adding it would break parity.
 //   nagle                NEITHER has it.
 //   delayed_ack          NEITHER has it.
