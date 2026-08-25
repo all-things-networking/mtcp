@@ -646,6 +646,21 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 
 /*----------------------------------------------------------------------------*/
 /*
+ * mtp_pkt_gen_orphan — a packet for a flow that does not exist.
+ *
+ * The offload offset is the program's, exactly as it is on the flow path: the
+ * target computes a sum over a header whose shape it does not know.
+ */
+int
+mtp_pkt_gen_orphan(uint32_t local_ip, uint32_t remote_ip,
+		   const void *hdr, uint16_t hdr_len, int offload)
+{
+	return tgt_pkt_gen_orphan(g_core[0], local_ip, remote_ip, hdr, hdr_len,
+				  offload, PROG_L4_CSUM_OFFSET);
+}
+
+/*----------------------------------------------------------------------------*/
+/*
  * mtp_retry — the program asks for its generation to be attempted again on the
  * next pass. contract.h says why the PROGRAM has to ask and the target cannot
  * decide: only the program knows it has something unsent.

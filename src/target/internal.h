@@ -110,6 +110,12 @@ int tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 
 /* The receive unit's base is a sequence number, not zero: the peer's ISN + 1.
  * Passing it here is the bridge, so nothing downstream has to convert. */
+/* One packet that belongs to no flow -- a reset for a connection that does not
+ * exist. See emit.c for why this is not the ring A4 described. */
+int tgt_pkt_gen_orphan(struct core_ctx *core, uint32_t saddr, uint32_t daddr,
+		       const void *hdr, uint16_t hdr_len, int offload,
+		       uint16_t offload_csum_off);
+
 /* D3: re-attempt generation for every flow that asked (mtp_retry). */
 void tgt_sched_take_retries(struct core_ctx *core);
 

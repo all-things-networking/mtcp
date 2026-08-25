@@ -112,6 +112,32 @@ mtp_program_segment(const struct mtp_seg_view *v)
  *   every non-SYN, exactly 12 bytes:
  *     NOP NOP Timestamp
  */
+/*
+ * A reset's header, built WITHOUT A CONTEXT, because a reset for a connection
+ * that does not exist has none. Ports come from the offending segment with the
+ * halves swapped, and there are no options: the donor's SendTCPPacketStandalone
+ * sends none on this path, and a timestamp echo would need a ts_recent we have
+ * never had.
+ */
+static uint16_t
+tcp_build_rst_header(uint8_t *out, uint16_t loc_port, uint16_t rem_port,
+		     uint32_t seq, uint32_t ack, uint8_t flags)
+{
+	uint16_t w;
+	uint32_t v32;
+
+	memset(out, 0, 20);
+	w = htons(loc_port);   memcpy(out + 0, &w, 2);
+	w = htons(rem_port);   memcpy(out + 2, &w, 2);
+	v32 = htonl(seq);      memcpy(out + TCPH_SEQ, &v32, 4);
+	v32 = htonl(ack);      memcpy(out + TCPH_ACK, &v32, 4);
+	out[TCPH_FLAGS] = flags;
+	out[TCPH_DOFF] = (uint8_t)(5 << 4);	/* 20 bytes, no options */
+	/* Window zero: there is no receive buffer behind a connection that does
+	 * not exist, and the donor passes 0 at every standalone site. */
+	return 20;
+}
+
 uint16_t
 tcp_build_header(uint8_t *out, struct tcp_ctx *c, uint32_t seq,
 		 uint8_t flags, uint32_t ts_val, uint32_t ts_ecr)
@@ -400,7 +426,7 @@ key_of_listener(uint32_t loc_ip, uint16_t loc_port)
  * these without reading protocol flags, which rule 4 forbids it.
  */
 enum { EM_SYNACK, EM_ACK_DATA, EM_ACK_FIN, EM_PROBE, EM_PROBE_REPLY, EM_FIN,
-       EM_DATA, EM_DATA_RTX, EM__N };
+       EM_DATA, EM_DATA_RTX, EM_RST, EM__N };
 /*
  * THE PROGRAM'S TRANSMIT SCHEDULING POLICY (D-17).
  *
@@ -617,7 +643,7 @@ static uint64_t g_tmr[TMR__N];
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
        RXS_ACK_ADVANCED, RXS_RST, RXS_ACK_PAST_NEXT, RXS_BACKLOG_FULL,
        RXS_PAWS_NOTS, RXS_PAWS_OLD, RXS_SEQ_BAD, RXS_FAST_RTX,
-       RXS_DUP_INFLATE, RXS__N };
+       RXS_DUP_INFLATE, RXS_RST_HANDLED, RXS__N };
 static uint64_t g_rx[RXS__N];
 
 static void
@@ -1116,7 +1142,8 @@ prog_report_refusals(void)
 					 "PAWS: timestamp went back",
 					 "outside the receive window",
 					 "FAST RETRANSMIT (3rd duplicate)",
-					 "  4th+ duplicate: inflate only" };
+					 "  4th+ duplicate: inflate only",
+					 "INBOUND RST (handled)" };
 	/* A name for every counter, checked at compile time rather than by
 	 * whoever next adds one. */
 	_Static_assert(sizeof(r) / sizeof(r[0]) == RXS__N,
@@ -2339,6 +2366,113 @@ proc_validate(struct tcp_ctx *c, const struct tcp_ev *e,
 }
 
 /*
+ * mtp/tcp.mtp §gen_rst — answer a segment that belongs to no connection.
+ *
+ * THE DONOR SENDS A RESET ONLY HERE. All six of its emission sites are in
+ * ProcessTCPPacket, for a segment with no live stream, via
+ * SendTCPPacketStandalone. It never sends one from an established connection
+ * and mtcp_close always sends a FIN -- so an abortive close has no
+ * representation in the DONOR either, and adding one here would be a divergence
+ * rather than parity (docs/events/EVENT-RST.md).
+ *
+ * Two shapes, and which one depends on whether the offending segment carried an
+ * acknowledgement (tcp_in.c:744 and :748):
+ *
+ *   with ACK: seq = its ack, no ACK flag of our own, no acknowledgement number
+ *   without:  seq = 0, ACK flag set, ack = its seq + its length (+1 for a SYN)
+ *
+ * The second form has to acknowledge something because a bare reset with
+ * sequence zero would be discarded by any receiver checking the window.
+ */
+static void
+gen_rst(uint32_t local_ip, uint32_t remote_ip, const struct tcp_ev *e)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	uint16_t hdr_len;
+	uint32_t seq, ack;
+	uint8_t flags;
+
+	if (e->flags & TCP_RST)
+		return;			/* never answer a reset with a reset */
+
+	if (e->flags & TCP_ACK) {
+		seq = e->ack;
+		ack = 0;
+		flags = TCP_RST;
+	} else {
+		seq = 0;
+		ack = e->seq + e->payload_len + ((e->flags & TCP_SYN) ? 1 : 0);
+		flags = TCP_RST | TCP_ACK;
+	}
+
+	hdr_len = tcp_build_rst_header(hdr, e->dport, e->sport, seq, ack, flags);
+	INSTR(g_emit[EM_RST]++);
+	mtp_pkt_gen_orphan(local_ip, remote_ip, hdr, hdr_len, 1 /* offload */);
+}
+
+/*
+ * mtp/tcp.mtp §proc_rst — the peer reset the connection.
+ *
+ * docs/events/EVENT-RST.md, which is A's design and not an agreed one.
+ * Reproduced from the donor's ProcessRST, and TWO OF ITS ODDITIES ARE
+ * DELIBERATE:
+ *
+ *   - a reset on an ESTABLISHED connection leaves it in CLOSE_WAIT, not
+ *     CLOSED, and destroys nothing. The donor's own destroy is commented out
+ *     there. So the application still has to close it and the flow stays alive
+ *     until it does;
+ *   - the application is not told WHY. NotifyConnectionReset is commented out
+ *     in the donor; it raises a close event, so the application learns the
+ *     socket is readable and then reads end-of-stream.
+ *
+ * Rule 1: reproduce, do not correct. REVISIT before any writeup.
+ *
+ * The donor also has `TODO: we need reset validation logic` at the top and does
+ * NOT check that the reset's sequence lies in the window -- the check RFC 5961
+ * exists for. Reproducing that reproduces its exposure to blind reset attacks,
+ * which is what rule 1 asks for and is worth saying out loud.
+ */
+static bool
+proc_rst(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
+	 uint32_t now)
+{
+	(void)sc; (void)now;
+	INSTR(g_rx[RXS_RST_HANDLED]++);
+
+	/* Below ESTABLISHED the donor does not handle it here at all. */
+	if (c->state == TCP_CLOSED || c->state == TCP_LISTEN)
+		return true;
+
+	if (c->state == TCP_SYN_RCVD) {
+		/* Only a reset that acknowledges our SYN-ACK exactly. */
+		if (e->ack == c->send_next) {
+			c->state = TCP_CLOSED;
+			prog_unregister(c);
+			mtp_del_ctx(&c->key);
+			return false;		/* the context is gone */
+		}
+		return true;
+	}
+
+	if (c->state == TCP_FIN_WAIT_1 || c->state == TCP_FIN_WAIT_2 ||
+	    c->state == TCP_LAST_ACK   || c->state == TCP_CLOSING ||
+	    c->state == TCP_TIME_WAIT) {
+		/* Already closing; the reset just ends it. */
+		c->state = TCP_CLOSED;
+		prog_unregister(c);
+		mtp_del_ctx(&c->key);
+		return false;
+	}
+
+	/* ESTABLISHED or CLOSE_WAIT: see the note above. */
+	c->state = TCP_CLOSE_WAIT;
+	c->fin_consumed = true;		/* the receive side is over, however it
+					 * ended: nothing more will arrive */
+	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_READABLE });
+	return true;
+}
+
+/*
  * mtp/tcp.mtp §net_parser — which events this segment raises.
  *
  * INCLUSIVE, AND THAT IS THE DONOR'S SHAPE, not a convenience. mTCP's
@@ -2378,6 +2512,7 @@ proc_validate(struct tcp_ctx *c, const struct tcp_ev *e,
  * event that means "this segment acknowledges". Lead's call, 2026-08-24.
  */
 enum tcp_event_kind {
+	EV_RST,
 	EV_SYN,
 	EV_SYNACK,
 	EV_ACK,
@@ -2391,6 +2526,17 @@ parse_tcp_events(const struct tcp_ev *e, enum tcp_event_kind out[EV_KIND__N])
 {
 	unsigned n = 0;
 
+	/*
+	 * A RESET RAISES tcp_rst AND NOTHING ELSE, which is the one place the
+	 * inclusive classification above does not apply. The donor calls
+	 * ProcessRST and returns from ProcessTCPPacket on a true result, so no
+	 * payload is delivered and no acknowledgement is retired from that
+	 * segment.
+	 */
+	if (e->flags & TCP_RST) {
+		out[n++] = EV_RST;
+		return n;
+	}
 	if (e->flags & TCP_SYN) {
 		/* A handshake segment raises one event and nothing else: no
 		 * payload of ours is in sequence yet, and the acknowledgement
@@ -2433,6 +2579,15 @@ dispatch_tcp_ack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		tcp_gen_seg(c, now);
 	gen_fin(c, now);
 	return true;
+}
+
+/* generated from: tcp_rst -> { proc_rst } */
+static bool
+dispatch_tcp_rst(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+{
+	struct tcp_scratch sc = { 0 };
+
+	return proc_rst(c, e, &sc, now);
 }
 
 /* generated from: tcp_data -> { proc_recv, send_ack } */
@@ -2496,8 +2651,16 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 
 	c = mtp_ctx_lookup(&k);				/* lookup 1 */
 	if (!c) {
-		if (!(e.flags & TCP_SYN) || (e.flags & TCP_ACK))
-			return 0;			/* no context, not an open */
+		if (!(e.flags & TCP_SYN) || (e.flags & TCP_ACK)) {
+			/*
+			 * A segment for a connection that does not exist.
+			 * tcp_in.c:744/748 -- the donor answers with a reset
+			 * rather than dropping it, which is what lets a peer
+			 * holding a stale connection find out.
+			 */
+			gen_rst(iph->daddr, iph->saddr, &e);
+			return 0;
+		}
 		/* G8: both halves must match. A miss is a miss — never a null
 		 * context handed onward, which is how the prototype turns a
 		 * missed lookup into a crash. */
@@ -2512,8 +2675,12 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 			flowkey_t lk = key_of_listener(iph->daddr, e.dport);
 
 			lst = mtp_ctx_lookup(&lk);
-			if (!lst || lst->state != TCP_LISTEN)
+			if (!lst || lst->state != TCP_LISTEN) {
+				/* tcp_in.c:700 -- a SYN the listener filter
+				 * refuses is answered with a reset. */
+				gen_rst(iph->daddr, iph->saddr, &e);
 				return 0;
+			}
 			/*
 			 * C3: A SYN ARRIVING WITH THE QUEUE FULL IS DROPPED,
 			 * and dropped here -- before any context exists, so
@@ -2528,7 +2695,12 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 			 */
 			if (lst->pending_n >= lst->pending_cap) {
 				INSTR(g_rx[RXS_BACKLOG_FULL]++);
-				return 0;
+				return 0;	/* a full backlog DROPS, it
+						 * does not reset: the donor
+						 * resets a refused listener
+						 * and an exhausted pool, and
+						 * a full accept queue is
+						 * neither */
 			}
 		}
 		c = mtp_new_ctx(&k, sizeof(*c));
@@ -2597,6 +2769,7 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 			 * the first one and by nothing here */
 			alive = true;
 			break;
+		case EV_RST:    alive = dispatch_tcp_rst(c, &e, now_ms);    break;
 		case EV_SYNACK: alive = dispatch_tcp_synack(c, &e, now_ms); break;
 		case EV_ACK:    alive = dispatch_tcp_ack(c, &e, now_ms);    break;
 		case EV_DATA:   alive = dispatch_tcp_data(c, &e, now_ms);   break;

@@ -151,6 +151,82 @@ drop_this_one(uint16_t seg_len, int consumes_seq)
  * One segment. Returns 0, or -1 when the interface's transmit buffer is full,
  * which is a retry rather than an error.
  */
+/*
+ * ONE PACKET THAT BELONGS TO NO FLOW.
+ *
+ * DEFERRED.md A4 has said "needs the per-core global ring" since it was written,
+ * and this is what that meant: a reset for a connection that does not exist has
+ * no context and no flow, so it cannot go through mtp_pkt_gen, whose first
+ * argument is a flow_t *. The donor has the same shape and the same answer --
+ * SendTCPPacketStandalone, which builds a packet with no stream.
+ *
+ * NOT A RING. The name in A4 assumed one; what the emission path actually needs
+ * from a flow is a route cache (nif_out, is_external) and an IP identifier, and
+ * one scratch flow per core supplies all three. There is nothing to queue: the
+ * packet carries no payload, references no data unit, and is staged immediately.
+ * Recorded because "needs the per-core global ring" would otherwise send the
+ * next reader looking for a ring that should not exist.
+ *
+ * The scratch flow is NOT in the flow table and has no context. Nothing may look
+ * it up, and its ip_id is a per-core counter rather than a per-connection one --
+ * a divergence from the donor, which passes 0 for the identifier at every
+ * standalone site.
+ */
+int
+tgt_pkt_gen_orphan(struct core_ctx *core, uint32_t saddr, uint32_t daddr,
+		   const void *hdr, uint16_t hdr_len, int offload,
+		   uint16_t offload_csum_off)
+{
+	struct transport *t = TransportOf(core);
+	uint8_t *l4;
+
+	if (!hdr || !hdr_len)
+		return -1;
+
+	/* The route cache is per DESTINATION, so it is only reusable while the
+	 * destination is the same one. Cheaper to reset than to be wrong. */
+	if (t->orphan_daddr != daddr || t->orphan_saddr != saddr) {
+		t->orphan_saddr = saddr;
+		t->orphan_daddr = daddr;
+		t->orphan_nif = -1;
+		t->orphan_external = 0;
+	}
+
+	l4 = IPOutput(core, &t->orphan_nif, &t->orphan_external,
+		      t->orphan_saddr, t->orphan_daddr,
+		      TRANSPORT_IP_PROTO, t->orphan_ip_id, 0 /* tos */, hdr_len);
+	if (!l4) {
+		t->tx_suppressed++;
+		if (core->last_ipout_fail == IPOUT_NO_ARP)
+			t->emit_refused_arp++;
+		else
+			t->emit_refused_noframe++;
+		return -1;
+	}
+	t->orphan_ip_id++;
+	memcpy(l4, hdr, hdr_len);
+
+	if (offload && core->iom->dev_ioctl) {
+		struct l4_csum_req req = {
+			.iph = (struct iphdr *)(l4 - IP_HEADER_LEN),
+			.l4_hdr_len = hdr_len,
+			.l4_csum_offset = offload_csum_off,
+		};
+
+		/* Same refusal as the flow path: a packet that goes out unsummed
+		 * is dropped by the peer and looks like one that never left. */
+		if (core->iom->dev_ioctl(core->ctx, t->orphan_nif,
+					 PKT_TX_L3L4_CSUM, &req) < 0) {
+			t->emit_refused_offload++;
+			return -1;
+		}
+	}
+
+	t->staged++;
+	t->orphans_sent++;
+	return 0;
+}
+
 static int
 emit_segment(struct core_ctx *core, struct flow *f, struct bp *bp,
 	     uint32_t seg_off, uint16_t seg_len)

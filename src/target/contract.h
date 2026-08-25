@@ -602,6 +602,20 @@ struct mtp_notif {
  * reopening was ANNOUNCED AND LOST, and no amount of retrying substitutes for a
  * message that never arrives (D-25 piece 2).
  */
+/*
+ * Emit one packet for a flow that does not exist.
+ *
+ * The program builds the header as it builds any other; the target supplies the
+ * route and the IP identifier. It carries no payload and references no data
+ * unit, because there is no connection for it to belong to.
+ *
+ * TCP needs this for a reset answering a segment that matches nothing. It is
+ * not a TCP idea: "answer a stranger" is what any protocol with a rejection
+ * message needs, and nothing here names one.
+ */
+int mtp_pkt_gen_orphan(uint32_t local_ip, uint32_t remote_ip,
+		       const void *hdr, uint16_t hdr_len, int offload);
+
 void mtp_retry(flow_t *f);
 
 int mtp_notify(flow_t *f, const struct mtp_notif *msg);

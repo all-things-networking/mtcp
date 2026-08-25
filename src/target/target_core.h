@@ -56,6 +56,19 @@ struct transport {
 	struct flow		*retry[MTP_RETRY_MAX];
 	unsigned		 retry_n;
 	uint64_t		 retries;
+
+	/*
+	 * A PACKET THAT BELONGS TO NO FLOW needs a route cache and an IP
+	 * identifier and nothing else, so this is four scalars rather than a
+	 * flow record. Deliberately not a `struct flow`: it is in no table, has
+	 * no context, is never looked up, and giving it the type would invite
+	 * all three.
+	 */
+	int			 orphan_nif;	/* route cache, per destination */
+	uint8_t			 orphan_external;
+	uint16_t		 orphan_ip_id;
+	uint32_t		 orphan_saddr, orphan_daddr;
+	uint64_t		 orphans_sent;
 	/*
 	 * THE FIVE THAT MUST COMPOSE. del_ctx and detach are the two events;
 	 * destroyed is what should equal the number of flows that saw both.

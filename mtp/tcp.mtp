@@ -482,7 +482,35 @@ dispatch tcp_dispatch {
 //                        wack_sent is NOT reproduced and that is correct: it is
 //                        a per-call local on a branch that returns immediately,
 //                        so it cannot affect anything. Re-confirmed here.
-//   rst_emission         donor HAS it. Needs the per-core global ring. M2.
+//   rst_emission         CLOSED 2026-08-25, both directions.
+//                        RECEIVE: §proc_rst, the donor's ProcessRST including
+//                        two oddities reproduced on purpose -- a reset on an
+//                        ESTABLISHED connection leaves it in CLOSE_WAIT rather
+//                        than closed (the donor's destroy is commented out),
+//                        and the application is never told WHY
+//                        (NotifyConnectionReset is commented out too), so it
+//                        learns the socket is readable and reads end-of-stream.
+//                        The donor also does not check that the reset's
+//                        sequence is in the window -- `TODO: we need reset
+//                        validation logic` -- so it is blind-reset-attackable
+//                        and so are we. REVISIT before any writeup.
+//
+//                        EMIT: §gen_rst, and ONLY where the donor emits --
+//                        segments belonging to no live connection. The donor
+//                        never sends one from an established connection and
+//                        mtcp_close always sends a FIN, SO AN ABORTIVE CLOSE
+//                        HAS NO REPRESENTATION IN THE DONOR EITHER and adding
+//                        one here would be a divergence rather than parity.
+//
+//                        A full accept backlog DROPS rather than resets: the
+//                        donor resets a refused listener and an exhausted flow
+//                        pool, and a full accept queue is neither.
+//
+//                        A4 said this "needs the per-core global ring". THERE
+//                        IS NO RING. What the emission path needs from a flow
+//                        is a route cache and an IP identifier -- four scalars
+//                        per core. Nothing queues: the packet carries no
+//                        payload and references no data unit.
 //   seq_validation       CLOSED 2026-08-25. §proc_validate, the donor's
 //                        ValidateSequence reproduced -- including its test on
 //                        seq + payloadlen rather than RFC 793's on first and
