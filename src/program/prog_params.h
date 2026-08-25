@@ -170,4 +170,12 @@
 /* tcp_in.c:417 -- the donor acts on the third duplicate and only the third. */
 #define PARITY_DUP_ACK_THRESH 3
 
+/*
+ * The donor's connection-idle timeout, from the RUNNING CONFIGURATION rather
+ * than a standard: conf/aqua/upcheck.conf says `tcp_timeout = 30`, and
+ * config.c:618-621 converts it to ticks. A connection with no activity for this
+ * long is closed and the application is told with an ERROR, not a clean close.
+ */
+#define PARITY_IDLE_MS 30000u
+
 #endif /* PROG_PARAMS_H */

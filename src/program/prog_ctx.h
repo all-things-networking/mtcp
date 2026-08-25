@@ -265,6 +265,10 @@ struct tcp_ctx {
 	struct mtp_timer tw;
 	/* D-25 piece 2: the closed-window probe. A THIRD timer on one flow. */
 	struct mtp_timer probe;
+	/* idle_reaping: a FOURTH. The donor keeps one ordered list and walks it
+	 * per tick; a per-flow timer is a different mechanism with the same
+	 * observable -- 30 s without activity and the connection is gone. */
+	struct mtp_timer idle;
 	uint32_t last_ack_sent_ms;	/* the probe's 500 ms is since OUR ack */
 	/* our own copy of the key, so a timer that outlives the packet path can
 	 * still name the context to destroy (D-24) */

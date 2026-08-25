@@ -30,6 +30,9 @@
 #include "prog_params.h"
 #include "prog_ctx.h"
 
+/* Defined far below; tcp_build_header is its first caller and comes before it. */
+static void tcp_touch_idle(struct tcp_ctx *c);
+
 /*
  * INSTRUMENTATION, INERT UNLESS ENABLED AT RUN TIME.
  *
@@ -129,8 +132,17 @@ tcp_build_header(uint8_t *out, struct tcp_ctx *c, uint32_t seq,
 	 * one header built per emission, and a rule enforced at five call sites
 	 * is a rule the sixth will not follow.
 	 */
-	if (flags & TCPH_ACK)
+	if (flags & TCPH_ACK) {
 		c->last_ack_sent_ms = ts_val;
+		/*
+		 * AND THE IDLE CLOCK. The donor stamps last_active_ts on the
+		 * same line it stamps ts_lastack_sent (tcp_out.c:293-296), and
+		 * again on every received packet (tcp_in.c:1292). Restarting
+		 * the timer is our equivalent of its UpdateTimeoutList moving
+		 * the stream to the tail of an ordered list.
+		 */
+		tcp_touch_idle(c);
+	}
 
 	int is_syn = (flags & 0x02) != 0;
 	uint8_t *o;
@@ -599,7 +611,7 @@ static uint64_t g_avail_sum, g_avail_max, g_bind_cwnd, g_bind_peer;
  * sws-holdoff is then a correct response to a window we are keeping shut
  * ourselves.
  */
-enum { TMR_RTO, TMR_TIMEWAIT, TMR_PROBE, TMR__N };
+enum { TMR_RTO, TMR_TIMEWAIT, TMR_PROBE, TMR_IDLE, TMR__N };
 static uint64_t g_tmr[TMR__N];
 
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
@@ -1136,7 +1148,10 @@ prog_report_refusals(void)
 		 * rather than a window value.
 		 */
 		static const char *tn[TMR__N] = { "retransmission", "TIME_WAIT",
-						  "window-probe" };
+						  "window-probe", "connection idle" };
+		/* One name per timer, checked rather than remembered. */
+		_Static_assert(sizeof(tn) / sizeof(tn[0]) == TMR__N,
+			       "timer names are out of step with the enum");
 		int j;
 
 		for (j = 0; j < TMR__N; j++)
@@ -2201,6 +2216,37 @@ gen_fin(struct tcp_ctx *c, uint32_t now)
  */
 
 /*
+ * mtp/tcp.mtp §proc_idle's clock — the connection did something.
+ *
+ * Restarts the idle timer rather than recording a timestamp, because the
+ * question the donor asks per tick ("has this been quiet for 30 s?") is the
+ * question a timer answers by expiring. The observable is the same and there is
+ * no list to walk.
+ */
+static void
+tcp_touch_idle(struct tcp_ctx *c)
+{
+	if (c->state == TCP_CLOSED || c->state == TCP_TIME_WAIT)
+		return;			/* nothing left to reap */
+	/*
+	 * MTP_IDLE_MS shortens the timeout so the mechanism can be DEMONSTRATED
+	 * rather than declared. At the donor's 30 s nothing on this testbed
+	 * stays quiet long enough for it to fire, and a reaper that has never
+	 * been seen to reap is the same dead mechanism as a counter never seen
+	 * to increment. Resolved once; the default is the donor's.
+	 */
+	static uint32_t idle_ms;
+
+	if (!idle_ms) {
+		const char *e = getenv("MTP_IDLE_MS");
+
+		idle_ms = e && atoi(e) > 0 ? (uint32_t)atoi(e) : PARITY_IDLE_MS;
+	}
+	c->idle.ctx = c;
+	mtp_timer_start(&c->idle, (uint64_t)idle_ms * 1000000ULL);
+}
+
+/*
  * mtp/tcp.mtp §proc_validate — PAWS and the sequence-acceptability test.
  *
  * `seq_validation` and `paws`, off the list of mechanisms we did not have. Both
@@ -2509,6 +2555,9 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 	}
 
 	INSTR(g_rx[RXS_CTX]++);
+	/* tcp_in.c:1292 -- the donor stamps activity on EVERY received packet,
+	 * before validation and before any state test. */
+	tcp_touch_idle(c);
 	/*
 	 * INBOUND RST, counted and nothing else. DESIGN-CLOSE.md §5 records that
 	 * this program has no RST path: a peer that has gone away answers our
@@ -2939,6 +2988,35 @@ dispatch_tcp_timewait_timeout(struct tcp_ctx *c, uint32_t now_ms)
 	proc_timewait_done(c, now_ms);
 }
 
+/*
+ * mtp/tcp.mtp §proc_idle — the connection has been quiet too long.
+ *
+ * THE DONOR TELLS THE APPLICATION WITH AN ERROR, not a clean close
+ * (timer.c, CheckConnectionTimeout): state goes to CLOSED with
+ * close_reason = TCP_TIMEDOUT, and a stream that still has a socket gets
+ * RaiseErrorEvent -- only one with no socket is destroyed silently. No FIN is
+ * sent, so the peer learns nothing; that is the donor's behaviour and it is
+ * why D-27 calls the mechanism a workaround for its own close path rather than
+ * protocol.
+ */
+static void
+proc_idle(struct tcp_ctx *c, uint32_t now_ms)
+{
+	(void)now_ms;
+	INSTR(g_tmr[TMR_IDLE]++);
+	c->state = TCP_CLOSED;
+	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_ERROR });
+	prog_unregister(c);
+	mtp_del_ctx(&c->key);
+}
+
+/* generated from: tcp_idle_timeout -> { proc_idle } */
+static void
+dispatch_tcp_idle_timeout(struct tcp_ctx *c, uint32_t now_ms)
+{
+	proc_idle(c, now_ms);
+}
+
 /* generated from: tcp_probe_timeout -> { proc_probe } */
 static void
 dispatch_tcp_probe_timeout(struct tcp_ctx *c, uint32_t now_ms)
@@ -2964,7 +3042,9 @@ mtp_program_timer(struct mtp_timer *t, uint32_t now_ms)
 	if (!c || c->state == TCP_CLOSED)
 		return;
 
-	if (t == &c->probe)
+	if (t == &c->idle)
+		dispatch_tcp_idle_timeout(c, now_ms);
+	else if (t == &c->probe)
 		dispatch_tcp_probe_timeout(c, now_ms);
 	else if (t == &c->tw)
 		dispatch_tcp_timewait_timeout(c, now_ms);
