@@ -674,7 +674,29 @@ int  mtp_program_net_input(const uint8_t *l4, uint16_t len,
 			   const struct iphdr *iph, uint32_t now_ms);
 
 /* One application-interface operation -> app parser -> dispatch. */
-int  mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms);
+/*
+ * THE OP IS IN/OUT, and only just. Lead's ruling, 2026-08-25 (DEFERRED.md B1
+ * opened narrowly, and only for this).
+ *
+ * `accept` has to hand a flow back. The event document specified
+ * `notify(fid, ACCEPTED, accepted_fid)`, which does not compose with this
+ * target's notification path for three independent reasons: notifications are
+ * QUEUED, so they cannot answer a synchronous accept(); they are COALESCED by
+ * kind, so two accepted connections on one listener collapse into one bit and
+ * the second flow is lost; and `ready_kinds |= 1u << (kind & 3)` allows exactly
+ * four kinds. A payload-carrying, non-coalescible notification is a different
+ * mechanism, not an extra field.
+ *
+ * So the operation answers instead: `proc_accept` writes `op->flow`, and
+ * `proc_listen` writes the listening context's handle the same way. THAT IS THE
+ * WHOLE OF THE CHANGE -- there is no result type, no new instruction, and the
+ * other three B1 customers (app_send's byte count, app_close's refusal,
+ * app_connect's completion) still use `notify`.
+ *
+ * A CONTRACT SIGNATURE CHANGE, so it is a change request against
+ * MTP_CONTRACT_VERSION 4 for the lead to relay. docs/DIVERGENCE.md.
+ */
+int  mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms);
 
 /* One timer expiry -> the bound event -> dispatch. */
 void mtp_program_timer(struct mtp_timer *t, uint32_t now_ms);

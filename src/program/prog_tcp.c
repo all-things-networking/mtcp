@@ -564,7 +564,8 @@ enum { TMR_RTO, TMR_TIMEWAIT, TMR_PROBE, TMR__N };
 static uint64_t g_tmr[TMR__N];
 
 enum { RXS_DISPATCH, RXS_CTX, RXS_ACK_CALLED, RXS_ACK_NOFLAG, RXS_ACK_DUP,
-       RXS_ACK_ADVANCED, RXS_RST, RXS_ACK_PAST_NEXT, RXS__N };
+       RXS_ACK_ADVANCED, RXS_RST, RXS_ACK_PAST_NEXT, RXS_BACKLOG_FULL,
+       RXS__N };
 static uint64_t g_rx[RXS__N];
 
 static void
@@ -1146,7 +1147,40 @@ proc_open_done(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
 	c->ts_recent = e->ts_val;
 	c->state = TCP_ESTABLISHED;
-	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_STATE });
+
+	/*
+	 * D9: READABLE ON THE LISTENING CONTEXT, which is what makes accept()
+	 * return. We were raising a STATE notification on the CONNECTION, which
+	 * is neither what the donor does nor something an accepting application
+	 * can act on -- the donor enqueues the stream on the accept queue
+	 * (tcp_in.c:884) and raises EPOLLIN on the listening socket (:898-900).
+	 */
+	/*
+	 * A RUNTIME TOGGLE, so both arms of the comparison come from ONE binary
+	 * -- the pattern this tree already uses for MTP_RTO_ARM_ON_GENERATION,
+	 * and for the same reason: the two arms must differ in nothing but this,
+	 * not in build, not in staging, not in session.
+	 *
+	 * MTP_LEGACY_OPEN_NOTIFY restores the old behaviour -- a STATE
+	 * notification on the CONNECTION, no queue, no listener event. It exists
+	 * because moving to the donor's channel coincided with an 8.7x change in
+	 * completions at c=1 that nothing in the counters explains, and an
+	 * unexplained factor of eight is not something to build on.
+	 */
+	{
+		static int legacy = -1;
+
+		if (legacy < 0)
+			legacy = MTP_ENV_ON("MTP_LEGACY_OPEN_NOTIFY") ? 1 : 0;
+		if (legacy) {
+			mtp_notify(c->f, &(struct mtp_notif){
+					.kind = MTP_NOTIF_STATE });
+		} else if (c->lst && c->lst->pending_n < PROG_MAX_BACKLOG) {
+			c->lst->pending[c->lst->pending_n++] = c->f;
+			mtp_notify(c->lst->f, &(struct mtp_notif){
+					.kind = MTP_NOTIF_READABLE });
+		}
+	}
 
 	/* the application posted an object before listening; serve it */
 	if (c->lst && c->lst->obj_len) {
@@ -2153,6 +2187,22 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 			lst = mtp_ctx_lookup(&lk);
 			if (!lst || lst->state != TCP_LISTEN)
 				return 0;
+			/*
+			 * C3: A SYN ARRIVING WITH THE QUEUE FULL IS DROPPED,
+			 * and dropped here -- before any context exists, so
+			 * nothing is allocated for a connection that will not
+			 * be accepted. The peer retransmits its SYN and finds
+			 * room later, which is the behaviour a backlog is for.
+			 *
+			 * `pending_cap` is what the application asked for at
+			 * listen(); PROG_MAX_BACKLOG is what the context can
+			 * physically hold. Both bound it, and they are
+			 * different questions.
+			 */
+			if (lst->pending_n >= lst->pending_cap) {
+				INSTR(g_rx[RXS_BACKLOG_FULL]++);
+				return 0;
+			}
 		}
 		c = mtp_new_ctx(&k, sizeof(*c));
 		if (!c)
@@ -2262,7 +2312,7 @@ dispatch_app_close(struct tcp_ctx *c, uint32_t now)
  * schema.
  */
 int
-mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
+mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 {
 	switch (op->kind) {
 	case MTP_APP_BIND: {
@@ -2318,6 +2368,53 @@ mtp_program_app_op(const struct mtp_app_op *op, uint32_t now_ms)
 		l->pending_cap = op->len ? op->len : PROG_MAX_BACKLOG;
 		if (l->pending_cap > PROG_MAX_BACKLOG)
 			l->pending_cap = PROG_MAX_BACKLOG;
+		/* The application interface needs a handle for the LISTENING
+		 * endpoint, because that is the one that becomes readable when
+		 * a connection is waiting. */
+		op->flow = l->f;
+		return 0;
+	}
+	/*
+	 * mtp/tcp.mtp §proc_accept — the application takes a pending connection.
+	 *
+	 * THE BACKLOG IS PROTOCOL STATE AND THIS IS WHAT DRAINS IT.
+	 * proc_open_done adds an entry when a handshake completes; this removes
+	 * one. Without it `pending` would only ever grow and `pending_cap` would
+	 * start refusing connections the application had in fact already taken.
+	 *
+	 * Everything else about accept -- copying the peer address out,
+	 * allocating a descriptor -- is the application interface's business.
+	 * The queue it consumes is the protocol's, which is why this is an event
+	 * rather than a convenience in the compatibility layer.
+	 */
+	case MTP_APP_ACCEPT: {
+		struct tcp_listen_ctx *l;
+		flowkey_t k = key_of_listener(op->local.ip,
+					      ntohs(op->local.port));
+		unsigned i;
+
+		l = mtp_ctx_lookup(&k);
+		if (!l || l->state != TCP_LISTEN)
+			return -1;
+		if (!l->pending_n)
+			return -1;		/* nothing to hand over */
+
+		op->flow = l->pending[0];
+		for (i = 1; i < l->pending_n; i++)
+			l->pending[i - 1] = l->pending[i];
+		l->pending_n--;
+
+		/*
+		 * LEVEL-TRIGGERED, and it has to be re-raised HERE. The
+		 * notification path coalesces by kind, so a second completed
+		 * handshake while the first is still queued sets a bit that is
+		 * already set. Re-raising on every accept that leaves the queue
+		 * non-empty is what keeps the count right -- the same shape as
+		 * the receive stream's re-arm inside the read.
+		 */
+		if (l->pending_n)
+			mtp_notify(l->f, &(struct mtp_notif){
+					.kind = MTP_NOTIF_READABLE });
 		return 0;
 	}
 	/*

@@ -87,11 +87,9 @@ struct shim_flow_state {
 	 * flow for the rest of its life. Five such flows cost more than half
 	 * this arm's throughput (RESULTS 2026-08-17).
 	 */
-	uint8_t pending;
 };
 
 static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
-static uint64_t g_pend_dropped, g_pend_dedup;
 static uint64_t g_wr_calls, g_wr_asked, g_wr_got, g_wr_short, g_wr_refused;
 static uint64_t g_wr_ringfull, g_wr_noflow;
 static struct shim_sock	 g_sock[SHIM_MAX_SOCK];
@@ -208,10 +206,12 @@ mtcp_init(const char *config_file)
 	 *
 	 * SHIM_MAX_SOCK sizes g_sock, g_flow and g_rdy here; the target sizes
 	 * its flow and blueprint pools from CONFIG.max_concurrency
-	 * (flow.c:26-37); SHIM_PENDING bounds the accept backlog. Today all
-	 * three happen to fit because the conf says 4096 -- a defensive
-	 * constant that silently agrees is worse than one that disagrees,
-	 * because it teaches you it is safe.
+	 * (flow.c:26-37). THE THIRD USED TO BE SHIM_PENDING, bounding an accept
+	 * backlog this layer had no business owning; the program's
+	 * PROG_MAX_BACKLOG and the application's own listen() argument bound it
+	 * now. Today the remaining two happen to fit because the conf says
+	 * 4096 -- a defensive constant that silently agrees is worse than one
+	 * that disagrees, because it teaches you it is safe.
 	 *
 	 * fstate() indexes g_flow by the target's flow id, so if the conf ever
 	 * exceeds SHIM_MAX_SOCK the failure is an abort inside fstate on a
@@ -323,10 +323,8 @@ mtcp_destroy_context(mctx_t mctx)
 		(unsigned long long)g_wr_noflow,
 		(unsigned long long)(g_wr_calls ? g_wr_asked / g_wr_calls : 0),
 		(unsigned long long)(g_wr_calls ? g_wr_got / g_wr_calls : 0));
-	fprintf(stderr, "shim accept queue: %llu duplicate pushes suppressed, "
-		"%llu dropped for want of a slot\n",
-		(unsigned long long)g_pend_dedup,
-		(unsigned long long)g_pend_dropped);
+	/* The shim's accept queue and its two counters are gone: the backlog is
+	 * the listen context's, and overflow is a SYN the PROGRAM drops. */
 }
 int  mtcp_core_affinitize(int cpu)     { (void)cpu; return 0; }
 int  mtcp_setsock_nonblock(mctx_t m, int s) { (void)m; (void)s; return 0; }
@@ -383,60 +381,43 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
 	 * neither had anywhere to go. */
 	op.local = g_bound;
 	op.len = backlog > 0 ? (uint32_t)backlog : 0;
-	return mtp_program_app_op(&op, 0) < 0 ? -1 : 0;
+	if (mtp_program_app_op(&op, 0) < 0)
+		return -1;
+	/* The LISTENING endpoint's handle, so readiness on it can be recognised
+	 * as this socket's. It is a context like any other and has a flow. */
+	g_sock[SHIM_LISTENER].flow = op.flow;
+	return 0;
 }
 
 /*----------------------------------------------------------------------------*/
 /*
- * Accept. Our target has no explicit accept: a new flow simply appears in the
- * readiness list. The shim turns that into the donor's shape — the listener
- * reports EPOLLIN while flows are waiting, and accept() hands one over and
- * gives it an id.
+ * Accept.
+ *
+ * THE QUEUE MOVED INTO THE PROGRAM. This layer used to keep its own -- a
+ * SHIM_PENDING ring of 64, filled from readiness for any flow with no socket id
+ * yet -- because the target had no accept call. That put the accept BACKLOG,
+ * which is protocol state, in the compatibility layer: `pending_cap` had
+ * nowhere to live, so a SYN arriving with a full queue had nothing to be
+ * dropped against and the overflow was a shim counter.
+ *
+ * Now `app_accept` is an event, the listen context owns `pending` and
+ * `pending_cap`, and this is what it always should have been: a translation of
+ * one call into one operation.
  */
-#define SHIM_PENDING 64
-static flow_t *g_pending[SHIM_PENDING];
-static int	g_pend_head, g_pend_tail;
-
-static void
-pending_push(flow_t *f)
-{
-	int next = (g_pend_tail + 1) % SHIM_PENDING;
-	struct shim_flow_state *st = fstate(f);
-
-	/* AT MOST ONCE. The guard is here rather than at the call site for the
-	 * same reason the target's membership guards are: a second producer
-	 * cannot omit a guard it cannot reach. */
-	if (st->sockid > 0 || st->pending) {
-		g_pend_dedup++;
-		return;
-	}
-	if (next == g_pend_head) {
-		/* Was a silent return. With the dedup above this needs one
-		 * slot per unaccepted flow, so reaching it means the
-		 * application has stopped accepting -- which is worth saying,
-		 * not swallowing. */
-		g_pend_dropped++;
-		return;
-	}
-	st->pending = 1;
-	g_pending[g_pend_tail] = f;
-	g_pend_tail = next;
-}
-
 int
 mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 {
-	flow_t *f;
+	struct mtp_app_op op;
 
 	(void)mctx; (void)sockid; (void)addr; (void)addrlen;
-	if (g_pend_head == g_pend_tail) {
+	memset(&op, 0, sizeof(op));
+	op.kind = MTP_APP_ACCEPT;
+	op.local = g_bound;		/* which listener; the op names it */
+	if (mtp_program_app_op(&op, 0) < 0 || !op.flow) {
 		errno = EAGAIN;
 		return -1;
 	}
-	f = g_pending[g_pend_head];
-	g_pend_head = (g_pend_head + 1) % SHIM_PENDING;
-	fstate(f)->pending = 0;
-	return sock_alloc(f);
+	return sock_alloc(op.flow);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -605,13 +586,21 @@ shim_collect_ready(void)
 		flow_t *f = ready[i].flow;
 		int sid = fstate(f)->sockid;
 
-		/* No id yet, so this is a connection the application has not
-		 * accepted. Our target has no accept call; the donor's shape is
-		 * that the listener becomes readable, so queue it there. */
-		if (sid <= 0 || sid >= SHIM_MAX_SOCK || g_sock[sid].flow != f) {
-			pending_push(f);
+		/*
+		 * THE LISTENING ENDPOINT. The program raises READABLE on the
+		 * listen context when a handshake completes (D9, and the
+		 * donor's shape), so this is "a connection is waiting" and it
+		 * belongs to SHIM_LISTENER.
+		 */
+		if (f == g_sock[SHIM_LISTENER].flow) {
+			g_sock[SHIM_LISTENER].ready |= MTCP_EPOLLIN;
 			continue;
 		}
+		/* Not the listener and no socket id: a flow the application has
+		 * not accepted and cannot be told about. It stays queued in the
+		 * program until accept() takes it. */
+		if (sid <= 0 || sid >= SHIM_MAX_SOCK || g_sock[sid].flow != f)
+			continue;
 
 		if (ready[i].kinds & (1u << MTP_NOTIF_READABLE))
 			g_sock[sid].ready |= MTCP_EPOLLIN;
@@ -677,18 +666,22 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 	 * a 4 ms slice instead of the donor's 63.7 us -- which cost four
 	 * fifths of our throughput.
 	 */
-	if (got == 0 && timeout != 0 && g_pend_head == g_pend_tail) {
+	if (got == 0 && timeout != 0 && !g_sock[SHIM_LISTENER].ready) {
 		TransportWait(g_shim_core, timeout);
 		shim_collect_ready();
 	}
 
 	/* The listener first: epserver checks for it by socket id and accepts
 	 * everything queued before looking at the rest. */
-	if (g_pend_head != g_pend_tail && n < maxevents &&
+	if ((g_sock[SHIM_LISTENER].ready & MTCP_EPOLLIN) && n < maxevents &&
 	    (g_sock[SHIM_LISTENER].interest & MTCP_EPOLLIN)) {
 		events[n].events = MTCP_EPOLLIN;
 		events[n].data.sockid = SHIM_LISTENER;
 		n++;
+		/* Level-triggering is the PROGRAM's: proc_accept re-raises
+		 * while its queue is non-empty, so clearing here cannot lose a
+		 * waiting connection. */
+		g_sock[SHIM_LISTENER].ready &= ~(uint32_t)MTCP_EPOLLIN;
 	}
 
 	for (k = 0; k < g_rdy_n && n < maxevents; k++) {

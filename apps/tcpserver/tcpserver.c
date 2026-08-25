@@ -153,6 +153,38 @@ pump(flow_t *flow, uint32_t now)
 	}
 }
 
+static struct mtp_endpoint g_listen_ep;
+static flow_t *g_listen_flow;
+
+/*
+ * TAKE EVERY CONNECTION THE PROGRAM HAS QUEUED.
+ *
+ * This application used to have no accept at all: it read connections straight
+ * out of readiness, because there was no accept operation to call. That worked
+ * and it left the backlog with nothing to drain it -- `pending` grew for the
+ * life of the process and `pending_cap` would eventually refuse connections the
+ * application had in fact already taken.
+ *
+ * IT DRAINS RATHER THAN TAKING ONE. The notification path coalesces by kind, so
+ * one READABLE on the listener can stand for several completed handshakes; the
+ * program re-raises while its queue is non-empty, and taking until EAGAIN
+ * closes the gap from this side too.
+ */
+static void
+accept_all(uint32_t now)
+{
+	(void)now;
+	for (;;) {
+		struct mtp_app_op op;
+
+		memset(&op, 0, sizeof(op));
+		op.kind = MTP_APP_ACCEPT;
+		op.local = g_listen_ep;
+		if (mtp_program_app_op(&op, 0) < 0 || !op.flow)
+			return;
+	}
+}
+
 static void
 serve(struct core_ctx *core, uint32_t now, void *arg)
 {
@@ -166,6 +198,13 @@ serve(struct core_ctx *core, uint32_t now, void *arg)
 		static uint8_t buf[2048];
 		struct mtp_app_op op;
 		int got;
+
+		/* The listening endpoint: connections are waiting. It carries
+		 * no data and nothing below applies to it. */
+		if (ready[i].flow == g_listen_flow) {
+			accept_all(now);
+			continue;
+		}
 
 		/*
 		 * D-23: the ring refused the rest of the object and the target
@@ -365,6 +404,10 @@ main(int argc, char **argv)
 		fprintf(stderr, "tcpserver: the program does not bind `listen`\n");
 		return 1;
 	}
+	/* The endpoint, kept so accept() can name its listener, and the
+	 * listening context's handle, so readiness on it is recognisable. */
+	g_listen_ep = op.local;
+	g_listen_flow = op.flow;
 
 	/* post the object to serve. One fixed object, as epserver serves one
 	 * file, which is what M1d compares against. */
