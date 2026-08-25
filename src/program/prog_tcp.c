@@ -2686,6 +2686,19 @@ gen_syn(struct tcp_ctx *c, uint32_t now)
 	}
 	INSTR(g_emit[EM_SYN]++);
 	c->send_next++;			/* the SYN consumes one */
+	/*
+	 * ...SO DATA STARTS ONE PAST, and snd_base is what says where. It is the
+	 * transmit stream's origin: gen_seg reads the payload at
+	 * `send_next - snd_base`, so a snd_base that does not account for the
+	 * SYN sends from offset one -- skipping the first byte of the request
+	 * and running one byte past its end. The passive open sets it on the
+	 * same line after its SYN-ACK (proc_passive_open); the active open set
+	 * it BEFORE the SYN and never moved it.
+	 *
+	 * The symptom was a request the peer never acknowledged and never
+	 * answered, on both servers, with everything up to that point working.
+	 */
+	c->snd_base = c->send_next;
 	arm_rto(c);
 }
 
