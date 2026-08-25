@@ -116,6 +116,9 @@ int tgt_pkt_gen_orphan(struct core_ctx *core, uint32_t saddr, uint32_t daddr,
 		       const void *hdr, uint16_t hdr_len, int offload,
 		       uint16_t offload_csum_off);
 
+/* One wakeup per pass, at the end of it (the donor's FlushEpollEvents). */
+void tgt_sched_wake_app(struct core_ctx *core);
+
 /* D3: re-attempt generation for every flow that asked (mtp_retry). */
 void tgt_sched_take_retries(struct core_ctx *core);
 

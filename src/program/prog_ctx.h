@@ -131,6 +131,9 @@ struct tcp_ctx {
 	/* D11: we advertised a zero window field and owe the peer an update
 	 * once the application has drained. The donor's need_wnd_adv. */
 	bool     need_wnd_adv;
+	/* An acknowledgement is owed for what arrived this pass. The donor's
+	 * ACK_OPT_AGGREGATE: one per pass, not one per segment. */
+	bool     ack_owed;
 
 	/* --- endpoints, for building outbound headers -------------------- */
 	uint16_t loc_port, rem_port;

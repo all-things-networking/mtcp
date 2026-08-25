@@ -367,8 +367,21 @@ mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
 	 */
 	if (!g_sock[SHIM_LISTENER].in_use) {
 		g_sock[SHIM_LISTENER].in_use = 1;
-		g_sock[SHIM_LISTENER].is_listener = 1;
 		g_sock[SHIM_LISTENER].flow = NULL;
+		/*
+		 * NOT is_listener. socket() does not know what the socket will
+		 * become -- epserver calls bind() and listen() next, epwget
+		 * calls connect() -- and marking it here made a CLIENT's first
+		 * connection a listener for the rest of the process.
+		 *
+		 * That is what stopped the application thread blocking: the
+		 * wait is skipped while the listener has readiness, and that
+		 * connection always did. Measured: TransportWait called ONCE in
+		 * fifteen seconds against 84.7 million polls, both threads at
+		 * 50% of the core where the donor's stack gets 85%.
+		 *
+		 * mtcp_listen sets it, which is the call that means it.
+		 */
 		return SHIM_LISTENER;
 	}
 	return sock_alloc(NULL);	/* a client socket; connect gives it a flow */
@@ -418,6 +431,7 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
 	/* The LISTENING endpoint's handle, so readiness on it can be recognised
 	 * as this socket's. It is a context like any other and has a flow. */
 	g_sock[SHIM_LISTENER].flow = op.flow;
+	g_sock[SHIM_LISTENER].is_listener = 1;	/* THIS is the call that means it */
 	return 0;
 }
 
@@ -801,7 +815,21 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 	 * a 4 ms slice instead of the donor's 63.7 us -- which cost four
 	 * fifths of our throughput.
 	 */
-	if (got == 0 && timeout != 0 && !g_sock[SHIM_LISTENER].ready) {
+	/*
+	 * ...AND THE LISTENER TEST ONLY APPLIES IF THERE IS A LISTENER.
+	 *
+	 * SHIM_LISTENER is a fixed id, and a CLIENT never calls listen(), so its
+	 * first connection holds that id. Its readiness then suppressed the
+	 * block entirely and the application thread SPUN -- measured at 50% of
+	 * the core against the donor application's 14%, with our stack thread
+	 * left 50% where the donor's gets 85%. The application slept ONCE in
+	 * fifteen seconds and called TransportPoll twenty million times.
+	 *
+	 * Same conflation as the one already fixed in shim_collect_ready, in a
+	 * second place. Both are gated on is_listener now.
+	 */
+	if (got == 0 && timeout != 0 &&
+	    !(g_sock[SHIM_LISTENER].is_listener && g_sock[SHIM_LISTENER].ready)) {
 		TransportWait(g_shim_core, timeout);
 		shim_collect_ready();
 	}

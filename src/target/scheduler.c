@@ -131,15 +131,47 @@ ready_raise(struct transport *t, struct flow *f, int kind)
 			fflush(stderr);
 			abort();
 		}
-		if (t->app_waiting) {
-			pthread_mutex_lock(&t->app_lock);
-			t->app_wakes++;
-			pthread_cond_signal(&t->app_cv);
-			pthread_mutex_unlock(&t->app_lock);
-		}
+		/*
+		 * DEFERRED TO THE END OF THE PASS, not signalled here.
+		 *
+		 * This signalled once per FLOW raised. With eight flows that is
+		 * eight wakeups for one pass of work, and the application then
+		 * runs eight times to do an eighth of a batch each. Measured
+		 * against the donor's own client: ours woke 50,000 times a
+		 * second to move 1.83 Gb/s where the donor woke 15,700 to move
+		 * 4.00 -- about a fourteenth of the data per wakeup -- and the
+		 * application thread cost 34% of the core against the donor's
+		 * 14%.
+		 *
+		 * The donor flushes its epoll events and signals ONCE per pass,
+		 * from FlushEpollEvents. The flag below is that: the pass sets
+		 * it, tgt_sched_wake_app clears it and signals once.
+		 */
+		t->wake_pending = 1;
 		return;
 	}
 	TAILQ_INSERT_TAIL(&t->ready_list, f, ready_link);
+}
+
+/*
+ * One wakeup per pass, at the end of it. The donor's FlushEpollEvents: the
+ * application is handed a whole pass of readiness and runs once, rather than
+ * being woken per flow and running with a fraction of a batch each time.
+ */
+void
+tgt_sched_wake_app(struct core_ctx *core)
+{
+	struct transport *t = TransportOf(core);
+
+	if (!t->wake_pending)
+		return;
+	t->wake_pending = 0;
+	if (!t->app_waiting)
+		return;			/* awake already; it will find the work */
+	pthread_mutex_lock(&t->app_lock);
+	t->app_wakes++;
+	pthread_cond_signal(&t->app_cv);
+	pthread_mutex_unlock(&t->app_lock);
 }
 
 /*
@@ -165,8 +197,16 @@ TransportWait(struct core_ctx *core, int timeout_ms)
 	if (MTP_ENV_ON("MTP_NOBLOCK"))
 		return 0;
 
-	if (!fq_is_empty(&t->q_ready) || !TAILQ_EMPTY(&t->ready_list))
+	t->wait_calls++;
+	if (!fq_is_empty(&t->q_ready) || !TAILQ_EMPTY(&t->ready_list)) {
+		/* Which of the two said there was work, counted separately:
+		 * they are different structures with different writers. */
+		if (!fq_is_empty(&t->q_ready))
+			t->wait_early_q++;
+		else
+			t->wait_early_list++;
 		return 0;
+	}
 
 	clock_gettime(CLOCK_REALTIME, &ts);
 	ts.tv_nsec += (timeout_ms > 0 && timeout_ms < 100 ? timeout_ms : 100)
@@ -1049,6 +1089,9 @@ SchedStep(struct core_ctx *core,
 		/* nothing from the program is on the stack here */
 		tgt_sched_reap(core);
 
+		/* One signal for everything this pass made ready. */
+		tgt_sched_wake_app(core);
+
 		/*
 		 * What the burst actually accepted, as against what we handed
 		 * it. tx_packets counts frames BUILT inside emit_segment; this
@@ -1415,6 +1458,11 @@ SchedReport(struct core_ctx *core)
 			   (unsigned long long)g_rx_pkts,
 			   g_rx_n ? (double)g_rx_pkts / (double)g_rx_n : 0.0);
 	}
+	TRACE_INFO("CPU %d: WAIT: called %llu, early(q_ready) %llu, "
+		   "early(ready_list) %llu\n", ctx->cpu,
+		   (unsigned long long)TransportOf(core)->wait_calls,
+		   (unsigned long long)TransportOf(core)->wait_early_q,
+		   (unsigned long long)TransportOf(core)->wait_early_list);
 	TRACE_INFO("CPU %d: APP SLEEP: slept %llu, woken by the stack %llu, timed out %llu\n",
 		   ctx->cpu, (unsigned long long)TransportOf(core)->app_sleeps,
 		   (unsigned long long)TransportOf(core)->app_wakes,

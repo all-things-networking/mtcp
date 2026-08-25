@@ -70,6 +70,8 @@ struct transport {
 	uint32_t		 orphan_saddr, orphan_daddr;
 	uint64_t		 orphans_sent;
 	uint64_t		 ready_inserted, ready_coalesced;
+	uint64_t		 wait_calls, wait_early_q, wait_early_list;
+	uint8_t			 wake_pending;	/* this pass made something ready */
 	/*
 	 * THE FIVE THAT MUST COMPOSE. del_ctx and detach are the two events;
 	 * destroyed is what should equal the number of flows that saw both.

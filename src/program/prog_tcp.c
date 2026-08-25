@@ -2054,13 +2054,31 @@ send_ack(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 	struct mtp_tx_payload none = { 0 };
 	uint16_t hdr_len;
 
-	(void)e;
+	(void)e; (void)hdr; (void)none; (void)hdr_len; (void)now;
 	if (!sc->ack_now)
 		return;
-	hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_ACK, now,
-				   c->ts_recent);
-	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1,
-		    0 /* not a retransmission */);
+
+	/*
+	 * AGGREGATED, NOT EMITTED HERE. The donor never writes an
+	 * acknowledgement from its receive path: it calls
+	 * EnqueueACK(ACK_OPT_AGGREGATE) and WriteTCPACKList emits ONE per pass
+	 * covering everything that arrived in it (EVENT-DATA.md §3.2 --
+	 * "what is a delayed-acknowledgement timer in other stacks is
+	 * ACK_OPT_AGGREGATE plus a per-pass list walk here").
+	 *
+	 * We emitted one per SEGMENT. As a server that never showed, because a
+	 * server barely receives. As a client it is every segment, and measured
+	 * against the donor's own client through the server's instrument it was
+	 * one acknowledgement per 1.8 segments against the donor's one per 11 --
+	 * six times the acknowledgement traffic for a third of the data.
+	 *
+	 * The retry list is the per-pass list: mtp_retry coalesces by flow, so
+	 * a burst of segments in one pass produces ONE entry and therefore one
+	 * acknowledgement, which is exactly the donor's aggregation with the
+	 * donor's boundary.
+	 */
+	c->ack_owed = true;
+	mtp_retry(c->f);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -3935,6 +3953,24 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 	 * in its own state and nowhere else. Measured before the fix: data
 	 * arrived in 86 bursts over 15 seconds, one per peer window probe.
 	 */
+	/*
+	 * THE PASS'S ACKNOWLEDGEMENT. One per pass per flow, covering whatever
+	 * arrived in it -- the donor's WriteTCPACKList. It goes before the
+	 * window-update branch so that a pass which owes both sends one packet
+	 * carrying both, which is also what the donor does.
+	 */
+	if (c->ack_owed) {
+		uint8_t ahdr[PROG_HDR_MAX];
+		struct mtp_tx_payload anone = { 0 };
+		uint16_t alen;
+
+		c->ack_owed = false;
+		c->need_wnd_adv = false;	/* this carries the window too */
+		alen = tcp_build_header(ahdr, c, c->send_next, TCP_ACK, now,
+					c->ts_recent);
+		INSTR(g_emit[EM_ACK_DATA]++);
+		mtp_pkt_gen(c->f, ahdr, alen, &anone, 0, PRIO_ACK, 1, 0);
+	}
 	if (c->need_wnd_adv && c->rcv_wnd > PARITY_MSS_PAYLOAD) {
 		uint8_t hdr[PROG_HDR_MAX];
 		struct mtp_tx_payload none = { 0 };
