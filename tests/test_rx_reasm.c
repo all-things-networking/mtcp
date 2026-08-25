@@ -3,7 +3,8 @@
  *
  * The property under test is that a hole is invisible everywhere except the
  * boundary: bytes past a gap are STORED and are NOT readable, and when the gap
- * fills, one call makes all of it readable at once, in order, byte-exact.
+ * fills, one call makes all of it readable at once, in order, and every byte
+ * carrying the value its sequence number says it should.
  *
  * Byte-exactness is the point. A boundary that moves correctly while the bytes
  * land at the wrong ring offset passes every sequence-number check and
