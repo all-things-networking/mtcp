@@ -102,6 +102,26 @@ bin/epserver-shim: apps/compat/mtcp_shim.c $(DONOR)/apps/example/epserver.c $(LI
 	    build/compat/tdate_parse.o -o $@ \
 	    -Wl,--start-group $(LIB) -Wl,--end-group $(LIBS)
 
+# THE DONOR'S epwget, UNMODIFIED, ON OUR TARGET -- the client side of the same
+# argument bin/epserver-shim makes on the server side. docs/TEST-MATRIX.md
+# comparisons 2 and 3 need the load generator to be identical and only the stack
+# underneath to change; compiling the reference's own source is how that is
+# guaranteed rather than asserted.
+bin/epwget-shim: apps/compat/mtcp_shim.c $(DONOR)/apps/example/epwget.c $(LIB)
+	@mkdir -p $(dir $@) build/compat
+	$(CC) $(DONOR_INC) -I/usr/local/include -include rte_config.h \
+	    -march=native -m64 -w -c $(DONOR)/apps/example/epwget.c \
+	    -o build/compat/epwget.o
+	$(CC) $(DONOR_INC) -w -c $(DONOR)/util/http_parsing.c -o build/compat/http_parsing.o
+	$(CC) $(DONOR_INC) -w -c $(DONOR)/util/netlib.c       -o build/compat/netlib.o
+	$(CC) $(DONOR_INC) -w -c $(DONOR)/util/tdate_parse.c  -o build/compat/tdate_parse.o
+	$(CC) $(CFLAGS) $(DONOR_INC) -w -c apps/compat/mtcp_shim.c \
+	    -o build/compat/mtcp_shim.o
+	$(CC) build/compat/epwget.o build/compat/mtcp_shim.o \
+	    build/compat/http_parsing.o build/compat/netlib.o \
+	    build/compat/tdate_parse.o -o $@ \
+	    -Wl,--start-group $(LIB) -Wl,--end-group $(LIBS)
+
 bin/tcpserver: apps/tcpserver/tcpserver.c $(LIB)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $< -o $@ -Wl,--start-group $(LIB) -Wl,--end-group $(LIBS)

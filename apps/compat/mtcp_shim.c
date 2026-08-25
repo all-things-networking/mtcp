@@ -336,10 +336,25 @@ int
 mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
 {
 	(void)mctx; (void)domain; (void)type; (void)protocol;
-	g_sock[SHIM_LISTENER].in_use = 1;
-	g_sock[SHIM_LISTENER].is_listener = 1;
-	g_sock[SHIM_LISTENER].flow = NULL;
-	return SHIM_LISTENER;
+	/*
+	 * THE FIRST SOCKET IS THE LISTENER'S FIXED ID, and every one after it
+	 * is allocated. epserver compares a ready socket against SHIM_LISTENER
+	 * to decide whether to accept, so that id has to be the one its listener
+	 * gets -- and it makes exactly one socket before accepting anything.
+	 *
+	 * A CLIENT MAKES MANY. epwget calls socket() once per connection, and
+	 * returning the same id each time gave every connection the same entry.
+	 * The listening branch is kept rather than special-cased away because
+	 * one application depends on it and the other does not care which id it
+	 * gets.
+	 */
+	if (!g_sock[SHIM_LISTENER].in_use) {
+		g_sock[SHIM_LISTENER].in_use = 1;
+		g_sock[SHIM_LISTENER].is_listener = 1;
+		g_sock[SHIM_LISTENER].flow = NULL;
+		return SHIM_LISTENER;
+	}
+	return sock_alloc(NULL);	/* a client socket; connect gives it a flow */
 }
 
 /*
@@ -387,6 +402,77 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
 	 * as this socket's. It is a context like any other and has a flow. */
 	g_sock[SHIM_LISTENER].flow = op.flow;
 	return 0;
+}
+
+/*----------------------------------------------------------------------------*/
+/*
+ * Connect, and the local port.
+ *
+ * THE CLIENT APPLICATION DOES NOT CHANGE. This is the donor's own epwget,
+ * unmodified, and the only thing different underneath is the stack -- which is
+ * the whole point of comparisons 2 and 3 in docs/TEST-MATRIX.md.
+ *
+ * WHO PICKS THE LOCAL PORT is DEFERRED.md B4 and still undecided. The donor
+ * allocates from a per-core address pool in mtcp_connect and fails EAGAIN when
+ * exhausted; here the shim picks, which is what B4 records as the interim
+ * position. It is protocol policy in TCP and not obviously so in general, so it
+ * does not belong in the program by default and it certainly does not belong in
+ * the target.
+ *
+ * The range is the donor's ephemeral range and the walk is linear from the last
+ * one handed out, which is not the donor's hash-based allocation. Two clients
+ * on one host would collide; one does not.
+ */
+static uint32_t g_local_ip;
+static uint16_t g_next_port = 32768;
+
+int
+mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr,
+	      in_addr_t daddr, in_addr_t dport)
+{
+	(void)mctx; (void)num_addr; (void)daddr; (void)dport;
+	/* epwget calls this to seed the donor's address pool. We keep only the
+	 * base address: the pool itself is the port walk below. */
+	g_local_ip = saddr_base;
+	return 0;
+}
+
+int
+mtcp_connect(mctx_t mctx, int sockid, const struct sockaddr *addr,
+	     socklen_t addrlen)
+{
+	const struct sockaddr_in *in = (const struct sockaddr_in *)addr;
+	struct mtp_app_op op;
+
+	(void)mctx; (void)addrlen;
+	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK || !g_sock[sockid].in_use)
+		return -1;
+
+	memset(&op, 0, sizeof(op));
+	op.kind = MTP_APP_CONNECT;
+	op.local.ip = g_local_ip;
+	op.local.port = htons(g_next_port++);
+	if (g_next_port == 0)
+		g_next_port = 32768;
+	op.remote.ip = in->sin_addr.s_addr;
+	op.remote.port = in->sin_port;
+
+	if (mtp_program_app_op(&op, g_shim_core ? g_shim_core->cur_ts : 0) < 0
+	    || !op.flow) {
+		errno = EAGAIN;
+		return -1;
+	}
+	g_sock[sockid].flow = op.flow;
+	fstate(op.flow)->sockid = sockid;
+
+	/*
+	 * EINPROGRESS, which is what epwget expects: it sets the socket
+	 * non-blocking and treats anything else as a failure. The connection
+	 * completes when the SYN-ACK arrives and the program raises WRITABLE,
+	 * which is the donor's RaiseWriteEvent.
+	 */
+	errno = EINPROGRESS;
+	return -1;
 }
 
 /*----------------------------------------------------------------------------*/

@@ -32,6 +32,9 @@
 
 /* Defined far below; tcp_build_header is its first caller and comes before it. */
 static void tcp_touch_idle(struct tcp_ctx *c);
+static uint16_t tcp_build_rst_header(uint8_t *out, uint16_t loc_port,
+				     uint16_t rem_port, uint32_t seq,
+				     uint32_t ack, uint8_t flags);
 
 /*
  * INSTRUMENTATION, INERT UNLESS ENABLED AT RUN TIME.
@@ -289,6 +292,7 @@ struct tcp_scratch {
 
 /* Defined below, forward-declared for the acknowledgement chain. */
 static void enter_time_wait(struct tcp_ctx *c);
+static void gen_rst_from_ctx(struct tcp_ctx *c, const struct tcp_ev *e);
 static int  record_data(struct tcp_ctx *c, struct mtp_tx_addr addr, uint32_t len);
 static void gen_fin(struct tcp_ctx *c, uint32_t now);
 
@@ -426,7 +430,7 @@ key_of_listener(uint32_t loc_ip, uint16_t loc_port)
  * these without reading protocol flags, which rule 4 forbids it.
  */
 enum { EM_SYNACK, EM_ACK_DATA, EM_ACK_FIN, EM_PROBE, EM_PROBE_REPLY, EM_FIN,
-       EM_DATA, EM_DATA_RTX, EM_RST, EM__N };
+       EM_DATA, EM_DATA_RTX, EM_RST, EM_SYN, EM__N };
 /*
  * THE PROGRAM'S TRANSMIT SCHEDULING POLICY (D-17).
  *
@@ -2411,6 +2415,26 @@ gen_rst(uint32_t local_ip, uint32_t remote_ip, const struct tcp_ev *e)
 }
 
 /*
+ * A reset for a connection we DO have a context for -- the one case the donor
+ * resets from a stream it knows about (Handle_TCP_ST_SYN_SENT, an
+ * unacceptable acknowledgement). It still goes out through the orphan path,
+ * because the reset carries the offending segment's numbers rather than ours.
+ */
+static void
+gen_rst_from_ctx(struct tcp_ctx *c, const struct tcp_ev *e)
+{
+	uint8_t hdr[PROG_HDR_MAX];
+	uint16_t hdr_len;
+
+	if (e->flags & TCP_RST)
+		return;
+	hdr_len = tcp_build_rst_header(hdr, c->loc_port, c->rem_port,
+				       e->ack, 0, TCP_RST);
+	INSTR(g_emit[EM_RST]++);
+	mtp_pkt_gen_orphan(c->local_ip, c->remote_ip, hdr, hdr_len, 1);
+}
+
+/*
  * mtp/tcp.mtp §proc_rst — the peer reset the connection.
  *
  * docs/events/EVENT-RST.md, which is A's design and not an agreed one.
@@ -2621,10 +2645,86 @@ dispatch_tcp_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
  * EVENT-SYNACK.md §3.2 is checked against the paper alone. It is not written to
  * until that has been read.
  */
+/*
+ * mtp/tcp.mtp §proc_synack — the peer accepted our connection.
+ *
+ * The donor's HandleActiveOpen plus the SYN_SENT arm of
+ * Handle_TCP_ST_SYN_SENT, read 2026-08-25 (DEFERRED.md E1 discharged --
+ * EVENT-SYNACK.md §3.2 had been checked against the paper alone).
+ *
+ * THREE THINGS THE DOCUMENTS DID NOT HAVE:
+ *
+ *   - mtcp_connect sets cwnd = 1 and this does
+ *     `cwnd = (cwnd == 1) ? mss * TCP_INIT_CWND : mss`, so the initial window
+ *     arrives HERE and not at connect;
+ *   - the ACTIVE open sets ssthresh = mss * 10, where the passive open never
+ *     assigns it at all. D-01 is that asymmetry seen from the other side, and
+ *     it means an active-open connection DOES slow-start where our server
+ *     does not;
+ *   - completion reaches the application as a WRITABLE event
+ *     (RaiseWriteEvent), not a state event.
+ */
+static void
+proc_synack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
+{
+	if (c->state != TCP_SYN_SENT)
+		return;
+
+	/*
+	 * The acknowledgement must be for the SYN we sent: strictly above the
+	 * initial sequence and no higher than what we have sent. The donor
+	 * answers a violation with a reset, which is why that had to exist
+	 * first.
+	 */
+	if ((int32_t)(e->ack - c->snd_base) <= 0 ||
+	    (int32_t)(e->ack - c->send_next) > 0) {
+		gen_rst_from_ctx(c, e);
+		return;
+	}
+
+	c->send_una = e->ack;
+	c->recv_next = e->seq + 1;		/* irs + 1 */
+	c->rcv_base = c->recv_next;
+	mtp_sw_init(&c->rx_wnd, c->recv_next);
+	c->snd_wl1 = e->seq - 1;
+	c->snd_wl2 = e->ack;
+	c->last_ack_seq = e->ack;
+	c->send_wnd = (uint32_t)e->window << c->snd_wscale;
+	c->ts_recent = e->ts_val;
+	c->saw_timestamp = e->has_ts;
+	if (e->has_wscale)
+		c->snd_wscale = e->wscale;
+
+	c->cwnd = PARITY_INIT_CWND;		/* mss * TCP_INIT_CWND */
+	c->ssthresh = PARITY_SSTHRESH_ACTIVE;	/* the passive open sets none */
+	c->rtx_count = 0;
+	mtp_timer_stop(&c->rto);
+
+	if (!c->tx_open) {
+		mtp_new_tx_ordered_data(&c->tx, MTP_SIZE_INF);
+		c->tx_open = true;
+	}
+	c->state = TCP_ESTABLISHED;
+
+	/* WRITABLE: what makes a blocked connect() return. */
+	mtp_notify(c->f, &(struct mtp_notif){ .kind = MTP_NOTIF_WRITABLE });
+
+	/* The handshake's own acknowledgement. */
+	{
+		uint8_t hdr[PROG_HDR_MAX];
+		struct mtp_tx_payload none = { 0 };
+		uint16_t hdr_len = tcp_build_header(hdr, c, c->send_next,
+						    TCP_ACK, now, c->ts_recent);
+
+		mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0);
+	}
+}
+
+/* generated from: tcp_synack -> { proc_synack } */
 static bool
 dispatch_tcp_synack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 {
-	(void)c; (void)e; (void)now;
+	proc_synack(c, e, now);
 	return true;
 }
 
@@ -2712,6 +2812,8 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len, const struct iphdr *iph,
 		c->rcv_wnd = PARITY_INITIAL_WINDOW;
 		c->loc_port = e.dport;
 		c->rem_port = e.sport;
+		c->local_ip = iph->daddr;
+		c->remote_ip = iph->saddr;
 		/*
 		 * OUR OWN COPY OF THE KEY. The field was declared for exactly
 		 * this and never assigned, so the TIME_WAIT timer's
@@ -2907,6 +3009,62 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 	 * The queue it consumes is the protocol's, which is why this is an event
 	 * rather than a convenience in the compatibility layer.
 	 */
+	/*
+	 * mtp/tcp.mtp §proc_connect — the application opens a connection.
+	 *
+	 * DEFERRED.md C7. The op carries both endpoints because THE LOCAL PORT
+	 * IS THE CALLER'S (B4): the donor allocates from a per-core address pool
+	 * in mtcp_connect and fails EAGAIN when exhausted, and whose job that is
+	 * in general is undecided -- it is protocol policy in TCP and not
+	 * obviously so elsewhere. The shim picks it, as it did before.
+	 *
+	 * cwnd is NOT set to the initial window here. The donor sets cwnd = 1 at
+	 * connect and HandleActiveOpen turns that into mss * TCP_INIT_CWND when
+	 * the SYN-ACK arrives, so the initial window is a property of the
+	 * handshake completing rather than of asking.
+	 */
+	case MTP_APP_CONNECT: {
+		struct tcp_ctx *c;
+		flowkey_t k = key_of_inbound(op->local.ip, op->remote.ip,
+					     ntohs(op->local.port),
+					     ntohs(op->remote.port));
+		uint8_t hdr[PROG_HDR_MAX];
+		struct mtp_tx_payload none = { 0 };
+		uint16_t hdr_len;
+
+		if (mtp_ctx_lookup(&k))
+			return -1;			/* already connecting */
+		c = mtp_new_ctx(&k, sizeof(*c));
+		if (!c)
+			return -1;
+		c->key = k;
+		c->local_ip = op->local.ip;
+		c->remote_ip = op->remote.ip;
+		c->loc_port = ntohs(op->local.port);
+		c->rem_port = ntohs(op->remote.port);
+		c->rcv_wnd = PARITY_INITIAL_WINDOW;
+		c->snd_base = PARITY_ISN;
+		c->send_una = PARITY_ISN;
+		c->send_next = PARITY_ISN;
+		c->cwnd = 1;			/* the donor's, and it means
+						 * "not yet opened" rather than
+						 * one byte */
+		c->ssthresh = PARITY_SSTHRESH_ACTIVE;
+		c->state = TCP_SYN_SENT;
+
+		hdr_len = tcp_build_header(hdr, c, c->send_next, TCP_SYN,
+					   now_ms, 0);
+		INSTR(g_emit[EM_SYN]++);
+		if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_CONTROL, 1, 0) != 0) {
+			prog_unregister(c);
+			mtp_del_ctx(&k);
+			return -1;
+		}
+		c->send_next++;			/* the SYN consumes one */
+		tcp_touch_idle(c);
+		op->flow = c->f;		/* the caller needs the handle */
+		return 0;
+	}
 	case MTP_APP_ACCEPT: {
 		struct tcp_listen_ctx *l;
 		flowkey_t k = key_of_listener(op->local.ip,

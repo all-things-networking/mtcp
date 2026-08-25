@@ -30,6 +30,9 @@
 #define TCP_FIN_WAIT_2	7
 #define TCP_CLOSING	8	/* simultaneous close */
 #define TCP_TIME_WAIT	9
+/* the ACTIVE-open path, absent until 2026-08-25 for the same reason: nothing
+ * we ran ever opened a connection, so the state had no way to be entered. */
+#define TCP_SYN_SENT	10
 
 /*
  * mtp/tcp.mtp §tcp_listen_ctx — ONE INSTANCE PER LISTENING ENDPOINT.
@@ -128,6 +131,15 @@ struct tcp_ctx {
 
 	/* --- endpoints, for building outbound headers -------------------- */
 	uint16_t loc_port, rem_port;
+	/*
+	 * The endpoints, in network order. The PASSIVE open never needed them:
+	 * every packet it answers arrives with them, and pkt_gen takes the flow
+	 * whose route the target already resolved. An ACTIVE open has to build
+	 * the first packet with no packet to copy from, and a reset built from
+	 * a context goes out through the orphan path, which takes addresses
+	 * rather than a flow.
+	 */
+	uint32_t local_ip, remote_ip;
 
 	/* --- send side, sequence space ----------------------------------- */
 	/*
