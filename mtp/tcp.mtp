@@ -454,12 +454,30 @@ dispatch tcp_dispatch {
 //                        last acknowledgement it sent, as a pure ACK at
 //                        snd_nxt - 1 with no backoff.
 //
-//                        TWO DIVERGENCES, both recorded rather than closed:
-//                        ours fires from a TIMER armed on refusal where the
-//                        donor fires from the send path, and ours tests
-//                        `send_wnd <= cwnd` where the donor tests whether the
-//                        blocked amount exceeds peer_wnd specifically. Both
-//                        amount to "500 ms after being window-blocked".
+//                        CORRECTED, SAME DAY, after the lead asked whether it
+//                        really matched. It did not, and the first version of
+//                        this note was written against a description rather
+//                        than the code.
+//
+//                        THE DONOR HAS TWO PROBE SITES, not one. tcp_out.c:428
+//                        tests whether the blocked amount exceeds peer_wnd;
+//                        :546 tests `peer_wnd <= cwnd`. OURS MATCHES :546 --
+//                        the earlier claim of a divergence here was reading
+//                        the wrong site.
+//
+//                        THE REAL DIVERGENCE WAS THE CLOCK, and it was a
+//                        defect. ts_lastack_sent is stamped on EVERY segment
+//                        carrying the ACK flag (:293), so the donor's "500 ms
+//                        since our last acknowledgement" gate is essentially
+//                        never satisfied on a busy connection and the probe
+//                        fires only once the connection has gone quiet. Ours
+//                        stamped it only when a PROBE was emitted, so the gate
+//                        measured the interval between probes and we probed
+//                        where the donor would not. Fixed: stamped wherever an
+//                        acknowledging header is built.
+//
+//                        ONE DIVERGENCE REMAINS: ours fires from a timer armed
+//                        on refusal, the donor from inside the send path.
 //
 //                        wack_sent is NOT reproduced and that is correct: it is
 //                        a per-call local on a branch that returns immediately,

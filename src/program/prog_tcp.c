@@ -110,9 +110,28 @@ mtp_program_segment(const struct mtp_seg_view *v)
  *     NOP NOP Timestamp
  */
 uint16_t
-tcp_build_header(uint8_t *out, const struct tcp_ctx *c, uint32_t seq,
+tcp_build_header(uint8_t *out, struct tcp_ctx *c, uint32_t seq,
 		 uint8_t flags, uint32_t ts_val, uint32_t ts_ecr)
 {
+	/*
+	 * EVERY PACKET THAT ACKNOWLEDGES RESETS THE PROBE'S CLOCK, which is the
+	 * donor's rule and was not ours. It sets ts_lastack_sent on any segment
+	 * carrying the ACK flag (tcp_out.c:293) -- so on a busy connection its
+	 * "500 ms since our last acknowledgement" gate is never satisfied and
+	 * the probe effectively fires only once the connection has gone quiet.
+	 *
+	 * Ours stamped this only when a PROBE was emitted, so the gate measured
+	 * the interval between probes and we would probe where the donor would
+	 * not. Found by checking the donor's code rather than our comment about
+	 * it, after claiming the two matched.
+	 *
+	 * Here rather than at the five emission sites because there is exactly
+	 * one header built per emission, and a rule enforced at five call sites
+	 * is a rule the sixth will not follow.
+	 */
+	if (flags & TCPH_ACK)
+		c->last_ack_sent_ms = ts_val;
+
 	int is_syn = (flags & 0x02) != 0;
 	uint8_t *o;
 	uint16_t hdr_len, w;
@@ -2990,8 +3009,8 @@ send_window_probe(struct tcp_ctx *c, uint32_t now)
 	hdr_len = tcp_build_header(hdr, c, c->send_next - 1, TCP_ACK, now,
 				   c->ts_recent);
 	INSTR(g_emit[EM_PROBE]++);
-	if (mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0 /* not a retransmission */) == 0)
-		c->last_ack_sent_ms = now;
+	mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1,
+		    0 /* not a retransmission */);
 	mtp_timer_start(&c->probe, (uint64_t)PARITY_PROBE_MS * 1000000ULL);
 }
 

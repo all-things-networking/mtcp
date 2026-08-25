@@ -293,7 +293,9 @@ void     prog_sample_inflight(uint64_t now_us);
 void     tcp_on_payload_merged(struct tcp_ctx *c, uint32_t new_recv_next);
 void     sock_recv(struct tcp_ctx *c, uint32_t delivered_now);
 uint16_t tcp_window_field(const struct tcp_ctx *c, int is_syn);
-uint16_t tcp_build_header(uint8_t *out, const struct tcp_ctx *c, uint32_t seq,
+/* NOT const: it stamps last_ack_sent_ms, which the window probe's gate reads.
+ * See the definition. */
+uint16_t tcp_build_header(uint8_t *out, struct tcp_ctx *c, uint32_t seq,
 			  uint8_t flags, uint32_t ts_val, uint32_t ts_ecr);
 void     tcp_gen_seg(struct tcp_ctx *c, uint32_t now);
 /* CR-E: `len` is an EXTENT ALREADY IN THE RING, not a pointer to copy.
