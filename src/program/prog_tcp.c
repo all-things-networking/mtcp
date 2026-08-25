@@ -3240,6 +3240,28 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 				sock_recv(c, (uint32_t)got);
 			} else {
 				INSTR(g_recv_empty++);
+				/*
+				 * EMPTY IS NOT THE SAME AS ENDED, and the
+				 * application interface has to be able to tell
+				 * them apart. The donor's read returns 0 only
+				 * at end-of-stream -- the peer has closed and
+				 * the buffer is drained -- and -1/EAGAIN when
+				 * the buffer merely happens to be empty.
+				 *
+				 * We returned 0 for both. epwget recognises a
+				 * completed download ONLY in its `rd == 0`
+				 * branch (its `rd > 0` branch is unreachable
+				 * after the read loop, and the break that
+				 * would have reached it is #if 0'd out), so a
+				 * client on our stack received every byte of
+				 * every object and never once counted a
+				 * completion.
+				 *
+				 * -1 means "nothing now"; 0 means "nothing
+				 * ever again".
+				 */
+				if (!c->fin_consumed)
+					return -1;
 			}
 			if (c->rx.head_seq == before)
 				INSTR(g_recv_nohead++);

@@ -555,6 +555,15 @@ mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len)
 	got = mtp_program_app_op(&op, g_shim_core ? g_shim_core->cur_ts : 0);
 	if (got > 0)
 		return got;
+	/*
+	 * ZERO IS END-OF-STREAM, not "nothing available". The program returns 0
+	 * only once the peer's FIN has been consumed and the stream is drained,
+	 * and -1 while the connection is still open. Collapsing the two into
+	 * EAGAIN is what stopped every client download from ever being counted
+	 * as complete; see the program's RECV case.
+	 */
+	if (got == 0)
+		return 0;
 	errno = EAGAIN;
 	return -1;
 }
