@@ -2731,13 +2731,22 @@ proc_synack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 		return;
 
 	/*
-	 * The acknowledgement must be for the SYN we sent: strictly above the
-	 * initial sequence and no higher than what we have sent. The donor
-	 * answers a violation with a reset, which is why that had to exist
-	 * first.
+	 * IT MUST ACKNOWLEDGE OUR SYN, EXACTLY.
+	 *
+	 * The donor's test is `ack_seq <= iss || ack_seq > snd_nxt` -- above the
+	 * INITIAL sequence number and no higher than what we have sent. In
+	 * SYN_SENT exactly one byte of sequence space is outstanding, so that
+	 * range has exactly one member and `ack == send_next` is the same test
+	 * written without needing to keep the ISN around.
+	 *
+	 * It was written against `snd_base`, which is the transmit stream's
+	 * origin and therefore ISS + 1 once the SYN has gone out -- so
+	 * `ack <= snd_base` was true for the CORRECT acknowledgement and every
+	 * handshake was answered with a reset. It only appeared when snd_base
+	 * was corrected to account for the SYN; before that the two bugs
+	 * cancelled and the handshake completed.
 	 */
-	if ((int32_t)(e->ack - c->snd_base) <= 0 ||
-	    (int32_t)(e->ack - c->send_next) > 0) {
+	if (e->ack != c->send_next) {
 		gen_rst_from_ctx(c, e);
 		return;
 	}
