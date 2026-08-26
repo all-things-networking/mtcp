@@ -1187,12 +1187,29 @@ prog_report_refusals(void)
 		fprintf(stderr, "send decision %-17s %llu\n", n[i],
 			(unsigned long long)g_refuse[i]);
 	{
-		static const char *en[EM__N] = { "SYN-ACK", "ack of data",
-						 "ack of FIN", "window probe",
-						 "reply to their probe",
-						 "our FIN", "data (first send)",
-						 "data (retransmission)" };
+		/*
+		 * NO EXPLICIT SIZE, so the assert below can actually fire.
+		 * Written `en[EM__N]` it could not: sizeof/sizeof is EM__N
+		 * however few names are given, C fills the rest with NULL, and
+		 * three counters printed as "(null)" for as long as they have
+		 * existed -- one of which is the reset, the counter you would
+		 * reach for to ask whether the reset path has ever run.
+		 *
+		 * The recv-path names next to this had the same assert and it
+		 * worked, because that array was declared without a size. Same
+		 * idiom here now.
+		 */
+		static const char *en[] = { "SYN-ACK", "ack of data",
+					    "ack of FIN", "window probe",
+					    "reply to their probe",
+					    "our FIN", "data (first send)",
+					    "data (retransmission)",
+					    "our RST", "our SYN",
+					    "window advertisement" };
 		int j;
+
+		_Static_assert(sizeof(en) / sizeof(en[0]) == EM__N,
+			       "emit counter names are out of step with the enum");
 
 		for (j = 0; j < EM__N; j++)
 			fprintf(stderr, "emitted      %-21s %llu\n", en[j],
