@@ -3648,19 +3648,30 @@ send_window_probe(struct tcp_ctx *c, uint32_t now)
  * mismatch is observable only when min(cwnd, peer_wnd) - inflight lands in
  * [1448, 1460).
  */
-void
+/*
+ * RETURNS THE NUMBER OF PACKETS IT PUT ON THE WIRE, which is the donor's
+ * SendTCPPacket return value and what its caller subtracts from ack_cnt: every
+ * data packet carries the ACK flag, so a packet sent is an acknowledgement
+ * that no longer needs its own frame.
+ *
+ * One mtp_pkt_gen call can become several segments -- the target does the
+ * segmentation, at PARITY_MSS_PAYLOAD -- so the count is derived from the
+ * extent handed over rather than from the number of calls.
+ */
+unsigned
 tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 {
 	uint32_t rtx;		/* below the high-water mark: a retransmission */
 	uint8_t hdr[PROG_HDR_MAX];
 	struct mtp_tx_payload pay;
 	uint32_t win, to_send;
+	unsigned pkts = 0;
 	uint16_t hdr_len;
 	int why = REF_NODATA;
 
 	if (!send_side_open(c)) {
 		INSTR(g_refuse[REF_STATE]++);
-		return;
+		return 0;
 	}
 
 	win = c->cwnd < c->send_wnd ? c->cwnd : c->send_wnd;
@@ -3920,7 +3931,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 				"next=%u inflight=%u write_end=%u\n", c->cwnd,
 				c->send_wnd, c->send_una, c->send_next,
 				c->send_next - c->send_una, c->write_end);
-		return;
+		return 0;
 	}
 	INSTR(g_refuse[REF_SENT]++);
 
@@ -3958,6 +3969,9 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 	}
 	if (mtp_pkt_gen(c->f, hdr, hdr_len, &pay, PARITY_MSS_PAYLOAD, PRIO_DATA, 1,
 			rtx) == 0) {
+		/* what the target will cut this extent into, which is what the
+		 * donor's SendTCPPacket would have returned */
+		pkts = (to_send + PARITY_MSS_PAYLOAD - 1) / PARITY_MSS_PAYLOAD;
 		c->send_next += to_send;
 
 		/* Arm the round-trip probe if one is not outstanding. O(1),
@@ -3975,6 +3989,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 		if (unacked_on_wire(c))
 			arm_rto(c);
 	}
+	return pkts;
 }
 
 /*
@@ -4026,20 +4041,47 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 	 * carrying both, which is also what the donor does.
 	 */
 	/*
-	 * THE PASS'S ACKNOWLEDGEMENTS -- plural, because ack_cnt is a count.
-	 * The donor's WriteTCPACKList sends them in a loop and stops early only
-	 * when the transmit buffer refuses one (tcp_out.c:894-903); ours stops
-	 * on the same condition, and what is left stays owed for the next pass
-	 * rather than being dropped.
+	 * DATA FIRST, AND THAT ORDER IS THE POINT. The donor drains its send
+	 * list before its acknowledgement list, and every data packet it sends
+	 * carries the ACK flag -- so it subtracts the packets sent from
+	 * ack_cnt and only sends separately whatever is still owed
+	 * (ACK_PIGGYBACK, tcp_out.c:806-817, TRUE in the donor's build).
 	 *
-	 * It goes before the window-update branch so a pass that owes both
-	 * sends one packet carrying both, which is also what the donor does.
+	 * We had it backwards: acknowledgements first, then data. Every
+	 * acknowledgement therefore went out as its own packet even when a
+	 * data packet in the same pass was about to carry one. Invisible on a
+	 * client, which sends nothing to carry them; on a server it is a pure
+	 * ack for every segment that a data segment already acknowledged.
+	 */
+	if (send_side_open(c)) {
+		unsigned sent;
+
+		if (MTP_ENV_ON("MTP_TRACE_SEQ"))
+			fprintf(stderr, "APPSEND state=%u extent=%u write_end=%u "
+				"send_next=%u snd_base=%u cwnd=%u send_wnd=%u\n",
+				c->state, len, c->write_end, c->send_next,
+				c->snd_base, c->cwnd, c->send_wnd);
+
+		sent = tcp_gen_seg(c, now);
+		c->ack_cnt = (c->ack_cnt > sent) ? c->ack_cnt - sent : 0;
+	}
+
+	/*
+	 * THEN WHAT IS STILL OWED. The donor's WriteTCPACKList sends them in a
+	 * loop and stops early only when the transmit buffer refuses one
+	 * (tcp_out.c:894-903); ours stops on the same condition, and what is
+	 * left stays owed for the next pass rather than being dropped.
 	 */
 	while (c->ack_cnt > 0) {
 		if (!emit_ack(c, now))
 			break;		/* no room; still owed */
 		c->ack_cnt--;
 	}
+
+	/*
+	 * ...and the window advertisement last, which is also where the donor
+	 * puts it: is_wack is sent after the ack_cnt loop in the same walk.
+	 */
 	if (c->need_wnd_adv && c->rcv_wnd > PARITY_MSS_PAYLOAD) {
 		uint8_t hdr[PROG_HDR_MAX];
 		struct mtp_tx_payload none = { 0 };
@@ -4051,16 +4093,9 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 		INSTR(g_emit[EM_WND_ADV]++);
 		mtp_pkt_gen(c->f, hdr, hdr_len, &none, 0, PRIO_ACK, 1, 0);
 	}
+
 	if (!send_side_open(c))
 		return -1;
-
-	if (MTP_ENV_ON("MTP_TRACE_SEQ"))
-		fprintf(stderr, "APPSEND state=%u extent=%u write_end=%u "
-			"send_next=%u snd_base=%u cwnd=%u send_wnd=%u\n",
-			c->state, len, c->write_end, c->send_next,
-			c->snd_base, c->cwnd, c->send_wnd);
-
-	tcp_gen_seg(c, now);
 	return (int)len;
 }
 

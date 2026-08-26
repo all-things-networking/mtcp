@@ -333,7 +333,7 @@ uint16_t tcp_window_field(const struct tcp_ctx *c, int is_syn);
  * See the definition. */
 uint16_t tcp_build_header(uint8_t *out, struct tcp_ctx *c, uint32_t seq,
 			  uint8_t flags, uint32_t ts_val, uint32_t ts_ecr);
-void     tcp_gen_seg(struct tcp_ctx *c, uint32_t now);
+unsigned tcp_gen_seg(struct tcp_ctx *c, uint32_t now);  /* packets sent */
 /* CR-E: `len` is an EXTENT ALREADY IN THE RING, not a pointer to copy.
  * The application thread buffers via mtp_app_send; this runs on the stack. */
 int      tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now);
