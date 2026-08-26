@@ -290,10 +290,25 @@ struct tcp_ev {
  * chain would read freed memory. A target that deferred destruction to the end
  * of the pass would not need it; ours frees immediately.
  */
+/*
+ * The donor's EnqueueACK options (tcp_out.c:1082). Named after it, because the
+ * whole rule is "do what the donor does" and a different name here would be a
+ * place for the two to drift apart.
+ */
+#define ACK_NONE	0
+#define ACK_AGGREGATE	1	/* at most one per pass, for the whole pass */
+#define ACK_NOW		2	/* one of its own, added to whatever is owed */
+
 struct tcp_scratch {
 	uint32_t	acked;		/* new bytes this acknowledgement retired */
 	uint32_t	delivered;	/* bytes the application took */
-	bool		ack_now;	/* an acknowledgement is owed */
+	/*
+	 * WHICH of the donor's two enqueue options this segment asks for, kept
+	 * apart all the way to the emission because they mean different
+	 * things: see ack_cnt in prog_ctx.h. ACK_NONE is "this segment owes
+	 * nothing", which is not the same as owing an aggregated one.
+	 */
+	uint8_t		ack_opt;
 	bool		ctx_dead;	/* del_ctx ran: stop the chain */
 	/*
 	 * The donor does NOT attempt a send on a fourth-or-later duplicate: it
@@ -508,7 +523,6 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * subtracted. Nothing type-checks it and the wire is where it shows.
 	 */
 	c->rcv_base = c->recv_next;
-	c->ack_sent_upto = c->recv_next;
 	/*
 	 * PAWS applies only to a peer that timestamps, and the donor decides it
 	 * once, here, from the SYN's options (tcp_util.c:47-51). ts_recent is
@@ -2020,14 +2034,31 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 		 * peer where the hole is, and suppressing it would remove the
 		 * only signal that triggers the peer's fast retransmit.
 		 */
-		if (next != c->recv_next)
+		if (next != c->recv_next) {
 			/* §window_rule recompute point 1: payload merged in
 			 * order. Nothing else in this program writes rcv_wnd. */
 			tcp_on_payload_merged(c, next);
+			sc->ack_opt = ACK_AGGREGATE;
+		} else {
+			/*
+			 * THE DONOR'S DISCRIMINATOR, and the reason ack_cnt is
+			 * a count. ProcessTCPPayload returns FALSE exactly when
+			 * the contiguous boundary did not advance
+			 * (tcp_in.c, "TCP_SEQ_LEQ(rcv_nxt, prev_rcv_nxt)"), and
+			 * Handle_TCP_ST_ESTABLISHED answers that with
+			 * ACK_OPT_NOW rather than ACK_OPT_AGGREGATE.
+			 *
+			 * So each segment landing past a hole owes its OWN
+			 * duplicate acknowledgement. That is the signal that
+			 * trips the peer's fast retransmit, and it only works
+			 * if the duplicates are counted rather than merged:
+			 * three segments past the hole must produce three.
+			 */
+			sc->ack_opt = ACK_NOW;
+		}
 	}
 
 	INSTR(g_emit[EM_ACK_DATA]++);
-	sc->ack_now = true;
 }
 
 /*
@@ -2038,51 +2069,18 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
  * It records how far it covered. That is what makes the threshold measurable
  * rather than a guess about pass boundaries.
  */
-static void
+static bool
 emit_ack(struct tcp_ctx *c, uint32_t now)
 {
 	uint8_t ahdr[PROG_HDR_MAX];
 	struct mtp_tx_payload anone = { 0 };
 	uint16_t alen;
 
-	c->ack_owed = false;
 	c->need_wnd_adv = false;	/* this carries the window too */
-	c->ack_sent_upto = c->recv_next;
 	alen = tcp_build_header(ahdr, c, c->send_next, TCP_ACK, now,
 				c->ts_recent);
 	INSTR(g_emit[EM_ACK_DATA]++);
-	mtp_pkt_gen(c->f, ahdr, alen, &anone, 0, PRIO_ACK, 1, 0);
-}
-
-/*
- * How much unanswered data may pile up before we acknowledge without waiting
- * for the end of the pass, in bytes. Zero disables the threshold and leaves
- * the pure per-pass rule.
- *
- * THIS EXISTS BECAUSE THE PASS IS NOT THE DONOR'S BOUNDARY. Both stacks run
- * the same rule -- one acknowledgement per pass per receiving flow -- but a
- * pass here is ~0.7us and takes an entire arriving train in one poll, so the
- * rule that gives the donor one acknowledgement per ~10 segments gives us one
- * per ~26 (measured, 2026-08-26: 8,123,072 segments, 313,741 acknowledgements).
- * The peer then learns of freed receive buffer late, advertises us a smaller
- * window back, and throttles. The threshold restores the donor's CADENCE
- * without pretending the pass boundaries match.
- *
- * Set from the environment so the cadence can be swept in one build; the
- * default is the value that measurement settled on.
- */
-static uint32_t
-ack_backlog_limit(void)
-{
-	static uint32_t limit = (uint32_t)-1;
-
-	if (limit == (uint32_t)-1) {
-		const char *e = getenv("MTP_ACK_AGG_MSS");
-
-		limit = (e ? (uint32_t)strtoul(e, NULL, 10)
-			   : PARITY_ACK_AGG_MSS) * PARITY_MSS_PAYLOAD;
-	}
-	return limit;
+	return mtp_pkt_gen(c->f, ahdr, alen, &anone, 0, PRIO_ACK, 1, 0) >= 0;
 }
 
 /*
@@ -2090,7 +2088,7 @@ ack_backlog_limit(void)
  *
  * IT RE-TESTS NOTHING. Every guard that decides whether an acknowledgement is
  * due — recv_side_open, the in-order test, the FIN's ordering — lives at the
- * decision site, and this only acts on `sc.ack_now`. That is what makes it safe
+ * decision site, and this only acts on `sc.ack_opt`. That is what makes it safe
  * to run after proc_fin's state transition: the old code had to build the FIN's
  * acknowledgement BEFORE the transition, because the guard that silences the
  * data path would otherwise have silenced it too. With the decision separated
@@ -2105,45 +2103,28 @@ send_ack(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 	uint16_t hdr_len;
 
 	(void)e; (void)hdr; (void)none; (void)hdr_len; (void)now;
-	if (!sc->ack_now)
+	if (sc->ack_opt == ACK_NONE)
 		return;
 
 	/*
-	 * AGGREGATED, NOT EMITTED HERE. The donor never writes an
-	 * acknowledgement from its receive path: it calls
-	 * EnqueueACK(ACK_OPT_AGGREGATE) and WriteTCPACKList emits ONE per pass
-	 * covering everything that arrived in it (EVENT-DATA.md §3.2 --
-	 * "what is a delayed-acknowledgement timer in other stacks is
-	 * ACK_OPT_AGGREGATE plus a per-pass list walk here").
+	 * THE DONOR'S EnqueueACK, and nothing else. How often to acknowledge is
+	 * a protocol decision, so it is not ours to tune: this reproduces
+	 * tcp_out.c:1088-1096 and the emission below reproduces its
+	 * WriteTCPACKList.
 	 *
-	 * We emitted one per SEGMENT. As a server that never showed, because a
-	 * server barely receives. As a client it is every segment, and measured
-	 * against the donor's own client through the server's instrument it was
-	 * one acknowledgement per 1.8 segments against the donor's one per 11 --
-	 * six times the acknowledgement traffic for a third of the data.
-	 *
-	 * The retry list is the per-pass list: mtp_retry coalesces by flow, so
-	 * a burst of segments in one pass produces ONE entry and therefore one
-	 * acknowledgement, which is exactly the donor's aggregation with the
-	 * donor's boundary.
+	 * A byte threshold used to sit here, chosen by sweeping throughput.
+	 * That was the wrong kind of answer to the wrong question -- it made
+	 * the number of acknowledgements a performance parameter, when it is
+	 * part of what the two stacks have to agree on before any performance
+	 * number means anything (rule 1).
 	 */
-	c->ack_owed = true;
-	mtp_retry(c->f);
-
-	/*
-	 * ...and if the backlog the per-pass rule has not answered is already
-	 * bigger than the donor would ever let it get, answer it here rather
-	 * than at the end of a pass that has swallowed a whole train. This is
-	 * the donor's cadence, reached by counting bytes because our pass
-	 * boundary does not count them the same way.
-	 */
-	{
-		uint32_t limit = ack_backlog_limit();
-
-		if (limit &&
-		    (uint32_t)(c->recv_next - c->ack_sent_upto) >= limit)
-			emit_ack(c, now);
+	if (sc->ack_opt == ACK_AGGREGATE) {
+		if (c->ack_cnt == 0)
+			c->ack_cnt = 1;
+	} else {
+		c->ack_cnt++;
 	}
+	mtp_retry(c->f);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -2209,7 +2190,7 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 		 * is the donor's else branch (EnqueueACK with ACK_OPT_NOW) --
 		 * without it the peer learns nothing and retransmits blind.
 		 */
-		sc->ack_now = true;
+		sc->ack_opt = ACK_NOW;
 		return;
 	}
 
@@ -2220,7 +2201,7 @@ proc_fin(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 	c->fin_consumed = true;		/* ...which is not data: G14 */
 
 	INSTR(g_emit[EM_ACK_FIN]++);
-	sc->ack_now = true;		/* send_ack emits it, after the transition
+	sc->ack_opt = ACK_NOW;		/* send_ack emits it, after the transition
 					 * below; see send_ack on why that is now
 					 * safe */
 
@@ -2439,7 +2420,7 @@ proc_validate(struct tcp_ctx *c, const struct tcp_ev *e,
 			/* RFC 1323: SEG.TSval < TS.Recent -> drop, and
 			 * acknowledge so the peer learns where we are. */
 			INSTR(g_rx[RXS_PAWS_OLD]++);
-			sc->ack_now = true;
+			sc->ack_opt = ACK_NOW;	/* the donor's ACK_OPT_NOW */
 			return false;
 		}
 		c->ts_recent = e->ts_val;
@@ -2458,24 +2439,47 @@ proc_validate(struct tcp_ctx *c, const struct tcp_ev *e,
 
 	if (c->state == TCP_ESTABLISHED) {
 		/*
-		 * THE PEER'S WINDOW PROBE, and it lives here rather than in
-		 * proc_recv, which is where we had it. The donor answers it
-		 * from inside validation and then STOPS PROCESSING the segment
-		 * -- one byte behind what we expect next is deliberately
-		 * outside our window, so it can only be a probe.
+		 * THREE CASES, and the donor answers them differently
+		 * (tcp_in.c ValidateSequence). We answered all three the same
+		 * way, which is the collapse ack_cnt exists to undo.
+		 *
+		 *   the peer's window probe -- one byte behind what we expect
+		 *   next, so deliberately outside our window and unmistakable
+		 *   -- and anything at or behind the boundary: AGGREGATE. Both
+		 *   are the peer asking where we are, and one answer per pass
+		 *   tells it.
+		 *
+		 *   anything AHEAD of the window: NOW, one per segment. These
+		 *   are the segments a sender keeps pushing past a hole, and
+		 *   each one owes its own duplicate for the same reason as in
+		 *   proc_recv.
+		 *
+		 * The probe lives here rather than in proc_recv because the
+		 * donor answers it from inside validation and then STOPS
+		 * PROCESSING the segment.
 		 */
-		sc->ack_now = true;
-		if (e->seq + 1 == c->recv_next)
+		if (e->seq + 1 == c->recv_next) {
 			INSTR(g_emit[EM_PROBE_REPLY]++);
+			sc->ack_opt = ACK_AGGREGATE;
+		} else if ((int32_t)(e->seq - c->recv_next) <= 0) {
+			sc->ack_opt = ACK_AGGREGATE;
+		} else {
+			sc->ack_opt = ACK_NOW;
+		}
 	} else {
 		/*
-		 * Outside ESTABLISHED the donor puts the stream on its control
-		 * list -- an acknowledgement from the control path -- and
-		 * refreshes the TIME_WAIT deadline if that is where it is.
+		 * Outside ESTABLISHED the donor puts the stream on its CONTROL
+		 * list, not its acknowledgement list, and refreshes the
+		 * TIME_WAIT deadline if that is where it is.
+		 *
+		 * We have no separate control path, so this becomes NOW: one
+		 * acknowledgement, not aggregated with a pass. That is the
+		 * nearest thing this program has and the difference is
+		 * recorded rather than hidden -- see docs/DIVERGENCE.md.
 		 */
 		if (c->state == TCP_TIME_WAIT)
 			enter_time_wait(c);
-		sc->ack_now = true;
+		sc->ack_opt = ACK_NOW;
 	}
 	return false;
 }
@@ -2849,7 +2853,6 @@ proc_synack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	c->send_una = e->ack;
 	c->recv_next = e->seq + 1;		/* irs + 1 */
 	c->rcv_base = c->recv_next;
-	c->ack_sent_upto = c->recv_next;
 	mtp_sw_init(&c->rx_wnd, c->recv_next);
 	c->snd_wl1 = e->seq - 1;
 	c->snd_wl2 = e->ack;
@@ -4022,8 +4025,21 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 	 * window-update branch so that a pass which owes both sends one packet
 	 * carrying both, which is also what the donor does.
 	 */
-	if (c->ack_owed)
-		emit_ack(c, now);
+	/*
+	 * THE PASS'S ACKNOWLEDGEMENTS -- plural, because ack_cnt is a count.
+	 * The donor's WriteTCPACKList sends them in a loop and stops early only
+	 * when the transmit buffer refuses one (tcp_out.c:894-903); ours stops
+	 * on the same condition, and what is left stays owed for the next pass
+	 * rather than being dropped.
+	 *
+	 * It goes before the window-update branch so a pass that owes both
+	 * sends one packet carrying both, which is also what the donor does.
+	 */
+	while (c->ack_cnt > 0) {
+		if (!emit_ack(c, now))
+			break;		/* no room; still owed */
+		c->ack_cnt--;
+	}
 	if (c->need_wnd_adv && c->rcv_wnd > PARITY_MSS_PAYLOAD) {
 		uint8_t hdr[PROG_HDR_MAX];
 		struct mtp_tx_payload none = { 0 };
