@@ -1592,21 +1592,16 @@ proc_rtt(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 }
 
 /*
- * mtp/tcp.mtp §proc_fast_retransmit — NOT IMPLEMENTED.
+ * mtp/tcp.mtp §proc_fast_retransmit — retransmit on the third duplicate.
  *
- * `fast_retransmit` on the absence register: the donor retransmits and halves
- * its window on the THIRD duplicate acknowledgement (tcp_in.c:464) and we do
- * nothing. A rule-1 gap — the two stacks are not running the same protocol
- * until it lands.
+ * IMPLEMENTED. This header said "NOT IMPLEMENTED ... an empty body ON PURPOSE"
+ * for longer than it was true, describing a rule-1 gap that the body below had
+ * already closed. A stale absence is worse than an unwritten one: it is the
+ * exact claim the absence register exists to keep honest.
  *
- * It is a processor with an empty body ON PURPOSE. A missing mechanism should
- * read as a missing body, not as a branch that was never written inside
- * proc_ack, because the second is invisible and the first is not.
- *
- * D-30 settles what goes here: the donor's behaviour exactly, third duplicate
- * only, INCLUDING its refusal to attempt a send on the fourth and later. That
- * change and the removal of our per-duplicate attempt in gen_seg's caller are
- * one change, and the per-iteration retry list lands before both.
+ * D-30 settled what goes here and the body does it: the donor's behaviour
+ * exactly, third duplicate only, INCLUDING its refusal to attempt a send on
+ * the fourth and later.
  */
 static void
 proc_fast_retransmit(struct tcp_ctx *c, const struct tcp_ev *e,
@@ -2756,13 +2751,11 @@ dispatch_tcp_fin(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 }
 
 /*
- * mtp/tcp.mtp §proc_synack — NOT IMPLEMENTED.
+ * mtp/tcp.mtp §proc_synack — the peer accepted our connection.
  *
- * `active_open` on the absence register. Nothing we run opens a connection, so
- * a SYN-ACK reaching us is a segment for a connection we did not initiate.
- * DEFERRED.md C7 and E1: the donor's active-open path is unread, and
- * EVENT-SYNACK.md §3.2 is checked against the paper alone. It is not written to
- * until that has been read.
+ * IMPLEMENTED, below. This header described the active open as absent -- true
+ * when only a server existed, and stale from the moment the client role ran on
+ * this same program. See the real processor further down.
  */
 /*
  * mtp/tcp.mtp §gen_syn — our SYN, emitted or re-attempted.

@@ -25,7 +25,7 @@ mtcp/src/include/stat.h	stat.h	-	seeded unchanged
 mtcp/src/include/io_module.h	io_module.h	c2d2b5893b4bd95e3e03d80b1ae877f5b35b8caad6cb62a067fbc4782e1ad9eb	psio/netmap/onvm registrations dropped; adds struct l4_csum_req so the PMD glue can be asked for a checksum without being told the header shape; adds rx_csum_verdict() to the vtable (D-22 — the donor has no reader of the hardware checksum verdict, so there was nothing to seed)
 mtcp/src/io_module.c	io_module.c	b7c158f470e2e02587d029bbc3b73431da6413e2670105b366156f06d753b9fa	psio, netmap and onvm arms of SetNetEnv dropped with their includes; the EAL hugepage sizing takes TRANSPORT_PER_FLOW_BYTES instead of naming the transport's structs
 dpdk-iface-kmod/dpdk_iface_common.h	dpdk_iface_common.h	-	seeded unchanged (mtcp/src/include/ has it as a symlink to this path)
-mtcp/src/dpdk_module.c	dpdk_module.c	10a64bced811dcfd1fddd364c53c898fee6cdb0b8f15f3ebb86698a9e2b5fd37	dev_ioctl no longer casts to struct tcphdr — the two L4 checksum commands take offsets (rule 4); the ENABLELRO segment walk is dropped (LRO is off in the donor's build); the unbounded tx-burst retry is bounded (rule 5 — see PROVENANCE.md); the donor's dead `#if 0` checksum reader is replaced by dpdk_rx_csum_verdict(), which reports the verdict instead of dropping (D-22) and tests for _GOOD rather than the _BAD bit mlx4 never sets
+mtcp/src/dpdk_module.c	dpdk_module.c	44defc31021a27aa8628f1f58d52a74d67f770dfc97170dc7900cb8573c876be	dev_ioctl no longer casts to struct tcphdr — the two L4 checksum commands take offsets (rule 4); MTP_TRACE_CSUM is resolved once instead of per received frame (it was 3.2% of the client, profiled 2026-08-26); the ENABLELRO segment walk is dropped (LRO is off in the donor's build); the unbounded tx-burst retry is bounded (rule 5 — see PROVENANCE.md); the donor's dead `#if 0` checksum reader is replaced by dpdk_rx_csum_verdict(), which reports the verdict instead of dropping (D-22) and tests for _GOOD rather than the _BAD bit mlx4 never sets
 mtcp/src/include/rss.h	rss.h	-	seeded unchanged
 mtcp/src/rss.c	rss.c	-	seeded unchanged
 mtcp/src/include/addr_pool.h	addr_pool.h	8d444fcc7b7bfcdb9367f69e15b7673fce7102ab2a09edc374383e255ba66cc5	carries INPORT_ANY, which mTCP puts in its public socket API header
@@ -37,7 +37,7 @@ mtcp/src/eth_out.c	eth_out.c	-	seeded unchanged
 mtcp/src/include/ip_in.h	ip_in.h	848a9728db93f5bcbc31af14868187da92b5a827391389e945a174b2fb54cfda	includes ip_csum.h, since ip_fast_csum comes from ps.h which is not carried
 mtcp/src/ip_in.c	ip_in.c	fa6a991c2d7ea10ca6bf1f1b45ada26dc3d72550a4e74521090870095ea9c7ce	the IP protocol switch compares against the program's number and calls the target, instead of naming IPPROTO_TCP and ProcessTCPPacket
 mtcp/src/include/ip_out.h	ip_out.h	5e23f0cf29160ac23d25d081ad3c9e2f549905891bbb30d21002f8757976b997	IPOutput takes the four fields it used to read out of a tcp_stream, plus the protocol number (rule 4)
-mtcp/src/ip_out.c	ip_out.c	291eaba1e09d65e8fb8d54e8a70e7686c3d5159abd15cdca5320a31e96d92e77	same, and the checksum-offload switch compares against the program's protocol number
+mtcp/src/ip_out.c	ip_out.c	d8d0d2f7e82d7c75dfd51676b46d304f22e51567f478faac0012d50d8ce7ab8a	same, and the checksum-offload switch compares against the program's protocol number
 mtcp/src/include/arp.h	arp.h	-	seeded unchanged
 mtcp/src/arp.c	arp.c	-	seeded unchanged
 mtcp/src/include/icmp.h	icmp.h	-	seeded unchanged

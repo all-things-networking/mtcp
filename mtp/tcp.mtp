@@ -150,6 +150,23 @@ context tcp_global { uint32 listen_ip; uint16 listen_port; bool listening; }
 
 scratchpad_t tcp_scratch { uint32 acked, delivered; bool ack_now; }
 
+// §tcp_listen_ctx
+// ---------------------------------------------------------------------------
+// THE SECOND CONTEXT TYPE. A listener is not a connection: it has no sequence
+// numbers, no windows and no timers, and the events it answers are a SYN and
+// the application's accept. Giving it its own context is what keeps every
+// field in §context meaningful for every connection that has one -- the
+// alternative, one context type with half its fields unused in the listening
+// state, is where "which fields are live right now" stops being answerable.
+//
+// It holds the local endpoint it answers on, its state, and the queue of
+// connections that have completed their handshake and are waiting to be
+// accepted.
+//
+// The target keys it like any other context; what makes it a listener is that
+// the flow it is attached to matches on the local endpoint alone, with no
+// peer, so a SYN from any peer finds it.
+
 // §blueprint
 // ---------------------------------------------------------------------------
 pkt_bp TCPBP { uint16 src_port, dst_port; uint32 seq_no, ack_seq;
@@ -389,25 +406,119 @@ app_parser socket {
 // (Bodies follow the paper's imperative, pointer-free form; see
 //  src/program/prog_tcp.c for the emitted C of those written so far.)
 
+// §proc_validate         PAWS and the sequence-acceptability test, run
+//                         BEFORE any event is raised
+//
+//   Where the donor runs it: after the context lookup and before dispatch,
+//   and only once the connection is past the handshake. A segment refused
+//   here raises nothing, so no chain sees it.
+//
+//   The acceptability test is on `seq + payload_len` lying inside
+//   [recv_next, recv_next + rcv_wnd]. That is ONE test on the segment's last
+//   byte; RFC 793 tests first and last separately. This reproduces the donor
+//   (rule 1), and it is the reason a segment can be refused whose first byte
+//   was inside the window -- the right edge moves left as unread data piles
+//   up, so data the peer sent legitimately can arrive after the edge has
+//   retreated behind it. Measured 2026-08-26: 68,110 of 8,123,072 segments.
+//   The donor does the same thing and drops fewer only because its
+//   application leaves less unread.
+//
+//   A refusal is not silent. PAWS failure and a segment outside the window
+//   both queue an acknowledgement, so the peer learns where we are; a reset
+//   outside the window is ignored instead, and answered by nothing.
+//
+//   A peer that timestamps and then sends a segment without one is dropped.
+//   The donor leaves a TODO where a standards-based handler would go.
+//
+// §proc_window            the peer's advertised window, RFC 793's rule
+//
+//   Refreshed by every acknowledgement, INCLUDING one that advances nothing,
+//   because a pure window update carries no new acknowledgement number. The
+//   update is accepted when the segment is newer by sequence, or equal by
+//   sequence and not older by acknowledgement -- snd_wl1/snd_wl2, kept so an
+//   old segment arriving late cannot shrink a window that has since opened.
+//
+// §proc_rst               the peer reset the connection
+//
+//   Validated before it is believed: a reset is accepted only from inside the
+//   receive window, which is what stops an off-path segment from tearing down
+//   a connection. Accepted, it ends the connection without a reply -- a reset
+//   is never acknowledged and never answered with another reset.
+//
+// §gen_rst                answer a segment that belongs to no connection
+//
+//   The one generation path with NO context to generate from: the segment
+//   arrived for a connection that does not exist, so the reply is built from
+//   the arriving segment's own fields, mirrored. It is the only processor
+//   that emits without a context and the reason the target has an orphan
+//   emit path at all.
+//
+// §gen_syn                our SYN, emitted or re-attempted
+//
+//   The active open's first packet. It is a GENERATION step, not part of the
+//   open chain, so the same retry that re-attempts a blocked send re-attempts
+//   an unsent SYN -- one path, not two.
+//
+// §proc_synack            the peer accepted our connection
+//
+//   Seeds everything the passive open seeds from a SYN, from the mirror
+//   image: the peer's initial sequence number, its window and scale, its
+//   timestamp, and whether it timestamps at all.
+//
+//   The test that the acknowledgement is ours is against the INITIAL SEQUENCE
+//   NUMBER, not against send_base. Those differ by one, because the SYN
+//   consumes sequence space and send_base is the sequence of the first DATA
+//   byte. Getting that wrong made every handshake answer with a reset.
+//
+// §proc_idle              the connection has been quiet too long
+//
+//   The donor's idle timeout, and the reason a connection that neither sends
+//   nor receives is eventually reclaimed rather than held forever.
+//
+// §proc_bind              the application names a local endpoint
+// §proc_listen            the endpoint starts answering
+// §proc_accept            the application takes a pending connection
+// §proc_connect           the application opens a connection
+//
+//   The four application events that make an endpoint. proc_listen is what
+//   turns a bound endpoint into one that answers a SYN, and it is the point
+//   at which a listen context starts to exist -- see §tcp_listen_ctx.
+//
+//   proc_connect is the active open's entry: it fills in the endpoints the
+//   target cannot know (there is no arriving packet to take them from) and
+//   asks for the SYN.
+
 // §dispatch
 // ---------------------------------------------------------------------------
 dispatch tcp_dispatch {
     tcp_syn     -> { proc_passive_open };
     tcp_synack  -> { proc_synack };
-    tcp_ack     -> { proc_timestamp, proc_open_done, proc_rtt,
+    tcp_ack     -> { proc_timestamp, proc_open_done, proc_window, proc_rtt,
                      proc_fast_retransmit, proc_congestion, proc_ack,
                      gen_seg, gen_fin };
     tcp_data    -> { proc_recv, send_ack };
     tcp_fin     -> { proc_fin, send_ack };
+    tcp_rst     -> { proc_rst };
     tcp_rto_timeout      -> { proc_rto };
     tcp_timewait_timeout -> { proc_timewait_done };
     tcp_probe_timeout    -> { proc_probe };
-    app_bind    -> { sock_bind };
-    app_listen  -> { sock_listen };
+    tcp_idle_timeout     -> { proc_idle };
+    app_bind    -> { proc_bind };
+    app_listen  -> { proc_listen };
+    app_connect -> { proc_connect, gen_syn };
+    app_accept  -> { proc_accept };
     app_recv    -> { sock_recv };
     app_send    -> { record_data, gen_seg };
     app_close   -> { mark_closed, gen_fin };
 }
+
+// §proc_validate AND §gen_rst ARE NOT IN ANY CHAIN, on purpose.
+//
+// Validation runs before classification -- a segment it refuses raises no
+// event, so there is no chain for it to head. gen_rst answers a segment with
+// no context, and a chain is dispatched THROUGH a context; there is none to
+// dispatch through. Both are named here so that "not in the dispatch" reads
+// as a decision rather than an omission.
 
 // THE CHAINS DO NOT OVERLAP. proc_ack is in the tcp_ack chain and in no other,
 // so no processor runs twice for one segment. It headed tcp_data and tcp_fin as
