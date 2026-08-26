@@ -508,6 +508,7 @@ proc_passive_open(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	 * subtracted. Nothing type-checks it and the wire is where it shows.
 	 */
 	c->rcv_base = c->recv_next;
+	c->ack_sent_upto = c->recv_next;
 	/*
 	 * PAWS applies only to a peer that timestamps, and the donor decides it
 	 * once, here, from the SYN's options (tcp_util.c:47-51). ts_recent is
@@ -2036,6 +2037,61 @@ proc_recv(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 }
 
 /*
+ * The one place an acknowledgement is built. Both the per-pass rule (in the
+ * generate half) and the backlog threshold (below) come through here, so the
+ * two cannot drift in what they put on the wire.
+ *
+ * It records how far it covered. That is what makes the threshold measurable
+ * rather than a guess about pass boundaries.
+ */
+static void
+emit_ack(struct tcp_ctx *c, uint32_t now)
+{
+	uint8_t ahdr[PROG_HDR_MAX];
+	struct mtp_tx_payload anone = { 0 };
+	uint16_t alen;
+
+	c->ack_owed = false;
+	c->need_wnd_adv = false;	/* this carries the window too */
+	c->ack_sent_upto = c->recv_next;
+	alen = tcp_build_header(ahdr, c, c->send_next, TCP_ACK, now,
+				c->ts_recent);
+	INSTR(g_emit[EM_ACK_DATA]++);
+	mtp_pkt_gen(c->f, ahdr, alen, &anone, 0, PRIO_ACK, 1, 0);
+}
+
+/*
+ * How much unanswered data may pile up before we acknowledge without waiting
+ * for the end of the pass, in bytes. Zero disables the threshold and leaves
+ * the pure per-pass rule.
+ *
+ * THIS EXISTS BECAUSE THE PASS IS NOT THE DONOR'S BOUNDARY. Both stacks run
+ * the same rule -- one acknowledgement per pass per receiving flow -- but a
+ * pass here is ~0.7us and takes an entire arriving train in one poll, so the
+ * rule that gives the donor one acknowledgement per ~10 segments gives us one
+ * per ~26 (measured, 2026-08-26: 8,123,072 segments, 313,741 acknowledgements).
+ * The peer then learns of freed receive buffer late, advertises us a smaller
+ * window back, and throttles. The threshold restores the donor's CADENCE
+ * without pretending the pass boundaries match.
+ *
+ * Set from the environment so the cadence can be swept in one build; the
+ * default is the value that measurement settled on.
+ */
+static uint32_t
+ack_backlog_limit(void)
+{
+	static uint32_t limit = (uint32_t)-1;
+
+	if (limit == (uint32_t)-1) {
+		const char *e = getenv("MTP_ACK_AGG_MSS");
+
+		limit = (e ? (uint32_t)strtoul(e, NULL, 10)
+			   : PARITY_ACK_AGG_MSS) * PARITY_MSS_PAYLOAD;
+	}
+	return limit;
+}
+
+/*
  * mtp/tcp.mtp §send_ack — emit the acknowledgement the chain decided it owed.
  *
  * IT RE-TESTS NOTHING. Every guard that decides whether an acknowledgement is
@@ -2079,6 +2135,21 @@ send_ack(struct tcp_ctx *c, const struct tcp_ev *e, struct tcp_scratch *sc,
 	 */
 	c->ack_owed = true;
 	mtp_retry(c->f);
+
+	/*
+	 * ...and if the backlog the per-pass rule has not answered is already
+	 * bigger than the donor would ever let it get, answer it here rather
+	 * than at the end of a pass that has swallowed a whole train. This is
+	 * the donor's cadence, reached by counting bytes because our pass
+	 * boundary does not count them the same way.
+	 */
+	{
+		uint32_t limit = ack_backlog_limit();
+
+		if (limit &&
+		    (uint32_t)(c->recv_next - c->ack_sent_upto) >= limit)
+			emit_ack(c, now);
+	}
 }
 
 /*----------------------------------------------------------------------------*/
@@ -2786,6 +2857,7 @@ proc_synack(struct tcp_ctx *c, const struct tcp_ev *e, uint32_t now)
 	c->send_una = e->ack;
 	c->recv_next = e->seq + 1;		/* irs + 1 */
 	c->rcv_base = c->recv_next;
+	c->ack_sent_upto = c->recv_next;
 	mtp_sw_init(&c->rx_wnd, c->recv_next);
 	c->snd_wl1 = e->seq - 1;
 	c->snd_wl2 = e->ack;
@@ -3959,18 +4031,8 @@ tcp_app_send(struct tcp_ctx *c, uint32_t len, uint32_t now)
 	 * window-update branch so that a pass which owes both sends one packet
 	 * carrying both, which is also what the donor does.
 	 */
-	if (c->ack_owed) {
-		uint8_t ahdr[PROG_HDR_MAX];
-		struct mtp_tx_payload anone = { 0 };
-		uint16_t alen;
-
-		c->ack_owed = false;
-		c->need_wnd_adv = false;	/* this carries the window too */
-		alen = tcp_build_header(ahdr, c, c->send_next, TCP_ACK, now,
-					c->ts_recent);
-		INSTR(g_emit[EM_ACK_DATA]++);
-		mtp_pkt_gen(c->f, ahdr, alen, &anone, 0, PRIO_ACK, 1, 0);
-	}
+	if (c->ack_owed)
+		emit_ack(c, now);
 	if (c->need_wnd_adv && c->rcv_wnd > PARITY_MSS_PAYLOAD) {
 		uint8_t hdr[PROG_HDR_MAX];
 		struct mtp_tx_payload none = { 0 };

@@ -134,6 +134,16 @@ struct tcp_ctx {
 	/* An acknowledgement is owed for what arrived this pass. The donor's
 	 * ACK_OPT_AGGREGATE: one per pass, not one per segment. */
 	bool     ack_owed;
+	/*
+	 * How far the last acknowledgement we actually PUT ON THE WIRE
+	 * covered. The per-pass rule above aggregates by pass boundary, which
+	 * on this stack is not the donor's boundary: measured, our loop takes
+	 * a whole ~26-segment train in one poll and answers it with one
+	 * acknowledgement, where the donor answers the same train with
+	 * several. recv_next - ack_sent_upto is the backlog that rule has not
+	 * answered yet, and it is what the byte threshold is tested against.
+	 */
+	uint32_t ack_sent_upto;
 
 	/* --- endpoints, for building outbound headers -------------------- */
 	uint16_t loc_port, rem_port;

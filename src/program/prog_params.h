@@ -109,6 +109,25 @@
 #define PARITY_MSS_PAYLOAD	1448	/* mss - CalculateOptionLength(ACK), computed
 					 * inline at tcp_out.c:566. There is no
 					 * `eff_mss` in the donor to grep for. */
+/*
+ * The receive backlog, in full-size segments, that may go unacknowledged
+ * before the acknowledgement is sent without waiting for the end of the pass.
+ * ZERO -- the threshold is off and the per-pass rule stands alone.
+ *
+ * It is zero because it was MEASURED, not assumed (2026-08-26, c=8, 128 MB,
+ * our client against the donor server; RESULTS.md):
+ *
+ *     off (1 ack per ~26 segments)   4.040 Gb/s goodput
+ *     8   (1 ack per 8)              3.688
+ *     4   (1 ack per 4)              3.908
+ *     2   (1 ack per 2)              3.500
+ *
+ * Acknowledging MORE often is monotonically worse here, so the theory that
+ * our sparse acknowledgements were starving the peer of window updates is
+ * WRONG. The knob stays because the finding is worth being able to re-run,
+ * and MTP_ACK_AGG_MSS turns it back on without a rebuild.
+ */
+#define PARITY_ACK_AGG_MSS	0
 #define PARITY_ISN		0	/* always. REPRODUCE, DO NOT CORRECT. */
 /*
  * TWO segments, not ten. TCP_INIT_CWND is 2 in the donor; the INIT_CWND_PKTS 10
