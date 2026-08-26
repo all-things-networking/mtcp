@@ -22,6 +22,25 @@
 
 static uint64_t tx_ref_min(const struct mtp_data_unit *u);
 
+/* see contract.h: the program's read of head_seq/tail_seq goes through here */
+uint64_t
+mtp_du_held(const struct mtp_data_unit *u)
+{
+	return u->tail_seq - u->head_seq;
+}
+
+uint64_t
+mtp_du_cap(const struct mtp_data_unit *u)
+{
+	return u->cap;
+}
+
+uint64_t
+mtp_du_head(const struct mtp_data_unit *u)
+{
+	return u->head_seq;
+}
+
 /* Two stores on paths that already do more than that. Never read except by the
  * fault dump, so it costs nothing until something goes wrong. */
 static void

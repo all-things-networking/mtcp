@@ -137,6 +137,9 @@ TESTS     := $(patsubst tests/%.c,bin/%,$(TEST_SRCS))
 TESTABLE := src/program/prog_app.c src/target/flow_table.c src/target/tx_stream.c \
             src/target/window.c src/target/rx_stream.c
 
+# What those sources reference from the DPDK half. See tests/offbed_stubs.c.
+TESTABLE += tests/offbed_stubs.c
+
 bin/test_%: tests/test_%.c $(TESTABLE)
 	@mkdir -p $(dir $@)
 	$(CC) -g -O0 -Wall -Werror -Isrc/target -Isrc/program -Isrc/infra $^ -o $@

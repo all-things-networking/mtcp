@@ -689,12 +689,12 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 
 /*----------------------------------------------------------------------------*/
 /*
- * mtp_ctx_endpoints — the addresses of a flow the target never saw a packet for.
+ * mtp_ctx_addrs — the addresses of a flow the target never saw a packet for.
  * Resets the route cache with them, since the previous one was resolved for
  * whatever address the flow was created with.
  */
 void
-mtp_ctx_endpoints(flow_t *f, uint32_t local_ip, uint32_t remote_ip)
+mtp_ctx_addrs(flow_t *f, uint32_t local_ip, uint32_t remote_ip)
 {
 	if (!f)
 		return;

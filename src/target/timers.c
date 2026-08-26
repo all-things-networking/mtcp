@@ -42,6 +42,10 @@
 #define wheel_started	(TW->started)
 #define fires		(TW->fires)
 
+/* the millisecond this last did work at; see the early-out below */
+static uint32_t last_tick_now;
+static int last_tick_valid;
+
 static void
 unlink_timer(struct mtp_timer *t)
 {
@@ -227,6 +231,27 @@ TimerTick(uint32_t now)
 		wheel_now = now;
 		wheel_started = 1;
 	}
+
+	/*
+	 * NOTHING CAN HAVE CHANGED SINCE THE LAST CALL AT THIS SAME
+	 * MILLISECOND, so return before touching the overflow list.
+	 *
+	 * This is an equivalence, not an approximation: everything below reads
+	 * `now` and the wheel, and the wheel is only written by this function
+	 * and by arm/cancel -- both of which move a timer INTO the right place
+	 * for the current `now`. Two calls at the same millisecond therefore
+	 * compute the same thing, and the second is pure cost.
+	 *
+	 * It is worth an early-out because the loop calls this EVERY PASS: a
+	 * pass here is ~0.7us and the clock is milliseconds, so ~1459 calls in
+	 * every 1460 have no work to do. Measured (2026-08-26, cpu-clock
+	 * profile of our client) TimerTick was the single largest symbol in
+	 * the process at 7.87%, nearly all of it arriving and leaving again.
+	 */
+	if (last_tick_valid && now == last_tick_now)
+		return;
+	last_tick_now = now;
+	last_tick_valid = 1;
 
 	/* promote anything from the overflow list that is now in range */
 	pp = &overflow;

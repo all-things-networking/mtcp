@@ -736,15 +736,14 @@ prog_sample_inflight(uint64_t now_us)
 					 * 24.6% of generation decisions. Those
 					 * cannot both describe a steady level.
 					 */
-					uint64_t held = c->tx.tail_seq
-						      - c->tx.head_seq;
+					uint64_t held = mtp_du_held(&c->tx);
 					unsigned rb;
 
 					if (!held) {
 						rb = 0;
 						INSTR(g_ring_empty_by[
 						  mtp_app_state_read() % 3] += dt);
-					} else if (held >= c->tx.cap) {
+					} else if (held >= mtp_du_cap(&c->tx)) {
 						rb = 7;
 						/*
 						 * THE GAP, CONDITIONED ON THE
@@ -768,7 +767,7 @@ prog_sample_inflight(uint64_t now_us)
 						INSTR(g_gap_full_dt += dt);
 					} else {
 						rb = 1 + (unsigned)((held * 6)
-								    / c->tx.cap);
+								    / mtp_du_cap(&c->tx));
 					}
 					INSTR(g_ring_hist[rb] += dt);
 					{
@@ -1042,9 +1041,9 @@ prog_report_recv(void)
 	 * fires while tail exceeds head, so any flow left in that state is
 	 * re-presented on every poll for the rest of its life. */
 	for (i = 0; i < g_live_n; i++)
-		if (g_live[i]->rx.tail_seq > g_live[i]->rx.head_seq) {
+		if (mtp_du_held(&g_live[i]->rx) > 0) {
 			stuck++;
-			unread += g_live[i]->rx.tail_seq - g_live[i]->rx.head_seq;
+			unread += mtp_du_held(&g_live[i]->rx);
 		}
 	{
 		static const char *n[8] = { "<16K", "16-32K", "32-64K",
@@ -3226,7 +3225,7 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 		c->state = TCP_SYN_SENT;
 		/* No packet created this flow, so the target has no addresses
 		 * for it. See contract.h. */
-		mtp_ctx_endpoints(c->f, c->local_ip, c->remote_ip);
+		mtp_ctx_addrs(c->f, c->local_ip, c->remote_ip);
 
 		/*
 		 * A REFUSED SYN IS NORMAL AND IS NOT A FAILED CONNECT.
@@ -3321,7 +3320,7 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 			 * both present as an unbounded re-arm. These separate
 			 * them: calls, bytes, and whether the head moved.
 			 */
-			uint64_t before = c->rx.head_seq;
+			uint64_t before = mtp_du_head(&c->rx);
 
 			got = mtp_rx_flush_and_notify(&c->rx, op->len, a);
 			INSTR(g_recv_calls++);
@@ -3353,7 +3352,7 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 				if (!c->fin_consumed)
 					return -1;
 			}
-			if (c->rx.head_seq == before)
+			if (mtp_du_head(&c->rx) == before)
 				INSTR(g_recv_nohead++);
 		}
 		return got;
@@ -3831,8 +3830,7 @@ tcp_gen_seg(struct tcp_ctx *c, uint32_t now)
 				 *     the application's share.
 				 */
 				{
-					uint64_t held = c->tx.tail_seq
-						      - c->tx.head_seq;
+					uint64_t held = mtp_du_held(&c->tx);
 					unsigned b;
 					uint64_t lim;
 

@@ -268,6 +268,22 @@ struct mtp_data_unit {
 	uint8_t		 want_space;	/* a write was refused or truncated */
 };
 
+/*
+ * How many bytes the unit is holding: tail_seq - head_seq.
+ *
+ * THE PROGRAM MAY NOT READ THOSE FIELDS ITSELF -- the type is complete so a
+ * context can embed a unit, not so the program can reach into it. The held
+ * count is a legitimate thing for a program to want (the send-side histogram
+ * that distinguishes "nothing buffered" from "acknowledgement-bound" needs
+ * it), so it gets an accessor rather than an exception to the boundary.
+ */
+uint64_t mtp_du_held(const struct mtp_data_unit *u);
+
+/* The unit's capacity in bytes, and the first byte it still holds. Same
+ * reason as mtp_du_held: a program may need the numbers, never the fields. */
+uint64_t mtp_du_cap(const struct mtp_data_unit *u);
+uint64_t mtp_du_head(const struct mtp_data_unit *u);
+
 /* A reference to application data to be transmitted. The kernel target uses an
  * iov_iter because that is what its socket layer already carries; ours is a
  * plain extent, because mTCP's write path is a copy into the send buffer. */
@@ -627,8 +643,13 @@ int mtp_pkt_gen_orphan(uint32_t local_ip, uint32_t remote_ip,
  * lookup asserted.
  *
  * The program supplies addresses it already holds; the key stays opaque.
+ *
+ * NAMED _addrs AND NOT _endpoints: "endpoints" contains "ndp", and rule 4
+ * forbids a protocol name appearing in a defined symbol of the target. The
+ * check is a substring match on purpose -- loosening it to whole tokens would
+ * let a real "tcpseg" through -- so the symbol moves, not the rule.
  */
-void mtp_ctx_endpoints(flow_t *f, uint32_t local_ip, uint32_t remote_ip);
+void mtp_ctx_addrs(flow_t *f, uint32_t local_ip, uint32_t remote_ip);
 
 void mtp_retry(flow_t *f);
 
