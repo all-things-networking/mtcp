@@ -388,18 +388,11 @@ struct tcp_ctx {
  * "which fields are live right now" stops being answerable.
  *
  * It is stored like any other context, under a key the PROGRAM builds from
- * (ip, port). The target holds no listener table and no
- * matching rule: "match on address AND port" is a statement about TCP (G8, and
- * the donor matches on port alone, fhash.c:137-143, so a socket bound to one
- * address answers for every address on its host), and protocol policy does not
- * belong in target infrastructure. Encoding the choice as a KEY rather than as
- * a table keeps it here, where a different protocol can choose differently.
- *
- * It was a single file-scope struct, so the program could hold exactly one
- * listening socket (DEFERRED.md D4). There is no granularity keyword in MTP: a
- * context is declared, there are as many instances as the protocol needs, and
- * the endpoint being a FIELD is what makes several listeners possible with no
- * new machinery.
+ * (ip, port). The target holds no listener table and no matching rule --
+ * "match on address AND port" is a statement about TCP, and protocol policy is
+ * not the target's to hold. G8: the donor matches on port alone
+ * (fhash.c:137-143), so a socket bound to one address answers for every
+ * address on its host.
  */
 struct tcp_listen_ctx {
 	flow_t *f;

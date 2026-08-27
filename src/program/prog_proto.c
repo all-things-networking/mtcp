@@ -148,12 +148,6 @@ TCPBP_extract(struct TCPBP *b, const uint8_t *in, uint16_t len)
  *     timer restart stands in for;
  *   - D11 ARM. The donor sets need_wnd_adv when the SCALED FIELD it is about to
  *     put on the wire is zero (tcp_out.c:304-309) — not when rcv_wnd is small.
- *     Under a shift of 7 that happens with up to 127 bytes still free, which is
- *     why the test is on the field and not on the window.
- *
- * Here rather than at the seven emission sites because there is exactly one
- * header built per emission, and a rule enforced at seven call sites is a rule
- * the eighth will not follow.
  */
 struct TCPBP
 build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now)
@@ -222,47 +216,38 @@ build_rst_hdr(uint16_t loc_port, uint16_t rem_port, uint32_t seq, uint32_t ack, 
  * ---------------------------------------------------------------------------
  * parse_tcp : a segment -> the list of events it raises.
  *
- * INCLUSIVE, and that is the donor's shape rather than a convenience. mTCP's
- * Handle_TCP_ST_ESTABLISHED runs three independent tests on one packet --
- * payload, then acknowledgement, then FIN -- so a segment carrying all three
- * does all three jobs there. One event per segment would drop the payload of a
- * FIN that carries data, and would fail to establish a connection whose
- * handshake-completing acknowledgement carries the request.
+ * INCLUSIVE, which is the donor's shape: Handle_TCP_ST_ESTABLISHED runs three
+ * independent tests on one packet, so a segment carrying payload, an
+ * acknowledgement and a FIN does all three jobs. One event per segment would
+ * drop the payload of a data-carrying FIN.
  *
- *   RST                   -> tcp_rst        (alone: the donor returns from
- *                                            ProcessTCPPacket on a true result,
- *                                            so no payload is delivered and no
- *                                            acknowledgement is retired)
- *   SYN, no ACK           -> tcp_syn        (alone: nothing else is in sequence)
+ *   RST                   -> tcp_rst        (alone -- the donor returns from
+ *                                            ProcessTCPPacket, delivering no
+ *                                            payload and retiring no ack)
+ *   SYN, no ACK           -> tcp_syn        (alone: nothing else in sequence)
  *   SYN + ACK             -> tcp_synack     (alone, likewise)
  *   ACK                   -> tcp_ack
  *   payload               -> tcp_data
  *   FIN                   -> tcp_fin
  *
- * The last three compose. ORDER IS acknowledgement, payload, FIN -- the reverse
- * of the donor's internal order, which is not observable because it defers both
- * its acknowledgement and its send to the end of the pass. Ours is ordered this
- * way because §proc_congestion is in the tcp_ack chain and reads
- * `ack - send_una`: let tcp_data's chain retire the bytes first and the
- * congestion window sees nothing newly acknowledged and stops growing.
+ * The last three compose, in the order acknowledgement, payload, FIN.
+ * proc_congestion is in the tcp_ack chain and reads `ack - send_una`, so
+ * retiring the bytes first would leave the congestion window seeing nothing
+ * newly acknowledged.
  *
  * THE PARSER ISSUES INSTRUCTIONS AND RESOLVES CONTEXTS, which the frozen
- * language does not say it may (docs/LANGUAGE-NEEDS.md N-E). It has to: the
- * three jobs below are all protocol policy and none of them can be done from a
- * chain.
+ * language does not say it may (docs/LANGUAGE-NEEDS.md N-E). It has to --
+ * three jobs here are protocol policy and none can be done from a chain:
  *
  *   a segment for a connection that does not exist is answered with a RESET,
- *   and a chain is dispatched THROUGH a context — there is none to dispatch
- *   through (§gen_rst);
+ *   and a chain is dispatched THROUGH a context;
  *
- *   a SYN is matched against a LISTENER, and whether the backlog has room
- *   decides whether a context is created at all (G8, C3);
+ *   a SYN is matched against a LISTENER, and backlog room decides whether a
+ *   context is created at all (G8, C3);
  *
- *   the parser refuses a segment BEFORE any event is raised, which is the
- *   donor's placement — ProcessTCPPacket calls ValidateSequence after the flow
- *   lookup and before the state handlers, and drops on a false return. Running
- *   it as the first link of every chain instead would validate a segment that
- *   raises two events TWICE, and the second ACK_APIECE would owe a duplicate
+ *   validation refuses a segment BEFORE any event is raised, which is the
+ *   donor's placement. As the first link of every chain instead, a segment
+ *   raising two events would validate twice and owe a duplicate
  *   acknowledgement the donor does not send.
  */
 unsigned
@@ -569,16 +554,6 @@ proc_timestamp(struct net_ev *ev, struct tcp_ctx *ctx)
  * updates the window BEFORE it counts duplicates and the duplicate test asks
  * whether that update moved the right edge. Folded into §proc_congestion, where
  * it used to live, the test could not be written.
- *
- * The window moves only if this segment is newer by sequence, or is the same
- * segment offering more (tcp_in.c:348-357) — snd_wl1/snd_wl2, kept so an old
- * segment arriving late cannot shrink a window that has since opened. We
- * assigned it unconditionally on every acknowledgement, so a reordered segment
- * carrying a stale window shrank ours.
- *
- * Refreshed by EVERY acknowledgement, INCLUDING one that advances nothing: a
- * pure window update carries no new acknowledgement number, and a window
- * reopening IS an acknowledgement that advances nothing.
  */
 void
 proc_window(struct net_ev *ev, struct tcp_ctx *ctx)
@@ -740,11 +715,6 @@ proc_congestion(struct net_ev *ev, struct tcp_ctx *ctx)
  * send, so the duplicate case that used to call the generator inline simply
  * returns and the dispatch runs it — DEFERRED.md D2, one of the two places the
  * dispatch was hand-inlined.
- *
- * EVERY PROCESSOR GUARDS ITSELF. The dispatch decides which chain runs, never
- * which link of it does. `acked` is recomputed in each processor of this chain
- * rather than threaded through the scratchpad, because this is the only writer
- * of send_una and it runs last: all three read the same value.
  */
 void
 proc_ack(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
@@ -828,58 +798,26 @@ proc_recv(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 /*
  * mtp/tcp.mtp §send_ack
  * ---------------------------------------------------------------------------
- * Acknowledgement generation — record what the chain decided it owed.
+ * Record what the chain decided it owed. The donor's EnqueueACK
+ * (tcp_out.c:1088-1096): AGGREGATE raises ack_cnt to 1 if it is 0, so a pass
+ * owes one acknowledgement for all its in-order segments; APIECE increments,
+ * so a segment past a hole owes its own duplicate. Those duplicates are what
+ * trips the peer's fast retransmit.
  *
- * IT RE-TESTS NOTHING. Every guard that decides whether an acknowledgement is
- * due — the receive-side state test, the in-order test, the FIN's ordering — lives at the
- * decision site, and this only acts on `s.ack_opt`. That is what makes it safe
- * to run AFTER §proc_fin's state transition: the old code had to build the
- * FIN's acknowledgement BEFORE the transition, because the guard that silences
- * the data path would otherwise have silenced it too. With the decision
- * separated from the emission, the ordering hazard is gone rather than
- * commented.
+ * IT RE-TESTS NOTHING. Every guard deciding whether an acknowledgement is due
+ * lives at the decision site; this acts only on s.ack_opt. That is what makes
+ * it safe to run after proc_fin's state transition.
  *
- *   THE POST-FIN SUPPRESSION IS PER-PATH, NOT PER-CONNECTION (D-20, corrected).
+ * POST-FIN SUPPRESSION IS PER-PATH, NOT PER-CONNECTION (D-20). Once a FIN is
+ * accepted the DATA path stops acknowledging that stream permanently; the
+ * CONTROL path does not, and must not -- the donor sends pure acknowledgements
+ * after a FIN from CLOSE_WAIT (tcp_out.c:632-634), FIN_WAIT_2 (:655-657) and
+ * TIME_WAIT (:675-677), and the CLOSE_WAIT one is what acknowledges the peer's
+ * FIN. Suppress it and teardown stalls.
  *
- *   The invariant: once a FIN is accepted, the DATA-acknowledgement path stops
- *   producing acknowledgements for that stream, permanently. The CONTROL path
- *   does not.
- *
- *   Pure acknowledgements after a FIN are REQUIRED and the donor sends them,
- *   from the control path: CLOSE_WAIT at tcp_out.c:632-634 ("Send ACK for the
- *   FIN here"), FIN_WAIT_2 at :655-657, TIME_WAIT at :675-677. The CLOSE_WAIT
- *   one is what acknowledges the peer's FIN. Suppress it and teardown stalls
- *   and the peer retransmits its FIN.
- *
- *   What stops is only the data path. In the donor the sequence test at
- *   tcp_out.c:875-879 can only fail once a FIN has advanced rcv_nxt past the
- *   merged data, and that sum is invariant under application reads, so it holds
- *   for a connection's whole life and then fails permanently from the moment a
- *   FIN is accepted. It is de-duplication within that path, not silence.
- *
- *   REPRODUCE THE EFFECT, NOT THE STRUCTURE. "The control walk got there first"
- *   is not a mechanism available to us — we have one queue, not three — so what
- *   has to hold is the observable, and the observable is per-path.
- *
- *   An earlier version of this note said "one fewer pure acknowledgement per
- *   teardown", from a wrong reading of D-20. Built to that, teardown would have
- *   stalled and looked like a teardown bug rather than a wrong premise. Left
- *   visible because that is the failure the charter warns about.
- *
- *   USE THE PROTOTYPE'S MECHANISM, NOT THE DONOR'S. Both reach the same economy
- *   — one acknowledgement per teardown carrying the FIN-inclusive ack_seq, no
- *   duplicate — but by different means. mTCP's suppression is EMERGENT: ack_cnt
- *   is dropped because rcv_nxt has moved past head_seq + merged_len and nothing
- *   restores it, so reproducing it faithfully would mean reproducing mTCP's
- *   counter arithmetic to obtain a side effect. The prototype has an explicit
- *   state guard instead — an unconditional early return once the context is in
- *   CLOSE_WAIT (mtp_ep.c:1028-1033), with the same guard on the data path at
- *   :959. One state test, it says what it means, and it is checkable by reading.
- *
- *   And do NOT copy the donor's state lists. EnqueueACK's expected set
- *   (tcp_out.c:1082-1086) is four states; to_ack's is those four PLUS
- *   TIME_WAIT. Neither is a superset of the other's intent, so at least one is
- *   an oversight. Implement the per-path rule, not either list.
+ * The effect is reproduced, not the structure: the donor's suppression is
+ * emergent from its counter arithmetic, and we have one queue rather than
+ * three, so what has to hold is the observable.
  */
 void
 send_ack(struct tcp_ctx *ctx, struct tcp_scratch *s)
@@ -960,15 +898,6 @@ proc_fin(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
  * send_next has caught up with write_end. The prototype gates this in one of
  * its two close paths and not the other, which is the evidence it is an
  * oversight rather than a decision.
- *
- * DESIGN-CLOSE.md §3: the condition is that the APPLICATION has closed and
- * everything it handed us has been sent. Whether we then go to LAST_ACK or
- * FIN_WAIT_1 is a CONSEQUENCE of whether the peer closed first, not a
- * precondition for closing at all. The old gate was `state == CLOSE_WAIT`,
- * which encoded "the peer closed first" as a requirement — and against a peer
- * that never closes first, which is any mTCP peer and so every peer we will
- * ever measure against, the object was delivered and the connection then hung
- * for ever with no FIN.
  */
 void
 gen_fin(struct tcp_ctx *ctx, uint32_t now_ms)
@@ -1023,10 +952,6 @@ mark_closed(struct app_ev *ev, struct tcp_ctx *ctx)
  * so nothing here belongs to the stack. The count it returns is what the
  * application is told it wrote, and a short return is back-pressure, not an
  * error.
- *
- * `write_end` is the program's own mirror of how much it has appended — the
- * target has no accessor to ask, and the withdrawal of the target's read side
- * rests on exactly this working.
  */
 void
 record_data(struct app_ev *ev, struct tcp_ctx *ctx)
@@ -1049,63 +974,37 @@ record_data(struct app_ev *ev, struct tcp_ctx *ctx)
  * ---------------------------------------------------------------------------
  * The send decision, under min(cwnd, peer window).
  *
- * ONE pkt_gen FOR THE WHOLE SENDABLE RUN; the target segments it and the
- * segmentation rule assigns each segment's sequence number. That is deferred
- * segmentation, and it is why the recurrence has to be per BYTE: the program
- * does not know, and must not need to know, how the run was split.
+ * ONE pkt_gen for the whole sendable run: the target segments it and the
+ * segmentation rule assigns each sequence number, so the recurrence is per
+ * BYTE -- the program does not know how the run was split.
  *
- * THE DONOR'S LOOP PREDICATE, not a restatement of it:
+ * The donor's loop predicate (tcp_out.c), reproduced rather than restated:
  *
- *     remaining_window = MIN(cwnd, peer_wnd) - (seq - snd_una)
- *     if (remaining_window <= 0 ||
- *         (remaining_window < mss && seq - snd_una > 0)) bail
- *     len     = MIN(len, remaining_window)
+ *     remaining = MIN(cwnd, peer_wnd) - (seq - snd_una)
+ *     if (remaining <= 0 || (remaining < mss && seq - snd_una > 0)) bail
+ *     len     = MIN(len, remaining)
  *     pkt_len = MIN(len, mss - 12)
  *
- * Two things a rounding rule would lose, and both matter:
+ * `seq - snd_una > 0` is an escape: with nothing in flight the silly-window
+ * rule does not apply and the donor sends whatever fits, down to one byte.
+ * Rounding to a multiple of the payload maximum instead would withhold the
+ * last partial segment of every object for ever. The predicate tests unused
+ * WINDOW, not bytes available -- the two come apart when the window binds.
  *
- *   `seq - snd_una > 0` IS AN ESCAPE. With nothing in flight the rule does not
- *   apply and the donor sends whatever fits, down to one byte. Rounding down to
- *   a multiple of the payload maximum with no escape withholds the last partial
- *   segment for ever whenever the buffer does not refill — which is the end of
- *   every object. Nine short segments traded for a transfer that never
- *   completes.
+ * The donor's constants are kept: the window is compared against 1460 while a
+ * segment consumes 1448. That mismatch is observable only when the remaining
+ * window lands in [1448, 1460); one segment per RTO follows from cwnd == MSS,
+ * not from the mismatch.
  *
- *   The predicate is on unused WINDOW, not on the amount available to send:
- *   `len` does not appear in it. The two coincide in the common case and come
- *   apart when the window binds rather than the data.
+ * Returns the number of packets sent, which the caller subtracts from
+ * ack_cnt: a data packet carries the ACK flag, so it retires an
+ * acknowledgement that would otherwise need its own frame.
  *
- * G2, the sender-side silly-window rule, is the DONOR'S and not the prototype's
- * rounding: refuse a sub-MSS segment when anything is in flight. And it is
- * reproduced WITH THE DONOR'S CONSTANTS — the window is compared against 1460
- * while a segment consumes 1448. That mismatch is NOT why an RTO sends one
- * segment: after an RTO cwnd is 1460, the first segment consumes 1448, and the
- * remaining 12 is below either threshold, so the bail fires identically
- * whichever constant is used. One segment per RTO follows from cwnd == MSS
- * while a segment consumes MSS - 12, and nothing else. The mismatch is
- * observable only when min(cwnd, peer_wnd) - inflight lands in [1448, 1460).
- *
- * THE LOOP IS BOUNDED by min(cwnd, send_wnd) / PARITY_MSS_PAYLOAD: every iteration
- * either advances `seq` by a positive amount or breaks.
- *
- * IT RETURNS THE NUMBER OF PACKETS IT PUT ON THE WIRE, which is the donor's
- * SendTCPPacket return value and what its caller subtracts from `ack_cnt`:
- * every data packet carries the ACK flag, so a packet sent is an
- * acknowledgement that no longer needs its own frame. One pkt_gen can become
- * several segments, so the count is derived from the extent handed over rather
- * than from the number of calls.
- *
- * NOTE ON `inflight`. It counts GENERATED-unacknowledged, which under deferred
- * segmentation includes blueprints still in the ring. Basing it on the EMITTED
- * position instead — which is what "in flight" ought to mean — removed the only
- * thing bounding GENERATION: with a backlog, emitted lags generated, in flight
- * reads low, the loop generates further ahead, the ring fills and the flow
- * stalls. Measured: 0, 0 and 4 completions in three 60-second runs at 128 MB
- * against 28, 26 and 28 before the change. The congestion window should bound
- * what is on the wire while something else bounds how far generation may run
- * ahead of it, and there is no second bound — the conflation currently supplies
- * it. Splitting them is a design change (docs/DESIGN.md §25), not a
- * substitution.
+ * `inflight` counts GENERATED-unacknowledged, which includes blueprints still
+ * in the ring. Basing it on the emitted position removes the only bound on
+ * generation -- measured 0/0/4 completions against 28/26/28 -- so the
+ * conflation stands until generation gets a bound of its own
+ * (docs/DESIGN.md §25).
  */
 void
 gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
@@ -1198,12 +1097,6 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
  * was about to carry one. Invisible on a client, which sends nothing to carry
  * them; on a server it is a pure acknowledgement for every segment that a data
  * segment already acknowledged.
- *
- * THEN WHAT IS STILL OWED, in a loop. The donor's WriteTCPACKList sends them
- * one at a time and stops early only when the transmit buffer refuses one
- * (tcp_out.c:894-903); this stops on the same condition, and what is left stays
- * owed for the next pass rather than being dropped. Bounded by `ack_cnt`, which
- * only the acknowledgement-owing sites increase it and only this decreases it.
  */
 void
 drain_owed_acks(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
@@ -1236,18 +1129,6 @@ drain_owed_acks(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
  * HERE RATHER THAN IN §proc_drain because that runs on the APPLICATION thread
  * and generation is the stack's (CR-4). §proc_drain raises the flag and asks
  * for a retry; this is the retry.
- *
- * It is fatal for a CLIENT and invisible for a server. A server mostly sends,
- * so it has an acknowledgement to carry the new window on anyway; a client
- * mostly receives, and without this its window reopens in its own state and
- * nowhere else. Measured before the fix: data arrived in 86 bursts over 15
- * seconds, one per peer window probe.
- *
- * LAST, which is also where the donor puts it: is_wack is sent after the
- * ack_cnt loop in the same walk.
- * The generate half's answer to the application: the extent it was handed,
- * which the application has already buffered (CR-4). A closed send path is a
- * refusal.
  */
 void
 gen_answer(struct app_ev *ev, struct tcp_ctx *ctx)
@@ -1282,13 +1163,6 @@ gen_wnd_adv(struct tcp_ctx *ctx, uint32_t now_ms)
  * one main-loop iteration later, as the donor does it. mTCP's application
  * thread never emits a packet, so deferring by one iteration is the donor's
  * behaviour and not a shortcut.
- *
- * EMPTY IS NOT THE SAME AS ENDED, and the application interface has to be able
- * to tell them apart. The donor's read returns 0 only at end-of-stream — the
- * peer has closed and the buffer is drained — and EAGAIN when the buffer merely
- * happens to be empty. We returned 0 for both, and epwget recognises a
- * completed download ONLY in its `rd == 0` branch, so a client on our stack
- * received every byte of every object and never once counted a completion.
  */
 void
 proc_drain(struct app_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
@@ -1320,14 +1194,6 @@ proc_drain(struct app_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
  *   - the application is not told WHY. NotifyConnectionReset is commented out
  *     in the donor; it raises a close event, so the application learns the
  *     socket is readable and then reads end-of-stream.
- *
- * The donor also has `TODO: we need reset validation logic` at the top and does
- * NOT check that the reset's sequence lies in the window — the check RFC 5961
- * exists for. Reproducing that reproduces its exposure to blind reset attacks,
- * which is what rule 1 asks for and is worth saying out loud. REVISIT before
- * any writeup.
- *
- * A reset is never acknowledged and never answered with another reset.
  */
 void
 proc_rst(struct net_ev *ev, struct tcp_ctx *ctx)
@@ -1361,12 +1227,6 @@ proc_rst(struct net_ev *ev, struct tcp_ctx *ctx)
  * The active open's first packet. It is a GENERATION step, not part of the open
  * chain, so the same retry that re-attempts a blocked send re-attempts an
  * unsent SYN — one path, not two.
- *
- * A REFUSED SYN IS NORMAL AND IS NOT A FAILED CONNECT. The first packet to an
- * unresolved peer ALWAYS fails: the target sends an address request and returns
- * "retry later". Destroying the context there meant every connect to a peer we
- * had not spoken to died, and since the client speaks first, that was every
- * connect — the server never saw a SYN.
  */
 void
 gen_syn(struct tcp_ctx *ctx, uint32_t now_ms)
@@ -1397,28 +1257,6 @@ gen_syn(struct tcp_ctx *ctx, uint32_t now_ms)
  * Seeds everything the passive open seeds from a SYN, from the mirror image:
  * the peer's initial sequence number, its window and scale, its timestamp, and
  * whether it timestamps at all.
- *
- * THREE THINGS THE DESIGN DOCUMENTS DID NOT HAVE, found by reading the donor's
- * HandleActiveOpen and the SYN_SENT arm of Handle_TCP_ST_SYN_SENT:
- *
- *   - mtcp_connect sets cwnd = 1 and this does `cwnd = (cwnd == 1) ? mss *
- *     TCP_INIT_CWND : mss`, so the initial window arrives HERE and not at
- *     connect;
- *   - the ACTIVE open sets ssthresh = mss * 10, where the passive open never
- *     assigns it at all. D-01 is that asymmetry seen from the other side, and
- *     it means an active-open connection DOES slow-start where our server does
- *     not;
- *   - completion reaches the application as a WRITABLE event, not a state
- *     event. That is what makes a blocked connect() return.
- *
- * THE TEST THAT THE ACKNOWLEDGEMENT IS OURS IS AGAINST send_next, not against
- * snd_base. The donor's test is `ack_seq <= iss || ack_seq > snd_nxt` — above
- * the INITIAL sequence number and no higher than what we have sent — and in
- * SYN_SENT exactly one byte of sequence space is outstanding, so that range has
- * exactly one member. Written against `snd_base`, which is ISS + 1 once the SYN
- * has gone out, `ack <= snd_base` was true for the CORRECT acknowledgement and
- * every handshake was answered with a reset. It only appeared when snd_base was
- * corrected to account for the SYN; before that the two bugs cancelled.
  */
 void
 proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
@@ -1474,8 +1312,6 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
  * MSS - 12, so §gen_seg's window bail fires after the first segment regardless
  * of which constant it is compared against. It is NOT the 1460-versus-1448
  * mismatch, which was the earlier and wrong explanation.
- *
- * G11: closed at sixteen attempts, and the application is told with an ERROR.
  */
 void
 proc_rto(struct timer_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
@@ -1510,12 +1346,6 @@ proc_rto(struct timer_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s, uint32
  * not skip a wait, it removes the place the final acknowledgement is owed from.
  * That acknowledgement was committed to the target in the iteration that
  * entered this state, so by the time this fires it has drained.
- *
- * NOTHING RETRANSMITS THAT ACKNOWLEDGEMENT, deliberately: the donor does not.
- * If it is lost the stream is already gone, the peer's retransmitted FIN finds
- * no flow-table entry and is answered with a bare reset (§gen_rst), and
- * teardown completes on that instead. Wire-observable when it happens, and the
- * donor's behaviour rather than an omission.
  */
 void
 proc_timewait_done(struct timer_ev *ev, struct tcp_ctx *ctx)
@@ -1537,23 +1367,6 @@ proc_timewait_done(struct timer_ev *ev, struct tcp_ctx *ctx)
  * is exactly why it would be easy to skip now that the symptom is gone. An
  * absence that currently produces the donor's behaviour is not agreement with
  * the donor.
- *
- * The donor's mechanism:
- *   - a PURE ACK, zero payload, at seq = send_next - 1. Deliberately OUTSIDE
- *     the peer's receive window, so the peer must answer it — and it works
- *     against a non-mTCP peer because the standard requires an acknowledgement
- *     to an unacceptable segment;
- *   - gated on peer window <= cwnd AND more than 500 ms since the last
- *     acknowledgement WE SENT. Not received;
- *   - NO BACKOFF: the probe carries an ACK, so it resets its own clock.
- *
- * wack_sent is NOT reproduced and that is correct: it is a per-call local on a
- * branch that returns immediately, so it cannot affect anything.
- *
- * ONE DIVERGENCE REMAINS AND IS RECORDED: ours fires from a timer armed on
- * refusal, the donor from inside the send path. The donor has two probe sites —
- * tcp_out.c:428 tests whether the blocked amount exceeds the peer window, :546
- * tests `peer_wnd <= cwnd` — and this matches :546.
  */
 void
 proc_probe(struct timer_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
@@ -1633,9 +1446,6 @@ proc_bind(struct app_ev *ev, struct tcp_listen_ctx *ctx)
  * happens because §net_parser now finds a listen context in ST_LISTEN. The
  * analogue of the donor's ListenerHTInsert — bind created the context and
  * recorded the endpoint; this is where it becomes matchable.
- *
- * The application interface needs a handle for the LISTENING endpoint, because
- * that is the one that becomes readable when a connection is waiting (CR-2).
  */
 void
 proc_listen(struct app_ev *ev, struct tcp_listen_ctx *ctx)
@@ -1664,12 +1474,6 @@ proc_listen(struct app_ev *ev, struct tcp_listen_ctx *ctx)
  * accept — copying the peer address out, allocating a descriptor — is the
  * application interface's business; the queue it consumes is the protocol's,
  * which is why this is an event rather than a convenience in a shim.
- *
- * LEVEL-TRIGGERED, and it has to be re-raised HERE. The notification path
- * coalesces by kind, so a second completed handshake while the first is still
- * queued sets a bit that is already set. Re-raising on every accept that leaves
- * the queue non-empty is what keeps the count right — the same shape as the
- * receive stream's re-arm inside the read.
  */
 void
 proc_accept(struct app_ev *ev, struct tcp_listen_ctx *ctx)

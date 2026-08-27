@@ -151,10 +151,6 @@ parse_recv(struct mtp_app_op *op, struct app_ev *ev,
  * ESTABLISHED alone silently discards a response to a request whose FIN arrived
  * with it — which is a request/response server's ordinary case, and was
  * invisible for as long as the object was posted before any connection existed.
- *
- * mtp/tcp.mtp §gen_fin is tried immediately rather than waiting for the next packet,
- * because if the peer has already finished, no further packet will arrive to
- * carry the attempt.
  */
 unsigned
 sock_close(struct mtp_app_op *op, struct app_ev *ev,
