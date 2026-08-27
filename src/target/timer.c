@@ -167,7 +167,7 @@ mtp_timer_start(struct mtp_timer *t, uint64_t ns)
  * TimerTick within a handful of connections.
  */
 void
-tgt_timers_drop_ctx(const void *ctx)
+TimerDropCtx(const void *ctx)
 {
 	unsigned i;
 

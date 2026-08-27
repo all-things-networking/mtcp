@@ -103,40 +103,40 @@ typedef struct {
  * and the caller reading it makes the round-up-to-a-power-of-two decision
  * visible at the call site instead of buried three frames down.
  */
-void tgt_tx_unit_fini(struct mtp_data_unit *u);
-void tgt_rx_unit_fini(struct mtp_data_unit *u);
-int tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
+void TxUnitFini(struct mtp_data_unit *u);
+void RxUnitFini(struct mtp_data_unit *u);
+int TxUnitInit(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 		     void (*drain)(void *), void *drain_arg);
 
 /* The receive unit's base is a sequence number, not zero: the peer's ISN + 1.
  * Passing it here is the bridge, so nothing downstream has to convert. */
 /* One packet that belongs to no flow -- a reset for a connection that does not
  * exist. See emit.c for why this is not the ring A4 described. */
-int tgt_pkt_gen_orphan(struct core_ctx *core, uint32_t saddr, uint32_t daddr,
+int PktGenOrphan(struct core_ctx *core, uint32_t saddr, uint32_t daddr,
 		       const void *hdr, uint16_t hdr_len, int offload,
 		       uint16_t offload_csum_off);
 
 /* One wakeup per pass, at the end of it (the donor's FlushEpollEvents). */
-void tgt_sched_wake_app(struct core_ctx *core);
+void SchedWakeApp(struct core_ctx *core);
 
 /* D3: re-attempt generation for every flow that asked (mtp_retry). */
-void tgt_sched_take_retries(struct core_ctx *core);
+void SchedTakeRetries(struct core_ctx *core);
 
 /* Take every timer belonging to this context off the wheel. Called before the
  * context is freed: the timer objects are fields INSIDE it. */
-void tgt_timers_drop_ctx(const void *ctx);
+void TimerDropCtx(const void *ctx);
 
 /* The application has let go of a flow. Queues it for destruction if the
  * program's del_ctx has already run; a no-op otherwise. */
-void tgt_flow_app_detached(struct flow *f);
+void FlowAppDetached(struct flow *f);
 
-int tgt_rx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
+int RxUnitInit(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 		     uint64_t base);
 
-uint32_t tgt_tx_space(const struct mtp_data_unit *u);
+uint32_t TxSpace(const struct mtp_data_unit *u);
 /* `site` is an enum ref_site and `bp` the blueprint, both recorded in the
  * unit's reference history for the fault dump. */
-int tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len,
+int TxRef(struct mtp_data_unit *u, uint64_t seq, uint32_t len,
 	       payref_t *out, uint8_t site, const void *bp, const void *caller,
 	       uint8_t kind);
 
@@ -146,17 +146,17 @@ int tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len,
  * `base` names WHICH reference is being released. Release is by identity, not
  * by position, so no ordering between callers is required and a new release
  * site cannot reintroduce DESIGN.md §18's corruption. */
-void tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base, uint8_t site,
+void TxRefRelease(struct mtp_data_unit *u, uint64_t base, uint8_t site,
 			const void *bp, const void *caller, uint8_t kind);
 
 /* Debug only, on the assertion's failing path: print the blueprints of `owner`
- * with their segmentation progress. Lives in flow.c so tx_stream.c need not
+ * with their segmentation progress. Lives in flow.c so send_buffer.c need not
  * reach into the flow's blueprint ring.
  *
- * WEAK, because the unit tests link tx_stream.c without flow.c and a debug
+ * WEAK, because the unit tests link send_buffer.c without flow.c and a debug
  * dump must not decide what a test binary contains. Absent, the call is
  * skipped and the rest of the dump still prints. */
-__attribute__((weak)) void tgt_dump_flow_bps(void *owner, uint64_t base);
+__attribute__((weak)) void DumpFlowBlueprints(void *owner, uint64_t base);
 
 /* Debug only, on the same failing path: the PROGRAM's own terms for this flow.
  * The target prints none of them and interprets none of them -- it asks, the
@@ -166,9 +166,9 @@ __attribute__((weak)) void prog_dump_flow_state(void *owner);
 /* Counts a flush asking to free past what the wire has carried. Weak for the
  * same reason as the dumps above. */
 __attribute__((weak)) void prog_sample_inflight(uint64_t now_us);
-__attribute__((weak)) void tgt_ready_edge(void *owner, int kind);
-__attribute__((weak)) void tgt_note_flush_past_wire(void);
-__attribute__((weak)) void tgt_note_flush_short(uint64_t behind, uint32_t run);
+__attribute__((weak)) void ReadyEdge(void *owner, int kind);
+__attribute__((weak)) void NoteFlushPastWire(void);
+__attribute__((weak)) void NoteFlushShort(uint64_t behind, uint32_t run);
 
 /*
  * Consecutive short flushes that mean a stall rather than a transient. Set
@@ -178,18 +178,18 @@ __attribute__((weak)) void tgt_note_flush_short(uint64_t behind, uint32_t run);
 #define MTP_FLUSH_STALL_PASSES 512
 
 /* Counters, printed from the fault path because an abort skips the epilogue. */
-__attribute__((weak)) void tgt_report_at_fault(void);
+__attribute__((weak)) void ReportAtFault(void);
 
 /* An overlapping commit, counted at the moment it is made. Weak for the same
- * reason as the dumps: the unit tests link tx_stream.c without the scheduler. */
-__attribute__((weak)) void tgt_note_overlap(const struct mtp_data_unit *u,
+ * reason as the dumps: the unit tests link send_buffer.c without the scheduler. */
+__attribute__((weak)) void NoteOverlap(const struct mtp_data_unit *u,
 					    uint64_t live_base, uint32_t live_len,
 					    uint64_t new_base, uint32_t new_len,
 					    uint8_t new_is_rtx, uint8_t expected);
 
 /* A commit whose base is below the wire's high-water: it covers bytes already
  * emitted, whether or not the blueprint that sent them is still live. */
-__attribute__((weak)) void tgt_note_below_wire(uint64_t base, uint32_t len,
+__attribute__((weak)) void NoteBelowWire(uint64_t base, uint32_t len,
 					       uint64_t hwm, uint8_t is_rtx);
 
 struct bp {
@@ -249,13 +249,13 @@ struct bp {
  * LIFECYCLE. Allocate and commit do not compose by accident and getting it
  * wrong is a deadlock, not a leak:
  *
- *   - tgt_bp_new() returns a SCRATCH SLOT. Not in the ring, not drained, holds
+ *   - BlueprintNew() returns a SCRATCH SLOT. Not in the ring, not drained, holds
  *     NO live payload reference. A processor that returns without committing
- *     abandons it and the next tgt_bp_new() reuses it.
- *   - tgt_bp_commit() is what makes a blueprint exist: it enters the ring, it
+ *     abandons it and the next BlueprintNew() reuses it.
+ *   - BlueprintCommit() is what makes a blueprint exist: it enters the ring, it
  *     becomes drainable, and its payload reference becomes LIVE.
  *   - liveness ENDS when the drain has copied the last byte into an mbuf.
- *   - two tgt_bp_new() with no commit between them is a contract violation and
+ *   - two BlueprintNew() with no commit between them is a contract violation and
  *     a debug build asserts. Not a silent overwrite.
  *
  * Counting allocations as live instead deadlocks: pending never falls, the
@@ -265,14 +265,14 @@ struct bp {
  * A blueprint with payload.len == 0 holds no reference, so a pure ACK carrying
  * a low counter does not pin a stream for no reason.
  *
- * tgt_bp_new() RETURNS NULL when the ring is full and every caller checks. The
+ * BlueprintNew() RETURNS NULL when the ring is full and every caller checks. The
  * prototype has twelve call sites and none checks, so a full ring is a null
  * dereference there; here the emitter declines and the flow stays schedulable.
  */
 /* `c` is the priority class: storage is per (flow, class). */
-struct bp *tgt_bp_new(flow_t *f, int c);
-struct bp *tgt_bp_last(flow_t *f, int c);
-void       tgt_bp_commit(flow_t *f, struct bp *bp);
+struct bp *BlueprintNew(flow_t *f, int c);
+struct bp *BlueprintLast(flow_t *f, int c);
+void       BlueprintCommit(flow_t *f, struct bp *bp);
 
 /*============================================================================*
  * 3. Payload lifetime — an ASSERTION, not a clamp
@@ -314,7 +314,7 @@ void       tgt_bp_commit(flow_t *f, struct bp *bp);
  *
  * What the bookkeeping is for, then, is not catching a bad program. It is
  * catching US: after the drain there must be no live reference into the flushed
- * range, and tgt_tx_assert_flushable() checks that our own drain-before-flush
+ * range, and TxAssertFlushable() checks that our own drain-before-flush
  * actually ran. A firing assertion means a bug in this file, not in the .mtp.
  *
  * (An earlier version of this comment said the guarantee placed an obligation
@@ -358,7 +358,7 @@ void       tgt_bp_commit(flow_t *f, struct bp *bp);
  * 4. Scheduling (DESIGN §3)
  *============================================================================*/
 /*
- * One gen_list per core; tgt_bp_commit enqueues the flow idempotently. A flow
+ * One gen_list per core; BlueprintCommit enqueues the flow idempotently. A flow
  * with nothing to send is not on the list and is not walked — the prototype's
  * decision, preserved. mTCP's control/ACK/data triad, its rotation and its
  * break on the first blocked flow are not reproduced.
@@ -369,7 +369,7 @@ void       tgt_bp_commit(flow_t *f, struct bp *bp);
  *   - TX mbufs exhausted: re-inserted at the HEAD, the partially consumed
  *     blueprint rewound, and the walk breaks so the burst can flush. From the
  *     prototype, and correct.
- *   - ring full: tgt_bp_new returns NULL, the program declines, the flow stays
+ *   - ring full: BlueprintNew returns NULL, the program declines, the flow stays
  *     schedulable.
  */
 void     TimerTick(uint32_t now);
@@ -377,15 +377,15 @@ uint64_t TimerFires(void);
 
 /* `prio` is the PROGRAM's class for this packet; the target attaches no
  * meaning to the value and only drains higher before lower. */
-void tgt_sched_enqueue(flow_t *f, uint32_t prio);
-void tgt_check_reachable(struct core_ctx *core);
+void SchedEnqueue(flow_t *f, uint32_t prio);
+void CheckReachable(struct core_ctx *core);
 
 /* CR-E: hand published send extents to the program. Stack thread, before the
- * drain; tgt_deliver_send does one flow and is also the single-threaded path. */
+ * drain; DeliverSend does one flow and is also the single-threaded path. */
 struct core_ctx;
-void tgt_sched_take_sends(struct core_ctx *core);
-void tgt_deliver_send(struct core_ctx *core, struct flow *f);
-void tgt_publish_app_op(flow_t *f);
-void tgt_drain(struct core_ctx *core);
+void SchedTakeSends(struct core_ctx *core);
+void DeliverSend(struct core_ctx *core, struct flow *f);
+void PublishAppOp(flow_t *f);
+void Drain(struct core_ctx *core);
 
 #endif /* INTERNAL_H */

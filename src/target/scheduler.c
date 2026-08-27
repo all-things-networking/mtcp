@@ -145,7 +145,7 @@ ready_raise(struct transport *t, struct flow *f, int kind)
 		 *
 		 * The donor flushes its epoll events and signals ONCE per pass,
 		 * from FlushEpollEvents. The flag below is that: the pass sets
-		 * it, tgt_sched_wake_app clears it and signals once.
+		 * it, SchedWakeApp clears it and signals once.
 		 */
 		t->wake_pending = 1;
 		return;
@@ -159,7 +159,7 @@ ready_raise(struct transport *t, struct flow *f, int kind)
  * being woken per flow and running with a fraction of a batch each time.
  */
 void
-tgt_sched_wake_app(struct core_ctx *core)
+SchedWakeApp(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 
@@ -249,7 +249,7 @@ TransportWait(struct core_ctx *core, int timeout_ms)
  * re-evaluates.
  */
 void
-tgt_ready_edge(void *owner, int kind)
+ReadyEdge(void *owner, int kind)
 {
 	struct flow *f = (struct flow *)owner;
 
@@ -294,7 +294,7 @@ mtp_ready_arm(flow_t *flow)
 		return;
 	if (f->rx_unit && f->rx_unit->tail_seq > f->rx_unit->head_seq)
 		ready_raise(t, f, MTP_NOTIF_READABLE);
-	if (f->tx_unit && tgt_tx_space(f->tx_unit)) {
+	if (f->tx_unit && TxSpace(f->tx_unit)) {
 		f->tx_unit->want_space = 0;
 		ready_raise(t, f, MTP_NOTIF_WRITABLE);
 	}
@@ -494,7 +494,7 @@ mtp_del_ctx(const flowkey_t *key)
 	/*
 	 * AND IT ONLY JOINS THE DESTROY LIST ONCE THE APPLICATION HAS LET GO.
 	 * The two events are independent and either can come first, so whichever
-	 * is second is what queues the flow -- here, or in tgt_app_detach.
+	 * is second is what queues the flow -- here, or in FlowAppDetached.
 	 *
 	 * The list is therefore only ever walked to destroy, never to look. The
 	 * first version of this put every finished flow on the list and had the
@@ -520,7 +520,7 @@ mtp_del_ctx(const flowkey_t *key)
  * the insert needs no more synchronisation than the reap's own removal.
  */
 void
-tgt_flow_app_detached(struct flow *f)
+FlowAppDetached(struct flow *f)
 {
 	struct transport *t = TransportOf(g_core[0]);
 
@@ -544,7 +544,7 @@ tgt_flow_app_detached(struct flow *f)
  * enforced here, and the re-add cannot be walked by the sweep that emptied it.
  */
 void
-tgt_sched_take_retries(struct core_ctx *core)
+SchedTakeRetries(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *taken[MTP_RETRY_MAX];
@@ -594,7 +594,7 @@ tgt_sched_take_retries(struct core_ctx *core)
  * breaks it silently." The new path was ours.
  */
 void
-tgt_sched_reap(struct core_ctx *core)
+SchedReap(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f;
@@ -609,7 +609,7 @@ tgt_sched_reap(struct core_ctx *core)
 
 /*----------------------------------------------------------------------------*/
 /*
- * The contract's unit initialiser. It lives here rather than in tx_stream.c
+ * The contract's unit initialiser. It lives here rather than in send_buffer.c
  * because THIS is where the configuration and the per-core context are
  * visible: the ring itself takes its capacity as a parameter and its forced
  * drain as a callback, and depends on neither.
@@ -628,7 +628,7 @@ drain_this_core(void *arg)
 	uint64_t before = t->emit_refused;
 
 	t->forced_drains++;
-	tgt_drain(core);
+	Drain(core);
 	/*
 	 * Whether THIS drain reached everything, not whether any drain ever
 	 * gave up. tx_flush treats "I called drain" as "the drain happened",
@@ -646,7 +646,7 @@ mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 
 	while (cap < (uint32_t)CONFIG.rcvbuf_size)
 		cap <<= 1;
-	if (tgt_rx_unit_init(u, size, cap, 0) < 0)
+	if (RxUnitInit(u, size, cap, 0) < 0)
 		TRACE_ERROR("could not allocate a %u byte receive ring\n", cap);
 
 	/* Record it against the flow being dispatched, so the target can see
@@ -682,7 +682,7 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 	TRACE_CONFIG("transmit ring: %u bytes (sndbuf = %d)\n", cap,
 		     CONFIG.sndbuf_size);
 
-	if (tgt_tx_unit_init(u, size, cap, drain_this_core, core) < 0)
+	if (TxUnitInit(u, size, cap, drain_this_core, core) < 0)
 		TRACE_ERROR("could not allocate a %u byte transmit ring\n", cap);
 
 	/* the flow this ring belongs to, so a short write can name who to wake
@@ -721,7 +721,7 @@ int
 mtp_pkt_gen_orphan(uint32_t local_ip, uint32_t remote_ip,
 		   const void *hdr, uint16_t hdr_len, int offload)
 {
-	return tgt_pkt_gen_orphan(g_core[0], local_ip, remote_ip, hdr, hdr_len,
+	return PktGenOrphan(g_core[0], local_ip, remote_ip, hdr, hdr_len,
 				  offload, PROG_L4_CSUM_OFFSET);
 }
 
@@ -1079,8 +1079,8 @@ SchedStep(struct core_ctx *core,
 		 */
 		/* CR-E: extents the application buffered, handed to the
 		 * program HERE -- on the stack thread -- before the drain. */
-		tgt_sched_take_sends(core);
-		tgt_sched_take_notifications(core);
+		SchedTakeSends(core);
+		SchedTakeNotifications(core);
 		if (app)
 			app(core, ts, app_arg);
 
@@ -1089,14 +1089,14 @@ SchedStep(struct core_ctx *core,
 		 * D3: THE PER-ITERATION RETRY, before the drain so anything it
 		 * generates leaves in this pass rather than the next.
 		 */
-		tgt_sched_take_retries(core);
-		tgt_drain(core);
+		SchedTakeRetries(core);
+		Drain(core);
 
 		/* nothing from the program is on the stack here */
-		tgt_sched_reap(core);
+		SchedReap(core);
 
 		/* One signal for everything this pass made ready. */
-		tgt_sched_wake_app(core);
+		SchedWakeApp(core);
 
 		/*
 		 * What the burst actually accepted, as against what we handed
@@ -1178,7 +1178,7 @@ sched_stack_thread(void *argp)
 
 	sched_pin(a->cpu);
 
-	/* Published before the first step, so tgt_sched_enqueue and ready_raise
+	/* Published before the first step, so SchedEnqueue and ready_raise
 	 * can tell which side they are on from here onward. */
 	TransportOf(a->core)->stack_tid = (uint64_t)(uintptr_t)pthread_self();
 
@@ -1254,7 +1254,7 @@ SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu)
  * the numbers RESULTS.md is written from went with them.
  */
 void
-tgt_note_below_wire(uint64_t base, uint32_t len, uint64_t hwm, uint8_t is_rtx)
+NoteBelowWire(uint64_t base, uint32_t len, uint64_t hwm, uint8_t is_rtx)
 {
 	struct transport *t = TransportOf(g_core[0]);
 	static uint32_t shown;
@@ -1285,7 +1285,7 @@ tgt_note_below_wire(uint64_t base, uint32_t len, uint64_t hwm, uint8_t is_rtx)
 }
 
 void
-tgt_note_overlap(const struct mtp_data_unit *u, uint64_t live_base,
+NoteOverlap(const struct mtp_data_unit *u, uint64_t live_base,
 		 uint32_t live_len, uint64_t new_base, uint32_t new_len,
 		 uint8_t new_is_rtx, uint8_t expected)
 {
@@ -1314,11 +1314,11 @@ tgt_note_overlap(const struct mtp_data_unit *u, uint64_t live_base,
 }
 
 void
-tgt_report_at_fault(void)
+ReportAtFault(void)
 {
 	struct transport *t = TransportOf(g_core[0]);
 
-	tgt_check_reachable(g_core[0]);
+	CheckReachable(g_core[0]);
 	fprintf(stderr,
 		"  forced drains: %llu, of which the LAST one ABANDONED: %s\n"
 		"  drains abandoned by an emit_bp refusal, all callers: %llu\n"
@@ -1335,7 +1335,7 @@ tgt_report_at_fault(void)
 }
 
 void
-tgt_note_flush_short(uint64_t behind, uint32_t run)
+NoteFlushShort(uint64_t behind, uint32_t run)
 {
 	struct transport *t = TransportOf(g_core[0]);
 
@@ -1346,7 +1346,7 @@ tgt_note_flush_short(uint64_t behind, uint32_t run)
 }
 
 void
-tgt_note_flush_past_wire(void)
+NoteFlushPastWire(void)
 {
 	TransportOf(g_core[0])->flush_past_emitted++;
 }
@@ -1416,7 +1416,7 @@ SchedReport(struct core_ctx *core)
 	/* In the CLEAN-run report as well as the fault one: an unreachable ring
 	 * is a defect on its own terms, and a run that never faults is exactly
 	 * where it would otherwise go unseen. */
-	tgt_check_reachable(core);
+	CheckReachable(core);
 	{
 		static const char *n[10] = { "<2us", "<8us", "<32us", "<128us",
 					     "<512us", "<2ms", "<8ms", "<32ms",
@@ -1564,7 +1564,7 @@ SchedReport(struct core_ctx *core)
 		prog_report_acklat();
 		prog_report_inflight();
 		prog_report_stages();
-		{ void tgt_report_merges(void); tgt_report_merges(); }
+		{ void ReportMerges(void); ReportMerges(); }
 	}
 	TRACE_INFO("CPU %d: timers fired: %lu\n", ctx->cpu,
 		   (unsigned long)TimerFires());

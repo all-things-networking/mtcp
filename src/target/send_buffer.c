@@ -66,7 +66,7 @@ static void tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto);
  * nothing above it: its capacity arrives as a parameter and its forced drain as
  * a callback. That is the right shape regardless — a byte ring should not know
  * about a configuration system or a per-core context — and it is what lets
- * tests/test_tx_stream.c exercise the payload-lifetime race on any node.
+ * tests/test_send_buffer.c exercise the payload-lifetime race on any node.
  */
 
 /*
@@ -87,7 +87,7 @@ static inline uint32_t off_of(const struct mtp_data_unit *u, uint64_t seq)
 
 /*----------------------------------------------------------------------------*/
 int
-tgt_tx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
+TxUnitInit(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 		 void (*drain)(void *), void *drain_arg)
 {
 	memset(u, 0, sizeof(*u));
@@ -155,7 +155,7 @@ own_check(uint64_t *slot, const char *which)
 /* Returns the ring. Called once, from FlowDestroy -- the buffer was malloc'ed
  * per flow at init and was never freed anywhere before that site existed. */
 void
-tgt_tx_unit_fini(struct mtp_data_unit *u)
+TxUnitFini(struct mtp_data_unit *u)
 {
 	free(u->buf);
 	u->buf = NULL;
@@ -284,8 +284,8 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 			(unsigned long long)u->ref_base[i],
 			u->ref_base[i] == lo ? "<- MINIMUM " : "",
 			u->ref_base[i] < u->head_seq ? "<- BEHIND head_seq" : "");
-	if (tgt_dump_flow_bps)		/* absent in the unit-test link */
-		tgt_dump_flow_bps(u->owner, lo);
+	if (DumpFlowBlueprints)		/* absent in the unit-test link */
+		DumpFlowBlueprints(u->owner, lo);
 	{
 		static const char *sn[REF_SITE__N] = {
 			"commit", "merge-take", "merge-rel", "drain-rel"
@@ -372,8 +372,8 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 	 * it matters -- the instrument that would explain the failure is
 	 * disabled by the failure. Printed at the fault site instead.
 	 */
-	if (tgt_report_at_fault)
-		tgt_report_at_fault();
+	if (ReportAtFault)
+		ReportAtFault();
 
 	if (prog_dump_flow_state)	/* the caller's terms, not the callee's */
 		prog_dump_flow_state(u->owner);
@@ -422,8 +422,8 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 	 */
 	/* Weak, because the unit tests link this file without the scheduler --
 	 * a counter must not decide what a test binary contains. */
-	if (upto > u->emitted_hwm && u->owner && tgt_note_flush_past_wire)
-		tgt_note_flush_past_wire();
+	if (upto > u->emitted_hwm && u->owner && NoteFlushPastWire)
+		NoteFlushPastWire();
 
 	/*
 	 * A FLUSH THAT CANNOT REACH `upto` ADVANCES AS FAR AS IT CAN.
@@ -451,8 +451,8 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 			u->short_bytes += upto - min;
 			if (++u->short_run > u->short_run_max)
 				u->short_run_max = u->short_run;
-			if (tgt_note_flush_short)
-				tgt_note_flush_short(upto - min, u->short_run);
+			if (NoteFlushShort)
+				NoteFlushShort(upto - min, u->short_run);
 
 			/* Loud, once, with the same terms the fault dump
 			 * prints -- an unbounded run is a stall and a stall is
@@ -486,9 +486,9 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 	 * a ring that is still full simply re-sets it, which is the same
 	 * contract as before with none of the re-evaluation.
 	 */
-	if (u->want_space && tgt_tx_space(u) && u->owner && tgt_ready_edge) {
+	if (u->want_space && TxSpace(u) && u->owner && ReadyEdge) {
 		u->want_space = 0;
-		tgt_ready_edge(u->owner, MTP_NOTIF_WRITABLE);
+		ReadyEdge(u->owner, MTP_NOTIF_WRITABLE);
 	}
 	return 0;
 }
@@ -504,7 +504,7 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
  * happens.
  */
 int
-tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
+TxRef(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 	   uint8_t site, const void *bp, const void *caller, uint8_t kind)
 {
 	uint32_t at, to_end;
@@ -572,8 +572,8 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 	 * in runs where the overlap count is zero, the two families are one
 	 * fault with different release timing.
 	 */
-	if (seq < u->emitted_hwm && tgt_note_below_wire)
-		tgt_note_below_wire(seq, len, u->emitted_hwm, kind);
+	if (seq < u->emitted_hwm && NoteBelowWire)
+		NoteBelowWire(seq, len, u->emitted_hwm, kind);
 
 	{
 		uint32_t i;
@@ -593,8 +593,8 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 			 * then reported as zero.
 			 */
 			expected = (site == REF_SITE_MERGE_TAKE && a == seq);
-			if (tgt_note_overlap)
-				tgt_note_overlap(u, a, u->ref_len[i], seq, len,
+			if (NoteOverlap)
+				NoteOverlap(u, a, u->ref_len[i], seq, len,
 						 kind, (uint8_t)expected);
 			break;
 		}
@@ -636,7 +636,7 @@ tgt_tx_ref(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
  * to be correct, and a new release site cannot reintroduce the old bug.
  */
 void
-tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base, uint8_t site,
+TxRefRelease(struct mtp_data_unit *u, uint64_t base, uint8_t site,
 		   const void *bp, const void *caller, uint8_t kind)
 {
 	uint32_t i;
@@ -656,7 +656,7 @@ tgt_tx_ref_release(struct mtp_data_unit *u, uint64_t base, uint8_t site,
 	 * disagree about what is outstanding. The old code returned silently
 	 * on an empty ring and popped an arbitrary entry otherwise, which is
 	 * how a mismatch stayed invisible for the whole of the sweep. */
-	assert(0 && "tgt_tx_ref_release: base is not live on this unit");
+	assert(0 && "TxRefRelease: base is not live on this unit");
 }
 
 /*
@@ -688,7 +688,7 @@ mtp_tx_emitted(const struct mtp_data_unit *u)
 
 /* Free bytes in the ring — the target's own bookkeeping, for WRITABLE. */
 uint32_t
-tgt_tx_space(const struct mtp_data_unit *u)
+TxSpace(const struct mtp_data_unit *u)
 {
 	return u->cap - (uint32_t)(u->tail_seq - u->head_seq);
 }

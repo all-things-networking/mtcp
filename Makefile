@@ -136,8 +136,8 @@ TESTS     := $(patsubst tests/%.c,bin/%,$(TEST_SRCS))
 # packet path it belongs somewhere else, and that somewhere does not exist yet.
 TESTABLE := src/program/prog_app.c src/program/prog_proto.c \
             src/program/prog_instr.c \
-            src/target/flow_table.c src/target/tx_stream.c \
-            src/target/window.c src/target/rx_stream.c
+            src/target/flow_table.c src/target/send_buffer.c \
+            src/target/window.c src/target/ring_buffer.c
 
 # What those sources reference from the DPDK half. See tests/offbed_stubs.c.
 TESTABLE += tests/offbed_stubs.c

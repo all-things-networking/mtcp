@@ -120,7 +120,7 @@ test_window_only_moves_at_two_points(void)
 	      "window field moved on a pure ACK: %u", win_field(&c, 0));
 }
 
-/* The payload-lifetime race lives in tests/test_tx_stream.c, where it runs. */
+/* The payload-lifetime race lives in tests/test_send_buffer.c, where it runs. */
 
 int
 main(void)

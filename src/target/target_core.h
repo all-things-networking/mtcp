@@ -22,7 +22,7 @@ struct bp;
 /*
  * THE TIMER WHEEL, PER CORE -- both references keep their timer state in the
  * per-core manager and neither has a file-scope timer static. Ours were five
- * (timers.c), which is the "only one thread touches it" assumption in the same
+ * (timer.c), which is the "only one thread touches it" assumption in the same
  * form as everything else this rework has been unwinding, and it stopped being
  * true the moment a second thread existed.
  */
@@ -101,7 +101,7 @@ struct transport {
 	 * CAPACITY IS FLOW COUNT, not a rate, and that is only sound because
 	 * every producer is gated on the per-flow membership flag. A flow
 	 * written to three hundred times in one scheduling slice enqueues ONCE.
-	 * The guard therefore lives inside tgt_sched_enqueue() and not at the
+	 * The guard therefore lives inside SchedEnqueue() and not at the
 	 * call sites: the prototype kept this ring, kept the capacity, then
 	 * added a producer (mtcp_recv) that sets the flag without testing it,
 	 * and its "this always success" comment quietly became false. A new

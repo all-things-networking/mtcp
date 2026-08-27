@@ -173,7 +173,7 @@ drop_this_one(uint16_t seg_len, int consumes_seq)
  * standalone site.
  */
 int
-tgt_pkt_gen_orphan(struct core_ctx *core, uint32_t saddr, uint32_t daddr,
+PktGenOrphan(struct core_ctx *core, uint32_t saddr, uint32_t daddr,
 		   const void *hdr, uint16_t hdr_len, int offload,
 		   uint16_t offload_csum_off)
 {
@@ -587,7 +587,7 @@ emit_bp(struct core_ctx *core, struct flow *f, struct bp *bp)
  *
  * A blueprint with no payload took no reference and releases none. Getting
  * that backwards would decrement a count nobody incremented, which the FIFO in
- * tx_stream.c would then read as the wrong oldest base.
+ * send_buffer.c would then read as the wrong oldest base.
  */
 static void
 release_bp(struct bp *bp)
@@ -613,13 +613,13 @@ release_bp(struct bp *bp)
 					    - (int64_t)bp->ref_base),
 				bp->payload.len);
 	}
-	tgt_tx_ref_release(bp->unit, bp->base_seq, REF_SITE_DRAIN_REL, bp,
+	TxRefRelease(bp->unit, bp->base_seq, REF_SITE_DRAIN_REL, bp,
 			   NULL, 0);
 }
 
 /*----------------------------------------------------------------------------*/
 void
-tgt_drain(struct core_ctx *core)
+Drain(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f, *tmp;
@@ -796,5 +796,5 @@ tgt_drain(struct core_ctx *core)
 	 * is a second variable. */
 	if ((t->drain_pass & (MTP_ENV_ON("MTP_INVARIANT_EVERY_PASS") ? 0 : 1023))
 	    == 0)
-		tgt_check_reachable(core);
+		CheckReachable(core);
 }

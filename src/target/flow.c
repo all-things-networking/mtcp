@@ -153,7 +153,7 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 	 *
 	 * Only the application thread owns ready_list, so the entry can only be
 	 * removed here if the destroy runs on that thread. It does: the reap is
-	 * deferred to the application's own pass (tgt_sched_reap).
+	 * deferred to the application's own pass (SchedReap).
 	 */
 	if (f->on_ready_list) {
 		TAILQ_REMOVE(&t->ready_list, f, ready_link);
@@ -175,9 +175,9 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 	 * where the donor returns its payload chunk too. They were malloc'ed
 	 * per flow and never freed at all before this. */
 	if (f->tx_unit)
-		tgt_tx_unit_fini(f->tx_unit);
+		TxUnitFini(f->tx_unit);
 	if (f->rx_unit)
-		tgt_rx_unit_fini(f->rx_unit);
+		RxUnitFini(f->rx_unit);
 	/* NULLED, so a stale reader faults instead of reading freed bytes. A
 	 * dangling pointer that still looks valid is the harder bug. */
 	f->tx_unit = NULL;
@@ -189,7 +189,7 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 	 * the wheel holds pointers to them.
 	 */
 	if (f->ctx)
-		tgt_timers_drop_ctx(f->ctx);
+		TimerDropCtx(f->ctx);
 	FlowTableRemove(t->flows, &f->key);
 	/* the flow slot itself is not recycled yet — M1 is one connection.
 	 * A free list lands with connection reaping (A3), which M1 excludes. */
@@ -208,7 +208,7 @@ mtp_flow_id(flow_t *f)
 /* P5: one list per core, enqueued idempotently. A flow with nothing to send is
  * not on it and is not walked. */
 void
-tgt_sched_enqueue(flow_t *f, uint32_t prio)
+SchedEnqueue(flow_t *f, uint32_t prio)
 {
 	struct transport *t = TransportOf(g_core[0]);
 	int c = (int)(prio < MTP_PRIO_CLASSES ? prio : MTP_PRIO_CLASSES - 1);
@@ -298,7 +298,7 @@ mtp_app_send(flow_t *f, const void *buf, uint32_t len)
 		return wrote;
 
 	f->pending_send += (uint32_t)wrote;
-	tgt_publish_app_op(f);
+	PublishAppOp(f);
 	return wrote;
 }
 
@@ -322,19 +322,19 @@ mtp_app_close(flow_t *f)
 	 */
 	f->app_detached = 1;
 	f->pending_close = 1;
-	tgt_publish_app_op(f);
+	PublishAppOp(f);
 	/*
 	 * The second of the two events, if the protocol finished first: this is
 	 * what queues the flow for destruction in that ordering. A no-op in the
 	 * other, where del_ctx has yet to run and will do the queueing itself.
 	 */
-	tgt_flow_app_detached(f);
+	FlowAppDetached(f);
 	return 0;
 }
 
 /* One entry per flow however many operations are pending on it. */
 void
-tgt_publish_app_op(flow_t *f)
+PublishAppOp(flow_t *f)
 {
 	struct transport *t = TransportOf(g_core[0]);
 
@@ -347,7 +347,7 @@ tgt_publish_app_op(flow_t *f)
 			 * over now. NOT take_sends() -- that drains the queue,
 			 * and this flow was never put in it.
 			 */
-			tgt_deliver_send(g_core[0], f);
+			DeliverSend(g_core[0], f);
 			return;
 		} else if (t->cross_send++, fq_enqueue(&t->q_send, f) != 0) {
 			fprintf(stderr, "\n*** SEND QUEUE FULL: capacity is "
@@ -365,18 +365,18 @@ tgt_publish_app_op(flow_t *f)
  * generated and flushed in this pass.
  */
 void
-tgt_sched_take_sends(struct core_ctx *core)
+SchedTakeSends(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f;
 
 	while ((f = fq_dequeue(&t->q_send)) != NULL)
-		tgt_deliver_send(core, f);
+		DeliverSend(core, f);
 }
 
 /* One flow's pending extent, handed to the program as CR-E's SEND. */
 void
-tgt_deliver_send(struct core_ctx *core, struct flow *f)
+DeliverSend(struct core_ctx *core, struct flow *f)
 {
 	struct mtp_app_op op;
 	uint32_t len = f->pending_send;
@@ -405,7 +405,7 @@ tgt_deliver_send(struct core_ctx *core, struct flow *f)
 }
 
 void
-tgt_sched_take_notifications(struct core_ctx *core)
+SchedTakeNotifications(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f;
@@ -445,7 +445,7 @@ tgt_sched_take_notifications(struct core_ctx *core)
  * unreachable ring is a defect whether or not a flush trips over it.
  */
 void
-tgt_check_reachable(struct core_ctx *core)
+CheckReachable(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	uint32_t i;
@@ -494,7 +494,7 @@ static inline uint16_t ring_next(uint16_t i, int c)
 }
 
 struct bp *
-tgt_bp_new(flow_t *f, int c)
+BlueprintNew(flow_t *f, int c)
 {
 	/* A SCRATCH SLOT: the one past the tail. Not in the ring, not drained,
 	 * holding no live payload reference until commit. Returns NULL when the
@@ -503,7 +503,7 @@ tgt_bp_new(flow_t *f, int c)
 	if (ring_next(f->ring_tail[c], c) == f->ring_head[c])
 		return NULL;
 
-	/* Two tgt_bp_new() with no commit between them is a contract violation,
+	/* Two BlueprintNew() with no commit between them is a contract violation,
 	 * not a silent overwrite: the second would hand back the same scratch
 	 * slot and the first caller's header would vanish under it. Cheap to
 	 * assert, and otherwise it surfaces as a corrupted packet weeks later. */
@@ -514,7 +514,7 @@ tgt_bp_new(flow_t *f, int c)
 }
 
 struct bp *
-tgt_bp_last(flow_t *f, int c)
+BlueprintLast(flow_t *f, int c)
 {
 	uint16_t last;
 
@@ -525,7 +525,7 @@ tgt_bp_last(flow_t *f, int c)
 }
 
 void
-tgt_bp_commit(flow_t *f, struct bp *bp)
+BlueprintCommit(flow_t *f, struct bp *bp)
 {
 	int c = (int)(bp->prio < MTP_PRIO_CLASSES ? bp->prio
 						  : MTP_PRIO_CLASSES - 1);
@@ -541,7 +541,7 @@ tgt_bp_commit(flow_t *f, struct bp *bp)
 		if (n > t->ring_hwm[c])
 			t->ring_hwm[c] = n;
 	}
-	tgt_sched_enqueue(f, bp->prio);
+	SchedEnqueue(f, bp->prio);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -555,7 +555,7 @@ enum { MRG_OK, MRG_UNCLASSIFIED, MRG_NO_PENDING, MRG_CLASS, MRG_KEY,
 static uint64_t g_mrg[MRG__N];
 
 void
-tgt_report_merges(void)
+ReportMerges(void)
 {
 	static const char *n[MRG__N] = {
 		"MERGED", "program said no", "nothing pending", "class differs",
@@ -608,7 +608,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	if (!cls)
 		g_mrg[MRG_UNCLASSIFIED]++;
 	if (cls) {
-		struct bp *last = tgt_bp_last(f, pc);
+		struct bp *last = BlueprintLast(f, pc);
 
 		/*
 		 * WHY A MERGE DID NOT HAPPEN, counted per branch. The same
@@ -657,10 +657,10 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 				 * because base_seq may be rewritten below */
 				const uint64_t took_at = last->base_seq;
 
-				/* ONE call: tgt_tx_ref TAKES a reference, so
+				/* ONE call: TxRef TAKES a reference, so
 				 * asking twice to count the failure would
 				 * double-reference on success. */
-				int reffed = tgt_tx_ref(payload->u,
+				int reffed = TxRef(payload->u,
 						last->base_seq,
 						last->payload.len + payload->len,
 						&ext, REF_SITE_MERGE_TAKE,
@@ -672,7 +672,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 					/* the SUPERSEDED reference, named: it is
 					 * not the oldest, which is the whole
 					 * reason release is by identity */
-					tgt_tx_ref_release(last->unit,
+					TxRefRelease(last->unit,
 							   last->base_seq,
 							   REF_SITE_MERGE_REL,
 							   last, issuer, 0);
@@ -738,7 +738,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		}
 	}
 
-	bp = tgt_bp_new(f, pc);
+	bp = BlueprintNew(f, pc);
 
 	if (!bp) {
 		TransportOf(g_core[0])->bp_full++;
@@ -771,7 +771,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		/* resolve now, dereference at the drain — P1. The reference
 		 * stays valid until the program flushes this range, which is
 		 * the guarantee that makes deferral safe (internal.h §3). */
-		if (tgt_tx_ref(payload->u, payload->off, payload->len,
+		if (TxRef(payload->u, payload->off, payload->len,
 			       &bp->payload, REF_SITE_COMMIT, bp, issuer,
 			       (uint8_t)rtx) < 0) {
 			f->scratch_out[pc] = 0;	/* abandoned, not committed */
@@ -781,7 +781,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		bp->ref_base = payload->off;
 	}
 
-	tgt_bp_commit(f, bp);
+	BlueprintCommit(f, bp);
 	return 0;
 }
 
@@ -794,7 +794,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
  * corruption. If every blueprint is untouched, that candidate is dead.
  */
 void
-tgt_dump_flow_bps(void *owner, uint64_t base)
+DumpFlowBlueprints(void *owner, uint64_t base)
 {
 	struct flow *f = (struct flow *)owner;
 	int c;

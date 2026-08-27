@@ -87,7 +87,7 @@ static void
 setup(struct mtp_data_unit *u)
 {
 	memset(u, 0, sizeof(*u));
-	if (tgt_rx_unit_init(u, MTP_SIZE_INF, CAP, BASE) < 0) {
+	if (RxUnitInit(u, MTP_SIZE_INF, CAP, BASE) < 0) {
 		printf("  FAIL could not allocate the unit\n");
 		exit(1);
 	}
@@ -103,7 +103,7 @@ test_in_order(void)
 	CHECK(put(&u, BASE, 100) == 100, "store refused");
 	CHECK(put(&u, BASE + 100, 100) == 100, "store refused");
 	CHECK(drain_and_verify(&u, BASE) == 200, "drained the wrong length");
-	tgt_rx_unit_fini(&u);
+	RxUnitFini(&u);
 }
 
 /*
@@ -134,7 +134,7 @@ test_hole_holds_data_back(void)
 	got = drain_and_verify(&u, BASE + 100);
 	CHECK(got == 300, "drained %u bytes after the gap filled, expected 300",
 	      got);
-	tgt_rx_unit_fini(&u);
+	RxUnitFini(&u);
 }
 
 /* Arriving strictly backwards: nothing is readable until the first segment. */
@@ -152,7 +152,7 @@ test_reverse_order(void)
 	CHECK(put(&u, BASE, 100) == 100, "store refused");
 	CHECK(drain_and_verify(&u, BASE) == 1000,
 	      "the whole run did not become readable at once");
-	tgt_rx_unit_fini(&u);
+	RxUnitFini(&u);
 }
 
 /*
@@ -179,7 +179,7 @@ test_duplicate_after_delivery(void)
 	      "the fresh half of an overlapping retransmission was not stored");
 	CHECK(drain_and_verify(&u, BASE + 200) == 100,
 	      "the fresh half did not become readable");
-	tgt_rx_unit_fini(&u);
+	RxUnitFini(&u);
 }
 
 /* Overlapping segments, arriving out of order. The union is what is held. */
@@ -195,7 +195,7 @@ test_overlap_out_of_order(void)
 	CHECK(put(&u, BASE, 300) == 300, "store refused");		/* 0..300 */
 	CHECK(drain_and_verify(&u, BASE) == 600,
 	      "the union of the overlapping runs was not readable");
-	tgt_rx_unit_fini(&u);
+	RxUnitFini(&u);
 }
 
 /* A segment that would overrun the ring is refused, and refusing leaves the
@@ -210,7 +210,7 @@ test_overrun_refused(void)
 	      "a segment past the ring's capacity was accepted");
 	CHECK(put(&u, BASE, 100) == 100, "the unit was unusable after a refusal");
 	CHECK(drain_and_verify(&u, BASE) == 100, "drained the wrong length");
-	tgt_rx_unit_fini(&u);
+	RxUnitFini(&u);
 }
 
 /* The ring wraps under a hole: the arithmetic that places a byte is the part
@@ -235,7 +235,7 @@ test_wrap_with_hole(void)
 	CHECK(put(&u, seq, 500) == 500, "the gap-filling store was refused");
 	CHECK(drain_and_verify(&u, seq) == 1000,
 	      "the run across the wrap was not readable in one piece");
-	tgt_rx_unit_fini(&u);
+	RxUnitFini(&u);
 }
 
 int

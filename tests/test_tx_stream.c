@@ -3,7 +3,7 @@
  *
  * This is the test the reference-release bug should have failed. It was written
  * skipped in increment 1 because there was no send path, and stayed skipped
- * afterwards because tx_stream.c reached DPDK. Both reasons are gone: the ring
+ * afterwards because send_buffer.c reached DPDK. Both reasons are gone: the ring
  * takes its capacity as a parameter and its forced drain as a callback, so it
  * depends on nothing above it and runs on any node.
  */
@@ -25,7 +25,7 @@ static int drains;
 } while (0)
 
 /*
- * Stands in for tgt_drain: emits whatever is pending and, critically, RELEASES
+ * Stands in for Drain: emits whatever is pending and, critically, RELEASES
  * the references those blueprints held. The real drain does that in
  * release_bp() after a blueprint's last segment. A stub that counted without
  * releasing tripped the assertion in mtp_tx_flush_and_notify — correctly,
@@ -41,7 +41,7 @@ static void count_drain(void *arg)
 	/* Releases every reference by naming one that is live each time. Any
 	 * order is correct now — that is the point of release-by-identity. */
 	while (drain_unit && drain_unit->live_refs)
-		tgt_tx_ref_release(drain_unit, drain_unit->ref_base[0], REF_SITE_DRAIN_REL, NULL, NULL, 0);
+		TxRefRelease(drain_unit, drain_unit->ref_base[0], REF_SITE_DRAIN_REL, NULL, NULL, 0);
 }
 
 static void
@@ -61,13 +61,13 @@ test_ring_does_not_move_bytes(void)
 	struct mtp_data_unit u;
 	payref_t r1, r2;
 
-	tgt_tx_unit_init(&u, MTP_SIZE_INF, 4096, count_drain, NULL);
+	TxUnitInit(&u, MTP_SIZE_INF, 4096, count_drain, NULL);
 	drain_unit = NULL;
 	fill(&u, 1000);
 
-	CHECK(tgt_tx_ref(&u, 0, 500, &r1, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "ref of held bytes failed");
+	CHECK(TxRef(&u, 0, 500, &r1, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "ref of held bytes failed");
 	fill(&u, 1000);
-	CHECK(tgt_tx_ref(&u, 500, 500, &r2, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "second ref failed");
+	CHECK(TxRef(&u, 500, 500, &r2, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "second ref failed");
 	CHECK(r1.data + 500 == r2.data, "the ring moved bytes under a reference");
 }
 
@@ -80,16 +80,16 @@ test_ref_refuses_out_of_range(void)
 	struct mtp_data_unit u;
 	payref_t r;
 
-	tgt_tx_unit_init(&u, MTP_SIZE_INF, 4096, count_drain, NULL);
+	TxUnitInit(&u, MTP_SIZE_INF, 4096, count_drain, NULL);
 	drain_unit = &u;
 	fill(&u, 100);
 
 	memset(&r, 0xAA, sizeof(r));
-	CHECK(tgt_tx_ref(&u, 50, 100, &r, REF_SITE_COMMIT, NULL, NULL, 0) < 0, "ref past the tail succeeded");
+	CHECK(TxRef(&u, 50, 100, &r, REF_SITE_COMMIT, NULL, NULL, 0) < 0, "ref past the tail succeeded");
 	CHECK(r.len == 0xAAAAAAAA, "a failed ref wrote to *out");
 
 	mtp_tx_flush_and_notify(&u, 50);
-	CHECK(tgt_tx_ref(&u, 0, 10, &r, REF_SITE_COMMIT, NULL, NULL, 0) < 0, "ref below the head succeeded");
+	CHECK(TxRef(&u, 0, 10, &r, REF_SITE_COMMIT, NULL, NULL, 0) < 0, "ref below the head succeeded");
 }
 
 /* A payload straddling the end is described by the reference, not linearised. */
@@ -99,13 +99,13 @@ test_ref_describes_the_wrap(void)
 	struct mtp_data_unit u;
 	payref_t r;
 
-	tgt_tx_unit_init(&u, MTP_SIZE_INF, 1024, count_drain, NULL);
+	TxUnitInit(&u, MTP_SIZE_INF, 1024, count_drain, NULL);
 	drain_unit = &u;
 	fill(&u, 1024);
 	mtp_tx_flush_and_notify(&u, 900);	/* head to 900 */
 	fill(&u, 800);				/* wraps */
 
-	CHECK(tgt_tx_ref(&u, 1000, 100, &r, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "ref across the wrap failed");
+	CHECK(TxRef(&u, 1000, 100, &r, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "ref across the wrap failed");
 	CHECK(r.wraps, "a straddling payload was not marked as wrapping");
 	CHECK(r.wrap_at_seq == 1024, "wrap point is %llu, want 1024",
 	      (unsigned long long)r.wrap_at_seq);
@@ -129,11 +129,11 @@ test_flush_over_live_reference(void)
 	payref_t r;
 
 	drains = 0;
-	tgt_tx_unit_init(&u, MTP_SIZE_INF, 4096, count_drain, NULL);
+	TxUnitInit(&u, MTP_SIZE_INF, 4096, count_drain, NULL);
 	drain_unit = &u;
 	fill(&u, 2000);
 
-	tgt_tx_ref(&u, 0, 1000, &r, REF_SITE_COMMIT, NULL, NULL, 0);		/* a blueprint is holding [0,1000) */
+	TxRef(&u, 0, 1000, &r, REF_SITE_COMMIT, NULL, NULL, 0);		/* a blueprint is holding [0,1000) */
 	mtp_tx_flush_and_notify(&u, 1000);	/* the program flushes over it */
 	CHECK(drains == 1, "a flush across a live reference did not force a "
 	      "drain (drains=%d)", drains);
@@ -168,16 +168,16 @@ test_release_of_a_non_oldest_reference(void)
 	payref_t x, y;
 
 	drains = 0;
-	tgt_tx_unit_init(&u, MTP_SIZE_INF, 4096, count_drain, NULL);
+	TxUnitInit(&u, MTP_SIZE_INF, 4096, count_drain, NULL);
 	drain_unit = &u;
 	fill(&u, 3000);
 
-	CHECK(tgt_tx_ref(&u, 0, 1000, &x, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "X ref failed");
-	CHECK(tgt_tx_ref(&u, 1000, 1000, &y, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "Y ref failed");
+	CHECK(TxRef(&u, 0, 1000, &x, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "X ref failed");
+	CHECK(TxRef(&u, 1000, 1000, &y, REF_SITE_COMMIT, NULL, NULL, 0) == 0, "Y ref failed");
 	CHECK(u.live_refs == 2, "expected 2 live refs, got %u", u.live_refs);
 
 	/* Y goes first: the merge path's case, and not the oldest. */
-	tgt_tx_ref_release(&u, 1000, REF_SITE_DRAIN_REL, NULL, NULL, 0);
+	TxRefRelease(&u, 1000, REF_SITE_DRAIN_REL, NULL, NULL, 0);
 	CHECK(u.live_refs == 1, "expected 1 live ref, got %u", u.live_refs);
 	CHECK(u.ref_base[0] == 0,
 	      "the surviving reference has base %llu, want 0 — the WRONG entry "

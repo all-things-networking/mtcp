@@ -37,7 +37,7 @@ mtp_retry(flow_t *f)
  * ORIGIN instead -- op-parsers to prog_app.c, everything else to prog_proto.c
  * -- so the suite now links the whole program, and the whole program reaches
  * every instruction it can issue. All twelve live in scheduler.c, flow.c or
- * timers.c, which need DPDK.
+ * timer.c, which need DPDK.
  *
  * NONE OF THEM IS REACHED by any test here: the five suites exercise the
  * buffers, the flow table and the window rule, and the only instruction on

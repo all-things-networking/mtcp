@@ -37,8 +37,8 @@
 1 src/target/scheduler.c: static uint64_t iters, t_prev_us;
 1 src/target/scheduler.c: static uint64_t seen;
 1 src/target/scheduler.c:static uint64_t transport_packets;
-1 src/target/timers.c:static int last_tick_valid;
-1 src/target/timers.c: static uint32_t last;
-1 src/target/timers.c:static uint32_t last_tick_now;
-1 src/target/timers.c: static uint64_t n;
-1 src/target/tx_stream.c: static uint64_t flushes;
+1 src/target/send_buffer.c: static uint64_t flushes;
+1 src/target/timer.c:static int last_tick_valid;
+1 src/target/timer.c: static uint32_t last;
+1 src/target/timer.c:static uint32_t last_tick_now;
+1 src/target/timer.c: static uint64_t n;

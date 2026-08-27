@@ -34,7 +34,7 @@ static inline uint32_t rx_off(const struct mtp_data_unit *u, uint64_t seq)
 
 /* Returns the ring. Called once, from FlowDestroy. */
 void
-tgt_rx_unit_fini(struct mtp_data_unit *u)
+RxUnitFini(struct mtp_data_unit *u)
 {
 	free(u->buf);
 	u->buf = NULL;
@@ -42,7 +42,7 @@ tgt_rx_unit_fini(struct mtp_data_unit *u)
 }
 
 int
-tgt_rx_unit_init(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
+RxUnitInit(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 		 uint64_t base)
 {
 	memset(u, 0, sizeof(*u));
@@ -142,8 +142,8 @@ mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
 		 * of tail_seq is that it answers exactly this question.
 		 */
 		if (u->tail_seq > before && u->tail_seq > u->head_seq &&
-		    u->owner && tgt_ready_edge)
-			tgt_ready_edge(u->owner, MTP_NOTIF_READABLE);
+		    u->owner && ReadyEdge)
+			ReadyEdge(u->owner, MTP_NOTIF_READABLE);
 	}
 	return (int)len;
 }
@@ -187,7 +187,7 @@ mtp_rx_flush_and_notify(struct mtp_data_unit *u, uint32_t len,
 	 * loss is permanent. This is the one placement the design cannot get
 	 * wrong quietly.
 	 */
-	if (u->tail_seq > u->head_seq && u->owner && tgt_ready_edge)
-		tgt_ready_edge(u->owner, MTP_NOTIF_READABLE);
+	if (u->tail_seq > u->head_seq && u->owner && ReadyEdge)
+		ReadyEdge(u->owner, MTP_NOTIF_READABLE);
 	return (int)len;
 }

@@ -113,7 +113,7 @@ struct flow {
 	 * on_send_q, so a second asker cannot add a second entry. */
 	uint8_t		 on_retry;
 	TAILQ_ENTRY(flow) destroy_link;
-	uint8_t		 scratch_out[MTP_PRIO_CLASSES];	/* a tgt_bp_new() awaiting commit */
+	uint8_t		 scratch_out[MTP_PRIO_CLASSES];	/* a BlueprintNew() awaiting commit */
 };
 
 /*
