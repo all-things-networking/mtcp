@@ -191,6 +191,14 @@ config transport { tcp_timewait; tcp_timeout; }
 // piece the target cannot do for us.
 flow_id tcp_fid : (uint32, uint32, uint16, uint16)
 
+// A LISTENING ENDPOINT IS NOT NAMED BY A CONNECTION'S KEY. It has no remote
+// half, so keying it on the four-tuple meant building (ip, 0, port, 0) and a
+// zero key was then indistinguishable from a real one -- which is why the
+// connection had to carry a `has_lst` flag beside the key to say whether it
+// meant anything. Its own shape removes both problems: the key is well formed,
+// and the two kinds cannot collide.
+flow_id tcp_lid : (uint32, uint16)
+
 // §events
 // ---------------------------------------------------------------------------
 event tcp_syn      : net_event { uint32 seq; uint16 sport, dport, window;
@@ -278,12 +286,10 @@ context tcp_ctx {
     // zeroed key silently: every connection that reached TIME_WAIT leaked.
     tcp_fid key;
 
-    // The endpoint that accepted this connection, BY KEY. Its object is what a
-    // one-shot server serves and its context is where the handshake's readable
-    // event belongs. Held as a key rather than a reference because contexts are
-    // keyed; `has_lst` distinguishes "no listener" from a zero key.
-    tcp_fid lst_key;
-    bool   has_lst;
+    // The endpoint that accepted this connection, BY KEY. Held as a key rather
+    // than a reference because contexts are keyed. A zero key is not a valid
+    // tcp_lid, so the key alone says whether there is a listener.
+    tcp_lid lst_key;
 
     // --- send side, sequence space -------------------------------------
     // TWO SPACES, and conflating them is the fifth instance of the class in
@@ -585,8 +591,8 @@ tcp_fid key_of_inbound(uint32 loc_ip, uint32 rem_ip,
 // always has zero for both remote halves. G8 lives here — both halves of the
 // local endpoint must match — and it is a statement about TCP, which is why it
 // is a key this program builds rather than a table the target keeps.
-tcp_fid key_of_listener(uint32 loc_ip, uint16 loc_port) {
-    return key_of_inbound(loc_ip, 0, loc_port, 0);
+tcp_lid key_of_listener(uint32 loc_ip, uint16 loc_port) {
+    return tcp_lid(loc_ip, loc_port);
 }
 
 // §window_rule
@@ -1000,7 +1006,6 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         ctx = new_ctx(fid);
         ctx.key      = fid;
         ctx.lst_key  = lk;
-        ctx.has_lst  = true;
         ctx.loc_port = bp.dst_port;
         ctx.rem_port = bp.src_port;
         ctx.local_ip = h.daddr;
@@ -1494,36 +1499,38 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
     // the donor does nor something an accepting application can act on — the
     // donor enqueues the stream on the accept queue (tcp_in.c:884) and raises
     // EPOLLIN on the listening socket (:898-900).
-    if (ctx.has_lst) {
-        tcp_listen_ctx lst = ctx_lookup(ctx.lst_key);
+    // No `has_lst` test: a connection that never had a listener holds a
+    // zero key, which is not a valid tcp_lid, so the lookup misses and
+    // `exists` below is false. The flag existed only because a zero
+    // four-tuple was a key like any other.
+    tcp_listen_ctx lst = ctx_lookup(ctx.lst_key);
 
-        if (exists(lst) && lst.pending_n < PROG_MAX_BACKLOG) {
-            lst.pending[lst.pending_n] = ctx.f;
-            lst.pending_n = lst.pending_n + 1;
-            notify(lst.f, READABLE);
+    if (exists(lst) && lst.pending_n < PROG_MAX_BACKLOG) {
+        lst.pending[lst.pending_n] = ctx.f;
+        lst.pending_n = lst.pending_n + 1;
+        notify(lst.f, READABLE);
+    }
+    // The application posted an object before listening; serve it. It
+    // arrives through the app interface as a SEND, so this is the same two
+    // steps the application thread takes — buffer, then hand over the
+    // extent — except that this path already runs on the stack thread and
+    // so does both itself.
+    if (exists(lst) && lst.obj_len > 0) {
+        uint32 wrote = add_tx_data(ctx.tx, lst.obj, lst.obj_len);
+
+        if (wrote > 0) {
+            tcp_scratch gs;
+
+            ctx.write_end = ctx.write_end + wrote;
+            // The generate half, run inline: this path is ALREADY on the
+            // stack thread, so it does both steps itself rather than
+            // buffering and asking. Same three processors, same order, as
+            // the app_send generate chain.
+            gen_seg(ev, ctx, gs);
+            drain_owed_acks(ev, ctx, gs);
+            gen_wnd_adv(ev, ctx);
         }
-        // The application posted an object before listening; serve it. It
-        // arrives through the app interface as a SEND, so this is the same two
-        // steps the application thread takes — buffer, then hand over the
-        // extent — except that this path already runs on the stack thread and
-        // so does both itself.
-        if (exists(lst) && lst.obj_len > 0) {
-            uint32 wrote = add_tx_data(ctx.tx, lst.obj, lst.obj_len);
-
-            if (wrote > 0) {
-                tcp_scratch gs;
-
-                ctx.write_end = ctx.write_end + wrote;
-                // The generate half, run inline: this path is ALREADY on the
-                // stack thread, so it does both steps itself rather than
-                // buffering and asking. Same three processors, same order, as
-                // the app_send generate chain.
-                gen_seg(ev, ctx, gs);
-                drain_owed_acks(ev, ctx, gs);
-                gen_wnd_adv(ev, ctx);
-            }
-            ctx.app_closed = true;   // a one-shot server has said all it will
-        }
+        ctx.app_closed = true;   // a one-shot server has said all it will
     }
     return;
 }

@@ -18,6 +18,7 @@
 #include <stdint.h>
 
 typedef struct __attribute__((packed)) {
+	uint8_t  kind;
 	uint32_t v0;
 	uint32_t v1;
 	uint16_t v2;

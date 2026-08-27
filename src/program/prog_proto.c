@@ -146,7 +146,7 @@ TCPBP_extract(struct TCPBP *b, const uint8_t *in, uint16_t len)
 flowkey_t
 key_of_inbound(uint32_t loc_ip, uint32_t rem_ip, uint16_t loc_port, uint16_t rem_port)
 {
-	return ((flowkey_t){ .v0 = loc_ip, .v1 = rem_ip, .v2 = loc_port, .v3 = rem_port });
+	return ((flowkey_t){ .kind = 0, .v0 = loc_ip, .v1 = rem_ip, .v2 = loc_port, .v3 = rem_port });
 }
 
 /*
@@ -161,7 +161,7 @@ key_of_inbound(uint32_t loc_ip, uint32_t rem_ip, uint16_t loc_port, uint16_t rem
 flowkey_t
 key_of_listener(uint32_t loc_ip, uint16_t loc_port)
 {
-	return key_of_inbound(loc_ip, 0, loc_port, 0);
+	return ((flowkey_t){ .kind = 1, .v0 = loc_ip, .v1 = loc_port });
 }
 
 /*
@@ -620,7 +620,6 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		ctx->rcv_wnd = PARITY_INITIAL_WINDOW;
 		ctx->key = fid;
 		ctx->lst_key = lk;
-		ctx->has_lst = true;
 		ctx->loc_port = bp.dst_port;
 		ctx->rem_port = bp.src_port;
 		ctx->local_ip = iph->daddr;
@@ -910,24 +909,22 @@ proc_open_done(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 	ctx->send_wnd = ((uint32_t)(ev->window) << ctx->snd_wscale);
 	ctx->ts_recent = ev->ts_val;
 	ctx->state = ST_ESTABLISHED;
-	if (ctx->has_lst) {
-		struct tcp_listen_ctx *lst = mtp_ctx_lookup(&(ctx->lst_key));
-		if ((((lst) != NULL) && (lst->pending_n < PROG_MAX_BACKLOG))) {
-			lst->pending[lst->pending_n] = ctx->f;
-			lst->pending_n = (lst->pending_n + 1);
-			mtp_notify(lst->f, &(struct mtp_notif){ .kind = MTP_NOTIF_READABLE });
+	struct tcp_listen_ctx *lst = mtp_ctx_lookup(&(ctx->lst_key));
+	if ((((lst) != NULL) && (lst->pending_n < PROG_MAX_BACKLOG))) {
+		lst->pending[lst->pending_n] = ctx->f;
+		lst->pending_n = (lst->pending_n + 1);
+		mtp_notify(lst->f, &(struct mtp_notif){ .kind = MTP_NOTIF_READABLE });
+	}
+	if ((((lst) != NULL) && (lst->obj_len > 0))) {
+		uint32_t wrote = mtp_add_tx_data(&(ctx->tx), lst->obj, lst->obj_len);
+		if ((wrote > 0)) {
+			struct tcp_scratch gs = { 0 };
+			ctx->write_end = (ctx->write_end + wrote);
+			gen_seg(ctx, &gs, now_ms);
+			drain_owed_acks(ctx, &gs, now_ms);
+			gen_wnd_adv(ctx, now_ms);
 		}
-		if ((((lst) != NULL) && (lst->obj_len > 0))) {
-			uint32_t wrote = mtp_add_tx_data(&(ctx->tx), lst->obj, lst->obj_len);
-			if ((wrote > 0)) {
-				struct tcp_scratch gs = { 0 };
-				ctx->write_end = (ctx->write_end + wrote);
-				gen_seg(ctx, &gs, now_ms);
-				drain_owed_acks(ctx, &gs, now_ms);
-				gen_wnd_adv(ctx, now_ms);
-			}
-			ctx->app_closed = true;
-		}
+		ctx->app_closed = true;
 	}
 	return;
 }

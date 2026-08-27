@@ -164,13 +164,11 @@ struct tcp_ctx {
 	flowkey_t key;
 
 	/*
-	 * The endpoint that accepted this connection, BY KEY. Its object is what a
-	 * one-shot server serves and its context is where the handshake's readable
-	 * event belongs. Held as a key rather than a reference because contexts are
-	 * keyed; `has_lst` distinguishes "no listener" from a zero key.
+	 * The endpoint that accepted this connection, BY KEY. Held as a key rather
+	 * than a reference because contexts are keyed. A zero key is not a valid
+	 * tcp_lid, so the key alone says whether there is a listener.
 	 */
 	flowkey_t lst_key;
-	bool has_lst;
 
 	/*
 	 * --- send side, sequence space -------------------------------------

@@ -82,9 +82,18 @@ test_key_is_bytes(void)
 	flowkey_t same = k(0x0a070009, 0x0a07000c, 1234, 80);
 	void *c;
 
-	CHECK(sizeof(flowkey_t) == 12,
-	      "key is %zu bytes; a packed (u32,u32,u16,u16) is 12. Padding would "
-	      "make two equal keys differ", sizeof(flowkey_t));
+	/*
+	 * PACKED, not a fixed width. The number was 12 while the program
+	 * declared one flow id; a second one adds the discriminator byte that
+	 * keeps the two shapes from colliding, so hard-coding the total made
+	 * this test fail on a correct change. What the target actually needs is
+	 * that there is no PADDING -- it hashes and compares the bytes, and a
+	 * padding hole would make two equal keys differ.
+	 */
+	CHECK(sizeof(flowkey_t) == sizeof(a.kind) + sizeof(a.v0) + sizeof(a.v1)
+				 + sizeof(a.v2) + sizeof(a.v3),
+	      "key is %zu bytes, more than its fields: it has padding, and two "
+	      "equal keys would differ", sizeof(flowkey_t));
 
 	c = FlowTableInsert(t, &a, sizeof(struct tcp_ctx));
 	CHECK(FlowTableLookup(t, &same) == c,
