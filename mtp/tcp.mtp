@@ -219,23 +219,30 @@ event tcp_timewait_timeout : timer_event { }
 event tcp_probe_timeout    : timer_event { }
 event tcp_idle_timeout     : timer_event { }
 
-// The application side. `accepted` and `opened` are OUT fields: the processor
-// writes one and the generated dispatch hands it back to the synchronous call
-// that raised the event. See §types.
+// The application side. OUT FIELDS: a processor writes one and the generated
+// dispatch hands it back to the synchronous call that raised the event.
+//
+// `accepted` and `opened` are handles -- CR-2, already ruled on. `result` is
+// the OTHER half of the same need and is not written down anywhere yet: a
+// socket `read` answers with a BYTE COUNT, and 0 means end-of-stream while -1
+// means "nothing now". Without it every read answers 0, every application sees
+// end-of-stream on a connection that has only just opened, and no byte is ever
+// served. See docs/LANGUAGE-NEEDS.md.
 event app_bind     : app_event { uint32 ip; uint16 port; }
 event app_listen   : app_event { uint32 ip; uint16 port; uint32 backlog;
                                  handle_t opened; }
-event app_accept   : app_event { uint32 ip; uint16 port; handle_t accepted; }
+event app_accept   : app_event { uint32 ip; uint16 port; handle_t accepted;
+                                 int32 result; }
 event app_connect  : app_event { uint32 loc_ip, rem_ip;
                                  uint16 loc_port, rem_port; handle_t opened; }
-event app_recv     : app_event { rx_addr_t buf; uint32 len; }
+event app_recv     : app_event { rx_addr_t buf; uint32 len; int32 result; }
 // TWO HALVES OF ONE EVENT ON TWO THREADS (CR-4). `record_data` copies into the
 // transmit stream and generates nothing, so it runs inside the application's
 // call; `gen_seg` advances send_next, which is the stack's. A compiler emits
 // two entry points and the target calls each from the right thread; with one
 // entry point in the contract the phase rides on the event.
 event app_send     : app_event { addr_t addr; uint32 mlen; bool phase_record;
-                                 uint32 ip; uint16 port; }
+                                 uint32 ip; uint16 port; int32 result; }
 event app_close    : app_event { }
 
 // §context
@@ -2065,14 +2072,23 @@ void mark_closed(app_close ev, tcp_ctx ctx) {
 void record_data(app_send ev, tcp_ctx ctx) {
     uint32 wrote;
 
-    if (!ev.phase_record)
-        return;                     // this is the generate half
-    if (!send_side_open(ctx) || !ctx.tx_open)
+    if (!ev.phase_record) {
+        // THE GENERATE HALF answers with the extent it was handed, which the
+        // application has already buffered (CR-4). A closed send path refuses.
+        ev.result = send_side_open(ctx) ? int32(ev.mlen) : -1;
         return;
+    }
+    if (!send_side_open(ctx) || !ctx.tx_open) {
+        ev.result = -1;
+        return;
+    }
 
     wrote = add_tx_data(ctx.tx, ev.addr, ev.mlen);
     if (wrote > 0)
         ctx.write_end = ctx.write_end + wrote;
+    // What the application is told it wrote. A short return is back-pressure,
+    // not an error.
+    ev.result = int32(wrote);
     return;
 }
 
@@ -2316,9 +2332,17 @@ void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
 // received every byte of every object and never once counted a completion.
 void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
     s.delivered = rx_flush_and_notify(ctx.rx, ev.len, ev.buf);
-    if (s.delivered == 0)
+    if (s.delivered == 0) {
+        // EMPTY IS NOT THE SAME AS ENDED. The donor's read returns 0 only at
+        // end-of-stream -- the peer has closed and the buffer is drained -- and
+        // -1 when the buffer merely happens to be empty. We returned 0 for
+        // both, and epwget recognises a completed download ONLY in its `rd == 0`
+        // branch, so a client received every byte of every object and never
+        // counted a completion.
+        ev.result = ctx.fin_consumed ? 0 : -1;
         return;
-
+    }
+    ev.result = int32(s.delivered);
     sock_recv(ctx, s.delivered);        // §window_rule RECOMPUTE POINT 2
     return;
 }
@@ -2672,10 +2696,14 @@ void proc_listen(app_listen ev, tcp_listen_ctx ctx) {
 void proc_accept(app_accept ev, tcp_listen_ctx ctx) {
     uint32 i;
 
-    if (!exists(ctx) || ctx.state != ST_LISTEN)
+    if (!exists(ctx) || ctx.state != ST_LISTEN) {
+        ev.result = -1;
         return;
-    if (ctx.pending_n == 0)
-        return;                     // nothing to hand over
+    }
+    if (ctx.pending_n == 0) {
+        ev.result = -1;             // nothing to hand over
+        return;
+    }
 
     ev.accepted = ctx.pending[0];
     for (i = 1; i < ctx.pending_n; i = i + 1)

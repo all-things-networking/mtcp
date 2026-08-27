@@ -877,15 +877,18 @@ record_data(struct app_ev *ev, struct tcp_ctx *ctx)
 {
 	uint32_t wrote;
 	if (!(ev->phase_record)) {
+		ev->result = (send_side_open(ctx) ? (int32_t)(ev->mlen) : -(1));
 		return;
 	}
 	if ((!(send_side_open(ctx)) || !(ctx->tx_open))) {
+		ev->result = -(1);
 		return;
 	}
 	wrote = mtp_add_tx_data(&(ctx->tx), ev->addr, ev->mlen);
 	if ((wrote > 0)) {
 		ctx->write_end = (ctx->write_end + wrote);
 	}
+	ev->result = (int32_t)(wrote);
 	return;
 }
 
@@ -1004,8 +1007,10 @@ proc_drain(struct app_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 {
 	s->delivered = mtp_rx_flush_and_notify(&(ctx->rx), ev->len, ev->buf);
 	if ((s->delivered == 0)) {
+		ev->result = (ctx->fin_consumed ? 0 : -(1));
 		return;
 	}
+	ev->result = (int32_t)(s->delivered);
 	sock_recv(ctx, s->delivered);
 	return;
 }
@@ -1187,9 +1192,11 @@ proc_accept(struct app_ev *ev, struct tcp_listen_ctx *ctx)
 {
 	uint32_t i;
 	if ((!(((ctx) != NULL)) || (ctx->state != ST_LISTEN))) {
+		ev->result = -(1);
 		return;
 	}
 	if ((ctx->pending_n == 0)) {
+		ev->result = -(1);
 		return;
 	}
 	ev->accepted = ctx->pending[0];

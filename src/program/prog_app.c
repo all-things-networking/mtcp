@@ -203,12 +203,11 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 		}
 	}
 
-	/* CR-2: the handle the chain produced, back to the synchronous call */
+	/* CR-2: the handle the chain produced */
 	if (ev.accepted)
 		op->flow = ev.accepted;
 	if (ev.opened)
 		op->flow = ev.opened;
-	if (ev.opened)
-		op->flow = ev.opened;
-	return 0;
+	/* ...and the count, which is the other half of the same need */
+	return ev.result;
 }

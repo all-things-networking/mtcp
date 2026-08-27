@@ -55,6 +55,7 @@ struct app_ev {
 	uint16_t port;
 	uint32_t rem_ip;
 	uint16_t rem_port;
+	int32_t result;
 	flowkey_t __key;	/* set by the parser's set_flow_id */
 	flow_t   *__flow;	/* set by set_flow, when the op names one */
 };
