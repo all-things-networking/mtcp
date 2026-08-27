@@ -466,18 +466,10 @@ struct tcp_scratch {
  * happen to be in -- and the split across two .c files stays a presentation
  * choice rather than a linkage constraint.
  */
-void
-sock_recv(struct tcp_ctx *ctx, uint32_t delivered_now);
-uint16_t
-tcp_window_field(struct tcp_ctx *ctx, bool is_syn);
 struct TCPBP
 build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now);
 struct TCPBP
 build_rst_hdr(uint16_t loc_port, uint16_t rem_port, uint32_t seq, uint32_t ack, uint8_t flags);
-bool
-unacked_on_wire(struct tcp_ctx *ctx);
-void
-estimate_rtt(struct tcp_ctx *ctx, uint32_t now, uint32_t ts_ecr);
 unsigned
 parse_tcp(const uint8_t *l4, uint16_t plen,
 		const struct iphdr *iph, struct net_ev *ev, uint8_t *kinds,
@@ -503,12 +495,6 @@ parse_recv(struct mtp_app_op *op, struct app_ev *ev,
 unsigned
 sock_close(struct mtp_app_op *op, struct app_ev *ev,
 		uint8_t *kinds, uint32_t now_ms);
-bool
-proc_validate(struct tcp_ctx *ctx, struct TCPBP bp, uint32_t payload_len);
-void
-gen_rst(uint32_t local_ip, uint32_t remote_ip, struct TCPBP seg, uint32_t payload_len);
-void
-gen_rst_from_ctx(struct tcp_ctx *ctx, uint32_t ack);
 void
 proc_passive_open(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms);
 void
@@ -527,8 +513,6 @@ void
 proc_ack(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s);
 void
 proc_recv(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s);
-void
-owe_ack(struct tcp_ctx *ctx, uint8_t opt);
 void
 send_ack(struct tcp_ctx *ctx, struct tcp_scratch *s);
 void

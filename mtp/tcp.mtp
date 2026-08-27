@@ -578,39 +578,8 @@ opt_list tcp_options { list<tcp_opt> opts; }
 
 
 
-// §sock_recv_apply
-// ---------------------------------------------------------------------------
-// RECOMPUTE POINT 2 — the application drained (mTCP api.c:1141). `delivered`
-// advances by what the flush instruction REPORTED it handed over, so the
-// accounting cannot drift from what the target actually gave the application.
-//
-// Generation is the stack's, so this only ASKS: the retry list runs the
-// generate chain on the stack thread, and §gen_wnd_adv builds the update there.
-void sock_recv(tcp_ctx ctx, uint32 delivered_now) {
-    ctx.delivered = ctx.delivered + delivered_now;
-ctx.rcv_wnd = PARITY_RCVBUF_SIZE - ((ctx.recv_next - ctx.delivered)
-                  - ((ctx.fin_consumed && ctx.recv_next != ctx.delivered) ? 1 : 0));
-    if (ctx.need_wnd_adv && ctx.rcv_wnd > PARITY_MSS_PAYLOAD)
-        retry(ctx);
-}
 
 
-// §tcp_window_field
-// ---------------------------------------------------------------------------
-// What goes in the header's window field. Unscaled on a SYN, because window
-// scaling is not in effect until the handshake completes; shifted thereafter.
-// This is the whole of the observed sequence 14600 -> 14592 -> 2048.
-//
-// A VALUE ONE BELOW 2048 IS CORRECT, NOT AN OFF-BY-ONE. Between the merge and
-// the application's read the bytes are held, so the window is PARITY_RCVBUF_SIZE minus what
-// is held: one byte held advertises 2047. Observed on the wire 2026-08-13.
-// Anyone "fixing" this to an unconditional 2048 would be removing the mechanism
-// and would only find out from a trace diff.
-uint16 tcp_window_field(tcp_ctx ctx, bool is_syn) {
-    if (is_syn)
-        return uint16(ctx.rcv_wnd);
-    return uint16(ctx.rcv_wnd >> PARITY_WSCALE);
-}
 
 // §build_hdr
 // ---------------------------------------------------------------------------
@@ -648,7 +617,8 @@ TCPBP build_hdr(tcp_ctx ctx, uint32 seq, uint8 flags, uint32 now) {
     bp.seq_no   = seq;
     bp.ack_seq  = ctx.recv_next;
     bp.flags    = PARITY_SET_PSH ? flags : (flags & ~FLAG_PSH);
-    bp.window   = tcp_window_field(ctx, is_syn);
+    bp.window   = is_syn ? uint16(ctx.rcv_wnd)
+                         : uint16(ctx.rcv_wnd >> PARITY_WSCALE);
     bp.urg_ptr  = 0;
 
     if (bp.window == 0)
@@ -697,96 +667,8 @@ TCPBP build_rst_hdr(uint16 loc_port, uint16 rem_port, uint32 seq, uint32 ack,
 
 
 
-// §unacked_on_wire
-// ---------------------------------------------------------------------------
-// Is there data ON THE WIRE that has not been acknowledged? The only thing a
-// retransmission timer should be waiting for.
-//
-// NOT `send_una != send_next`: send_next advances at GENERATION, so that test
-// is true for a blueprint still sitting in the target's ring. Arming on it lets
-// the timer expire against data that never went out, and the expiry rewinds
-// send_next and regenerates — producing a retransmission for a range a live
-// blueprint is still carrying, whose reference can then never drain.
-//
-// THE FIN. "Emitted payload beyond what is acknowledged" cannot see a FIN,
-// which emits none — so once the data is all acknowledged this test went false,
-// the timer was stopped, and a lost FIN was never retransmitted. The second
-// clause is that case, and it is the reason this is not one expression.
-// THE EMITTED C CARRIES A RUNTIME TOGGLE HERE (MTP_RTO_ARM_ON_GENERATION),
-// which restores the generation-based test so both arms of the comparison come
-// from ONE binary. It is EXPERIMENT SCAFFOLDING, not protocol: this program
-// describes the default arm, which is the one below.
-bool unacked_on_wire(tcp_ctx ctx) {
-    uint64 acked = ctx.send_una - ctx.snd_base;
-
-    if (ctx.tx_open && tx_emitted(ctx.tx) > acked)
-        return true;
-    return ctx.fin_pending && ctx.send_una != ctx.send_next;
-}
 
 
-// §estimate_rtt
-// ---------------------------------------------------------------------------
-// The round-trip estimator, from the donor: rto = (srtt >> 3) + rttvar, with
-// srtt held scaled by eight. NO FLOOR AND NO CEILING — reproduce, do not
-// correct. The sample comes from the timestamp the peer echoes, which is why
-// this program sends timestamps on every segment.
-//
-// A SAMPLE OF AT LEAST ONE TICK, which is what the donor's recorded state says
-// it takes: the donor sits at srtt = 8, rttvar = 2, which is exactly this
-// function's first-sample initialisation with m = 1, not m = 0. The round trip
-// here is at most 0.229 ms, so a same-tick echo gives m = 0 and a timeout of 0
-// that the wheel floors at one tick — a THIRD of the donor's three, and we
-// retransmit on an idle link where it does not. This is a floor on the SAMPLE,
-// not on the RTO; the RTO still has none.
-//
-// AND IT IS THE DONOR'S COMPLETE CHECK: `if (m == 0) m = 1;` is all it does. No
-// bound, no ahead-of-clock test, no Karn's rule. So we add no validation the
-// donor lacks.
-//
-// THE FORM MATTERS, because the next reader will think `mdev` is an
-// idiosyncratic way of writing the textbook estimator and simplify it:
-//
-//     textbook   rttvar += (|err| - rttvar) >> 2     decays
-//     donor      mdev   += |err| - (mdev >> 2)       pinned
-//
-// Same intent, same shape, opposite behaviour. With m == 1, which is what this
-// testbed always produces, srtt = 8, mdev = 2, RTO = 3 ticks and it DOES NOT
-// MOVE — rttvar cannot decay because `mdev >> 2` is 0 at mdev = 2. One 2-tick
-// sample takes the timeout to 4 ticks permanently. At these magnitudes the
-// donor's timeout is monotonically non-decreasing, and an estimator that decays
-// properly sits at 3 where the donor sits at 4, so the timers fire at different
-// moments. Only running both found this.
-void estimate_rtt(tcp_ctx ctx, uint32 now, uint32 ts_ecr) {
-    uint32 m;
-
-    if (ts_ecr == 0)
-        return;
-    m = now - ts_ecr;                // in 1 ms ticks
-    if (m == 0)
-        m = 1;
-
-    if (ctx.srtt == 0) {
-        ctx.srtt = m << 3;
-        ctx.mdev = m << 1;
-    } else {
-        int32 d = int32(m) - int32(ctx.srtt >> 3);
-
-        ctx.srtt = uint32(int32(ctx.srtt) + d);
-        if (d < 0) {
-            d = -d;
-            d = d - int32(ctx.mdev >> 2);
-            if (d > 0)
-                d = d >> 3;
-        } else {
-            d = d - int32(ctx.mdev >> 2);
-        }
-        ctx.mdev = uint32(int32(ctx.mdev) + d);
-    }
-    ctx.rttvar = ctx.mdev;
-    ctx.rto_ms = (ctx.srtt >> 3) + ctx.rttvar;
-    ctx.have_rtt = true;
-}
 
 // §net_parser
 // ---------------------------------------------------------------------------
@@ -828,7 +710,7 @@ void estimate_rtt(tcp_ctx ctx, uint32 now, uint32 ts_ecr) {
 //   a SYN is matched against a LISTENER, and whether the backlog has room
 //   decides whether a context is created at all (G8, C3);
 //
-//   §proc_validate refuses a segment BEFORE any event is raised, which is the
+//   the parser refuses a segment BEFORE any event is raised, which is the
 //   donor's placement — ProcessTCPPacket calls ValidateSequence after the flow
 //   lookup and before the state handlers, and drops on a false return. Running
 //   it as the first link of every chain instead would validate a segment that
@@ -854,10 +736,7 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         // A segment for a connection that does not exist. tcp_in.c:744/748 --
         // the donor answers with a reset rather than dropping it, which is what
         // lets a peer holding a stale connection find out.
-        if ((bp.flags & FLAG_SYN) == 0 || (bp.flags & FLAG_ACK) != 0) {
-            gen_rst(h.daddr, h.saddr, bp, payload_len);
-            return out;
-        }
+        bool refuse = (bp.flags & FLAG_SYN) == 0 || (bp.flags & FLAG_ACK) != 0;
 
         tcp_fid lk = tcp_lid(h.daddr, bp.dst_port);
         tcp_listen_ctx lst = ctx_lookup(lk);
@@ -865,8 +744,26 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         // tcp_in.c:700 -- a SYN the listener filter refuses is answered with a
         // reset. A MISS IS A MISS, never a null context handed onward, which is
         // how the prototype turns a missed lookup into a crash.
-        if (!exists(lst) || lst.state != ST_LISTEN) {
-            gen_rst(h.daddr, h.saddr, bp, payload_len);
+        if (!refuse && (!exists(lst) || lst.state != ST_LISTEN))
+            refuse = true;
+
+        if (refuse) {
+            // The reset, built from the arriving segment's own fields because
+            // there is no context to build one from. Never answer a reset with
+            // a reset.
+            if ((bp.flags & FLAG_RST) != 0)
+                return out;
+            if ((bp.flags & FLAG_ACK) != 0) {
+                pkt_gen_orphan(h.daddr, h.saddr,
+                               build_rst_hdr(bp.dst_port, bp.src_port,
+                                             bp.ack_seq, 0, FLAG_RST));
+            } else {
+                pkt_gen_orphan(h.daddr, h.saddr,
+                               build_rst_hdr(bp.dst_port, bp.src_port, 0,
+                                             bp.seq_no + payload_len
+                                             + ((bp.flags & FLAG_SYN) != 0 ? 1 : 0),
+                                             FLAG_RST | FLAG_ACK));
+            }
             return out;
         }
 
@@ -903,10 +800,68 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
         timer_start(ctx.idle_timer, millisecond(PARITY_IDLE_MS));
 
-    if (!proc_validate(ctx, bp, payload_len))
-        return out;             // refused: it raises nothing, and whatever
-                                // acknowledgement the donor queues on that path
-                                // has already been queued by proc_validate
+    // VALIDATION, before any event is raised. A segment refused here raises
+    // nothing, and the acknowledgement the donor queues on each refusing path
+    // is queued here with it.
+    bool   accept = false;
+    uint32 seg_end;
+
+    if (ctx.state == ST_CLOSED || ctx.state == ST_LISTEN ||
+        ctx.state == ST_SYN_RCVD || ctx.state == ST_SYN_SENT) {
+        // nothing to validate against before the handshake completes
+        accept = true;
+    } else {
+        if ((bp.flags & FLAG_RST) == 0 && ctx.saw_timestamp) {
+            // a peer that timestamps and then sends none: dropped, and the
+            // donor leaves a TODO where a standards-based handler would go
+            if (!bp.opts.has_ts)
+                return out;
+            // RFC 1323: SEG.TSval < TS.Recent -> drop, and acknowledge so the
+            // peer learns where we are
+            if (int32(bp.opts.ts_val - ctx.ts_recent) < 0) {
+                ctx.ack_cnt = ctx.ack_cnt + 1;
+                retry(ctx);
+                return out;
+            }
+            ctx.ts_recent = bp.opts.ts_val;
+        }
+        // the donor's test, on the segment's LAST byte -- not RFC 793's, which
+        // tests first and last separately
+        seg_end = bp.seq_no + payload_len;
+        if (int32(seg_end - ctx.recv_next) >= 0 &&
+            int32(seg_end - (ctx.recv_next + ctx.rcv_wnd)) <= 0)
+            accept = true;
+    }
+
+    if (!accept) {
+        if ((bp.flags & FLAG_RST) != 0)
+            return out;         // a reset outside the window is ignored, not
+                                // answered: two hosts would trade resets
+        if (ctx.state == ST_ESTABLISHED) {
+            if (bp.seq_no + 1 == ctx.recv_next
+                || int32(bp.seq_no - ctx.recv_next) <= 0) {
+                // the peer's window probe, and anything at or behind the
+                // boundary: one acknowledgement for the pass answers both
+                if (ctx.ack_cnt == 0)
+                    ctx.ack_cnt = 1;
+                retry(ctx);
+            } else {
+                // ahead of the window: this segment owes its own
+                ctx.ack_cnt = ctx.ack_cnt + 1;
+                retry(ctx);
+            }
+        } else {
+            // outside ESTABLISHED the donor answers from its control list and
+            // refreshes the TIME_WAIT deadline if that is where it is
+            if (ctx.state == ST_TIME_WAIT) {
+                ctx.state = ST_TIME_WAIT;
+                timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
+            }
+            ctx.ack_cnt = ctx.ack_cnt + 1;
+            retry(ctx);
+        }
+        return out;
+    }
 
     if ((bp.flags & FLAG_RST) != 0) {
         tcp_rst r;
@@ -1078,15 +1033,10 @@ list<event_t> sock_send(send op) {
     return out;
 }
 
-// §sock_recv
+// §parse_recv
 // ---------------------------------------------------------------------------
-// The application drains. RECOMPUTE POINT 2 of §window_rule and the only reason
-// `recv` is bound at all: `delivered` advances by what the flush instruction
-// REPORTS it handed over — not by what the application asked for, which may be
-// more — and the advertised window reopens by exactly that much. The count
-// comes from the instruction's return value rather than from a target accessor,
-// which is what lets the program own `delivered` without the target exposing
-// its unit's occupancy. The work itself is §proc_drain.
+// The application's read, turned into an event. The drain itself is
+// §proc_drain, which is also recompute point 2 of §window_rule.
 list<event_t> parse_recv(recv op) {
     list<event_t> out;
     app_recv ev;
@@ -1126,170 +1076,8 @@ list<event_t> sock_close(close op) {
     return out;
 }
 
-// §proc_validate
-// ---------------------------------------------------------------------------
-// PAWS and the sequence-acceptability test, run BEFORE any event is raised.
-//
-// It is the donor's ValidateSequence, reproduced rather than re-derived, and
-// three things about it are worth stating because a standards-based
-// implementation would differ:
-//
-//   - the acceptability test is on `seq + payload_len` lying inside
-//     [recv_next, recv_next + rcv_wnd]. RFC 793's test is on the segment's
-//     first and last bytes separately; this is the donor's. It is the reason a
-//     segment can be refused whose FIRST byte was inside the window — the right
-//     edge moves left as unread data piles up, so data the peer sent
-//     legitimately can arrive after the edge has retreated behind it. Measured
-//     2026-08-26: 68,110 of 8,123,072 segments. The donor does the same thing
-//     and drops fewer only because its application leaves less unread;
-//   - a segment from a timestamping peer that carries NO timestamp is DROPPED.
-//     The donor leaves a TODO where a standards-based handler would go;
-//   - `ts_recent` is updated HERE, before dispatch, and only for a segment this
-//     accepts. Updating it in §proc_timestamp for any acknowledgement moved it
-//     on segments the donor would have rejected.
-//
-// A REFUSAL IS NOT SILENT: PAWS failure and a segment outside the window both
-// queue an acknowledgement, so the peer learns where we are. A reset outside
-// the window is ignored instead, and answered by nothing.
-//
-// THE STATE GUARD IS WRITTEN AS NAMES, NOT AS AN ORDERING. The donor guards the
-// whole call with `state > TCP_ST_SYN_RCVD`, and in ITS enum SYN_SENT sits
-// BELOW SYN_RCVD, so that one test excludes both halves of a handshake. Ours
-// appended SYN_SENT at the END of the state list, because it was added last, so
-// the same comparison would have included it. It cost a day: an active open
-// validated its own SYN-ACK against a recv_next of zero, rejected it, and the
-// connection never completed.
-bool proc_validate(tcp_ctx ctx, TCPBP bp, uint32 payload_len) {
-    uint32 seg_end;
 
-    if (ctx.state == ST_CLOSED || ctx.state == ST_LISTEN ||
-        ctx.state == ST_SYN_RCVD || ctx.state == ST_SYN_SENT)
-        return true;
 
-    // --- PAWS ----------------------------------------------------------
-    if ((bp.flags & FLAG_RST) == 0 && ctx.saw_timestamp) {
-        if (!bp.opts.has_ts)
-            return false;               // no timestamp from a peer that
-                                        // timestamps: dropped
-        if (int32(bp.opts.ts_val - ctx.ts_recent) < 0) {
-            // RFC 1323: SEG.TSval < TS.Recent -> drop, and acknowledge so the
-            // peer learns where we are.
-            owe_ack(ctx, ACK_APIECE);
-            return false;
-        }
-        ctx.ts_recent = bp.opts.ts_val;
-    }
-
-    // --- sequence acceptability -----------------------------------------
-    seg_end = bp.seq_no + payload_len;
-    if (int32(seg_end - ctx.recv_next) >= 0 &&
-        int32(seg_end - (ctx.recv_next + ctx.rcv_wnd)) <= 0)
-        return true;                    // acceptable
-
-    if ((bp.flags & FLAG_RST) != 0)
-        return false;                   // a reset outside the window is
-                                        // ignored, not answered
-
-    if (ctx.state == ST_ESTABLISHED) {
-        // THREE CASES, and the donor answers them differently. We answered all
-        // three the same way, which is the collapse `ack_cnt` exists to undo.
-        //
-        //   the peer's WINDOW PROBE -- one byte behind what we expect next, so
-        //   deliberately outside our window and unmistakable -- and anything at
-        //   or behind the boundary: AGGREGATE. Both are the peer asking where
-        //   we are, and one answer per pass tells it.
-        //
-        //   anything AHEAD of the window: one apiece. These are the segments a
-        //   sender keeps pushing past a hole, and each owes its own duplicate
-        //   for the same reason as in §proc_recv.
-        //
-        // The probe is answered HERE rather than in §proc_recv because the donor
-        // answers it from inside validation and then STOPS PROCESSING the
-        // segment. D-25 piece 3: not optional, and easy to miss because it is
-        // receive-side work that exists only to serve the other end's send-side
-        // mechanism. Without it the donor as sender never learns our window
-        // reopened and the stall simply moves to the other end of the
-        // connection.
-        if (bp.seq_no + 1 == ctx.recv_next)
-            owe_ack(ctx, ACK_AGGREGATE);
-        else if (int32(bp.seq_no - ctx.recv_next) <= 0)
-            owe_ack(ctx, ACK_AGGREGATE);
-        else
-            owe_ack(ctx, ACK_APIECE);
-    } else {
-        // Outside ESTABLISHED the donor puts the stream on its CONTROL list,
-        // not its acknowledgement list, and refreshes the TIME_WAIT deadline if
-        // that is where it is. We have no separate control path, so this
-        // becomes one apiece: the nearest thing this program has, and the
-        // difference is recorded rather than hidden (docs/DIVERGENCE.md).
-        if (ctx.state == ST_TIME_WAIT) {
-            ctx.state = ST_TIME_WAIT;
-            timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
-        }
-        owe_ack(ctx, ACK_APIECE);
-    }
-    return false;
-}
-
-// §gen_rst
-// ---------------------------------------------------------------------------
-// Answer a segment that belongs to no connection.
-//
-// THE DONOR SENDS A RESET ONLY HERE. All six of its emission sites are in
-// ProcessTCPPacket, for a segment with no live stream, via
-// SendTCPPacketStandalone. It never sends one from an established connection
-// and mtcp_close always sends a FIN — SO AN ABORTIVE CLOSE HAS NO
-// REPRESENTATION IN THE DONOR EITHER, and adding one here would be a divergence
-// rather than parity.
-//
-// It is the one generation path with NO CONTEXT to generate from, which is why
-// it is in no chain: a chain is dispatched through a context and there is none.
-// It is also the reason the target has an orphan emit path at all.
-//
-// Two shapes, and which one depends on whether the offending segment carried an
-// acknowledgement (tcp_in.c:744 and :748):
-//
-//   with ACK: seq = its ack, no ACK flag of our own, no acknowledgement number
-//   without:  seq = 0, ACK flag set, ack = its seq + its length (+1 for a SYN)
-//
-// The second form has to acknowledge something because a bare reset with
-// sequence zero would be discarded by any receiver checking the window.
-void gen_rst(uint32 local_ip, uint32 remote_ip, TCPBP seg,
-             uint32 payload_len) {
-    uint32 seq, ack;
-    uint8  flags;
-
-    if ((seg.flags & FLAG_RST) != 0)
-        return;                  // never answer a reset with a reset
-
-    if ((seg.flags & FLAG_ACK) != 0) {
-        seq = seg.ack_seq;
-        ack = 0;
-        flags = FLAG_RST;
-    } else {
-        seq = 0;
-        ack = seg.seq_no + payload_len + ((seg.flags & FLAG_SYN) != 0 ? 1 : 0);
-        flags = FLAG_RST | FLAG_ACK;
-    }
-
-    pkt_gen_orphan(local_ip, remote_ip,
-                           build_rst_hdr(seg.dst_port, seg.src_port,
-                                         seq, ack, flags));
-    return;
-}
-
-// §gen_rst_from_ctx
-// ---------------------------------------------------------------------------
-// A reset for a connection we DO have a context for — the one case the donor
-// resets from a stream it knows about (Handle_TCP_ST_SYN_SENT, an unacceptable
-// acknowledgement). It still goes out through the orphan path, because the
-// reset carries the offending segment's numbers rather than ours.
-void gen_rst_from_ctx(tcp_ctx ctx, uint32 ack) {
-    pkt_gen_orphan(ctx.local_ip, ctx.remote_ip,
-                           build_rst_hdr(ctx.loc_port, ctx.rem_port,
-                                         ack, 0, FLAG_RST));
-    return;
-}
 
 // §proc_passive_open
 // ---------------------------------------------------------------------------
@@ -1419,7 +1207,7 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
 // ---------------------------------------------------------------------------
 // Record the peer's echo for our own.
 //
-// ONLY FOR A PEER THAT DOES NOT TIMESTAMP. For one that does, §proc_validate
+// ONLY FOR A PEER THAT DOES NOT TIMESTAMP. For one that does, the parser
 // has already set it — before dispatch, and only for a segment it accepted,
 // which is the donor's placement.
 void proc_timestamp(tcp_ack ev, tcp_ctx ctx) {
@@ -1474,11 +1262,39 @@ void proc_window(tcp_ack ev, tcp_ctx ctx) {
 // why it sits ahead of §proc_ack in the chain: §proc_ack is what moves
 // send_una, so this must read it first.
 void proc_rtt(tcp_ack ev, tcp_ctx ctx) {
+    uint32 m;
+
     if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
         return;
     if (int32(ev.ack - ctx.send_una) <= 0)
         return;
-    estimate_rtt(ctx, now(), ev.ts_ecr);
+    if (ev.ts_ecr == 0)
+        return;
+
+    m = now() - ev.ts_ecr;              // in 1 ms ticks
+    if (m == 0)
+        m = 1;
+
+    if (ctx.srtt == 0) {
+        ctx.srtt = m << 3;
+        ctx.mdev = m << 1;
+    } else {
+        int32 d = int32(m) - int32(ctx.srtt >> 3);
+
+        ctx.srtt = uint32(int32(ctx.srtt) + d);
+        if (d < 0) {
+            d = -d;
+            d = d - int32(ctx.mdev >> 2);
+            if (d > 0)
+                d = d >> 3;
+        } else {
+            d = d - int32(ctx.mdev >> 2);
+        }
+        ctx.mdev = uint32(int32(ctx.mdev) + d);
+    }
+    ctx.rttvar = ctx.mdev;
+    ctx.rto_ms = (ctx.srtt >> 3) + ctx.rttvar;
+    ctx.have_rtt = true;
     return;
 }
 
@@ -1665,7 +1481,7 @@ void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
     // outstanding.
     ctx.rtx_count = 0;
     timer_stop(ctx.rto_timer);
-    if (unacked_on_wire(ctx))
+    if (((ctx.tx_open && tx_emitted(ctx.tx) > (ctx.send_una - ctx.snd_base)) || (ctx.fin_pending && ctx.send_una != ctx.send_next)))
 timer_start(ctx.rto_timer,
                     millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
                                 << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
@@ -1738,29 +1554,6 @@ void proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
     return;
 }
 
-// §owe_ack
-// ---------------------------------------------------------------------------
-// THE DONOR'S EnqueueACK, and nothing else (tcp_out.c:1088-1096). How often to
-// acknowledge is a protocol decision, so it is not ours to tune.
-//
-// A byte threshold used to sit here, chosen by sweeping throughput. That was
-// the wrong kind of answer to the wrong question — it made the number of
-// acknowledgements a performance parameter, when it is part of what the two
-// stacks have to agree on before any performance number means anything.
-void owe_ack(tcp_ctx ctx, uint8 opt) {
-    if (opt == ACK_NONE)
-        return;
-    if (opt == ACK_AGGREGATE) {
-        if (ctx.ack_cnt == 0)
-            ctx.ack_cnt = 1;
-    } else {
-        ctx.ack_cnt = ctx.ack_cnt + 1;
-    }
-    // D3: ASK TO BE ATTEMPTED AGAIN NEXT PASS. The emission is §drain_owed_acks
-    // and it runs on the generate half, so what is owed here is emitted there.
-    retry(ctx);
-    return;
-}
 
 // §send_ack
 // ---------------------------------------------------------------------------
@@ -1817,7 +1610,16 @@ void owe_ack(tcp_ctx ctx, uint8 opt) {
 //   TIME_WAIT. Neither is a superset of the other's intent, so at least one is
 //   an oversight. Implement the per-path rule, not either list.
 void send_ack(event_t ev, tcp_ctx ctx, tcp_scratch s) {
-    return owe_ack(ctx, s.ack_opt);
+    if (s.ack_opt == ACK_NONE)
+        return;
+    if (s.ack_opt == ACK_AGGREGATE) {
+        if (ctx.ack_cnt == 0)
+            ctx.ack_cnt = 1;
+    } else {
+        ctx.ack_cnt = ctx.ack_cnt + 1;
+    }
+    retry(ctx);
+    return;
 }
 
 
@@ -2124,7 +1926,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     ctx.send_next = ctx.send_next + to_send;
     if (ctx.send_next > ctx.send_high)
         ctx.send_high = ctx.send_next;
-    if (unacked_on_wire(ctx))
+    if (((ctx.tx_open && tx_emitted(ctx.tx) > (ctx.send_una - ctx.snd_base)) || (ctx.fin_pending && ctx.send_una != ctx.send_next)))
 timer_start(ctx.rto_timer,
                     millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
                                 << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
@@ -2149,7 +1951,7 @@ timer_start(ctx.rto_timer,
 // one at a time and stops early only when the transmit buffer refuses one
 // (tcp_out.c:894-903); this stops on the same condition, and what is left stays
 // owed for the next pass rather than being dropped. Bounded by `ack_cnt`, which
-// only §owe_ack increases and only this decreases.
+// only the acknowledgement-owing sites increase it and only this decreases it.
 void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     uint32 sent = s.pkts_sent;
 
@@ -2235,7 +2037,11 @@ void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
         return;
     }
     ev.result = int32(s.delivered);
-    sock_recv(ctx, s.delivered);        // §window_rule RECOMPUTE POINT 2
+    ctx.delivered = ctx.delivered + s.delivered;
+    ctx.rcv_wnd = PARITY_RCVBUF_SIZE - ((ctx.recv_next - ctx.delivered)
+                  - ((ctx.fin_consumed && ctx.recv_next != ctx.delivered) ? 1 : 0));
+    if (ctx.need_wnd_adv && ctx.rcv_wnd > PARITY_MSS_PAYLOAD)
+        retry(ctx);        // §window_rule RECOMPUTE POINT 2
     return;
 }
 
@@ -2362,7 +2168,9 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
         return;
 
     if (ev.ack != ctx.send_next) {
-        gen_rst_from_ctx(ctx, ev.ack);
+        pkt_gen_orphan(ctx.local_ip, ctx.remote_ip,
+                       build_rst_hdr(ctx.loc_port, ctx.rem_port,
+                                     ev.ack, 0, FLAG_RST));
         return;
     }
 
@@ -2739,13 +2547,12 @@ dispatch tcp_dispatch {
 // list, and the retry raises app_send with nothing new to send. One path, not
 // two.
 //
-// §proc_validate AND §gen_rst ARE NOT IN ANY CHAIN, on purpose.
+// VALIDATION AND THE ORPHAN RESET ARE IN THE PARSER, not in a chain.
 //
 // Validation runs before classification -- a segment it refuses raises no
-// event, so there is no chain for it to head. gen_rst answers a segment with
-// no context, and a chain is dispatched THROUGH a context; there is none to
-// dispatch through. Both are named here so that "not in the dispatch" reads
-// as a decision rather than an omission. Both live in §net_parser.
+// event, so there is no chain for it to head. The orphan reset answers a
+// segment with no context, and a chain is dispatched THROUGH a context; there
+// is none to dispatch through. Both are written where they run.
 
 // THE CHAINS DO NOT OVERLAP. proc_ack is in the tcp_ack chain and in no other,
 // so no processor runs twice for one segment. It headed tcp_data and tcp_fin as
@@ -2853,7 +2660,7 @@ dispatch tcp_dispatch {
 //                        is a route cache and an IP identifier -- four scalars
 //                        per core. Nothing queues: the packet carries no
 //                        payload and references no data unit.
-//   seq_validation       CLOSED 2026-08-25. §proc_validate, the donor's
+//   seq_validation       CLOSED 2026-08-25. In the parser, the donor's
 //                        ValidateSequence reproduced -- including its test on
 //                        seq + payloadlen rather than RFC 793's on first and
 //                        last byte separately.

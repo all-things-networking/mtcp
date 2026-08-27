@@ -134,48 +134,6 @@ TCPBP_extract(struct TCPBP *b, const uint8_t *in, uint16_t len)
 }
 
 /*
- * mtp/tcp.mtp §sock_recv_apply
- * ---------------------------------------------------------------------------
- * RECOMPUTE POINT 2 — the application drained (mTCP api.c:1141). `delivered`
- * advances by what the flush instruction REPORTED it handed over, so the
- * accounting cannot drift from what the target actually gave the application.
- *
- * Generation is the stack's, so this only ASKS: the retry list runs the
- * generate chain on the stack thread, and §gen_wnd_adv builds the update there.
- */
-void
-sock_recv(struct tcp_ctx *ctx, uint32_t delivered_now)
-{
-	ctx->delivered = (ctx->delivered + delivered_now);
-	ctx->rcv_wnd = (PARITY_RCVBUF_SIZE - ((((ctx->recv_next - ctx->delivered)) - ((((ctx->fin_consumed && (ctx->recv_next != ctx->delivered))) ? 1 : 0)))));
-	if ((ctx->need_wnd_adv && (ctx->rcv_wnd > PARITY_MSS_PAYLOAD))) {
-		mtp_retry(ctx->f);
-	}
-}
-
-/*
- * mtp/tcp.mtp §tcp_window_field
- * ---------------------------------------------------------------------------
- * What goes in the header's window field. Unscaled on a SYN, because window
- * scaling is not in effect until the handshake completes; shifted thereafter.
- * This is the whole of the observed sequence 14600 -> 14592 -> 2048.
- *
- * A VALUE ONE BELOW 2048 IS CORRECT, NOT AN OFF-BY-ONE. Between the merge and
- * the application's read the bytes are held, so the window is PARITY_RCVBUF_SIZE minus what
- * is held: one byte held advertises 2047. Observed on the wire 2026-08-13.
- * Anyone "fixing" this to an unconditional 2048 would be removing the mechanism
- * and would only find out from a trace diff.
- */
-uint16_t
-tcp_window_field(struct tcp_ctx *ctx, bool is_syn)
-{
-	if (is_syn) {
-		return (uint16_t)(ctx->rcv_wnd);
-	}
-	return (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE));
-}
-
-/*
  * mtp/tcp.mtp §build_hdr
  * ---------------------------------------------------------------------------
  * THE ONE PLACE AN OUTBOUND HEADER IS BUILT, and it is a program function
@@ -214,7 +172,7 @@ build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now)
 	bp.seq_no = seq;
 	bp.ack_seq = ctx->recv_next;
 	bp.flags = (PARITY_SET_PSH ? flags : ((flags & ~(FLAG_PSH))));
-	bp.window = tcp_window_field(ctx, is_syn);
+	bp.window = (is_syn ? (uint16_t)(ctx->rcv_wnd) : (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE)));
 	bp.urg_ptr = 0;
 	if ((bp.window == 0)) {
 		ctx->need_wnd_adv = true;
@@ -260,104 +218,6 @@ build_rst_hdr(uint16_t loc_port, uint16_t rem_port, uint32_t seq, uint32_t ack, 
 }
 
 /*
- * mtp/tcp.mtp §unacked_on_wire
- * ---------------------------------------------------------------------------
- * Is there data ON THE WIRE that has not been acknowledged? The only thing a
- * retransmission timer should be waiting for.
- *
- * NOT `send_una != send_next`: send_next advances at GENERATION, so that test
- * is true for a blueprint still sitting in the target's ring. Arming on it lets
- * the timer expire against data that never went out, and the expiry rewinds
- * send_next and regenerates — producing a retransmission for a range a live
- * blueprint is still carrying, whose reference can then never drain.
- *
- * THE FIN. "Emitted payload beyond what is acknowledged" cannot see a FIN,
- * which emits none — so once the data is all acknowledged this test went false,
- * the timer was stopped, and a lost FIN was never retransmitted. The second
- * clause is that case, and it is the reason this is not one expression.
- * THE EMITTED C CARRIES A RUNTIME TOGGLE HERE (MTP_RTO_ARM_ON_GENERATION),
- * which restores the generation-based test so both arms of the comparison come
- * from ONE binary. It is EXPERIMENT SCAFFOLDING, not protocol: this program
- * describes the default arm, which is the one below.
- */
-bool
-unacked_on_wire(struct tcp_ctx *ctx)
-{
-	uint64_t acked = (ctx->send_una - ctx->snd_base);
-	if ((ctx->tx_open && (mtp_tx_emitted(&(ctx->tx)) > acked))) {
-		return true;
-	}
-	return (ctx->fin_pending && (ctx->send_una != ctx->send_next));
-}
-
-/*
- * mtp/tcp.mtp §estimate_rtt
- * ---------------------------------------------------------------------------
- * The round-trip estimator, from the donor: rto = (srtt >> 3) + rttvar, with
- * srtt held scaled by eight. NO FLOOR AND NO CEILING — reproduce, do not
- * correct. The sample comes from the timestamp the peer echoes, which is why
- * this program sends timestamps on every segment.
- *
- * A SAMPLE OF AT LEAST ONE TICK, which is what the donor's recorded state says
- * it takes: the donor sits at srtt = 8, rttvar = 2, which is exactly this
- * function's first-sample initialisation with m = 1, not m = 0. The round trip
- * here is at most 0.229 ms, so a same-tick echo gives m = 0 and a timeout of 0
- * that the wheel floors at one tick — a THIRD of the donor's three, and we
- * retransmit on an idle link where it does not. This is a floor on the SAMPLE,
- * not on the RTO; the RTO still has none.
- *
- * AND IT IS THE DONOR'S COMPLETE CHECK: `if (m == 0) m = 1;` is all it does. No
- * bound, no ahead-of-clock test, no Karn's rule. So we add no validation the
- * donor lacks.
- *
- * THE FORM MATTERS, because the next reader will think `mdev` is an
- * idiosyncratic way of writing the textbook estimator and simplify it:
- *
- *     textbook   rttvar += (|err| - rttvar) >> 2     decays
- *     donor      mdev   += |err| - (mdev >> 2)       pinned
- *
- * Same intent, same shape, opposite behaviour. With m == 1, which is what this
- * testbed always produces, srtt = 8, mdev = 2, RTO = 3 ticks and it DOES NOT
- * MOVE — rttvar cannot decay because `mdev >> 2` is 0 at mdev = 2. One 2-tick
- * sample takes the timeout to 4 ticks permanently. At these magnitudes the
- * donor's timeout is monotonically non-decreasing, and an estimator that decays
- * properly sits at 3 where the donor sits at 4, so the timers fire at different
- * moments. Only running both found this.
- */
-void
-estimate_rtt(struct tcp_ctx *ctx, uint32_t now, uint32_t ts_ecr)
-{
-	uint32_t m;
-	if ((ts_ecr == 0)) {
-		return;
-	}
-	m = (now - ts_ecr);
-	if ((m == 0)) {
-		m = 1;
-	}
-	if ((ctx->srtt == 0)) {
-		ctx->srtt = (m << 3);
-		ctx->mdev = (m << 1);
-	} else {
-		int32_t d = ((int32_t)(m) - (int32_t)((ctx->srtt >> 3)));
-		ctx->srtt = (uint32_t)(((int32_t)(ctx->srtt) + d));
-		if ((d < 0)) {
-			d = -(d);
-			d = (d - (int32_t)((ctx->mdev >> 2)));
-			if ((d > 0)) {
-				d = (d >> 3);
-			}
-		} else {
-			d = (d - (int32_t)((ctx->mdev >> 2)));
-		}
-		ctx->mdev = (uint32_t)(((int32_t)(ctx->mdev) + d));
-	}
-	ctx->rttvar = ctx->mdev;
-	ctx->rto_ms = (((ctx->srtt >> 3)) + ctx->rttvar);
-	ctx->have_rtt = true;
-}
-
-/*
  * mtp/tcp.mtp §net_parser
  * ---------------------------------------------------------------------------
  * parse_tcp : a segment -> the list of events it raises.
@@ -398,7 +258,7 @@ estimate_rtt(struct tcp_ctx *ctx, uint32_t now, uint32_t ts_ecr)
  *   a SYN is matched against a LISTENER, and whether the backlog has room
  *   decides whether a context is created at all (G8, C3);
  *
- *   §proc_validate refuses a segment BEFORE any event is raised, which is the
+ *   the parser refuses a segment BEFORE any event is raised, which is the
  *   donor's placement — ProcessTCPPacket calls ValidateSequence after the flow
  *   lookup and before the state handlers, and drops on a false return. Running
  *   it as the first link of every chain instead would validate a segment that
@@ -423,16 +283,29 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 	flowkey_t fid = ((flowkey_t){ .kind = 0, .v0 = iph->daddr, .v1 = iph->saddr, .v2 = bp.dst_port, .v3 = bp.src_port });
 	struct tcp_ctx *ctx = mtp_ctx_lookup(&(fid));
 	if (!(((ctx) != NULL))) {
-		if (((((bp.flags & FLAG_SYN)) == 0) || (((bp.flags & FLAG_ACK)) != 0))) {
-			gen_rst(iph->daddr, iph->saddr, bp, payload_len);
-			if (ctx_out)
-				*ctx_out = ctx;
-			return __n;
-		}
+		bool refuse = ((((bp.flags & FLAG_SYN)) == 0) || (((bp.flags & FLAG_ACK)) != 0));
 		flowkey_t lk = ((flowkey_t){ .kind = 1, .v0 = iph->daddr, .v1 = bp.dst_port });
 		struct tcp_listen_ctx *lst = mtp_ctx_lookup(&(lk));
-		if ((!(((lst) != NULL)) || (lst->state != ST_LISTEN))) {
-			gen_rst(iph->daddr, iph->saddr, bp, payload_len);
+		if ((!(refuse) && ((!(((lst) != NULL)) || (lst->state != ST_LISTEN))))) {
+			refuse = true;
+		}
+		if (refuse) {
+			if ((((bp.flags & FLAG_RST)) != 0)) {
+				if (ctx_out)
+					*ctx_out = ctx;
+				return __n;
+			}
+			if ((((bp.flags & FLAG_ACK)) != 0)) {
+				struct TCPBP __t0 = build_rst_hdr(bp.dst_port, bp.src_port, bp.ack_seq, 0, FLAG_RST);
+				uint8_t __t1[PROG_HDR_MAX];
+				uint16_t __t2 = TCPBP_build(__t1, &__t0);
+				mtp_pkt_gen_orphan(iph->daddr, iph->saddr, __t1, __t2, PROG_OFFLOAD);
+			} else {
+				struct TCPBP __t3 = build_rst_hdr(bp.dst_port, bp.src_port, 0, ((bp.seq_no + payload_len) + (((((bp.flags & FLAG_SYN)) != 0) ? 1 : 0))), (FLAG_RST | FLAG_ACK));
+				uint8_t __t4[PROG_HDR_MAX];
+				uint16_t __t5 = TCPBP_build(__t4, &__t3);
+				mtp_pkt_gen_orphan(iph->daddr, iph->saddr, __t4, __t5, PROG_OFFLOAD);
+			}
 			if (ctx_out)
 				*ctx_out = ctx;
 			return __n;
@@ -473,7 +346,56 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		(ctx->idle_timer).ctx = ctx;
 		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(PARITY_IDLE_MS) * 1000000ULL));
 	}
-	if (!(proc_validate(ctx, bp, payload_len))) {
+	bool accept = false;
+	uint32_t seg_end;
+	if (((((ctx->state == ST_CLOSED) || (ctx->state == ST_LISTEN)) || (ctx->state == ST_SYN_RCVD)) || (ctx->state == ST_SYN_SENT))) {
+		accept = true;
+	} else {
+		if (((((bp.flags & FLAG_RST)) == 0) && ctx->saw_timestamp)) {
+			if (!(bp.__opt_ts_present)) {
+				if (ctx_out)
+					*ctx_out = ctx;
+				return __n;
+			}
+			if (((int32_t)((bp.__opt_ts_ts_val - ctx->ts_recent)) < 0)) {
+				ctx->ack_cnt = (ctx->ack_cnt + 1);
+				mtp_retry(ctx->f);
+				if (ctx_out)
+					*ctx_out = ctx;
+				return __n;
+			}
+			ctx->ts_recent = bp.__opt_ts_ts_val;
+		}
+		seg_end = (bp.seq_no + payload_len);
+		if ((((int32_t)((seg_end - ctx->recv_next)) >= 0) && ((int32_t)((seg_end - ((ctx->recv_next + ctx->rcv_wnd)))) <= 0))) {
+			accept = true;
+		}
+	}
+	if (!(accept)) {
+		if ((((bp.flags & FLAG_RST)) != 0)) {
+			if (ctx_out)
+				*ctx_out = ctx;
+			return __n;
+		}
+		if ((ctx->state == ST_ESTABLISHED)) {
+			if ((((bp.seq_no + 1) == ctx->recv_next) || ((int32_t)((bp.seq_no - ctx->recv_next)) <= 0))) {
+				if ((ctx->ack_cnt == 0)) {
+					ctx->ack_cnt = 1;
+				}
+				mtp_retry(ctx->f);
+			} else {
+				ctx->ack_cnt = (ctx->ack_cnt + 1);
+				mtp_retry(ctx->f);
+			}
+		} else {
+			if ((ctx->state == ST_TIME_WAIT)) {
+				ctx->state = ST_TIME_WAIT;
+				(ctx->tw_timer).ctx = ctx;
+				mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(PARITY_TIMEWAIT_MS) * 1000000ULL));
+			}
+			ctx->ack_cnt = (ctx->ack_cnt + 1);
+			mtp_retry(ctx->f);
+		}
 		if (ctx_out)
 			*ctx_out = ctx;
 		return __n;
@@ -539,154 +461,6 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 	if (ctx_out)
 		*ctx_out = ctx;
 	return __n;
-}
-
-/*
- * mtp/tcp.mtp §proc_validate
- * ---------------------------------------------------------------------------
- * PAWS and the sequence-acceptability test, run BEFORE any event is raised.
- *
- * It is the donor's ValidateSequence, reproduced rather than re-derived, and
- * three things about it are worth stating because a standards-based
- * implementation would differ:
- *
- *   - the acceptability test is on `seq + payload_len` lying inside
- *     [recv_next, recv_next + rcv_wnd]. RFC 793's test is on the segment's
- *     first and last bytes separately; this is the donor's. It is the reason a
- *     segment can be refused whose FIRST byte was inside the window — the right
- *     edge moves left as unread data piles up, so data the peer sent
- *     legitimately can arrive after the edge has retreated behind it. Measured
- *     2026-08-26: 68,110 of 8,123,072 segments. The donor does the same thing
- *     and drops fewer only because its application leaves less unread;
- *   - a segment from a timestamping peer that carries NO timestamp is DROPPED.
- *     The donor leaves a TODO where a standards-based handler would go;
- *   - `ts_recent` is updated HERE, before dispatch, and only for a segment this
- *     accepts. Updating it in §proc_timestamp for any acknowledgement moved it
- *     on segments the donor would have rejected.
- *
- * A REFUSAL IS NOT SILENT: PAWS failure and a segment outside the window both
- * queue an acknowledgement, so the peer learns where we are. A reset outside
- * the window is ignored instead, and answered by nothing.
- *
- * THE STATE GUARD IS WRITTEN AS NAMES, NOT AS AN ORDERING. The donor guards the
- * whole call with `state > TCP_ST_SYN_RCVD`, and in ITS enum SYN_SENT sits
- * BELOW SYN_RCVD, so that one test excludes both halves of a handshake. Ours
- * appended SYN_SENT at the END of the state list, because it was added last, so
- * the same comparison would have included it. It cost a day: an active open
- * validated its own SYN-ACK against a recv_next of zero, rejected it, and the
- * connection never completed.
- */
-bool
-proc_validate(struct tcp_ctx *ctx, struct TCPBP bp, uint32_t payload_len)
-{
-	uint32_t seg_end;
-	if (((((ctx->state == ST_CLOSED) || (ctx->state == ST_LISTEN)) || (ctx->state == ST_SYN_RCVD)) || (ctx->state == ST_SYN_SENT))) {
-		return true;
-	}
-	if (((((bp.flags & FLAG_RST)) == 0) && ctx->saw_timestamp)) {
-		if (!(bp.__opt_ts_present)) {
-			return false;
-		}
-		if (((int32_t)((bp.__opt_ts_ts_val - ctx->ts_recent)) < 0)) {
-			owe_ack(ctx, ACK_APIECE);
-			return false;
-		}
-		ctx->ts_recent = bp.__opt_ts_ts_val;
-	}
-	seg_end = (bp.seq_no + payload_len);
-	if ((((int32_t)((seg_end - ctx->recv_next)) >= 0) && ((int32_t)((seg_end - ((ctx->recv_next + ctx->rcv_wnd)))) <= 0))) {
-		return true;
-	}
-	if ((((bp.flags & FLAG_RST)) != 0)) {
-		return false;
-	}
-	if ((ctx->state == ST_ESTABLISHED)) {
-		if (((bp.seq_no + 1) == ctx->recv_next)) {
-			owe_ack(ctx, ACK_AGGREGATE);
-		} else {
-			if (((int32_t)((bp.seq_no - ctx->recv_next)) <= 0)) {
-				owe_ack(ctx, ACK_AGGREGATE);
-			} else {
-				owe_ack(ctx, ACK_APIECE);
-			}
-		}
-	} else {
-		if ((ctx->state == ST_TIME_WAIT)) {
-			ctx->state = ST_TIME_WAIT;
-			(ctx->tw_timer).ctx = ctx;
-			mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(PARITY_TIMEWAIT_MS) * 1000000ULL));
-		}
-		owe_ack(ctx, ACK_APIECE);
-	}
-	return false;
-}
-
-/*
- * mtp/tcp.mtp §gen_rst
- * ---------------------------------------------------------------------------
- * Answer a segment that belongs to no connection.
- *
- * THE DONOR SENDS A RESET ONLY HERE. All six of its emission sites are in
- * ProcessTCPPacket, for a segment with no live stream, via
- * SendTCPPacketStandalone. It never sends one from an established connection
- * and mtcp_close always sends a FIN — SO AN ABORTIVE CLOSE HAS NO
- * REPRESENTATION IN THE DONOR EITHER, and adding one here would be a divergence
- * rather than parity.
- *
- * It is the one generation path with NO CONTEXT to generate from, which is why
- * it is in no chain: a chain is dispatched through a context and there is none.
- * It is also the reason the target has an orphan emit path at all.
- *
- * Two shapes, and which one depends on whether the offending segment carried an
- * acknowledgement (tcp_in.c:744 and :748):
- *
- *   with ACK: seq = its ack, no ACK flag of our own, no acknowledgement number
- *   without:  seq = 0, ACK flag set, ack = its seq + its length (+1 for a SYN)
- *
- * The second form has to acknowledge something because a bare reset with
- * sequence zero would be discarded by any receiver checking the window.
- */
-void
-gen_rst(uint32_t local_ip, uint32_t remote_ip, struct TCPBP seg, uint32_t payload_len)
-{
-	uint32_t seq;
-	uint32_t ack;
-	uint8_t flags;
-	if ((((seg.flags & FLAG_RST)) != 0)) {
-		return;
-	}
-	if ((((seg.flags & FLAG_ACK)) != 0)) {
-		seq = seg.ack_seq;
-		ack = 0;
-		flags = FLAG_RST;
-	} else {
-		seq = 0;
-		ack = ((seg.seq_no + payload_len) + (((((seg.flags & FLAG_SYN)) != 0) ? 1 : 0)));
-		flags = (FLAG_RST | FLAG_ACK);
-	}
-	struct TCPBP __t0 = build_rst_hdr(seg.dst_port, seg.src_port, seq, ack, flags);
-	uint8_t __t1[PROG_HDR_MAX];
-	uint16_t __t2 = TCPBP_build(__t1, &__t0);
-	mtp_pkt_gen_orphan(local_ip, remote_ip, __t1, __t2, PROG_OFFLOAD);
-	return;
-}
-
-/*
- * mtp/tcp.mtp §gen_rst_from_ctx
- * ---------------------------------------------------------------------------
- * A reset for a connection we DO have a context for — the one case the donor
- * resets from a stream it knows about (Handle_TCP_ST_SYN_SENT, an unacceptable
- * acknowledgement). It still goes out through the orphan path, because the
- * reset carries the offending segment's numbers rather than ours.
- */
-void
-gen_rst_from_ctx(struct tcp_ctx *ctx, uint32_t ack)
-{
-	struct TCPBP __t0 = build_rst_hdr(ctx->loc_port, ctx->rem_port, ack, 0, FLAG_RST);
-	uint8_t __t1[PROG_HDR_MAX];
-	uint16_t __t2 = TCPBP_build(__t1, &__t0);
-	mtp_pkt_gen_orphan(ctx->local_ip, ctx->remote_ip, __t1, __t2, PROG_OFFLOAD);
-	return;
 }
 
 /*
@@ -770,7 +544,7 @@ proc_open_done(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
  * ---------------------------------------------------------------------------
  * Record the peer's echo for our own.
  *
- * ONLY FOR A PEER THAT DOES NOT TIMESTAMP. For one that does, §proc_validate
+ * ONLY FOR A PEER THAT DOES NOT TIMESTAMP. For one that does, the parser
  * has already set it — before dispatch, and only for a segment it accepted,
  * which is the donor's placement.
  */
@@ -834,13 +608,40 @@ void
 proc_rtt(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 {
 	(void)now_ms;
+	uint32_t m;
 	if (!(((((ctx->state != ST_CLOSED) && (ctx->state != ST_LISTEN)) && (ctx->state != ST_SYN_RCVD))))) {
 		return;
 	}
 	if (((int32_t)((ev->ack - ctx->send_una)) <= 0)) {
 		return;
 	}
-	estimate_rtt(ctx, now_ms, ev->ts_ecr);
+	if ((ev->ts_ecr == 0)) {
+		return;
+	}
+	m = (now_ms - ev->ts_ecr);
+	if ((m == 0)) {
+		m = 1;
+	}
+	if ((ctx->srtt == 0)) {
+		ctx->srtt = (m << 3);
+		ctx->mdev = (m << 1);
+	} else {
+		int32_t d = ((int32_t)(m) - (int32_t)((ctx->srtt >> 3)));
+		ctx->srtt = (uint32_t)(((int32_t)(ctx->srtt) + d));
+		if ((d < 0)) {
+			d = -(d);
+			d = (d - (int32_t)((ctx->mdev >> 2)));
+			if ((d > 0)) {
+				d = (d >> 3);
+			}
+		} else {
+			d = (d - (int32_t)((ctx->mdev >> 2)));
+		}
+		ctx->mdev = (uint32_t)(((int32_t)(ctx->mdev) + d));
+	}
+	ctx->rttvar = ctx->mdev;
+	ctx->rto_ms = (((ctx->srtt >> 3)) + ctx->rttvar);
+	ctx->have_rtt = true;
 	return;
 }
 
@@ -981,7 +782,7 @@ proc_ack(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 	mtp_tx_flush_and_notify(&(ctx->tx), acked);
 	ctx->rtx_count = 0;
 	mtp_timer_stop(&(ctx->rto_timer));
-	if (unacked_on_wire(ctx)) {
+	if (((((ctx->tx_open && (mtp_tx_emitted(&(ctx->tx)) > ((ctx->send_una - ctx->snd_base))))) || ((ctx->fin_pending && (ctx->send_una != ctx->send_next)))))) {
 		(ctx->rto_timer).ctx = ctx;
 		mtp_timer_start(&(ctx->rto_timer), ((uint64_t)((((ctx->have_rtt ? ctx->rto_ms : PARITY_INITIAL_RTO_MS)) << (((ctx->rtx_count < 7) ? ctx->rtx_count : 7)))) * 1000000ULL));
 	}
@@ -1021,34 +822,6 @@ proc_recv(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 	} else {
 		s->ack_opt = ACK_APIECE;
 	}
-	return;
-}
-
-/*
- * mtp/tcp.mtp §owe_ack
- * ---------------------------------------------------------------------------
- * THE DONOR'S EnqueueACK, and nothing else (tcp_out.c:1088-1096). How often to
- * acknowledge is a protocol decision, so it is not ours to tune.
- *
- * A byte threshold used to sit here, chosen by sweeping throughput. That was
- * the wrong kind of answer to the wrong question — it made the number of
- * acknowledgements a performance parameter, when it is part of what the two
- * stacks have to agree on before any performance number means anything.
- */
-void
-owe_ack(struct tcp_ctx *ctx, uint8_t opt)
-{
-	if ((opt == ACK_NONE)) {
-		return;
-	}
-	if ((opt == ACK_AGGREGATE)) {
-		if ((ctx->ack_cnt == 0)) {
-			ctx->ack_cnt = 1;
-		}
-	} else {
-		ctx->ack_cnt = (ctx->ack_cnt + 1);
-	}
-	mtp_retry(ctx->f);
 	return;
 }
 
@@ -1111,7 +884,18 @@ owe_ack(struct tcp_ctx *ctx, uint8_t opt)
 void
 send_ack(struct tcp_ctx *ctx, struct tcp_scratch *s)
 {
-	return owe_ack(ctx, s->ack_opt);
+	if ((s->ack_opt == ACK_NONE)) {
+		return;
+	}
+	if ((s->ack_opt == ACK_AGGREGATE)) {
+		if ((ctx->ack_cnt == 0)) {
+			ctx->ack_cnt = 1;
+		}
+	} else {
+		ctx->ack_cnt = (ctx->ack_cnt + 1);
+	}
+	mtp_retry(ctx->f);
+	return;
 }
 
 /*
@@ -1393,7 +1177,7 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 	if ((ctx->send_next > ctx->send_high)) {
 		ctx->send_high = ctx->send_next;
 	}
-	if (unacked_on_wire(ctx)) {
+	if (((((ctx->tx_open && (mtp_tx_emitted(&(ctx->tx)) > ((ctx->send_una - ctx->snd_base))))) || ((ctx->fin_pending && (ctx->send_una != ctx->send_next)))))) {
 		(ctx->rto_timer).ctx = ctx;
 		mtp_timer_start(&(ctx->rto_timer), ((uint64_t)((((ctx->have_rtt ? ctx->rto_ms : PARITY_INITIAL_RTO_MS)) << (((ctx->rtx_count < 7) ? ctx->rtx_count : 7)))) * 1000000ULL));
 	}
@@ -1419,7 +1203,7 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
  * one at a time and stops early only when the transmit buffer refuses one
  * (tcp_out.c:894-903); this stops on the same condition, and what is left stays
  * owed for the next pass rather than being dropped. Bounded by `ack_cnt`, which
- * only §owe_ack increases and only this decreases.
+ * only the acknowledgement-owing sites increase it and only this decreases it.
  */
 void
 drain_owed_acks(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
@@ -1515,7 +1299,11 @@ proc_drain(struct app_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 		return;
 	}
 	ev->result = (int32_t)(s->delivered);
-	sock_recv(ctx, s->delivered);
+	ctx->delivered = (ctx->delivered + s->delivered);
+	ctx->rcv_wnd = (PARITY_RCVBUF_SIZE - ((((ctx->recv_next - ctx->delivered)) - ((((ctx->fin_consumed && (ctx->recv_next != ctx->delivered))) ? 1 : 0)))));
+	if ((ctx->need_wnd_adv && (ctx->rcv_wnd > PARITY_MSS_PAYLOAD))) {
+		mtp_retry(ctx->f);
+	}
 	return;
 }
 
@@ -1640,7 +1428,10 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 		return;
 	}
 	if ((ev->ack != ctx->send_next)) {
-		gen_rst_from_ctx(ctx, ev->ack);
+		struct TCPBP __t0 = build_rst_hdr(ctx->loc_port, ctx->rem_port, ev->ack, 0, FLAG_RST);
+		uint8_t __t1[PROG_HDR_MAX];
+		uint16_t __t2 = TCPBP_build(__t1, &__t0);
+		mtp_pkt_gen_orphan(ctx->local_ip, ctx->remote_ip, __t1, __t2, PROG_OFFLOAD);
 		return;
 	}
 	ctx->send_una = ev->ack;
@@ -1666,10 +1457,10 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 	}
 	ctx->state = ST_ESTABLISHED;
 	mtp_notify(ctx->f, &(struct mtp_notif){ .kind = MTP_NOTIF_WRITABLE });
-	struct TCPBP __t0 = build_hdr(ctx, ctx->send_next, FLAG_ACK, now_ms);
-	uint8_t __t1[PROG_HDR_MAX];
-	uint16_t __t2 = TCPBP_build(__t1, &__t0);
-	mtp_pkt_gen(ctx->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_ACK, PROG_OFFLOAD, false);
+	struct TCPBP __t3 = build_hdr(ctx, ctx->send_next, FLAG_ACK, now_ms);
+	uint8_t __t4[PROG_HDR_MAX];
+	uint16_t __t5 = TCPBP_build(__t4, &__t3);
+	mtp_pkt_gen(ctx->f, __t4, __t5, &__t3.__pay, __t3.__mss, PRIO_ACK, PROG_OFFLOAD, false);
 	return;
 }
 

@@ -120,15 +120,10 @@ sock_send(struct mtp_app_op *op, struct app_ev *ev,
 }
 
 /*
- * mtp/tcp.mtp §sock_recv
+ * mtp/tcp.mtp §parse_recv
  * ---------------------------------------------------------------------------
- * The application drains. RECOMPUTE POINT 2 of §window_rule and the only reason
- * `recv` is bound at all: `delivered` advances by what the flush instruction
- * REPORTS it handed over — not by what the application asked for, which may be
- * more — and the advertised window reopens by exactly that much. The count
- * comes from the instruction's return value rather than from a target accessor,
- * which is what lets the program own `delivered` without the target exposing
- * its unit's occupancy. The work itself is §proc_drain.
+ * The application's read, turned into an event. The drain itself is
+ * mtp/tcp.mtp §proc_drain, which is also recompute point 2 of §window_rule.
  */
 unsigned
 parse_recv(struct mtp_app_op *op, struct app_ev *ev,
