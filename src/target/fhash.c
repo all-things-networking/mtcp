@@ -1,12 +1,12 @@
 /*
- * The context store and the listener table. See flow_table.h for why this is
+ * The context store and the listener table. See fhash.h for why this is
  * written against a key SHAPE the program supplies rather than a four-tuple,
  * and for why direction canonicalisation is not here.
  */
 #include <stdlib.h>
 #include <string.h>
 
-#include "flow_table.h"
+#include "fhash.h"
 /* Deliberately no debug.h: it drags in infra.h and therefore DPDK, and this
  * file is one of the few in the target that can be tested off the testbed.
  * Keeping it that way is worth more than TRACE_ macros in a hash table. */

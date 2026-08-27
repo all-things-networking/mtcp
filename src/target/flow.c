@@ -1,7 +1,7 @@
 /*
  * Flow records, the blueprint ring, the generation list, and pkt_gen.
  *
- * pkt_gen is here rather than in emit.c because what it does is put a
+ * pkt_gen is here rather than in out.c because what it does is put a
  * blueprint in a ring and schedule the flow — it does not build a packet. That
  * happens in the drain, once per main-loop iteration, and the interval between
  * the two is what makes coalescing possible (internal.h §1).
@@ -13,7 +13,7 @@
 #include <pthread.h>
 
 #include "flow.h"
-#include "flow_table.h"
+#include "fhash.h"
 #include "target_core.h"
 #include "debug.h"
 
@@ -153,7 +153,7 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 	 *
 	 * Only the application thread owns ready_list, so the entry can only be
 	 * removed here if the destroy runs on that thread. It does: the reap is
-	 * deferred to the application's own pass (SchedReap).
+	 * deferred to the application's own pass (DestroyFinishedFlows).
 	 */
 	if (f->on_ready_list) {
 		TAILQ_REMOVE(&t->ready_list, f, ready_link);
@@ -208,7 +208,7 @@ mtp_flow_id(flow_t *f)
 /* P5: one list per core, enqueued idempotently. A flow with nothing to send is
  * not on it and is not walked. */
 void
-SchedEnqueue(flow_t *f, uint32_t prio)
+AddtoSendList(flow_t *f, uint32_t prio)
 {
 	struct transport *t = TransportOf(g_core[0]);
 	int c = (int)(prio < MTP_PRIO_CLASSES ? prio : MTP_PRIO_CLASSES - 1);
@@ -365,7 +365,7 @@ PublishAppOp(flow_t *f)
  * generated and flushed in this pass.
  */
 void
-SchedTakeSends(struct core_ctx *core)
+HandleApplicationCalls(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f;
@@ -405,7 +405,7 @@ DeliverSend(struct core_ctx *core, struct flow *f)
 }
 
 void
-SchedTakeNotifications(struct core_ctx *core)
+HandleApplicationNotifications(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f;
@@ -541,7 +541,7 @@ BlueprintCommit(flow_t *f, struct bp *bp)
 		if (n > t->ring_hwm[c])
 			t->ring_hwm[c] = n;
 	}
-	SchedEnqueue(f, bp->prio);
+	AddtoSendList(f, bp->prio);
 }
 
 /*----------------------------------------------------------------------------*/

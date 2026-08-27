@@ -24,8 +24,8 @@
 
 #include "infra.h"
 #include "bringup.h"
-#include "scheduler.h"
-#include "flow_table.h"
+#include "core.h"
+#include "fhash.h"
 #include "arp.h"
 #include "config.h"
 
@@ -110,7 +110,7 @@ main(int argc, char **argv)
 			((uint8_t *)&arp_target)[2], ((uint8_t *)&arp_target)[3]);
 	}
 
-	SchedRun(core, ms, NULL, NULL);
+	RunMainLoop(core, ms, NULL, NULL);
 
 	TransportCoreFini(core);
 	InfraCoreDestroy(core);

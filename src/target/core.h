@@ -36,31 +36,31 @@
  * application that only needs the stack to run. */
 /*
  * Set from a signal handler to end the run loop. The runners stop a server with
- * SIGINT and then SIGKILL, so a summary printed after SchedRun returns is only
+ * SIGINT and then SIGKILL, so a summary printed after RunMainLoop returns is only
  * reachable if SIGINT unwinds the loop — the donor had the mirror of this and it
  * cost a report there too.
  */
-extern volatile sig_atomic_t SchedStopRequested;
+extern volatile sig_atomic_t MainLoopStopRequested;
 
 /* One iteration, for an application that owns its own event loop and drives
- * the target rather than being driven by it (DESIGN.md §20). SchedRun is this
+ * the target rather than being driven by it (DESIGN.md §20). RunMainLoop is this
  * in a loop; there is only one copy of the body. */
 int  TransportWait(struct core_ctx *core, int timeout_ms);
-void SchedStop(void);
-void SchedStep(struct core_ctx *core,
+void StopMainLoop(void);
+void RunMainLoopOnce(struct core_ctx *core,
 	       void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg);
 
 /* End-of-run counters. The threaded build must call this itself: the
- * application thread owns the loop, so SchedRun's epilogue never runs. */
-void     SchedReport(struct core_ctx *core);
-int      SchedRunning(struct core_ctx *core);
+ * application thread owns the loop, so RunMainLoop's epilogue never runs. */
+void     PrintNetworkStats(struct core_ctx *core);
+int      RunMainLoopning(struct core_ctx *core);
 uint32_t SchedNow(struct core_ctx *core);
 
 /* Start the stack on its own thread, pinned to `cpu`; the caller becomes the
  * application thread on the same core. Returns the thread to join. */
-pthread_t SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu);
+pthread_t RunStackThread(struct core_ctx *core, uint32_t max_ticks, int cpu);
 
-void SchedRun(struct core_ctx *core, uint32_t max_ticks,
+void RunMainLoop(struct core_ctx *core, uint32_t max_ticks,
 	      void (*app)(struct core_ctx *, uint32_t now, void *),
 	      void *app_arg);
 
@@ -74,10 +74,10 @@ struct mtp_ready {
 
 /* Move flows the application published into gen_list. Stack thread, before
  * the drain. */
-void SchedTakeNotifications(struct core_ctx *core);
+void HandleApplicationNotifications(struct core_ctx *core);
 /* Destroy flows the program finished with, at a point where no program call
  * is in flight. */
-void SchedReap(struct core_ctx *core);
+void DestroyFinishedFlows(struct core_ctx *core);
 
 int  TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max);
 

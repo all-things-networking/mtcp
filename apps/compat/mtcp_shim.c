@@ -31,7 +31,7 @@
 #include "mtcp_epoll.h"
 
 #include "contract.h"
-#include "scheduler.h"
+#include "core.h"
 #include "infra.h"
 #include "bringup.h"	/* InfraInit, InfraCoreCreate -- WITHOUT this the
 				 * compiler assumes InfraCoreCreate returns int and
@@ -310,7 +310,7 @@ mtcp_create_context(int cpu)
 	 * the application; the stack gets its own. Runs until SIGINT, so no
 	 * tick limit.
 	 */
-	g_shim_stack = SchedStartStack(g_shim_core, 0, cpu);
+	g_shim_stack = RunStackThread(g_shim_core, 0, cpu);
 	return (mctx_t)g_shim_core;
 }
 
@@ -320,13 +320,13 @@ mtcp_destroy_context(mctx_t mctx)
 	(void)mctx;
 	/* Stop it before joining it. Without this the join never returns and
 	 * the process dies on SIGKILL with no report. */
-	SchedStop();
+	StopMainLoop();
 	if (g_shim_stack) {
 		pthread_join(g_shim_stack, NULL);
 		g_shim_stack = 0;
 	}
 	if (g_shim_core)
-		SchedReport(g_shim_core);	/* the loop is ours, so is the report */
+		PrintNetworkStats(g_shim_core);	/* the loop is ours, so is the report */
 	fprintf(stderr, "shim write: %llu calls, asked %llu, got %llu (%.1f%%), "
 		"%llu short, %llu refused (%llu ring full, %llu no flow); "
 		"mean asked %llu, mean got %llu\n",
@@ -700,7 +700,7 @@ mtcp_epoll_ctl(mctx_t mctx, int epid, int op, int sockid,
 }
 
 /*
- * Collect one target iteration's readiness. Called from inside SchedStep, which
+ * Collect one target iteration's readiness. Called from inside RunMainLoopOnce, which
  * mtcp_epoll_wait pumps — so the application's loop is the target's clock. That
  * is our inline-stack design surfacing at the API boundary, not an artefact of
  * the shim, and it is on the parity register as a behavioural difference from
@@ -789,7 +789,7 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 	g_rdy_n = 0;
 
 	/*
-	 * DOES NOT PUMP THE TARGET. It used to call SchedStep here, which made
+	 * DOES NOT PUMP THE TARGET. It used to call RunMainLoopOnce here, which made
 	 * the application's loop the stack's clock -- our inline design showing
 	 * through the API. The stack now runs on its own thread, so this only
 	 * TAKES what is already there and returns, including nothing.

@@ -8,7 +8,7 @@
  * `prog_sample_inflight` and `prog_dump_flow_state` are already declared weak in
  * src/target/internal.h, so absent is a legal answer for them and they are not
  * here. The seven reporters are called unconditionally from the end-of-run
- * summary in scheduler.c, so they have to exist.
+ * summary in core.c, so they have to exist.
  *
  * A build made from this file REPORTS NOTHING, and that is the correct answer
  * rather than a gap: a measurement build and a shipping build stop being the

@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "flow_table.h"
+#include "fhash.h"
 #include "prog_ctx.h"
 
 static int failures;

@@ -130,7 +130,7 @@ struct flow {
  * PER-CLASS RING DEPTH, SIZED FROM MEASUREMENT.
  *
  * Measured high-water of pending blueprints per flow, per class, under load
- * (c=1 and c=4, reported by SchedReport): class 0 = 2, class 1 = 1, class 2 = 1.
+ * (c=1 and c=4, reported by PrintNetworkStats): class 0 = 2, class 1 = 1, class 2 = 1.
  * The figure does not grow with concurrency, because it is per flow and the
  * drain empties a flow's ring each pass.
  *

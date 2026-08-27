@@ -4,7 +4,7 @@
  *
  * TESTABLE in the Makefile is deliberately "off-testbed sources only: no
  * infra, so no DPDK". prog_app.c is in that set, and sock_recv there calls
- * mtp_retry -- which lives in scheduler.c, which needs DPDK. So the whole
+ * mtp_retry -- which lives in core.c, which needs DPDK. So the whole
  * suite stopped LINKING the moment the window-reopen was routed through a
  * retry, and five tests silently became un-runnable on the orchestrator.
  *
@@ -36,7 +36,7 @@ mtp_retry(flow_t *f)
  * self-contained file, so TESTABLE could name it alone. The compiler splits by
  * ORIGIN instead -- op-parsers to prog_app.c, everything else to prog_proto.c
  * -- so the suite now links the whole program, and the whole program reaches
- * every instruction it can issue. All twelve live in scheduler.c, flow.c or
+ * every instruction it can issue. All twelve live in core.c, flow.c or
  * timer.c, which need DPDK.
  *
  * NONE OF THEM IS REACHED by any test here: the five suites exercise the

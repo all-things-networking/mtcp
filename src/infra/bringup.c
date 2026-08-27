@@ -200,7 +200,7 @@ fail:
  * stack's own classification counted 27, and 4 in a run where it counted 25.
  * They are worth printing because imissed and ierrors have no equivalent
  * upstack, but a zero here means nothing on its own. THE RECEIVE-PATH
- * CLASSIFICATION IN scheduler.c IS THE AUTHORITY — it is what resolved the
+ * CLASSIFICATION IN core.c IS THE AUTHORITY — it is what resolved the
  * zero-receive investigation, and these counters are what nearly buried it.
  */
 static void

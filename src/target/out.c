@@ -619,7 +619,7 @@ release_bp(struct bp *bp)
 
 /*----------------------------------------------------------------------------*/
 void
-Drain(struct core_ctx *core)
+WritePacketsToChunks(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f, *tmp;

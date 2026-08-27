@@ -22,14 +22,14 @@
 
 #include "infra.h"
 #include "bringup.h"
-#include "scheduler.h"
+#include "core.h"
 #include <pthread.h>
 
 #include "contract.h"
-#include "scheduler.h"
+#include "core.h"
 
 /*
- * The application, run once per iteration by SchedRun. Drains readiness and
+ * The application, run once per iteration by RunMainLoop. WritePacketsToChunkss readiness and
  * reads. This is the first time the inbound direction reaches an application in
  * this target, so the three mechanisms underneath it — the flush instruction's
  * return, `delivered`, and the window rule's second recompute point — all run
@@ -273,7 +273,7 @@ static void
 on_stop(int sig)
 {
 	(void)sig;
-	SchedStopRequested = 1;
+	MainLoopStopRequested = 1;
 	/*
 	 * write(2) and NOT fprintf. A signal handler may call only
 	 * async-signal-safe functions; fprintf takes the stream lock, and this
@@ -320,7 +320,7 @@ main(int argc, char **argv)
 
 		/*
 		 * SIGINT/SIGTERM end the run loop rather than the process, so
-		 * the summary after SchedRun still prints. The runners stop a
+		 * the summary after RunMainLoop still prints. The runners stop a
 		 * server with SIGINT and then SIGKILL; without this the
 		 * counters are never reported and the transfer looks
 		 * unmeasured. Our side of a defect the donor has too.
@@ -529,9 +529,9 @@ main(int argc, char **argv)
 	 * the STACK invokes SEND, so packet generation stays on one thread.
 	 */
 	{
-		pthread_t stack = SchedStartStack(core, ms, cpu);
+		pthread_t stack = RunStackThread(core, ms, cpu);
 
-		while (SchedRunning(core)) {
+		while (RunMainLoopning(core)) {
 			serve(core, SchedNow(core), NULL);
 			/*
 			 * The control application blocks too, or it is not the
@@ -546,7 +546,7 @@ main(int argc, char **argv)
 			pthread_join(stack, NULL);
 
 		/* the loop is ours, so the report is ours to ask for */
-		SchedReport(core);
+		PrintNetworkStats(core);
 	}
 
 	TransportCoreFini(core);

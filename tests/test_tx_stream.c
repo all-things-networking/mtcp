@@ -25,7 +25,7 @@ static int drains;
 } while (0)
 
 /*
- * Stands in for Drain: emits whatever is pending and, critically, RELEASES
+ * Stands in for WritePacketsToChunks: emits whatever is pending and, critically, RELEASES
  * the references those blueprints held. The real drain does that in
  * release_bp() after a blueprint's last segment. A stub that counted without
  * releasing tripped the assertion in mtp_tx_flush_and_notify — correctly,

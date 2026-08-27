@@ -56,7 +56,7 @@ RxUnitInit(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 	return u->buf ? 0 : -1;
 }
 
-/* mtp_new_rx_ordered_data lives in scheduler.c, where CONFIG is visible —
+/* mtp_new_rx_ordered_data lives in core.c, where CONFIG is visible —
  * same split as the transmit side: the ring takes its capacity as a parameter
  * and knows nothing about a configuration system. */
 

@@ -23,14 +23,14 @@
 #include <sched.h>
 #include <time.h>
 
-#include "scheduler.h"
+#include "core.h"
 /* Nothing here calls the contract yet. Included so that the compiler reads it
  * on every build — a header with no compiler in front of it stops being
  * checkable code and goes back to being prose. */
 #include "contract.h"
 #include "internal.h"
 #include "eth_in.h"
-#include "flow_table.h"
+#include "fhash.h"
 #include "flow.h"
 #include "target_core.h"
 #include "internal.h"
@@ -145,7 +145,7 @@ ready_raise(struct transport *t, struct flow *f, int kind)
 		 *
 		 * The donor flushes its epoll events and signals ONCE per pass,
 		 * from FlushEpollEvents. The flag below is that: the pass sets
-		 * it, SchedWakeApp clears it and signals once.
+		 * it, FlushReadyEvents clears it and signals once.
 		 */
 		t->wake_pending = 1;
 		return;
@@ -159,7 +159,7 @@ ready_raise(struct transport *t, struct flow *f, int kind)
  * being woken per flow and running with a fraction of a batch each time.
  */
 void
-SchedWakeApp(struct core_ctx *core)
+FlushReadyEvents(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 
@@ -219,7 +219,7 @@ TransportWait(struct core_ctx *core, int timeout_ms)
 	t->app_state = MTP_APP_WAITING;
 	pthread_mutex_lock(&t->app_lock);
 	if (fq_is_empty(&t->q_ready) && TAILQ_EMPTY(&t->ready_list)
-	    && SchedRunning(core)) {
+	    && RunMainLoopning(core)) {
 		t->app_waiting = 1;
 		t->app_sleeps++;
 		if (pthread_cond_timedwait(&t->app_cv, &t->app_lock, &ts))
@@ -455,7 +455,7 @@ mtp_del_ctx(const flowkey_t *key)
 	 * assigned the context pointer straight into a `struct flow *` -- legal
 	 * C, since void* converts to any object pointer without a cast, so
 	 * -Wall -Werror had nothing to say. The accessor exists so the
-	 * dereference cannot be written wrong again; flow_table.h says why.
+	 * dereference cannot be written wrong again; fhash.h says why.
 	 *
 	 * Everything after it then operated on the program's TCP context as
 	 * though it were a flow: `pending_destroy = 1` wrote into whatever
@@ -544,7 +544,7 @@ FlowAppDetached(struct flow *f)
  * enforced here, and the re-add cannot be walked by the sweep that emptied it.
  */
 void
-SchedTakeRetries(struct core_ctx *core)
+HandleRetryList(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *taken[MTP_RETRY_MAX];
@@ -594,7 +594,7 @@ SchedTakeRetries(struct core_ctx *core)
  * breaks it silently." The new path was ours.
  */
 void
-SchedReap(struct core_ctx *core)
+DestroyFinishedFlows(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f;
@@ -628,7 +628,7 @@ drain_this_core(void *arg)
 	uint64_t before = t->emit_refused;
 
 	t->forced_drains++;
-	Drain(core);
+	WritePacketsToChunks(core);
 	/*
 	 * Whether THIS drain reached everything, not whether any drain ever
 	 * gave up. tx_flush treats "I called drain" as "the drain happened",
@@ -929,7 +929,7 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 	return TRUE;
 }
 /*----------------------------------------------------------------------------*/
-volatile sig_atomic_t SchedStopRequested;
+volatile sig_atomic_t MainLoopStopRequested;
 static uint64_t g_gap_hist[10], g_gap_sum, g_gap_sq, g_gap_n, g_gap_max;
 static uint64_t g_rx_hist[8], g_rx_n, g_rx_pkts;
 
@@ -940,9 +940,9 @@ static uint64_t g_rx_hist[8], g_rx_n, g_rx_pkts;
  * shimmed arm never printed an epilogue and carried no counters.
  */
 void
-SchedStop(void)
+StopMainLoop(void)
 {
-	SchedStopRequested = 1;
+	MainLoopStopRequested = 1;
 }
 
 /*
@@ -951,21 +951,21 @@ SchedStop(void)
  * needs that inversion: epserver owns its own event loop and calls
  * mtcp_epoll_wait, which pumps the target once (DESIGN.md §20).
  *
- * SchedRun is now this in a while loop, so there is ONE body and the two entry
+ * RunMainLoop is now this in a while loop, so there is ONE body and the two entry
  * points cannot drift apart. A second copy of the receive/app/drain order
  * would be the "one site of a kind" defect the standing rules name.
  *
  * No protocol identity here or in the name: rule 4 is unaffected.
  */
 void
-SchedStep(struct core_ctx *core,
+RunMainLoopOnce(struct core_ctx *core,
 	  void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg)
 {
 	struct thread_ctx *ctx = core->ctx;
 	struct timeval tv = {0};
 	uint32_t ts;
 	/*
-	 * STATIC, because SchedStep is called ONCE PER ITERATION from the outer
+	 * STATIC, because RunMainLoopOnce is called ONCE PER ITERATION from the outer
 	 * loop -- these were locals, so `iters` was always 0 and `t_prev_us`
 	 * always 0. The inter-poll histogram recorded nothing at all, and the
 	 * every-1024th sampler ran on every pass instead. One stack thread, so
@@ -1079,8 +1079,8 @@ SchedStep(struct core_ctx *core,
 		 */
 		/* CR-E: extents the application buffered, handed to the
 		 * program HERE -- on the stack thread -- before the drain. */
-		SchedTakeSends(core);
-		SchedTakeNotifications(core);
+		HandleApplicationCalls(core);
+		HandleApplicationNotifications(core);
 		if (app)
 			app(core, ts, app_arg);
 
@@ -1089,14 +1089,14 @@ SchedStep(struct core_ctx *core,
 		 * D3: THE PER-ITERATION RETRY, before the drain so anything it
 		 * generates leaves in this pass rather than the next.
 		 */
-		SchedTakeRetries(core);
-		Drain(core);
+		HandleRetryList(core);
+		WritePacketsToChunks(core);
 
 		/* nothing from the program is on the stack here */
-		SchedReap(core);
+		DestroyFinishedFlows(core);
 
 		/* One signal for everything this pass made ready. */
-		SchedWakeApp(core);
+		FlushReadyEvents(core);
 
 		/*
 		 * What the burst actually accepted, as against what we handed
@@ -1178,15 +1178,15 @@ sched_stack_thread(void *argp)
 
 	sched_pin(a->cpu);
 
-	/* Published before the first step, so SchedEnqueue and ready_raise
+	/* Published before the first step, so AddtoSendList and ready_raise
 	 * can tell which side they are on from here onward. */
 	TransportOf(a->core)->stack_tid = (uint64_t)(uintptr_t)pthread_self();
 
 	gettimeofday(&tv, NULL);
 	ts_start = TIMEVAL_TO_TS(&tv);
 
-	while (!ctx->exit && !ctx->done && !SchedStopRequested) {
-		SchedStep(a->core, NULL, NULL);
+	while (!ctx->exit && !ctx->done && !MainLoopStopRequested) {
+		RunMainLoopOnce(a->core, NULL, NULL);
 		gettimeofday(&tv, NULL);
 		ts = TIMEVAL_TO_TS(&tv);
 		if (a->max_ticks && (uint32_t)(ts - ts_start) >= a->max_ticks)
@@ -1203,11 +1203,11 @@ sched_stack_thread(void *argp)
 /* For the application thread's own loop: is the stack still running, and what
  * time does it think it is? The application must not reach into core->ctx. */
 int
-SchedRunning(struct core_ctx *core)
+RunMainLoopning(struct core_ctx *core)
 {
 	struct thread_ctx *ctx = core->ctx;
 
-	return !ctx->exit && !ctx->done && !SchedStopRequested;
+	return !ctx->exit && !ctx->done && !MainLoopStopRequested;
 }
 
 uint32_t
@@ -1223,7 +1223,7 @@ mtp_now_us(void)
 }
 
 pthread_t
-SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu)
+RunStackThread(struct core_ctx *core, uint32_t max_ticks, int cpu)
 {
 	static struct sched_thread_arg arg;
 	pthread_t th;
@@ -1248,8 +1248,8 @@ SchedStartStack(struct core_ctx *core, uint32_t max_ticks, int cpu)
 }
 
 /*
- * End-of-run reporting. Extracted from SchedRun because the application thread
- * now owns the loop and SchedRun is not called at all in the threaded build --
+ * End-of-run reporting. Extracted from RunMainLoop because the application thread
+ * now owns the loop and RunMainLoop is not called at all in the threaded build --
  * every counter in here silently stopped being printed when item 5 landed, and
  * the numbers RESULTS.md is written from went with them.
  */
@@ -1331,7 +1331,7 @@ ReportAtFault(void)
 		(unsigned long long)t->emit_refused_noframe,
 		(unsigned long long)t->emit_refused_offload,
 		(unsigned long long)t->unreachable_ring);
-	SchedReport(g_core[0]);
+	PrintNetworkStats(g_core[0]);
 }
 
 void
@@ -1352,7 +1352,7 @@ NoteFlushPastWire(void)
 }
 
 void
-SchedReport(struct core_ctx *core)
+PrintNetworkStats(struct core_ctx *core)
 {
 	struct thread_ctx *ctx = core->ctx;
 
@@ -1578,7 +1578,7 @@ SchedReport(struct core_ctx *core)
 }
 
 void
-SchedRun(struct core_ctx *core, uint32_t max_ticks,
+RunMainLoop(struct core_ctx *core, uint32_t max_ticks,
 	 void (*app)(struct core_ctx *, uint32_t now, void *), void *app_arg)
 {
 	struct thread_ctx *ctx = core->ctx;
@@ -1588,13 +1588,13 @@ SchedRun(struct core_ctx *core, uint32_t max_ticks,
 	gettimeofday(&tv, NULL);
 	ts_start = TIMEVAL_TO_TS(&tv);
 
-	while (!ctx->exit && !ctx->done && !SchedStopRequested) {
-		SchedStep(core, app, app_arg);
+	while (!ctx->exit && !ctx->done && !MainLoopStopRequested) {
+		RunMainLoopOnce(core, app, app_arg);
 		gettimeofday(&tv, NULL);
 		ts = TIMEVAL_TO_TS(&tv);
 		if (max_ticks && (uint32_t)(ts - ts_start) >= max_ticks)
 			break;
 	}
 
-	SchedReport(core);
+	PrintNetworkStats(core);
 }

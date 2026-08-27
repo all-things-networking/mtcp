@@ -624,7 +624,7 @@ dpdk_rx_csum_verdict(struct thread_ctx *ctxt, int ifidx, int index)
 	 * measured at 8.1M calls in 20s, getenv() and the strncmp inside it
 	 * were 3.2% of the whole client -- instrumentation charging the
 	 * measured path for being available. Same idiom as g_trace_seg in
-	 * emit.c. -1 = not yet resolved.
+	 * out.c. -1 = not yet resolved.
 	 */
 	if (g_trace_csum < 0)
 		g_trace_csum = getenv("MTP_TRACE_CSUM") ? 1 : 0;

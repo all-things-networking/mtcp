@@ -111,16 +111,16 @@ int TxUnitInit(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
 /* The receive unit's base is a sequence number, not zero: the peer's ISN + 1.
  * Passing it here is the bridge, so nothing downstream has to convert. */
 /* One packet that belongs to no flow -- a reset for a connection that does not
- * exist. See emit.c for why this is not the ring A4 described. */
+ * exist. See out.c for why this is not the ring A4 described. */
 int PktGenOrphan(struct core_ctx *core, uint32_t saddr, uint32_t daddr,
 		       const void *hdr, uint16_t hdr_len, int offload,
 		       uint16_t offload_csum_off);
 
 /* One wakeup per pass, at the end of it (the donor's FlushEpollEvents). */
-void SchedWakeApp(struct core_ctx *core);
+void FlushReadyEvents(struct core_ctx *core);
 
 /* D3: re-attempt generation for every flow that asked (mtp_retry). */
-void SchedTakeRetries(struct core_ctx *core);
+void HandleRetryList(struct core_ctx *core);
 
 /* Take every timer belonging to this context off the wheel. Called before the
  * context is freed: the timer objects are fields INSIDE it. */
@@ -233,7 +233,7 @@ struct bp {
 	uint8_t		hdr[PROG_HDR_MAX];
 
 	/*
-	 * Drain-time scratch. Lives in the blueprint rather than on the stack
+	 * WritePacketsToChunks-time scratch. Lives in the blueprint rather than on the stack
 	 * because a drain can stop half way — the transmit buffer fills — and
 	 * has to resume at the same segment on the next iteration.
 	 */
@@ -377,15 +377,15 @@ uint64_t TimerFires(void);
 
 /* `prio` is the PROGRAM's class for this packet; the target attaches no
  * meaning to the value and only drains higher before lower. */
-void SchedEnqueue(flow_t *f, uint32_t prio);
+void AddtoSendList(flow_t *f, uint32_t prio);
 void CheckReachable(struct core_ctx *core);
 
 /* CR-E: hand published send extents to the program. Stack thread, before the
  * drain; DeliverSend does one flow and is also the single-threaded path. */
 struct core_ctx;
-void SchedTakeSends(struct core_ctx *core);
+void HandleApplicationCalls(struct core_ctx *core);
 void DeliverSend(struct core_ctx *core, struct flow *f);
 void PublishAppOp(flow_t *f);
-void Drain(struct core_ctx *core);
+void WritePacketsToChunks(struct core_ctx *core);
 
 #endif /* INTERNAL_H */
