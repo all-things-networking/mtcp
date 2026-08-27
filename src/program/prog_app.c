@@ -76,17 +76,22 @@ sock_send(struct mtp_app_op *op, struct app_ev *ev,
 {
 	unsigned __n = 0;
 	(void)now_ms;
-	ev->addr = op->data;
-	ev->mlen = op->len;
-	ev->phase_record = (((op->flags & MTP_OP_PHASE_RECORD)) != 0);
-	ev->ip = op->local.ip;
-	ev->port = ntohs(op->local.port);
-	if ((op->flow != NULL)) {
-		ev->__flow = op->flow;
+	if ((((op->flags & MTP_OP_PHASE_RECORD)) != 0)) {
+		ev->addr = op->data;
+		ev->mlen = op->len;
+		ev->ip = op->local.ip;
+		ev->port = ntohs(op->local.port);
+		if ((op->flow != NULL)) {
+			ev->__flow = op->flow;
+		} else {
+			ev->__key = key_of_listener(op->local.ip, ntohs(op->local.port));
+		}
+		kinds[__n++] = EV_app_send;
 	} else {
-		ev->__key = key_of_listener(op->local.ip, ntohs(op->local.port));
+		ev->mlen = op->len;
+		ev->__flow = op->flow;
+		kinds[__n++] = EV_app_gen;
 	}
-	kinds[__n++] = EV_app_send;
 	return __n;
 }
 
@@ -175,6 +180,13 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 			struct tcp_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
 						     : mtp_ctx_lookup(&ev.__key);
 			if (!dispatch_app_connect(ctx, &ev, now_ms))
+				return 0;
+			break;
+		}
+		case EV_app_gen: {
+			struct tcp_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
+						     : mtp_ctx_lookup(&ev.__key);
+			if (!dispatch_app_gen(ctx, &ev, now_ms))
 				return 0;
 			break;
 		}

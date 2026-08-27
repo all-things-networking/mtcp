@@ -23,6 +23,7 @@ enum ev_kind {
 	EV_app_bind,
 	EV_app_close,
 	EV_app_connect,
+	EV_app_gen,
 	EV_app_listen,
 	EV_app_recv,
 	EV_app_send,
@@ -51,7 +52,6 @@ struct app_ev {
 	uint16_t loc_port;
 	uint32_t mlen;
 	flow_t *opened;
-	bool phase_record;
 	uint16_t port;
 	uint32_t rem_ip;
 	uint16_t rem_port;
@@ -315,6 +315,8 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms);
 void
 drain_owed_acks(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms);
 void
+gen_answer(struct app_ev *ev, struct tcp_ctx *ctx);
+void
 gen_wnd_adv(struct tcp_ctx *ctx, uint32_t now_ms);
 void
 proc_drain(struct app_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s);
@@ -358,6 +360,7 @@ bool dispatch_app_accept(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t
 bool dispatch_app_connect(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 bool dispatch_app_recv(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 bool dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_gen(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 bool dispatch_app_close(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 
 #endif /* PROG_CTX_H */

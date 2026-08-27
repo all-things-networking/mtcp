@@ -241,8 +241,16 @@ event app_recv     : app_event { rx_addr_t buf; uint32 len; int32 result; }
 // call; `gen_seg` advances send_next, which is the stack's. A compiler emits
 // two entry points and the target calls each from the right thread; with one
 // entry point in the contract the phase rides on the event.
-event app_send     : app_event { addr_t addr; uint32 mlen; bool phase_record;
+// TWO EVENTS, NOT ONE WITH A FLAG. CR-4: `app_send -> { record_data, gen_seg }`
+// is ONE chain that runs on TWO THREADS -- record_data copies into the transmit
+// stream inside the application's call, and gen_seg advances send_next, which
+// is the stack's. A single chain with each processor testing a flag runs BOTH
+// halves on whichever thread called, which is the race the split exists to
+// remove. So the OP-PARSER classifies, as a parser does, and the two halves are
+// two chains.
+event app_send     : app_event { addr_t addr; uint32 mlen;
                                  uint32 ip; uint16 port; int32 result; }
+event app_gen      : app_event { uint32 mlen; int32 result; }
 event app_close    : app_event { }
 
 // §context
@@ -1161,20 +1169,29 @@ list<event_t> sock_connect(connect op) {
 // is no "the" listener to post to, which is why the op carries the endpoint.
 list<event_t> sock_send(send op) {
     list<event_t> out;
-    app_send ev;
 
-    ev.addr = op.data;
-    ev.mlen = op.len;
-    ev.phase_record = (op.flags & OP_PHASE_RECORD) != 0;
-    ev.ip = op.local.ip;
-    ev.port = ntohs(op.local.port);
-    // A send that NAMES A FLOW attaches the handle the socket layer already
-    // holds; one that does not is the posted object, and keys a LISTENER.
-    if (has_flow(op))
+    // WHICH HALF, decided here. A send that NAMES A FLOW attaches the handle
+    // the socket layer already holds; one that does not is the posted object,
+    // and keys a LISTENER.
+    if ((op.flags & OP_PHASE_RECORD) != 0) {
+        app_send ev;
+
+        ev.addr = op.data;
+        ev.mlen = op.len;
+        ev.ip = op.local.ip;
+        ev.port = ntohs(op.local.port);
+        if (has_flow(op))
+            set_flow(ev, op.flow);
+        else
+            set_flow_id(ev, key_of_listener(op.local.ip, ntohs(op.local.port)));
+        out.add(ev);
+    } else {
+        app_gen ev;
+
+        ev.mlen = op.len;
         set_flow(ev, op.flow);
-    else
-        set_flow_id(ev, key_of_listener(op.local.ip, ntohs(op.local.port)));
-    out.add(ev);
+        out.add(ev);
+    }
     return out;
 }
 
@@ -2072,12 +2089,6 @@ void mark_closed(app_close ev, tcp_ctx ctx) {
 void record_data(app_send ev, tcp_ctx ctx) {
     uint32 wrote;
 
-    if (!ev.phase_record) {
-        // THE GENERATE HALF answers with the extent it was handed, which the
-        // application has already buffered (CR-4). A closed send path refuses.
-        ev.result = send_side_open(ctx) ? int32(ev.mlen) : -1;
-        return;
-    }
     if (!send_side_open(ctx) || !ctx.tx_open) {
         ev.result = -1;
         return;
@@ -2304,6 +2315,14 @@ void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
 //
 // LAST, which is also where the donor puts it: is_wack is sent after the
 // ack_cnt loop in the same walk.
+// The generate half's answer to the application: the extent it was handed,
+// which the application has already buffered (CR-4). A closed send path is a
+// refusal.
+void gen_answer(app_gen ev, tcp_ctx ctx) {
+    ev.result = send_side_open(ctx) ? int32(ev.mlen) : -1;
+    return;
+}
+
 void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
     if (!ctx.need_wnd_adv || ctx.rcv_wnd <= PARITY_MSS_PAYLOAD)
         return;
@@ -2823,8 +2842,9 @@ dispatch tcp_dispatch {
     app_accept  -> { proc_accept };
     app_connect -> { proc_connect, gen_syn };
     app_recv    -> { proc_drain };
-    app_send    -> { record_data, post_object,
-                     gen_syn, gen_seg, drain_owed_acks, gen_wnd_adv };
+    app_send    -> { record_data, post_object };
+    app_gen     -> { gen_syn, gen_seg, drain_owed_acks, gen_wnd_adv,
+                     gen_answer };
     app_close   -> { mark_closed, gen_fin };
 }
 

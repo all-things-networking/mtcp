@@ -876,10 +876,6 @@ void
 record_data(struct app_ev *ev, struct tcp_ctx *ctx)
 {
 	uint32_t wrote;
-	if (!(ev->phase_record)) {
-		ev->result = (send_side_open(ctx) ? (int32_t)(ev->mlen) : -(1));
-		return;
-	}
 	if ((!(send_side_open(ctx)) || !(ctx->tx_open))) {
 		ev->result = -(1);
 		return;
@@ -984,6 +980,13 @@ drain_owed_acks(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 		}
 		ctx->ack_cnt = (ctx->ack_cnt - 1);
 	}
+	return;
+}
+
+void
+gen_answer(struct app_ev *ev, struct tcp_ctx *ctx)
+{
+	ev->result = (send_side_open(ctx) ? (int32_t)(ev->mlen) : -(1));
 	return;
 }
 
@@ -1407,12 +1410,10 @@ dispatch_app_recv(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 	return true;
 }
 
-/* generated from: app_send -> { record_data, post_object, gen_syn, gen_seg, drain_owed_acks, gen_wnd_adv } */
+/* generated from: app_send -> { record_data, post_object } */
 bool
 dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 {
-	struct tcp_scratch sc = { 0 };
-
 	record_data(ev, ctx);
 	{
 		struct tcp_listen_ctx *ctx2 = ev->__flow ? NULL
@@ -1420,10 +1421,20 @@ dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 		if (ctx2)
 			post_object(ev, ctx2);
 	}
+	return true;
+}
+
+/* generated from: app_gen -> { gen_syn, gen_seg, drain_owed_acks, gen_wnd_adv, gen_answer } */
+bool
+dispatch_app_gen(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
+{
+	struct tcp_scratch sc = { 0 };
+
 	gen_syn(ctx, now_ms);
 	gen_seg(ctx, &sc, now_ms);
 	drain_owed_acks(ctx, &sc, now_ms);
 	gen_wnd_adv(ctx, now_ms);
+	gen_answer(ev, ctx);
 	return true;
 }
 
