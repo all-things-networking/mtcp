@@ -65,7 +65,23 @@ static inline int instr_on(void)
 	return g_instr;
 }
 
-#define INSTR(stmt) do { if (instr_on()) { stmt; } } while (0)
+/*
+ * COMPILED OUT for the comparison against the generated program.
+ *
+ * `MTP_INSTR` unset is NOT the same as absent. There are 89 emit sites on the
+ * packet path and this tree builds at -O0, so each one still costs a load of a
+ * file-scope int and a branch -- and the generated program has none of them at
+ * all. Measured against a build where they merely default to off, the generated
+ * one would look faster for a reason that has nothing to do with code
+ * generation.
+ *
+ * bench/repos.yaml already draws exactly this distinction for the prototype's
+ * tracer: "unset is not the same as absent: five per-packet sites still cost a
+ * global load and a branch."
+ *
+ * NOT A REFERENCE and never a baseline. Any number from this build says so.
+ */
+#define INSTR(stmt) do { (void)0; } while (0)
 
 
 /* Field offsets within the serialised header. The compiler knows these from
