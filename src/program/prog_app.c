@@ -268,7 +268,17 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 		}
 	}
 
-	/* CR-2: the handle the chain produced */
+	/* CR-2: the flow the chain produced */
+	{
+		flow_t *__f = mtp_flow_of(&ev.accepted);
+		if (__f)
+			op->flow = __f;
+	}
+	{
+		flow_t *__f = mtp_flow_of(&ev.opened);
+		if (__f)
+			op->flow = __f;
+	}
 	/* ...and the count, which is the other half of the same need */
 	return ev.result;
 }

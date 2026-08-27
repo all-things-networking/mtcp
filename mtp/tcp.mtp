@@ -1222,9 +1222,10 @@ bool proc_validate(tcp_ctx ctx, TCPBP bp, uint32 payload_len) {
         // that is where it is. We have no separate control path, so this
         // becomes one apiece: the nearest thing this program has, and the
         // difference is recorded rather than hidden (docs/DIVERGENCE.md).
-        if (ctx.state == ST_TIME_WAIT)
+        if (ctx.state == ST_TIME_WAIT) {
             ctx.state = ST_TIME_WAIT;
-        timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
+            timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
+        }
         owe_ack(ctx, ACK_APIECE);
     }
     return false;
@@ -1637,9 +1638,10 @@ void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
         }
         if (ctx.state == ST_FIN_WAIT_1)
             ctx.state = ST_FIN_WAIT_2;
-        else if (ctx.state == ST_CLOSING)
+        else if (ctx.state == ST_CLOSING) {
             ctx.state = ST_TIME_WAIT;
-        timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
+            timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
+        }
     }
 
     acked = ev.ack - ctx.send_una;

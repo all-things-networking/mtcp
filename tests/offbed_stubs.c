@@ -72,3 +72,6 @@ int  mtp_timer_stop(struct mtp_timer *t) { (void)t; return 0; }
 
 void mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t n) { (void)u; (void)n; }
 void mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t n) { (void)u; (void)n; }
+
+/* the app-interface bridge; the tests never resolve a real flow */
+flow_t *mtp_flow_of(const flowkey_t *fid) { (void)fid; return NULL; }

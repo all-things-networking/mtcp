@@ -509,6 +509,14 @@ int mtp_timer_stop(struct mtp_timer *t);
  */
 void *mtp_new_ctx(const flowkey_t *key, size_t ctx_size);
 void *mtp_ctx_lookup(const flowkey_t *key);
+
+/*
+ * The flow a id names, for GENERATED GLUE ONLY -- the application interface
+ * hands the application a handle, and the program names flows by id, so
+ * something has to bridge the two. That something is the backend, not the
+ * program: a program never sees a handle.
+ */
+flow_t *mtp_flow_of(const flowkey_t *fid);
 int   mtp_del_ctx(const flowkey_t *key);
 
 /*

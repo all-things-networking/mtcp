@@ -613,9 +613,9 @@ proc_validate(struct tcp_ctx *ctx, struct TCPBP bp, uint32_t payload_len)
 	} else {
 		if ((ctx->state == ST_TIME_WAIT)) {
 			ctx->state = ST_TIME_WAIT;
+			(ctx->tw_timer).ctx = ctx;
+			mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(PARITY_TIMEWAIT_MS) * 1000000ULL));
 		}
-		(ctx->tw_timer).ctx = ctx;
-		mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(PARITY_TIMEWAIT_MS) * 1000000ULL));
 		owe_ack(ctx, ACK_APIECE);
 	}
 	return false;
@@ -964,10 +964,10 @@ proc_ack(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 		} else {
 			if ((ctx->state == ST_CLOSING)) {
 				ctx->state = ST_TIME_WAIT;
+				(ctx->tw_timer).ctx = ctx;
+				mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(PARITY_TIMEWAIT_MS) * 1000000ULL));
 			}
 		}
-		(ctx->tw_timer).ctx = ctx;
-		mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(PARITY_TIMEWAIT_MS) * 1000000ULL));
 	}
 	acked = (ev->ack - ctx->send_una);
 	if (((int32_t)(acked) <= 0)) {

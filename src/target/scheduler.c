@@ -428,6 +428,12 @@ mtp_new_ctx(const flowkey_t *key, size_t ctx_size)
 	return ctx;
 }
 
+flow_t *
+mtp_flow_of(const flowkey_t *fid)
+{
+	return FlowOfKey(TransportOf(g_core[0])->flows, fid);
+}
+
 void *
 mtp_ctx_lookup(const flowkey_t *key)
 {
