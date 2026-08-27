@@ -1372,6 +1372,8 @@ bool
 dispatch_app_bind(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 {
 	proc_bind(ev, ctx);
+	if (!ctx)
+		ctx = mtp_ctx_lookup(&ev->__key);
 	return true;
 }
 
@@ -1396,6 +1398,8 @@ bool
 dispatch_app_connect(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 {
 	proc_connect(ev, ctx);
+	if (!ctx)
+		ctx = mtp_ctx_lookup(&ev->__key);
 	gen_syn(ctx, now_ms);
 	return true;
 }
