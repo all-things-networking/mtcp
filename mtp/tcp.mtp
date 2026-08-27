@@ -44,6 +44,12 @@
 
 // §types
 // ---------------------------------------------------------------------------
+// `addr_t` and `rx_addr_t` ARE DIFFERENT TYPES, and the frozen language has one.
+// MTP_LANG 2 says addr_t is "split by direction" at the runtime; in this target
+// they are two concrete types with different fields, and one app event carries
+// each -- `send` a transmit reference, `recv` a receive one -- so direction
+// cannot be recovered from the event's base. The program says which.
+//
 // ONE TYPE THE FROZEN LANGUAGE DOES NOT HAVE, and it is here because the
 // application interface forces it. `handle_t` is the target's opaque handle for
 // a flow: the program never looks inside one, and it exists for exactly three
@@ -87,18 +93,18 @@ const uint8  ST_TIME_WAIT   = 9;
 // we ran ever opened a connection, so the state had no way to be entered.
 const uint8  ST_SYN_SENT    = 10;
 
-const uint16 MSS_ADVERTISED = 1460;   // what the option carries
-const uint16 MSS_PAYLOAD    = 1448;   // mss - CalculateOptionLength(ACK), which
+const uint16 PARITY_MSS_ADVERTISED = 1460;   // what the option carries
+const uint16 PARITY_MSS_PAYLOAD    = 1448;   // mss - CalculateOptionLength(ACK), which
                                       // the donor computes inline at
                                       // tcp_out.c:566. There is no `eff_mss` in
                                       // the donor to grep for.
-const uint8  WSCALE         = 7;      // sent always
-const uint32 RCVBUF         = 262144; // the donor's running rcvbuf
-const uint32 INITIAL_WINDOW = 14600;  // tcp_stream.c:325
+const uint8  PARITY_WSCALE         = 7;      // sent always
+const uint32 PARITY_RCVBUF_SIZE         = 262144; // the donor's running rcvbuf
+const uint32 PARITY_INITIAL_WINDOW = 14600;  // tcp_stream.c:325
 
-const uint32 ISN            = 0;      // ALWAYS. Reproduce, do not correct.
-const uint32 INIT_CWND      = 2920;   // 2 * MSS
-const uint32 SSTHRESH_ACTIVE = 14600; // MSS * 10
+const uint32 PARITY_ISN            = 0;      // ALWAYS. Reproduce, do not correct.
+const uint32 PARITY_INIT_CWND      = 2920;   // 2 * MSS
+const uint32 PARITY_SSTHRESH_ACTIVE = 14600; // MSS * 10
 
 // D-01. mTCP never assigns ssthresh on the passive-open path, so the server —
 // the machine under test — runs with ssthresh 0, the slow-start test is false
@@ -107,26 +113,26 @@ const uint32 SSTHRESH_ACTIVE = 14600; // MSS * 10
 //
 // The flag covers snd_wl1 and last_ack_seq too, and the reason is subtle: only
 // ssthresh has a live consequence TODAY, because snd_wl1's divergence is masked
-// by the ISN freeze above. Lift the ISN and it activates silently, with nothing
+// by the PARITY_ISN freeze above. Lift the PARITY_ISN and it activates silently, with nothing
 // in a diff pointing at the cause. The two freezes are coupled.
 const bool   PARITY_OPENING_TRAJECTORY = true;
-const uint32 SSTHRESH_PASSIVE = 0;
+const uint32 PARITY_SSTHRESH_PASSIVE = 0;
 
-const uint32 DUP_ACK_THRESH = 3;      // tcp_in.c:417 — the donor acts on the
+const uint32 PARITY_DUP_ACK_THRESH = 3;      // tcp_in.c:417 — the donor acts on the
                                       // third duplicate and only the third
-const uint32 MAX_RTX        = 16;     // TCP_MAX_RTX, enforced
-const uint32 MAX_SYN_RETRY  = 7;      // SYN_SENT only; timer.c:267-269
-const uint32 INITIAL_RTO_MS = 500;    // until the first round-trip sample only
-const uint32 TIMEWAIT_MS    = 0;      // the donor's running configuration. Zero
+const uint32 PARITY_MAX_RTX        = 16;     // TCP_MAX_RTX, enforced
+const uint32 PARITY_MAX_SYN_RETRY  = 7;      // SYN_SENT only; timer.c:267-269
+const uint32 PARITY_INITIAL_RTO_MS = 500;    // until the first round-trip sample only
+const uint32 PARITY_TIMEWAIT_MS    = 0;      // the donor's running configuration. Zero
                                       // is a REAL VALUE, not "unset" — D-24:
                                       // the state must be entered and left even
                                       // at zero, because it is the place the
                                       // final acknowledgement is owed from.
-const uint32 PROBE_MS       = 500;    // D-25 piece 2: the donor probes a closed
+const uint32 PARITY_PROBE_MS       = 500;    // D-25 piece 2: the donor probes a closed
                                       // window 500 ms after the last
                                       // acknowledgement it SENT, with no backoff
-const uint32 IDLE_MS        = 30000;  // conf/aqua/upcheck.conf `tcp_timeout = 30`
-const uint32 MAX_BACKLOG    = 128;    // the compile-time bound on one listener's
+const uint32 PARITY_IDLE_MS        = 30000;  // conf/aqua/upcheck.conf `tcp_timeout = 30`
+const uint32 PROG_MAX_BACKLOG    = 128;    // the compile-time bound on one listener's
                                       // accept queue; `pending_cap` below it is
                                       // the runtime bound the application asked
                                       // for, and they are different questions
@@ -134,7 +140,7 @@ const uint32 MAX_BACKLOG    = 128;    // the compile-time bound on one listener'
 // PSH is never set. Tested at tcp_out.c:172,265 and passed by no caller. Listed
 // because this program builds the header, so a flag bit can diverge with no
 // protocol logic wrong anywhere.
-const bool   SET_PSH = false;
+const bool   PARITY_SET_PSH = false;
 
 // THE PROGRAM'S TRANSMIT SCHEDULING POLICY (D-17). The target provides
 // priority classes and drains the highest first; it attaches no meaning to
@@ -160,6 +166,22 @@ const uint8  ACK_NONE      = 0;       // this segment owes nothing, which is NOT
 const uint8  ACK_AGGREGATE = 1;       // raises the count to 1 if it is 0
 const uint8  ACK_APIECE    = 2;       // INCREMENTS the count: one of its own
 
+// §transport
+// ---------------------------------------------------------------------------
+// WHAT THE INFRASTRUCTURE NEEDS FROM THE PROGRAM, and the only two things it
+// does. Below the transport this is the one place protocol identity may be
+// written down (rule 4), and the program had never actually said either of
+// them: the hand-written prog_id.c carries the number with a comment, and the
+// configuration keys as two hand-written strcmps.
+const uint8 TRANSPORT_IP_PROTO = 6;
+
+// The configuration keys this protocol owns. The donor keeps these two in its
+// own config struct; here the parser hands them up, because a timeout for a
+// connection is not a property of the machine. An unrecognised key must not be
+// silently ignored -- the configuration file the donor is measured with is the
+// configuration file this target is measured with.
+config transport { tcp_timewait; tcp_timeout; }
+
 // §flow_id
 // ---------------------------------------------------------------------------
 // SHAPE ONLY (CR-5). The fields have no meaning here; the parser constructs the
@@ -180,7 +202,7 @@ event tcp_synack   : net_event { uint32 seq, ack; uint16 window;
 event tcp_ack      : net_event { uint32 seq, ack; uint16 window;
                                  uint32 ts_val, ts_ecr; uint32 payload_len; }
 event tcp_data     : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
-                                 addr_t hold_addr; uint32 data_len; }
+                                 rx_addr_t hold_addr; uint32 data_len; }
 event tcp_fin      : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
                                  uint32 payload_len; }
 // A RESET RAISES tcp_rst AND NOTHING ELSE — the one place the inclusive
@@ -206,7 +228,7 @@ event app_listen   : app_event { uint32 ip; uint16 port; uint32 backlog;
 event app_accept   : app_event { uint32 ip; uint16 port; handle_t accepted; }
 event app_connect  : app_event { uint32 loc_ip, rem_ip;
                                  uint16 loc_port, rem_port; handle_t opened; }
-event app_recv     : app_event { addr_t buf; uint32 len; }
+event app_recv     : app_event { rx_addr_t buf; uint32 len; }
 // TWO HALVES OF ONE EVENT ON TWO THREADS (CR-4). `record_data` copies into the
 // transmit stream and generates nothing, so it runs inside the application's
 // call; `gen_seg` advances send_next, which is the stack's. A compiler emits
@@ -251,8 +273,8 @@ context tcp_ctx {
     // --- send side, sequence space -------------------------------------
     // TWO SPACES, and conflating them is the fifth instance of the class in
     // docs/PLAN.md §3. The transmit unit's offsets start at 0. The sequence
-    // space starts at the ISN, and the SYN CONSUMES ONE, so the first data byte
-    // is sequence ISN+1. `snd_base` is that, and it is the only bridge between
+    // space starts at the PARITY_ISN, and the SYN CONSUMES ONE, so the first data byte
+    // is sequence PARITY_ISN+1. `snd_base` is that, and it is the only bridge between
     // the two — anything relating a unit offset to a sequence number goes
     // through it.
     uint32 snd_base;
@@ -266,7 +288,7 @@ context tcp_ctx {
 
     uint32 send_wnd  = 65535;         // the peer's window, ALREADY SCALED
     uint8  snd_wscale;                // the shift the peer asked for on its SYN
-    uint32 cwnd      = INIT_CWND;
+    uint32 cwnd      = PARITY_INIT_CWND;
     uint32 ssthresh;
 
     // THE DONOR'S WINDOW-UPDATE AND DUPLICATE-ACKNOWLEDGEMENT STATE.
@@ -289,7 +311,7 @@ context tcp_ctx {
 
     // --- receive side, sequence space -----------------------------------
     // The receive side's bridge, named for symmetry with snd_base. The peer's
-    // SYN consumes one, so the first data byte it sends is at ISN+1, and
+    // SYN consumes one, so the first data byte it sends is at PARITY_ISN+1, and
     // `delivered` is seeded HERE rather than at zero — otherwise §window_rule
     // subtracts a sequence number from a byte count. That is the same bug as
     // the send side's, in the same week, and the two were found separately
@@ -303,7 +325,7 @@ context tcp_ctx {
                                       // nothing beside it
     uint32 delivered;                 // what the application has taken,
                                       // accumulated from rx_flush_and_notify
-    uint32 rcv_wnd = INITIAL_WINDOW;  // §window_rule owns every write to this
+    uint32 rcv_wnd = PARITY_INITIAL_WINDOW;  // §window_rule owns every write to this
     // D11: we advertised a zero window FIELD and owe the peer an update once
     // the application has drained. The donor's need_wnd_adv, and the test is on
     // the SCALED field rather than on rcv_wnd (tcp_out.c:304-309) — under a
@@ -429,7 +451,7 @@ context tcp_listen_ctx {
     // expressible in the program rather than in the target.
     uint32   pending_cap;
     uint32   pending_n;
-    handle_t pending[MAX_BACKLOG];
+    handle_t pending[PROG_MAX_BACKLOG];
 
     // The object the application has posted to serve, per listener rather than
     // per process. A one-shot server hands it over once and every accepted
@@ -489,7 +511,12 @@ pkt_bp TCPBP { uint16 src_port, dst_port; uint32 seq_no, ack_seq;
 // ends; `tot_len` is deliberately not read, because the on-wire total length
 // needs a byte swap the parser has no reason to perform when the target already
 // hands over the transport length.
-net_header ipv4 { uint32 src_ip, dst_ip; uint8 protocol; }
+// Field names are the TARGET's, because this is its struct and not ours: a
+// rename here would need a mapping table in the compiler, which is the sort of
+// thing that is right once and wrong afterwards. Addresses are read RAW and
+// treated as opaque network-order bytes for the flow id, so they round-trip
+// identically at both ends.
+net_header ipv4 { uint32 saddr, daddr; uint8 protocol; }
 
 // Option layout, frozen from tcp_out.c:83-124,181-192 and MEASURED against the
 // donor's wire (docs/RESULTS.md 2026-08-12). The ORDER differs from Linux's
@@ -504,7 +531,7 @@ net_header ipv4 { uint32 src_ip, dst_ip; uint8 protocol; }
 opt_t opt_mss    { uint8 kind = 2; uint8 opt_len = 4;  uint16 mss; }
 opt_t opt_nop    { uint8 kind = 1; }
 opt_t opt_ts     { uint8 kind = 8; uint8 opt_len = 10; uint32 ts_val, ts_ecr; }
-opt_t opt_wscale { uint8 kind = 3; uint8 opt_len = 3;  uint8 shift; }
+opt_t opt_wscale { uint8 kind = 3; uint8 opt_len = 3;  uint8 wscale; }
 opt_union tcp_opt { opt_mss, opt_nop, opt_ts, opt_wscale }
 opt_list tcp_options { list<tcp_opt> opts; }
 
@@ -551,7 +578,7 @@ tcp_fid key_of_listener(uint32 loc_ip, uint16 loc_port) {
 // ---------------------------------------------------------------------------
 // The advertised window is a per-flow VARIABLE, not a buffer query.
 //
-//     rcv_wnd = RCVBUF - (recv_next - delivered)
+//     rcv_wnd = PARITY_RCVBUF_SIZE - (recv_next - delivered)
 //
 // recomputed at exactly the donor's two points and nowhere else: when payload
 // merges in order (tcp_in.c:659), and when the application drains (api.c:1141).
@@ -570,30 +597,56 @@ tcp_fid key_of_listener(uint32 loc_ip, uint16 loc_port) {
 // connection — and, because it is exactly one, it is indistinguishable on the
 // wire from the legitimate "one byte held and undrained" case. The program
 // knows the stream ended; the target cannot.
+// §tcp_on_payload_merged
+// ---------------------------------------------------------------------------
+// RECOMPUTE POINT 1 — payload merged in order (mTCP tcp_in.c:659). Called from
+// §proc_recv after the boundary advanced, and from nowhere else: the donor does
+// not recompute on a pure acknowledgement, on an out-of-order segment, or on a
+// retransmission that adds no new in-order bytes, and neither may this.
+void tcp_on_payload_merged(tcp_ctx ctx, uint32 new_recv_next) {
+    ctx.recv_next = new_recv_next;
+    recompute_rcv_wnd(ctx);
+}
+
+// §sock_recv_apply
+// ---------------------------------------------------------------------------
+// RECOMPUTE POINT 2 — the application drained (mTCP api.c:1141). `delivered`
+// advances by what the flush instruction REPORTED it handed over, so the
+// accounting cannot drift from what the target actually gave the application.
+//
+// Generation is the stack's, so this only ASKS: the retry list runs the
+// generate chain on the stack thread, and §gen_wnd_adv builds the update there.
+void sock_recv(tcp_ctx ctx, uint32 delivered_now) {
+    ctx.delivered = ctx.delivered + delivered_now;
+    recompute_rcv_wnd(ctx);
+    if (ctx.need_wnd_adv && ctx.rcv_wnd > PARITY_MSS_PAYLOAD)
+        retry(ctx.f);
+}
+
 void recompute_rcv_wnd(tcp_ctx ctx) {
     uint32 held = ctx.recv_next - ctx.delivered;
 
     if (ctx.fin_consumed && held > 0)
         held = held - 1;
 
-    ctx.rcv_wnd = RCVBUF - held;
+    ctx.rcv_wnd = PARITY_RCVBUF_SIZE - held;
 }
 
-// §window_field
+// §tcp_window_field
 // ---------------------------------------------------------------------------
 // What goes in the header's window field. Unscaled on a SYN, because window
 // scaling is not in effect until the handshake completes; shifted thereafter.
 // This is the whole of the observed sequence 14600 -> 14592 -> 2048.
 //
 // A VALUE ONE BELOW 2048 IS CORRECT, NOT AN OFF-BY-ONE. Between the merge and
-// the application's read the bytes are held, so the window is RCVBUF minus what
+// the application's read the bytes are held, so the window is PARITY_RCVBUF_SIZE minus what
 // is held: one byte held advertises 2047. Observed on the wire 2026-08-13.
 // Anyone "fixing" this to an unconditional 2048 would be removing the mechanism
 // and would only find out from a trace diff.
-uint16 window_field(tcp_ctx ctx, bool is_syn) {
+uint16 tcp_window_field(tcp_ctx ctx, bool is_syn) {
     if (is_syn)
         return uint16(ctx.rcv_wnd);
-    return uint16(ctx.rcv_wnd >> WSCALE);
+    return uint16(ctx.rcv_wnd >> PARITY_WSCALE);
 }
 
 // §build_hdr
@@ -629,8 +682,8 @@ TCPBP build_hdr(tcp_ctx ctx, uint32 seq, uint8 flags, uint32 now) {
     bp.dst_port = ctx.rem_port;
     bp.seq_no   = seq;
     bp.ack_seq  = ctx.recv_next;
-    bp.flags    = SET_PSH ? flags : (flags & ~FLAG_PSH);
-    bp.window   = window_field(ctx, is_syn);
+    bp.flags    = PARITY_SET_PSH ? flags : (flags & ~FLAG_PSH);
+    bp.window   = tcp_window_field(ctx, is_syn);
     bp.urg_ptr  = 0;
 
     if (bp.window == 0)
@@ -638,12 +691,12 @@ TCPBP build_hdr(tcp_ctx ctx, uint32 seq, uint8 flags, uint32 now) {
 
     // The donor's order, and it is the parity item. Do not sort these.
     if (is_syn) {
-        bp.opts.add(opt_mss(MSS_ADVERTISED));
+        bp.opts.add(opt_mss(PARITY_MSS_ADVERTISED));
         bp.opts.add(opt_nop());
         bp.opts.add(opt_nop());
         bp.opts.add(opt_ts(now, ctx.ts_recent));
         bp.opts.add(opt_nop());
-        bp.opts.add(opt_wscale(WSCALE));
+        bp.opts.add(opt_wscale(PARITY_WSCALE));
     } else {
         bp.opts.add(opt_nop());
         bp.opts.add(opt_nop());
@@ -686,7 +739,7 @@ TCPBP build_rst_hdr(uint16 loc_port, uint16 rem_port, uint32 seq, uint32 ack,
 void touch_idle(tcp_ctx ctx) {
     if (ctx.state == ST_CLOSED || ctx.state == ST_TIME_WAIT)
         return;                  // nothing left to reap
-    timer_start(ctx.idle_timer, millisecond(IDLE_MS));
+    timer_start(ctx.idle_timer, millisecond(PARITY_IDLE_MS));
     return;
 }
 
@@ -768,7 +821,7 @@ bool unacked_on_wire(tcp_ctx ctx) {
 // The backoff is `base << min(rtx_count, 7)`, and the base is RECOMPUTED from
 // the estimator rather than the previous value doubled.
 void arm_rto(tcp_ctx ctx) {
-    uint32 base = ctx.have_rtt ? ctx.rto_ms : INITIAL_RTO_MS;
+    uint32 base = ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS;
     uint32 shift = ctx.rtx_count < 7 ? ctx.rtx_count : 7;
 
     timer_start(ctx.rto_timer, millisecond(base << shift));
@@ -896,7 +949,7 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
     if (p.len < 20 || bp.data_off * 4 < 20 || bp.data_off * 4 > p.len)
         return out;
     payload_len = p.len - bp.data_off * 4;
-    tcp_fid fid = key_of_inbound(h.dst_ip, h.src_ip, bp.dst_port, bp.src_port);
+    tcp_fid fid = key_of_inbound(h.daddr, h.saddr, bp.dst_port, bp.src_port);
 
     tcp_ctx ctx = ctx_lookup(fid);
 
@@ -905,18 +958,18 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         // the donor answers with a reset rather than dropping it, which is what
         // lets a peer holding a stale connection find out.
         if ((bp.flags & FLAG_SYN) == 0 || (bp.flags & FLAG_ACK) != 0) {
-            gen_rst(h.dst_ip, h.src_ip, bp, payload_len);
+            gen_rst(h.daddr, h.saddr, bp, payload_len);
             return out;
         }
 
-        tcp_fid lk = key_of_listener(h.dst_ip, bp.dst_port);
+        tcp_fid lk = key_of_listener(h.daddr, bp.dst_port);
         tcp_listen_ctx lst = ctx_lookup(lk);
 
         // tcp_in.c:700 -- a SYN the listener filter refuses is answered with a
         // reset. A MISS IS A MISS, never a null context handed onward, which is
         // how the prototype turns a missed lookup into a crash.
         if (!exists(lst) || lst.state != ST_LISTEN) {
-            gen_rst(h.dst_ip, h.src_ip, bp, payload_len);
+            gen_rst(h.daddr, h.saddr, bp, payload_len);
             return out;
         }
 
@@ -935,8 +988,8 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         ctx.has_lst  = true;
         ctx.loc_port = bp.dst_port;
         ctx.rem_port = bp.src_port;
-        ctx.local_ip = h.dst_ip;
-        ctx.remote_ip = h.src_ip;
+        ctx.local_ip = h.daddr;
+        ctx.remote_ip = h.saddr;
 
         tcp_syn s;
         s.seq = bp.seq_no;  s.sport = bp.src_port;  s.dport = bp.dst_port;
@@ -1028,7 +1081,7 @@ app_parser socket {
     accept  -> sock_accept;
     connect -> sock_connect;
     send    -> sock_send;
-    recv    -> sock_recv;
+    recv    -> parse_recv;
     close   -> sock_close;
 }
 
@@ -1127,11 +1180,14 @@ list<event_t> sock_send(send op) {
 // comes from the instruction's return value rather than from a target accessor,
 // which is what lets the program own `delivered` without the target exposing
 // its unit's occupancy. The work itself is §proc_drain.
-list<event_t> sock_recv(recv op) {
+list<event_t> parse_recv(recv op) {
     list<event_t> out;
     app_recv ev;
 
-    ev.buf = op.data;
+    // The op schema's `data` is a TRANSMIT reference; a receive posts a
+    // RECEIVE one. The two are different types in this target's contract, so
+    // the program says which rather than the compiler converting silently.
+    ev.buf = rx_addr(op.data.base, op.len);
     ev.len = op.len;
     set_flow(ev, op.flow);
     out.add(ev);
@@ -1289,26 +1345,26 @@ bool proc_validate(tcp_ctx ctx, TCPBP bp, uint32 payload_len) {
 //
 // The second form has to acknowledge something because a bare reset with
 // sequence zero would be discarded by any receiver checking the window.
-void gen_rst(uint32 local_ip, uint32 remote_ip, TCPBP in,
-                      uint32 payload_len) {
+void gen_rst(uint32 local_ip, uint32 remote_ip, TCPBP seg,
+             uint32 payload_len) {
     uint32 seq, ack;
     uint8  flags;
 
-    if ((in.flags & FLAG_RST) != 0)
+    if ((seg.flags & FLAG_RST) != 0)
         return;                  // never answer a reset with a reset
 
-    if ((in.flags & FLAG_ACK) != 0) {
-        seq = in.ack_seq;
+    if ((seg.flags & FLAG_ACK) != 0) {
+        seq = seg.ack_seq;
         ack = 0;
         flags = FLAG_RST;
     } else {
         seq = 0;
-        ack = in.seq_no + payload_len + ((in.flags & FLAG_SYN) != 0 ? 1 : 0);
+        ack = seg.seq_no + payload_len + ((seg.flags & FLAG_SYN) != 0 ? 1 : 0);
         flags = FLAG_RST | FLAG_ACK;
     }
 
     pkt_gen_orphan(local_ip, remote_ip,
-                           build_rst_hdr(in.dst_port, in.src_port,
+                           build_rst_hdr(seg.dst_port, seg.src_port,
                                          seq, ack, flags));
     return;
 }
@@ -1335,9 +1391,9 @@ void proc_passive_open(tcp_syn ev, tcp_ctx ctx) {
     ctx.recv_next = ev.seq + 1;         // the SYN consumes one byte
 
     // `delivered` is the SAME ORIGIN as recv_next, not zero. §window_rule
-    // computes rcv_wnd = RCVBUF - (recv_next - delivered), and that difference
+    // computes rcv_wnd = PARITY_RCVBUF_SIZE - (recv_next - delivered), and that difference
     // has to be a BYTE COUNT. recv_next is an absolute sequence number seeded
-    // from the peer's ISN, so leaving delivered at zero makes the difference a
+    // from the peer's PARITY_ISN, so leaving delivered at zero makes the difference a
     // sequence number and the window arbitrary — it advertised 29423 on the
     // first acknowledgement here. Fourth instance of the units bug this
     // increment (docs/PLAN.md §3): two quantities of the same type, one
@@ -1365,11 +1421,11 @@ void proc_passive_open(tcp_syn ev, tcp_ctx ctx) {
     // the passive-open path, so the server runs with ssthresh == 0, the
     // slow-start test is false from the first acknowledgement, and it does
     // congestion avoidance from cwnd = 2*MSS. Reproduced knowingly.
-    ctx.send_una  = ISN;
-    ctx.send_next = ISN;
-    ctx.cwnd      = INIT_CWND;
-    ctx.ssthresh  = PARITY_OPENING_TRAJECTORY ? SSTHRESH_PASSIVE
-                                              : SSTHRESH_ACTIVE;
+    ctx.send_una  = PARITY_ISN;
+    ctx.send_next = PARITY_ISN;
+    ctx.cwnd      = PARITY_INIT_CWND;
+    ctx.ssthresh  = PARITY_OPENING_TRAJECTORY ? PARITY_SSTHRESH_PASSIVE
+                                              : PARITY_SSTHRESH_ACTIVE;
 
     if (pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next, FLAG_SYN | FLAG_ACK,
                                  now()), PRIO_CONTROL, false) == 0) {
@@ -1417,7 +1473,7 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
     if (ctx.has_lst) {
         tcp_listen_ctx lst = ctx_lookup(ctx.lst_key);
 
-        if (exists(lst) && lst.pending_n < MAX_BACKLOG) {
+        if (exists(lst) && lst.pending_n < PROG_MAX_BACKLOG) {
             lst.pending[lst.pending_n] = ctx.f;
             lst.pending_n = lst.pending_n + 1;
             notify(lst.f, READABLE);
@@ -1544,7 +1600,7 @@ void proc_fast_retransmit(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
         return;
     }
 
-    if (ctx.dup_acks == DUP_ACK_THRESH) {
+    if (ctx.dup_acks == PARITY_DUP_ACK_THRESH) {
         // THE THIRD DUPLICATE, AND ONLY THE THIRD. Rewind to what the peer is
         // asking for and halve the window; §gen_seg is the next link but one
         // and does the attempt. This processor does not generate.
@@ -1552,13 +1608,13 @@ void proc_fast_retransmit(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
             ctx.send_next = ev.ack;
 
         ctx.ssthresh = (ctx.cwnd < ctx.send_wnd ? ctx.cwnd : ctx.send_wnd) / 2;
-        if (ctx.ssthresh < 2 * MSS_ADVERTISED)
-            ctx.ssthresh = 2 * MSS_ADVERTISED;
-        ctx.cwnd = ctx.ssthresh + 3 * MSS_ADVERTISED;
+        if (ctx.ssthresh < 2 * PARITY_MSS_ADVERTISED)
+            ctx.ssthresh = 2 * PARITY_MSS_ADVERTISED;
+        ctx.cwnd = ctx.ssthresh + 3 * PARITY_MSS_ADVERTISED;
 
-        if (ctx.rtx_count < MAX_RTX)
+        if (ctx.rtx_count < PARITY_MAX_RTX)
             ctx.rtx_count = ctx.rtx_count + 1;
-    } else if (ctx.dup_acks > DUP_ACK_THRESH) {
+    } else if (ctx.dup_acks > PARITY_DUP_ACK_THRESH) {
         // FOURTH AND LATER: INFLATE, AND ATTEMPT NOTHING. That is the donor
         // (tcp_in.c:466-473) and it is arguably wrong — NewReno inflates
         // precisely so the sender clocks out one segment per duplicate, and
@@ -1567,8 +1623,8 @@ void proc_fast_retransmit(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
         // parity is measured against the donor and "more correct than the
         // donor" is a divergence like any other. REVISIT before any writeup — a
         // reader will expect NewReno here.
-        if (ctx.cwnd + MSS_ADVERTISED > ctx.cwnd)   // the C's overflow guard
-            ctx.cwnd = ctx.cwnd + MSS_ADVERTISED;
+        if (ctx.cwnd + PARITY_MSS_ADVERTISED > ctx.cwnd)   // the C's overflow guard
+            ctx.cwnd = ctx.cwnd + PARITY_MSS_ADVERTISED;
         s.no_send = true;
     } else {
         // first and second: counted, nothing else, no attempt
@@ -1620,13 +1676,13 @@ void proc_congestion(tcp_ack ev, tcp_ctx ctx) {
     // ssthresh is 0 on a passive open (D-01), so `cwnd < ssthresh` is false
     // from the first acknowledgement and this is always congestion avoidance.
     // The server has no slow start. Reproduce, do not correct.
-    uint32 packets = acked / MSS_PAYLOAD;
+    uint32 packets = acked / PARITY_MSS_PAYLOAD;
 
     if (packets > 0 && ctx.cwnd >= ctx.ssthresh)
-        ctx.cwnd = ctx.cwnd + (MSS_ADVERTISED * MSS_ADVERTISED) / ctx.cwnd
+        ctx.cwnd = ctx.cwnd + (PARITY_MSS_ADVERTISED * PARITY_MSS_ADVERTISED) / ctx.cwnd
                               * packets;
     else if (packets > 0)
-        ctx.cwnd = ctx.cwnd + MSS_ADVERTISED * packets;
+        ctx.cwnd = ctx.cwnd + PARITY_MSS_ADVERTISED * packets;
     return;
 }
 
@@ -1742,10 +1798,9 @@ void proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
     next = sw_slide(ctx.rx_wnd);
 
     if (next != ctx.recv_next) {
-        // §window_rule RECOMPUTE POINT 1: payload merged in order. Nothing else
-        // in this program writes rcv_wnd.
-        ctx.recv_next = next;
-        recompute_rcv_wnd(ctx);
+        // §window_rule RECOMPUTE POINT 1. Nothing else in this program writes
+        // rcv_wnd.
+        tcp_on_payload_merged(ctx, next);
         s.ack_opt = ACK_AGGREGATE;
     } else {
         // THE DONOR'S DISCRIMINATOR, and the reason ack_cnt is a count.
@@ -1858,7 +1913,7 @@ void send_ack(event_t ev, tcp_ctx ctx, tcp_scratch s) {
 // is being reproduced, not the timer value.
 void enter_time_wait(tcp_ctx ctx) {
     ctx.state = ST_TIME_WAIT;
-    timer_start(ctx.tw_timer, millisecond(TIMEWAIT_MS));
+    timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
     return;
 }
 
@@ -2061,7 +2116,7 @@ void record_data(app_send ev, tcp_ctx ctx) {
 // while a segment consumes MSS - 12, and nothing else. The mismatch is
 // observable only when min(cwnd, peer_wnd) - inflight lands in [1448, 1460).
 //
-// THE LOOP IS BOUNDED by min(cwnd, send_wnd) / MSS_PAYLOAD: every iteration
+// THE LOOP IS BOUNDED by min(cwnd, send_wnd) / PARITY_MSS_PAYLOAD: every iteration
 // either advances `seq` by a positive amount or breaks.
 //
 // IT RETURNS THE NUMBER OF PACKETS IT PUT ON THE WIRE, which is the donor's
@@ -2109,7 +2164,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
             window_blocked = true;
             break;
         }
-        if (rw < int32(MSS_ADVERTISED) && inflight_here > 0) {
+        if (rw < int32(PARITY_MSS_ADVERTISED) && inflight_here > 0) {
             held_back = true;           // G2, the silly-window hold-off
             break;
         }
@@ -2118,7 +2173,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
             break;                      // nothing buffered
 
         len = avail_here < uint32(rw) ? avail_here : uint32(rw);
-        pkt = len < MSS_PAYLOAD ? len : MSS_PAYLOAD;
+        pkt = len < PARITY_MSS_PAYLOAD ? len : PARITY_MSS_PAYLOAD;
         to_send = to_send + pkt;
         seq = seq + pkt;
     }
@@ -2141,7 +2196,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
         // and no retry substitutes for a message that never arrives (D-25
         // piece 2).
         if (window_blocked)
-            timer_start(ctx.probe_timer, millisecond(PROBE_MS));
+            timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
         return;
     }
 
@@ -2157,7 +2212,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     // recurrence is per BYTE: the next segment's sequence number is the previous
     // one's plus the previous payload length.
     bp.data = unseg_data(ctx.tx, ctx.send_next - ctx.snd_base, to_send,
-                         MSS_PAYLOAD,
+                         PARITY_MSS_PAYLOAD,
                          [TCPBP::seq_no, ctx.send_next,
                           prev.seq_no + prev.payload_len]);
 
@@ -2166,7 +2221,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
 
     // What the target will cut this extent into, which is what the donor's
     // SendTCPPacket would have returned.
-    pkts = (to_send + MSS_PAYLOAD - 1) / MSS_PAYLOAD;
+    pkts = (to_send + PARITY_MSS_PAYLOAD - 1) / PARITY_MSS_PAYLOAD;
     s.pkts_sent = s.pkts_sent + pkts;
     ctx.send_next = ctx.send_next + to_send;
     if (ctx.send_next > ctx.send_high)
@@ -2234,7 +2289,7 @@ void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
 // LAST, which is also where the donor puts it: is_wack is sent after the
 // ack_cnt loop in the same walk.
 void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
-    if (!ctx.need_wnd_adv || ctx.rcv_wnd <= MSS_PAYLOAD)
+    if (!ctx.need_wnd_adv || ctx.rcv_wnd <= PARITY_MSS_PAYLOAD)
         return;
     ctx.need_wnd_adv = false;
     pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
@@ -2264,14 +2319,7 @@ void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
     if (s.delivered == 0)
         return;
 
-    ctx.delivered = ctx.delivered + s.delivered;
-    recompute_rcv_wnd(ctx);
-
-    // Generation is the stack's, so this only ASKS: the retry list runs the
-    // generate chain on the stack thread, and that is where §gen_wnd_adv builds
-    // the update.
-    if (ctx.need_wnd_adv && ctx.rcv_wnd > MSS_PAYLOAD)
-        retry(ctx.f);
+    sock_recv(ctx, s.delivered);        // §window_rule RECOMPUTE POINT 2
     return;
 }
 
@@ -2410,12 +2458,12 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
     // does and a silent repair would make the two disagree.
     //
     // BY THE ARGUMENT IN §proc_passive_open IT IS A DEFECT: §window_rule
-    // computes RCVBUF - (recv_next - delivered), recv_next is seeded from the
-    // peer's ISN, and `delivered` at zero makes that difference a sequence
+    // computes PARITY_RCVBUF_SIZE - (recv_next - delivered), recv_next is seeded from the
+    // peer's PARITY_ISN, and `delivered` at zero makes that difference a sequence
     // number rather than a byte count. It is invisible today only because the
-    // ISN is frozen at 0 (D-01's second freeze), which makes the two origins
+    // PARITY_ISN is frozen at 0 (D-01's second freeze), which makes the two origins
     // coincide -- the same masking D-01 records for snd_wl1, and it lifts the
-    // moment the ISN does. FOR THE LEAD: fix in the C first, then here.
+    // moment the PARITY_ISN does. FOR THE LEAD: fix in the C first, then here.
     sw_init(ctx.rx_wnd, ctx.recv_next);
     ctx.snd_wl1 = ev.seq - 1;
     ctx.snd_wl2 = ev.ack;
@@ -2426,8 +2474,8 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
         ctx.snd_wscale = ev.wscale;
     ctx.send_wnd = uint32(ev.window) << ctx.snd_wscale;
 
-    ctx.cwnd = INIT_CWND;               // mss * TCP_INIT_CWND
-    ctx.ssthresh = SSTHRESH_ACTIVE;     // the passive open sets none
+    ctx.cwnd = PARITY_INIT_CWND;               // mss * TCP_INIT_CWND
+    ctx.ssthresh = PARITY_SSTHRESH_ACTIVE;     // the passive open sets none
     ctx.rtx_count = 0;
     timer_stop(ctx.rto_timer);
 
@@ -2458,15 +2506,15 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
 // G11: closed at sixteen attempts, and the application is told with an ERROR.
 void proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
     ctx.rtx_count = ctx.rtx_count + 1;
-    if (ctx.rtx_count > MAX_RTX) {
+    if (ctx.rtx_count > PARITY_MAX_RTX) {
         ctx.state = ST_CLOSED;
         notify(ctx.f, ERROR);
         return;
     }
 
-    ctx.ssthresh = ctx.cwnd / 2 > 2 * MSS_ADVERTISED ? ctx.cwnd / 2
-                                                     : 2 * MSS_ADVERTISED;
-    ctx.cwnd = MSS_ADVERTISED;
+    ctx.ssthresh = ctx.cwnd / 2 > 2 * PARITY_MSS_ADVERTISED ? ctx.cwnd / 2
+                                                     : 2 * PARITY_MSS_ADVERTISED;
+    ctx.cwnd = PARITY_MSS_ADVERTISED;
 
     // Retransmit from the OLDEST UNACKNOWLEDGED byte, not the unsent tail
     // (G13 — the prototype sizes this from the wrong end).
@@ -2536,12 +2584,12 @@ void proc_timewait_done(tcp_timewait_timeout ev, tcp_ctx ctx) {
 void proc_probe(tcp_probe_timeout ev, tcp_ctx ctx) {
     if (ctx.send_wnd > ctx.cwnd)
         return;
-    if (now() - ctx.last_ack_sent_ms <= PROBE_MS)
+    if (now() - ctx.last_ack_sent_ms <= PARITY_PROBE_MS)
         return;
 
     pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next - 1, FLAG_ACK, now()),
                     PRIO_ACK, false);
-    timer_start(ctx.probe_timer, millisecond(PROBE_MS));
+    timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
     return;
 }
 
@@ -2597,9 +2645,9 @@ void proc_listen(app_listen ev, tcp_listen_ctx ctx) {
     if (!exists(ctx))
         return;                     // listen before bind
     ctx.state = ST_LISTEN;
-    ctx.pending_cap = ev.backlog > 0 ? ev.backlog : MAX_BACKLOG;
-    if (ctx.pending_cap > MAX_BACKLOG)
-        ctx.pending_cap = MAX_BACKLOG;
+    ctx.pending_cap = ev.backlog > 0 ? ev.backlog : PROG_MAX_BACKLOG;
+    if (ctx.pending_cap > PROG_MAX_BACKLOG)
+        ctx.pending_cap = PROG_MAX_BACKLOG;
     ev.opened = ctx.f;
     return;
 }
@@ -2656,12 +2704,12 @@ void proc_connect(app_connect ev, tcp_ctx ctx) {
     ctx.key = get_flow_id(ev);
     ctx.local_ip = ev.loc_ip;    ctx.remote_ip = ev.rem_ip;
     ctx.loc_port = ev.loc_port;  ctx.rem_port = ev.rem_port;
-    ctx.rcv_wnd  = INITIAL_WINDOW;
-    ctx.snd_base = ISN;
-    ctx.send_una = ISN;
-    ctx.send_next = ISN;
+    ctx.rcv_wnd  = PARITY_INITIAL_WINDOW;
+    ctx.snd_base = PARITY_ISN;
+    ctx.send_una = PARITY_ISN;
+    ctx.send_next = PARITY_ISN;
     ctx.cwnd = 1;
-    ctx.ssthresh = SSTHRESH_ACTIVE;
+    ctx.ssthresh = PARITY_SSTHRESH_ACTIVE;
     ctx.state = ST_SYN_SENT;
     // No packet created this flow, so the target has no addresses for it.
     ctx_addrs(ctx.f, ctx.local_ip, ctx.remote_ip);
@@ -2711,10 +2759,20 @@ void post_object(app_send ev, tcp_listen_ctx ctx) {
 // `pkt_bp` rather than a processor, because "which fields the merged packet
 // takes" is the content of what goes on the wire and therefore the program's.
 // It is written as a processor because the language cannot say it yet.
-coalesce tcp_coalesce(TCPBP bp) {
-    if ((bp.flags & (FLAG_SYN | FLAG_FIN | FLAG_RST)) != 0)
-        return no_merge;
-    return merge(key = bp.flags, inherit_base = true, keep = [TCPBP::seq_no]);
+// A DECLARATION, not a processor -- which is what N-B asked for. Field names
+// are TCPBP's.
+//
+//   standalone    when a blueprint may not merge with anything at all
+//   key           two blueprints may merge only if this is equal
+//   inherit_base  the merged packet takes the OLDER contribution's payload
+//                 origin; everything not named by `keep` moves forward
+//   keep          the fields that travel with the payload origin rather than
+//                 with the newer header
+coalesce tcp_coalesce : TCPBP {
+    standalone   (flags & (FLAG_SYN | FLAG_FIN | FLAG_RST)) != 0;
+    key          flags;
+    inherit_base true;
+    keep         seq_no;
 }
 
 // §dispatch
