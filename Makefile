@@ -37,6 +37,13 @@ OPT    += -D__USRLIB__
 # has one I/O module, so they are unconditional.
 OPT    += -DDISABLE_PSIO -DDISABLE_NETMAP
 
+# THIS BRANCH ONLY. With INSTR() compiled out, six locals exist solely to feed
+# counters that are no longer there, and -Werror stops the build. Suppressing
+# the two diagnostics is a change to what the compiler REPORTS and not to what
+# it emits, which is what a control build has to be: identical code paths, no
+# instrumentation branches.
+OPT    += -Wno-unused-variable -Wno-unused-but-set-variable
+
 INC     = -Isrc/infra -Isrc/target -Isrc/program
 CFLAGS  = $(DPDK_CFLAGS) $(OPT) $(INC)
 LIBS    = $(DPDK_LIBS) -lnuma -lpthread -lrt -ldl -lgmp -lm
