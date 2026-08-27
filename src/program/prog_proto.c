@@ -184,7 +184,7 @@ tcp_window_field(struct tcp_ctx *ctx, bool is_syn)
 struct TCPBP
 build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now)
 {
-	struct TCPBP bp;
+	struct TCPBP bp = { 0 };
 	bool is_syn = (((flags & FLAG_SYN)) != 0);
 	if ((((flags & FLAG_ACK)) != 0)) {
 		ctx->last_ack_sent_ms = now;
@@ -218,7 +218,7 @@ build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now)
 struct TCPBP
 build_rst_hdr(uint16_t loc_port, uint16_t rem_port, uint32_t seq, uint32_t ack, uint8_t flags)
 {
-	struct TCPBP bp;
+	struct TCPBP bp = { 0 };
 	bp.src_port = loc_port;
 	bp.dst_port = rem_port;
 	bp.seq_no = seq;
