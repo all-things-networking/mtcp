@@ -15,6 +15,13 @@
 #include "prog_types.h"
 #include "prog_ctx.h"
 
+/*
+ * The op's endpoint is in NETWORK order, as the schema declares; this program
+ * works in host order once past the parser. Converting HERE rather than at the
+ * comparison site keeps the one representation choice in one place — the two
+ * being out of step is what made the listener never match and swallowed every
+ * SYN silently.
+ */
 unsigned
 sock_bind(struct mtp_app_op *op, struct app_ev *ev,
 		uint8_t *kinds, uint32_t now_ms)
@@ -55,6 +62,12 @@ sock_accept(struct mtp_app_op *op, struct app_ev *ev,
 	return __n;
 }
 
+/*
+ * THE LOCAL PORT IS THE CALLER'S (B4): the donor allocates from a per-core
+ * address pool in mtcp_connect and fails EAGAIN when exhausted, and whose job
+ * that is in general is undecided — it is protocol policy in TCP and not
+ * obviously so elsewhere. The op carries both endpoints for that reason.
+ */
 unsigned
 sock_connect(struct mtp_app_op *op, struct app_ev *ev,
 		uint8_t *kinds, uint32_t now_ms)
@@ -70,6 +83,17 @@ sock_connect(struct mtp_app_op *op, struct app_ev *ev,
 	return __n;
 }
 
+/*
+ * TWO HALVES ON TWO THREADS (CR-4). The phase rides on the op because the
+ * contract has one entry point; the program never branches on a thread, and the
+ * generated dispatch branches on which half it was asked for, which is
+ * knowledge the compiler has because it made the placement.
+ *
+ * A send with NO FLOW is the object posted before any connection exists, which
+ * is how a one-shot server hands over what every accepted connection receives.
+ * It is posted to a LISTENER, not to the process: with several listeners there
+ * is no "the" listener to post to, which is why the op carries the endpoint.
+ */
 unsigned
 sock_send(struct mtp_app_op *op, struct app_ev *ev,
 		uint8_t *kinds, uint32_t now_ms)
@@ -95,6 +119,17 @@ sock_send(struct mtp_app_op *op, struct app_ev *ev,
 	return __n;
 }
 
+/*
+ * mtp/tcp.mtp §sock_recv
+ * ---------------------------------------------------------------------------
+ * The application drains. RECOMPUTE POINT 2 of §window_rule and the only reason
+ * `recv` is bound at all: `delivered` advances by what the flush instruction
+ * REPORTS it handed over — not by what the application asked for, which may be
+ * more — and the advertised window reopens by exactly that much. The count
+ * comes from the instruction's return value rather than from a target accessor,
+ * which is what lets the program own `delivered` without the target exposing
+ * its unit's occupancy. The work itself is §proc_drain.
+ */
 unsigned
 parse_recv(struct mtp_app_op *op, struct app_ev *ev,
 		uint8_t *kinds, uint32_t now_ms)
@@ -108,6 +143,24 @@ parse_recv(struct mtp_app_op *op, struct app_ev *ev,
 	return __n;
 }
 
+/*
+ * mtp/tcp.mtp §sock_close
+ * ---------------------------------------------------------------------------
+ * The application has no more to send. THIS, AND NOT THE PEER'S FIN, IS WHAT
+ * RELEASES OUR OWN FIN.
+ *
+ * D-20's per-path rule reaches teardown here. A peer's FIN closes the PEER's
+ * path; ours stays open until this arrives, so CLOSE_WAIT is a state in which
+ * the program still accepts writes, still generates segments, and still
+ * processes returning acknowledgements. Gating any of those three on
+ * ESTABLISHED alone silently discards a response to a request whose FIN arrived
+ * with it — which is a request/response server's ordinary case, and was
+ * invisible for as long as the object was posted before any connection existed.
+ *
+ * mtp/tcp.mtp §gen_fin is tried immediately rather than waiting for the next packet,
+ * because if the peer has already finished, no further packet will arrive to
+ * carry the attempt.
+ */
 unsigned
 sock_close(struct mtp_app_op *op, struct app_ev *ev,
 		uint8_t *kinds, uint32_t now_ms)

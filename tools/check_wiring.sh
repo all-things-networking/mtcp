@@ -71,6 +71,24 @@ while IFS= read -r ref; do
 	fi
 done < <(grep -rhoE 'mtp/[a-z0-9_]+\.mtp §[a-z0-9_]+' src/ 2>/dev/null | sort -u)
 
+# --- 3a. ...and a tree with NO citations at all -----------------------------
+# Section 3 checks that every citation points somewhere real. It says nothing
+# when there are no citations, which is how it passed over a generated tree
+# whose backend emitted none: the loop above read an empty list and reported OK.
+#
+# That is the failure this check exists to catch, arriving as silence. A
+# generated program cites the section each construct came from, so zero
+# citations means either the backend stopped propagating them or the program
+# stopped carrying them -- and in both cases the .mtp and the C are free to
+# drift, which is the whole reason for section 3.
+ncit=$(grep -rhoE 'mtp/[a-z0-9_]+\.mtp §[a-z0-9_]+' src/ 2>/dev/null | wc -l)
+if [ "$ncit" -eq 0 ]; then
+	echo "UNWIRED  src/ cites no .mtp section at all, so the check above"
+	echo "         verified nothing. Either the backend is not propagating"
+	echo "         citations or the program is not carrying them."
+	fail=1
+fi
+
 # --- 3b. the program may not reach into a data unit -------------------------
 # struct mtp_data_unit is complete so the generated context can EMBED one
 # (D-19), not so the program can read its fields. Access is instruction-only.

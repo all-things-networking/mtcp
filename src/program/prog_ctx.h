@@ -121,70 +121,323 @@ struct TCPBP {
 	uint32_t __mss;
 };
 
+/*
+ * mtp/tcp.mtp §context
+ * ---------------------------------------------------------------------------
+ */
 struct tcp_ctx {
+	/*
+	 * The target's handle for this flow, placed here by the target when it
+	 * creates the context. The compiler emits the context struct, so it can put
+	 * a target handle in it; the program passes it back to `pkt_gen` and
+	 * `notify` and never looks inside.
+	 */
 	flow_t *f;
 	uint8_t state;
+
+	/*
+	 * The endpoints. The PASSIVE open never needed the addresses: every packet
+	 * it answers arrives with them, and pkt_gen takes the flow whose route the
+	 * target already resolved. An ACTIVE open has to build the first packet
+	 * with no packet to copy from, and a reset built from a context goes out
+	 * through the orphan path, which takes addresses rather than a flow.
+	 */
 	uint16_t loc_port;
+
+	/*
+	 * The endpoints. The PASSIVE open never needed the addresses: every packet
+	 * it answers arrives with them, and pkt_gen takes the flow whose route the
+	 * target already resolved. An ACTIVE open has to build the first packet
+	 * with no packet to copy from, and a reset built from a context goes out
+	 * through the orphan path, which takes addresses rather than a flow.
+	 */
 	uint16_t rem_port;
 	uint32_t local_ip;
 	uint32_t remote_ip;
+
+	/*
+	 * Our own copy of the key, so a timer that outlives the packet path can
+	 * still name the context to destroy (D-24). The field was declared for
+	 * exactly this and left unassigned once, and `del_ctx` then deleted a
+	 * zeroed key silently: every connection that reached TIME_WAIT leaked.
+	 */
 	flowkey_t key;
+
+	/*
+	 * The endpoint that accepted this connection, BY KEY. Its object is what a
+	 * one-shot server serves and its context is where the handshake's readable
+	 * event belongs. Held as a key rather than a reference because contexts are
+	 * keyed; `has_lst` distinguishes "no listener" from a zero key.
+	 */
 	flowkey_t lst_key;
 	bool has_lst;
+
+	/*
+	 * --- send side, sequence space -------------------------------------
+	 * TWO SPACES, and conflating them is the fifth instance of the class in
+	 * docs/PLAN.md §3. The transmit unit's offsets start at 0. The sequence
+	 * space starts at the PARITY_ISN, and the SYN CONSUMES ONE, so the first data byte
+	 * is sequence PARITY_ISN+1. `snd_base` is that, and it is the only bridge between
+	 * the two — anything relating a unit offset to a sequence number goes
+	 * through it.
+	 */
 	uint32_t snd_base;
 	uint32_t send_una;
 	uint32_t send_next;
 	uint32_t write_end;
+
+	/*
+	 * The highest send_next ever reached. Emitting below it is a
+	 * retransmission, whoever asked: marking the CALLER did not work, because
+	 * the timeout rewinds and its own send is refused, so the re-emission
+	 * happens later from the acknowledgement path. The rewind and the re-send
+	 * are separated in time; the sequence position is the fact.
+	 */
 	uint32_t send_high;
 	uint32_t send_wnd;
 	uint8_t snd_wscale;
 	uint32_t cwnd;
 	uint32_t ssthresh;
+
+	/*
+	 * THE DONOR'S WINDOW-UPDATE AND DUPLICATE-ACKNOWLEDGEMENT STATE.
+	 *
+	 * snd_wl1/snd_wl2 are RFC 793's: the sequence and acknowledgement numbers
+	 * of the segment that last moved the peer's window. They decide whether a
+	 * segment updates the window at all, and the duplicate test then asks
+	 * whether the window's right edge MOVED -- which is why counting duplicates
+	 * needs them and why send_wnd could not simply be assigned on every
+	 * acknowledgement, as it was.
+	 */
 	uint32_t snd_wl1;
+
+	/*
+	 * THE DONOR'S WINDOW-UPDATE AND DUPLICATE-ACKNOWLEDGEMENT STATE.
+	 *
+	 * snd_wl1/snd_wl2 are RFC 793's: the sequence and acknowledgement numbers
+	 * of the segment that last moved the peer's window. They decide whether a
+	 * segment updates the window at all, and the duplicate test then asks
+	 * whether the window's right edge MOVED -- which is why counting duplicates
+	 * needs them and why send_wnd could not simply be assigned on every
+	 * acknowledgement, as it was.
+	 */
 	uint32_t snd_wl2;
+
+	/*
+	 * The window's right edge as it stood BEFORE this segment was allowed to
+	 * move it. The donor computes it at the top of ProcessACK (tcp_in.c:326)
+	 * and compares against it after the update, which is how "the advertised
+	 * window did not change" is expressed. Written by §proc_window, read by
+	 * mtp/tcp.mtp §proc_fast_retransmit, meaningless outside one chain.
+	 */
 	uint32_t right_wnd_edge;
 	uint32_t last_ack_seq;
 	uint32_t dup_acks;
+
+	/*
+	 * --- receive side, sequence space -----------------------------------
+	 * The receive side's bridge, named for symmetry with snd_base. The peer's
+	 * SYN consumes one, so the first data byte it sends is at PARITY_ISN+1, and
+	 * `delivered` is seeded HERE rather than at zero — otherwise §window_rule
+	 * subtracts a sequence number from a byte count. That is the same bug as
+	 * the send side's, in the same week, and the two were found separately
+	 * because neither bridge had a name. They do now.
+	 */
 	uint32_t rcv_base;
 	uint32_t recv_next;
 	struct mtp_sliding_wnd rx_wnd;
+
+	/*
+	 * and where the holes are. THE WINDOW
+	 * TRACKS THE HOLES -- that is what the
+	 * primitive is for, so the program keeps
+	 * nothing beside it
+	 */
 	uint32_t delivered;
+
+	/*
+	 * accumulated from rx_flush_and_notify
+	 */
 	uint32_t rcv_wnd;
+
+	/*
+	 * D11: we advertised a zero window FIELD and owe the peer an update once
+	 * the application has drained. The donor's need_wnd_adv, and the test is on
+	 * the SCALED field rather than on rcv_wnd (tcp_out.c:304-309) — under a
+	 * shift of 7 the peer reads zero with up to 127 bytes still free.
+	 */
 	bool need_wnd_adv;
+
+	/*
+	 * HOW MANY ACKNOWLEDGEMENTS ARE OWED. The donor's sndvar->ack_cnt, with the
+	 * donor's two ways of adding to it (tcp_out.c:1088-1096). A COUNTER AND NOT
+	 * A FLAG, which is the whole point: with a bool, ACK_APIECE silently means
+	 * ACK_AGGREGATE, a burst of out-of-order segments produces one duplicate
+	 * where the donor produces one per segment, and those duplicates are what
+	 * drives the peer's fast retransmit.
+	 */
 	uint32_t ack_cnt;
 	bool fin_consumed;
+
+	/*
+	 * --- the peer's timestamp, echoed in ours ---------------------------
+	 */
 	uint32_t ts_recent;
+
+	/*
+	 * PAWS runs only against a peer that uses timestamps, and the donor decides
+	 * that ONCE, from the SYN's options (tcp_util.c:47-51 sets saw_timestamp
+	 * and seeds ts_recent there). A peer that sent none is not PAWS-checked at
+	 * all -- so this is not an optimisation, it is the condition the check is
+	 * defined under.
+	 */
 	bool saw_timestamp;
+
+	/*
+	 * The probe's 500 ms is measured since OUR acknowledgement, and the donor
+	 * stamps this on EVERY segment carrying the ACK flag (tcp_out.c:293) — so
+	 * on a busy connection its gate is essentially never satisfied and the
+	 * probe fires only once the connection has gone quiet. Stamping it only
+	 * when a probe was emitted measured the interval between probes instead,
+	 * and probed where the donor would not.
+	 */
 	uint32_t last_ack_sent_ms;
+
+	/*
+	 * --- the retransmission estimator, from the donor --------------------
+	 * rto = (srtt >> 3) + rttvar, srtt held scaled by eight, NO FLOOR AND NO
+	 * CEILING — so on this testbed the effective timeout is about 3 ms, roughly
+	 * twenty times the measured round trip. A retransmission on an idle link is
+	 * therefore a real event. Reproduce, do not correct.
+	 */
 	uint32_t srtt;
 	uint32_t mdev;
 	uint32_t rttvar;
 	uint32_t rto_ms;
+
+	/*
+	 * A SEPARATE FLAG, not `rto_ms != 0`. The donor has no floor, so an
+	 * estimate of zero is legal and common on a link whose round trip is far
+	 * below the tick — and testing the value treats that legal zero as "no
+	 * estimate yet" and falls back to 500 ms for ever. The estimator then works
+	 * perfectly and changes nothing, which is what happened.
+	 */
 	bool have_rtt;
 	uint32_t rtx_count;
+
+	/*
+	 * --- teardown --------------------------------------------------------
+	 * A FIN is outstanding. It CONSUMES SEQUENCE SPACE AND CARRIES NO PAYLOAD,
+	 * so the wire-based unacknowledged test — emitted payload against
+	 * acknowledged payload — cannot see it, and without this the retransmission
+	 * timer is never armed for a FIN that is the only thing left.
+	 */
 	bool fin_pending;
 	uint32_t fin_seq;
+
+	/*
+	 * The application has closed its send direction. The peer's FIN closes the
+	 * peer's path only (D-20: the rule is per-path), so our FIN waits for this.
+	 * A one-shot server sets it when it hands over its object.
+	 */
 	bool app_closed;
+
+	/*
+	 * --- the data units, embedded ----------------------------------------
+	 * Embedded BY VALUE (D-19): the context owns the storage and
+	 * new_tx_ordered_data initialises it. The ring inside is still allocated
+	 * lazily on first write, which IS the donor's shape — mTCP takes its send
+	 * buffer from a pool on first send, not at accept.
+	 */
 	struct mtp_data_unit tx;
+
+	/*
+	 * --- the data units, embedded ----------------------------------------
+	 * Embedded BY VALUE (D-19): the context owns the storage and
+	 * new_tx_ordered_data initialises it. The ring inside is still allocated
+	 * lazily on first write, which IS the donor's shape — mTCP takes its send
+	 * buffer from a pool on first send, not at accept.
+	 */
 	struct mtp_data_unit rx;
 	bool tx_open;
 	bool rx_open;
+
+	/*
+	 * THREE TIMERS ON THE CONNECTION, THREE EVENTS, plus the idle reaper. One
+	 * `timer_t` per deadline, each bound at declaration to the event its expiry
+	 * raises (CR-6). One declared timer and four in the C was DEFERRED.md C2:
+	 * the C told them apart by comparing addresses, which is a question a
+	 * program should not be answering.
+	 *
+	 * The donor has three lists as well -- retransmission, TIME_WAIT and
+	 * connection-idle -- and parity is measured against the donor, so the count
+	 * follows it rather than the paper's single ack_timeout.
+	 */
 	struct mtp_timer rto_timer;
 	struct mtp_timer tw_timer;
 	struct mtp_timer probe_timer;
+
+	/*
+	 * window-BLOCKED probe
+	 */
 	struct mtp_timer idle_timer;
 };
 
 #define TCP_CTX_INIT	{ .state = ST_CLOSED, .send_wnd = 65535, .cwnd = PARITY_INIT_CWND, .rcv_wnd = PARITY_INITIAL_WINDOW }
 
+/*
+ * mtp/tcp.mtp §tcp_listen_ctx
+ * ---------------------------------------------------------------------------
+ * THE SECOND CONTEXT TYPE. A listener is not a connection: it has no sequence
+ * numbers, no windows and no timers, and the events it answers are a SYN and
+ * the application's accept. Giving it its own context is what keeps every field
+ * in §context meaningful for every connection that has one -- the alternative,
+ * one context type with half its fields unused in the listening state, is where
+ * "which fields are live right now" stops being answerable.
+ *
+ * It is stored like any other context, under a key the PROGRAM builds from
+ * (ip, port) — see §key_of_listener. The target holds no listener table and no
+ * matching rule: "match on address AND port" is a statement about TCP (G8, and
+ * the donor matches on port alone, fhash.c:137-143, so a socket bound to one
+ * address answers for every address on its host), and protocol policy does not
+ * belong in target infrastructure. Encoding the choice as a KEY rather than as
+ * a table keeps it here, where a different protocol can choose differently.
+ *
+ * It was a single file-scope struct, so the program could hold exactly one
+ * listening socket (DEFERRED.md D4). There is no granularity keyword in MTP: a
+ * context is declared, there are as many instances as the protocol needs, and
+ * the endpoint being a FIELD is what makes several listeners possible with no
+ * new machinery.
+ */
 struct tcp_listen_ctx {
 	flow_t *f;
 	uint32_t local_ip;
+
+	/*
+	 * arriving packet's destination
+	 */
 	uint16_t local_port;
 	uint8_t state;
+
+	/*
+	 * THE ACCEPT BACKLOG (C3/C4). `pending_cap` is protocol state: a SYN
+	 * arriving with the queue full must be DROPPED — not reset, because the
+	 * donor resets a refused listener and an exhausted flow pool, and a full
+	 * accept queue is neither — and the cap is what makes that decision
+	 * expressible in the program rather than in the target.
+	 */
 	uint32_t pending_cap;
 	uint32_t pending_n;
 	flow_t *pending[PROG_MAX_BACKLOG];
+
+	/*
+	 * The object the application has posted to serve, per listener rather than
+	 * per process. A one-shot server hands it over once and every accepted
+	 * connection receives it; that is what epserver does with a file, and it is
+	 * enough to drive bulk send. It arrives through the app interface as a SEND
+	 * op, not as something this program invented — the bytes are the
+	 * application's and the program only decides when they go.
+	 */
 	struct mtp_tx_addr obj;
 	uint32_t obj_len;
 };
