@@ -349,6 +349,12 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 			return __n;
 		}
 		ctx = mtp_new_ctx(&(fid), sizeof(struct tcp_ctx));
+		if (!ctx)
+			return __n;
+		ctx->state = ST_CLOSED;
+		ctx->send_wnd = 65535;
+		ctx->cwnd = PARITY_INIT_CWND;
+		ctx->rcv_wnd = PARITY_INITIAL_WINDOW;
 		ctx->key = fid;
 		ctx->lst_key = lk;
 		ctx->has_lst = true;
@@ -1154,6 +1160,7 @@ proc_bind(struct app_ev *ev, struct tcp_listen_ctx *ctx)
 	ctx = mtp_new_ctx(&(ev->__key), sizeof(struct tcp_listen_ctx));
 	if (!ctx)
 		return;
+	ctx->state = ST_CLOSED;
 	ctx->local_ip = ev->ip;
 	ctx->local_port = ev->port;
 	ctx->state = ST_CLOSED;
@@ -1205,6 +1212,10 @@ proc_connect(struct app_ev *ev, struct tcp_ctx *ctx)
 	ctx = mtp_new_ctx(&(ev->__key), sizeof(struct tcp_ctx));
 	if (!ctx)
 		return;
+	ctx->state = ST_CLOSED;
+	ctx->send_wnd = 65535;
+	ctx->cwnd = PARITY_INIT_CWND;
+	ctx->rcv_wnd = PARITY_INITIAL_WINDOW;
 	ctx->key = ev->__key;
 	ctx->local_ip = ev->loc_ip;
 	ctx->remote_ip = ev->rem_ip;
