@@ -52,8 +52,18 @@ test_window_sequence(void)
 	      "peer would read %u, want 14592",
 	      ((uint32_t)tcp_window_field(&c, 0)) << PARITY_WSCALE);
 
-	/* one full-sized segment merges in order; the application has not read */
-	tcp_on_payload_merged(&c, c.recv_next + PARITY_MSS_PAYLOAD);
+	/*
+	 * One full-sized segment merges in order; the application has not read.
+	 *
+	 * WRITTEN OUT because the program no longer has a helper to call: MTP
+	 * allows functions only as event processors, so the window rule lives
+	 * inlined at each recompute point in proc_recv. This is that rule, and
+	 * the test still pins it -- but it now pins a COPY of it rather than
+	 * the thing the program runs, which is the cost of losing the seam.
+	 */
+	c.recv_next += PARITY_MSS_PAYLOAD;
+	c.rcv_wnd = PARITY_RCVBUF_SIZE - ((c.recv_next - c.delivered)
+		    - ((c.fin_consumed && c.recv_next != c.delivered) ? 1 : 0));
 	CHECK(c.rcv_wnd == PARITY_RCVBUF_SIZE - PARITY_MSS_PAYLOAD,
 	      "held-but-undrained window is %u, want %u",
 	      c.rcv_wnd, PARITY_RCVBUF_SIZE - PARITY_MSS_PAYLOAD);

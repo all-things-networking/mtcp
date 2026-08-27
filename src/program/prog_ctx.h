@@ -42,7 +42,7 @@ enum ev_kind {
 
 /* every app_event of this program, as one frame */
 struct app_ev {
-	flow_t *accepted;
+	flowkey_t accepted;
 	struct mtp_tx_addr addr;
 	uint32_t backlog;
 	struct mtp_rx_addr buf;
@@ -51,7 +51,7 @@ struct app_ev {
 	uint32_t loc_ip;
 	uint16_t loc_port;
 	uint32_t mlen;
-	flow_t *opened;
+	flowkey_t opened;
 	uint16_t port;
 	uint32_t rem_ip;
 	uint16_t rem_port;
@@ -126,12 +126,6 @@ struct TCPBP {
  * ---------------------------------------------------------------------------
  */
 struct tcp_ctx {
-	/*
-	 * The target's handle for this flow, placed here by the target when it
-	 * creates the context. The compiler emits the context struct, so it can put
-	 * a target handle in it; the program passes it back to `pkt_gen` and
-	 * `notify` and never looks inside.
-	 */
 	flow_t *f;
 	uint8_t state;
 
@@ -394,7 +388,7 @@ struct tcp_ctx {
  * "which fields are live right now" stops being answerable.
  *
  * It is stored like any other context, under a key the PROGRAM builds from
- * (ip, port) — see §key_of_listener. The target holds no listener table and no
+ * (ip, port). The target holds no listener table and no
  * matching rule: "match on address AND port" is a statement about TCP (G8, and
  * the donor matches on port alone, fhash.c:137-143, so a socket bound to one
  * address answers for every address on its host), and protocol policy does not
@@ -409,6 +403,12 @@ struct tcp_ctx {
  */
 struct tcp_listen_ctx {
 	flow_t *f;
+	/*
+	 * Its own name, so it can be handed to the application. Not a target
+	 * handle: the flow id is the identifier, and the compiler supplies
+	 * whatever the target needs from the context itself.
+	 */
+	flowkey_t key;
 	uint32_t local_ip;
 
 	/*
@@ -426,7 +426,7 @@ struct tcp_listen_ctx {
 	 */
 	uint32_t pending_cap;
 	uint32_t pending_n;
-	flow_t *pending[PROG_MAX_BACKLOG];
+	flowkey_t pending[PROG_MAX_BACKLOG];
 
 	/*
 	 * The object the application has posted to serve, per listener rather than
@@ -466,34 +466,16 @@ struct tcp_scratch {
  * happen to be in -- and the split across two .c files stays a presentation
  * choice rather than a linkage constraint.
  */
-flowkey_t
-key_of_inbound(uint32_t loc_ip, uint32_t rem_ip, uint16_t loc_port, uint16_t rem_port);
-flowkey_t
-key_of_listener(uint32_t loc_ip, uint16_t loc_port);
-void
-tcp_on_payload_merged(struct tcp_ctx *ctx, uint32_t new_recv_next);
 void
 sock_recv(struct tcp_ctx *ctx, uint32_t delivered_now);
-void
-recompute_rcv_wnd(struct tcp_ctx *ctx);
 uint16_t
 tcp_window_field(struct tcp_ctx *ctx, bool is_syn);
 struct TCPBP
 build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now);
 struct TCPBP
 build_rst_hdr(uint16_t loc_port, uint16_t rem_port, uint32_t seq, uint32_t ack, uint8_t flags);
-void
-touch_idle(struct tcp_ctx *ctx);
-bool
-send_side_open(struct tcp_ctx *ctx);
-bool
-recv_side_open(struct tcp_ctx *ctx);
-bool
-conn_exists(struct tcp_ctx *ctx);
 bool
 unacked_on_wire(struct tcp_ctx *ctx);
-void
-arm_rto(struct tcp_ctx *ctx);
 void
 estimate_rtt(struct tcp_ctx *ctx, uint32_t now, uint32_t ts_ecr);
 unsigned
@@ -550,13 +532,9 @@ owe_ack(struct tcp_ctx *ctx, uint8_t opt);
 void
 send_ack(struct tcp_ctx *ctx, struct tcp_scratch *s);
 void
-enter_time_wait(struct tcp_ctx *ctx);
-void
 proc_fin(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s);
 void
 gen_fin(struct tcp_ctx *ctx, uint32_t now_ms);
-int32_t
-fin_emit(struct tcp_ctx *ctx, bool rtx, uint32_t now_ms);
 void
 mark_closed(struct app_ev *ev, struct tcp_ctx *ctx);
 void

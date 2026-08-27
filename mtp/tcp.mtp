@@ -36,7 +36,7 @@
 //   `opt_list` with a parser-side `has_<option>` accessor; a header-length
 //   field the compiler fills (`hdrlen4_t`), in the sense `checksum16_t` is
 //   already a field the target fills; a timer bound to the event it raises;
-//   an opaque flow `handle_t` (§types); a `coalesce` declaration (§coalesce);
+//   a `coalesce` declaration (§coalesce);
 //   ordinary functions beside processors; and instructions CALLED rather than
 //   collected into a `list<instr_t>`, because this target executes them where
 //   they are written -- which is why `pkt_gen`'s and `rx_flush_and_notify`'s
@@ -51,8 +51,9 @@
 // cannot be recovered from the event's base. The program says which.
 //
 // ONE TYPE THE FROZEN LANGUAGE DOES NOT HAVE, and it is here because the
-// application interface forces it. `handle_t` is the target's opaque handle for
-// a flow: the program never looks inside one, and it exists for exactly three
+// application interface forces it. A flow is named by naming its CONTEXT, or
+// by its flow id across the application interface; the program never holds a
+// target handle.
 // jobs —
 //
 //   the handle instructions take          (`pkt_gen`, `notify`, `retry`)
@@ -238,11 +239,11 @@ event tcp_idle_timeout     : timer_event { }
 // served. See docs/LANGUAGE-NEEDS.md.
 event app_bind     : app_event { uint32 ip; uint16 port; }
 event app_listen   : app_event { uint32 ip; uint16 port; uint32 backlog;
-                                 handle_t opened; }
-event app_accept   : app_event { uint32 ip; uint16 port; handle_t accepted;
+                                 tcp_lid opened; }
+event app_accept   : app_event { uint32 ip; uint16 port; tcp_fid accepted;
                                  int32 result; }
 event app_connect  : app_event { uint32 loc_ip, rem_ip;
-                                 uint16 loc_port, rem_port; handle_t opened; }
+                                 uint16 loc_port, rem_port; tcp_fid opened; }
 event app_recv     : app_event { rx_addr_t buf; uint32 len; int32 result; }
 // TWO HALVES OF ONE EVENT ON TWO THREADS (CR-4). `record_data` copies into the
 // transmit stream and generates nothing, so it runs inside the application's
@@ -268,8 +269,7 @@ context tcp_ctx {
     // creates the context. The compiler emits the context struct, so it can put
     // a target handle in it; the program passes it back to `pkt_gen` and
     // `notify` and never looks inside.
-    handle_t f;
-
+    
     uint8  state = ST_CLOSED;
 
     // The endpoints. The PASSIVE open never needed the addresses: every packet
@@ -445,7 +445,7 @@ context tcp_ctx {
 // "which fields are live right now" stops being answerable.
 //
 // It is stored like any other context, under a key the PROGRAM builds from
-// (ip, port) — see §key_of_listener. The target holds no listener table and no
+// (ip, port). The target holds no listener table and no
 // matching rule: "match on address AND port" is a statement about TCP (G8, and
 // the donor matches on port alone, fhash.c:137-143, so a socket bound to one
 // address answers for every address on its host), and protocol policy does not
@@ -458,7 +458,11 @@ context tcp_ctx {
 // the endpoint being a FIELD is what makes several listeners possible with no
 // new machinery.
 context tcp_listen_ctx {
-    handle_t f;
+    // Its own name, so it can be handed to the application. Not a target
+    // handle: the flow id is the identifier, and the compiler supplies
+    // whatever the target needs from the context itself.
+    tcp_lid key;
+
 
     uint32 local_ip;                  // network order, compared against the
                                       // arriving packet's destination
@@ -472,7 +476,7 @@ context tcp_listen_ctx {
     // expressible in the program rather than in the target.
     uint32   pending_cap;
     uint32   pending_n;
-    handle_t pending[PROG_MAX_BACKLOG];
+    tcp_fid  pending[PROG_MAX_BACKLOG];
 
     // The object the application has posted to serve, per listener rather than
     // per process. A one-shot server hands it over once and every accepted
@@ -571,63 +575,8 @@ opt_list tcp_options { list<tcp_opt> opts; }
 //
 // The call site is in §gen_seg.
 
-// §key_of_inbound
-// ---------------------------------------------------------------------------
-// The flow key, CANONICALISED so both directions resolve one context (CR-5).
-// The target cannot do this: it may not read a field of the key, and only this
-// program knows that the first and third slots are the local half. An inbound
-// packet's destination is our local endpoint; an application operation's
-// `local` is the same thing. Build them in the same order and the two
-// directions meet.
-tcp_fid key_of_inbound(uint32 loc_ip, uint32 rem_ip,
-                       uint16 loc_port, uint16 rem_port) {
-    return tcp_fid(loc_ip, rem_ip, loc_port, rem_port);
-}
 
-// §key_of_listener
-// ---------------------------------------------------------------------------
-// The key of a LISTENING endpoint. Same table, same shape, and it cannot
-// collide with a connection's: a connection always has a remote port, and this
-// always has zero for both remote halves. G8 lives here — both halves of the
-// local endpoint must match — and it is a statement about TCP, which is why it
-// is a key this program builds rather than a table the target keeps.
-tcp_lid key_of_listener(uint32 loc_ip, uint16 loc_port) {
-    return tcp_lid(loc_ip, loc_port);
-}
 
-// §window_rule
-// ---------------------------------------------------------------------------
-// The advertised window is a per-flow VARIABLE, not a buffer query.
-//
-//     rcv_wnd = PARITY_RCVBUF_SIZE - (recv_next - delivered)
-//
-// recomputed at exactly the donor's two points and nowhere else: when payload
-// merges in order (tcp_in.c:659), and when the application drains (api.c:1141).
-// Both terms are this program's own state, so no target accessor is involved —
-// `recv_next` is the variable the cumulative acknowledgement is built from, and
-// `delivered` accumulates what `rx_flush_and_notify` REPORTS it handed over.
-//
-// A program that answered every packet with the buffer's free space would
-// advertise 2048 from the first acknowledgement and NEVER EMIT 14592 — a
-// divergence in the first RTT of every connection with no protocol logic wrong.
-// The sequence is 14600 unscaled on the SYN, then 14592, then 2048.
-//
-// G14. A FIN CONSUMES A SEQUENCE NUMBER AND IS NOT DATA, so once one has been
-// accepted `recv_next` is one ahead of anything the application can ever take.
-// Counting that byte as held advertises a window one short for the rest of the
-// connection — and, because it is exactly one, it is indistinguishable on the
-// wire from the legitimate "one byte held and undrained" case. The program
-// knows the stream ended; the target cannot.
-// §tcp_on_payload_merged
-// ---------------------------------------------------------------------------
-// RECOMPUTE POINT 1 — payload merged in order (mTCP tcp_in.c:659). Called from
-// §proc_recv after the boundary advanced, and from nowhere else: the donor does
-// not recompute on a pure acknowledgement, on an out-of-order segment, or on a
-// retransmission that adds no new in-order bytes, and neither may this.
-void tcp_on_payload_merged(tcp_ctx ctx, uint32 new_recv_next) {
-    ctx.recv_next = new_recv_next;
-    recompute_rcv_wnd(ctx);
-}
 
 // §sock_recv_apply
 // ---------------------------------------------------------------------------
@@ -639,19 +588,12 @@ void tcp_on_payload_merged(tcp_ctx ctx, uint32 new_recv_next) {
 // generate chain on the stack thread, and §gen_wnd_adv builds the update there.
 void sock_recv(tcp_ctx ctx, uint32 delivered_now) {
     ctx.delivered = ctx.delivered + delivered_now;
-    recompute_rcv_wnd(ctx);
+ctx.rcv_wnd = PARITY_RCVBUF_SIZE - ((ctx.recv_next - ctx.delivered)
+                  - ((ctx.fin_consumed && ctx.recv_next != ctx.delivered) ? 1 : 0));
     if (ctx.need_wnd_adv && ctx.rcv_wnd > PARITY_MSS_PAYLOAD)
-        retry(ctx.f);
+        retry(ctx);
 }
 
-void recompute_rcv_wnd(tcp_ctx ctx) {
-    uint32 held = ctx.recv_next - ctx.delivered;
-
-    if (ctx.fin_consumed && held > 0)
-        held = held - 1;
-
-    ctx.rcv_wnd = PARITY_RCVBUF_SIZE - held;
-}
 
 // §tcp_window_field
 // ---------------------------------------------------------------------------
@@ -696,7 +638,9 @@ TCPBP build_hdr(tcp_ctx ctx, uint32 seq, uint8 flags, uint32 now) {
 
     if ((flags & FLAG_ACK) != 0) {
         ctx.last_ack_sent_ms = now;
-        touch_idle(ctx);
+        // the idle deadline, refreshed; nothing to reap once closed
+        if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+            timer_start(ctx.idle_timer, millisecond(PARITY_IDLE_MS));
     }
 
     bp.src_port = ctx.loc_port;
@@ -749,61 +693,9 @@ TCPBP build_rst_hdr(uint16 loc_port, uint16 rem_port, uint32 seq, uint32 ack,
     return bp;
 }
 
-// §touch_idle
-// ---------------------------------------------------------------------------
-// mtp/tcp.mtp §proc_idle's clock — the connection did something.
-//
-// Restarts the idle timer rather than recording a timestamp, because the
-// question the donor asks per tick ("has this been quiet for 30 s?") is the
-// question a timer answers by expiring. The observable is the same and there is
-// no list to walk.
-void touch_idle(tcp_ctx ctx) {
-    if (ctx.state == ST_CLOSED || ctx.state == ST_TIME_WAIT)
-        return;                  // nothing left to reap
-    timer_start(ctx.idle_timer, millisecond(PARITY_IDLE_MS));
-    return;
-}
 
-// §send_side_open
-// ---------------------------------------------------------------------------
-// Our send path is open, which is NOT the same as the connection being
-// ESTABLISHED. CLOSE_WAIT is a sending state — that is the whole point of it:
-// the peer's FIN closes the PEER's path (D-20, per-path) and ours stays open
-// until the application closes it.
-//
-// One predicate rather than three state tests BECAUSE IT WAS THREE: accepting
-// the write, generating the segments and processing the acknowledgements that
-// come back each tested ESTABLISHED separately, and fixing them one at a time
-// moved the failure rather than removing it. A response to a request whose FIN
-// arrived with it needs all three.
-bool send_side_open(tcp_ctx ctx) {
-    return ctx.state == ST_ESTABLISHED || ctx.state == ST_CLOSE_WAIT;
-}
 
-// §recv_side_open
-// ---------------------------------------------------------------------------
-// Our receive path is open. NOT the mirror of §send_side_open: after WE close,
-// the peer has not, and its data keeps arriving and keeps needing
-// acknowledgement — the same per-path rule from the other side.
-bool recv_side_open(tcp_ctx ctx) {
-    return ctx.state == ST_ESTABLISHED || ctx.state == ST_FIN_WAIT_1 ||
-           ctx.state == ST_FIN_WAIT_2;
-}
 
-// §conn_exists
-// ---------------------------------------------------------------------------
-// THE THIRD ROW, and the one symmetry would miss (DESIGN-CLOSE.md §3).
-//
-// An acknowledgement of our own sequence space must be processed in states
-// where NEITHER direction is open — FIN_WAIT_1 and CLOSING exist precisely to
-// wait for the acknowledgement of our FIN, so gating §proc_ack on
-// §send_side_open would make it impossible ever to leave them. That is the
-// CLOSE_WAIT bug reproduced in a new state, which is why this is a table of
-// three predicates and not a pair.
-bool conn_exists(tcp_ctx ctx) {
-    return ctx.state != ST_CLOSED && ctx.state != ST_LISTEN &&
-           ctx.state != ST_SYN_RCVD;
-}
 
 // §unacked_on_wire
 // ---------------------------------------------------------------------------
@@ -832,22 +724,6 @@ bool unacked_on_wire(tcp_ctx ctx) {
     return ctx.fin_pending && ctx.send_una != ctx.send_next;
 }
 
-// §arm_rto
-// ---------------------------------------------------------------------------
-// G16, stated as the donor states it: ANY TRANSMISSION THAT CONSUMES SEQUENCE
-// SPACE ARMS THE RETRANSMISSION TIMER. SendTCPPacket counts a SYN or a FIN as
-// one byte of payload before the arm, so one rule covers SYN, SYN-ACK, FIN and
-// data — "armed in the handshake processors" makes it easy to forget the FIN.
-//
-// The backoff is `base << min(rtx_count, 7)`, and the base is RECOMPUTED from
-// the estimator rather than the previous value doubled.
-void arm_rto(tcp_ctx ctx) {
-    uint32 base = ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS;
-    uint32 shift = ctx.rtx_count < 7 ? ctx.rtx_count : 7;
-
-    timer_start(ctx.rto_timer, millisecond(base << shift));
-    return;
-}
 
 // §estimate_rtt
 // ---------------------------------------------------------------------------
@@ -970,7 +846,7 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
     if (p.len < 20 || bp.data_off * 4 < 20 || bp.data_off * 4 > p.len)
         return out;
     payload_len = p.len - bp.data_off * 4;
-    tcp_fid fid = key_of_inbound(h.daddr, h.saddr, bp.dst_port, bp.src_port);
+    tcp_fid fid = tcp_fid(h.daddr, h.saddr, bp.dst_port, bp.src_port);
 
     tcp_ctx ctx = ctx_lookup(fid);
 
@@ -983,7 +859,7 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
             return out;
         }
 
-        tcp_fid lk = key_of_listener(h.daddr, bp.dst_port);
+        tcp_fid lk = tcp_lid(h.daddr, bp.dst_port);
         tcp_listen_ctx lst = ctx_lookup(lk);
 
         // tcp_in.c:700 -- a SYN the listener filter refuses is answered with a
@@ -1023,7 +899,9 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
 
     // tcp_in.c:1292 -- the donor stamps activity on EVERY received packet,
     // before validation and before any state test.
-    touch_idle(ctx);
+    // the idle deadline, refreshed; nothing to reap once closed
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, millisecond(PARITY_IDLE_MS));
 
     if (!proc_validate(ctx, bp, payload_len))
         return out;             // refused: it raises nothing, and whatever
@@ -1117,7 +995,7 @@ list<event_t> sock_bind(bind op) {
     ev.ip = op.local.ip;                 // stays network order: compared against
                                          // the arriving packet's destination
     ev.port = ntohs(op.local.port);
-    set_flow_id(ev, key_of_listener(op.local.ip, ntohs(op.local.port)));
+    set_flow_id(ev, tcp_lid(op.local.ip, ntohs(op.local.port)));
     out.add(ev);
     return out;
 }
@@ -1129,7 +1007,7 @@ list<event_t> sock_listen(listen op) {
     ev.ip = op.local.ip;
     ev.port = ntohs(op.local.port);
     ev.backlog = op.len;
-    set_flow_id(ev, key_of_listener(op.local.ip, ntohs(op.local.port)));
+    set_flow_id(ev, tcp_lid(op.local.ip, ntohs(op.local.port)));
     out.add(ev);
     return out;
 }
@@ -1140,7 +1018,7 @@ list<event_t> sock_accept(accept op) {
 
     ev.ip = op.local.ip;
     ev.port = ntohs(op.local.port);
-    set_flow_id(ev, key_of_listener(op.local.ip, ntohs(op.local.port)));
+    set_flow_id(ev, tcp_lid(op.local.ip, ntohs(op.local.port)));
     out.add(ev);
     return out;
 }
@@ -1156,7 +1034,7 @@ list<event_t> sock_connect(connect op) {
     ev.loc_ip = op.local.ip;    ev.rem_ip = op.remote.ip;
     ev.loc_port = ntohs(op.local.port);
     ev.rem_port = ntohs(op.remote.port);
-    set_flow_id(ev, key_of_inbound(op.local.ip, op.remote.ip,
+    set_flow_id(ev, tcp_fid(op.local.ip, op.remote.ip,
                                    ntohs(op.local.port),
                                    ntohs(op.remote.port)));
     out.add(ev);
@@ -1188,7 +1066,7 @@ list<event_t> sock_send(send op) {
         if (has_flow(op))
             set_flow(ev, op.flow);
         else
-            set_flow_id(ev, key_of_listener(op.local.ip, ntohs(op.local.port)));
+            set_flow_id(ev, tcp_lid(op.local.ip, ntohs(op.local.port)));
         out.add(ev);
     } else {
         app_gen ev;
@@ -1345,7 +1223,8 @@ bool proc_validate(tcp_ctx ctx, TCPBP bp, uint32 payload_len) {
         // becomes one apiece: the nearest thing this program has, and the
         // difference is recorded rather than hidden (docs/DIVERGENCE.md).
         if (ctx.state == ST_TIME_WAIT)
-            enter_time_wait(ctx);
+            ctx.state = ST_TIME_WAIT;
+        timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
         owe_ack(ctx, ACK_APIECE);
     }
     return false;
@@ -1456,7 +1335,7 @@ void proc_passive_open(tcp_syn ev, tcp_ctx ctx) {
     ctx.ssthresh  = PARITY_OPENING_TRAJECTORY ? PARITY_SSTHRESH_PASSIVE
                                               : PARITY_SSTHRESH_ACTIVE;
 
-    if (pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next, FLAG_SYN | FLAG_ACK,
+    if (pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_SYN | FLAG_ACK,
                                  now()), PRIO_CONTROL, false) == 0) {
         ctx.send_next = ctx.send_next + 1;   // the SYN-ACK consumes one
         ctx.snd_base  = ctx.send_next;       // ...so data starts one past
@@ -1506,9 +1385,9 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
     tcp_listen_ctx lst = ctx_lookup(ctx.lst_key);
 
     if (exists(lst) && lst.pending_n < PROG_MAX_BACKLOG) {
-        lst.pending[lst.pending_n] = ctx.f;
+        lst.pending[lst.pending_n] = ctx.key;
         lst.pending_n = lst.pending_n + 1;
-        notify(lst.f, READABLE);
+        notify(lst, READABLE);
     }
     // The application posted an object before listening; serve it. It
     // arrives through the app interface as a SEND, so this is the same two
@@ -1543,7 +1422,7 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
 // has already set it — before dispatch, and only for a segment it accepted,
 // which is the donor's placement.
 void proc_timestamp(tcp_ack ev, tcp_ctx ctx) {
-    if (!conn_exists(ctx))
+    if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
         return;
     if (!ctx.saw_timestamp)
         ctx.ts_recent = ev.ts_val;
@@ -1571,7 +1450,7 @@ void proc_timestamp(tcp_ack ev, tcp_ctx ctx) {
 void proc_window(tcp_ack ev, tcp_ctx ctx) {
     uint32 cwindow;
 
-    if (!conn_exists(ctx))
+    if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
         return;
     cwindow = uint32(ev.window) << ctx.snd_wscale;
 
@@ -1594,7 +1473,7 @@ void proc_window(tcp_ack ev, tcp_ctx ctx) {
 // why it sits ahead of §proc_ack in the chain: §proc_ack is what moves
 // send_una, so this must read it first.
 void proc_rtt(tcp_ack ev, tcp_ctx ctx) {
-    if (!conn_exists(ctx))
+    if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
         return;
     if (int32(ev.ack - ctx.send_una) <= 0)
         return;
@@ -1616,7 +1495,7 @@ void proc_rtt(tcp_ack ev, tcp_ctx ctx) {
 void proc_fast_retransmit(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
     bool dup = false;
 
-    if (!conn_exists(ctx))
+    if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
         return;
 
     if (int32(ev.ack - ctx.send_next) < 0 && ev.ack == ctx.last_ack_seq &&
@@ -1670,7 +1549,7 @@ void proc_fast_retransmit(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
 void proc_congestion(tcp_ack ev, tcp_ctx ctx) {
     uint32 acked;
 
-    if (!conn_exists(ctx))
+    if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
         return;
 
     // The peer's window is §proc_window's, ahead of this in the chain.
@@ -1734,7 +1613,7 @@ void proc_congestion(tcp_ack ev, tcp_ctx ctx) {
 void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
     uint32 acked;
 
-    if (!conn_exists(ctx))
+    if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
         return;
 
     // THE ACKNOWLEDGEMENT OF OUR OWN FIN, which consumes sequence space and so
@@ -1759,7 +1638,8 @@ void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
         if (ctx.state == ST_FIN_WAIT_1)
             ctx.state = ST_FIN_WAIT_2;
         else if (ctx.state == ST_CLOSING)
-            enter_time_wait(ctx);
+            ctx.state = ST_TIME_WAIT;
+        timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
     }
 
     acked = ev.ack - ctx.send_una;
@@ -1784,7 +1664,9 @@ void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
     ctx.rtx_count = 0;
     timer_stop(ctx.rto_timer);
     if (unacked_on_wire(ctx))
-        arm_rto(ctx);
+timer_start(ctx.rto_timer,
+                    millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
+                                << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
     return;
 }
 
@@ -1801,7 +1683,7 @@ void proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
     // prototype's mechanism rather than mTCP's emergent counter arithmetic —
     // reproducing that would mean reproducing the arithmetic to obtain a side
     // effect.
-    if (!recv_side_open(ctx))
+    if (!(ctx.state == ST_ESTABLISHED || ctx.state == ST_FIN_WAIT_1 || ctx.state == ST_FIN_WAIT_2))
         return;
     if (ev.data_len == 0)
         return;
@@ -1831,7 +1713,9 @@ void proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
     if (next != ctx.recv_next) {
         // §window_rule RECOMPUTE POINT 1. Nothing else in this program writes
         // rcv_wnd.
-        tcp_on_payload_merged(ctx, next);
+        ctx.recv_next = next;
+        ctx.rcv_wnd = PARITY_RCVBUF_SIZE - ((ctx.recv_next - ctx.delivered)
+                      - ((ctx.fin_consumed && ctx.recv_next != ctx.delivered) ? 1 : 0));
         s.ack_opt = ACK_AGGREGATE;
     } else {
         // THE DONOR'S DISCRIMINATOR, and the reason ack_cnt is a count.
@@ -1872,7 +1756,7 @@ void owe_ack(tcp_ctx ctx, uint8 opt) {
     }
     // D3: ASK TO BE ATTEMPTED AGAIN NEXT PASS. The emission is §drain_owed_acks
     // and it runs on the generate half, so what is owed here is emitted there.
-    retry(ctx.f);
+    retry(ctx);
     return;
 }
 
@@ -1881,7 +1765,7 @@ void owe_ack(tcp_ctx ctx, uint8 opt) {
 // Acknowledgement generation — record what the chain decided it owed.
 //
 // IT RE-TESTS NOTHING. Every guard that decides whether an acknowledgement is
-// due — §recv_side_open, the in-order test, the FIN's ordering — lives at the
+// due — the receive-side state test, the in-order test, the FIN's ordering — lives at the
 // decision site, and this only acts on `s.ack_opt`. That is what makes it safe
 // to run AFTER §proc_fin's state transition: the old code had to build the
 // FIN's acknowledgement BEFORE the transition, because the guard that silences
@@ -1934,19 +1818,6 @@ void send_ack(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     return owe_ack(ctx, s.ack_opt);
 }
 
-// §enter_time_wait
-// ---------------------------------------------------------------------------
-// D-24. The acknowledgement of the peer's FIN has already been committed to the
-// target by the caller; this is the state that OWES it, held open across the
-// iteration in which it drains. Skipping the state does not skip a wait — it
-// removes the place that acknowledgement is owed from, which is why zero is a
-// real duration here and not an argument for having no state. THE GUARD is what
-// is being reproduced, not the timer value.
-void enter_time_wait(tcp_ctx ctx) {
-    ctx.state = ST_TIME_WAIT;
-    timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
-    return;
-}
 
 // §proc_fin
 // ---------------------------------------------------------------------------
@@ -1962,7 +1833,7 @@ void enter_time_wait(tcp_ctx ctx) {
 void proc_fin(tcp_fin ev, tcp_ctx ctx, tcp_scratch s) {
     uint32 fin_seq;
 
-    if (!recv_side_open(ctx))
+    if (!(ctx.state == ST_ESTABLISHED || ctx.state == ST_FIN_WAIT_1 || ctx.state == ST_FIN_WAIT_2))
         return;
 
     // THE FIN'S SEQUENCE IS PAST ITS OWN PAYLOAD, which is the donor's test
@@ -1997,7 +1868,8 @@ void proc_fin(tcp_fin ev, tcp_ctx ctx, tcp_scratch s) {
     if (ctx.state == ST_FIN_WAIT_1) {
         ctx.state = ST_CLOSING;
     } else if (ctx.state == ST_FIN_WAIT_2) {
-        enter_time_wait(ctx);
+        ctx.state = ST_TIME_WAIT;
+        timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
     } else {
         bool was_established = ctx.state == ST_ESTABLISHED;
 
@@ -2011,7 +1883,7 @@ void proc_fin(tcp_fin ev, tcp_ctx ctx, tcp_scratch s) {
         // the donor's API has. The simultaneous-close and FIN_WAIT_2 rows above
         // raise nothing, which is also the donor.
         if (was_established)
-            notify(ctx.f, READABLE);
+            notify(ctx, READABLE);
     }
     return;
 }
@@ -2046,7 +1918,7 @@ void gen_fin(event_t ev, tcp_ctx ctx) {
     if (ctx.send_next - ctx.snd_base != ctx.write_end)
         return;                     // G10: not ahead of unsent data
 
-    if (fin_emit(ctx, false) == 0) {
+    if (pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK | FLAG_FIN, now()), PRIO_DATA, false) == 0) {
         ctx.fin_pending = true;
         ctx.fin_seq = ctx.send_next;
         ctx.send_next = ctx.send_next + 1;      // the FIN consumes one byte
@@ -2055,16 +1927,6 @@ void gen_fin(event_t ev, tcp_ctx ctx) {
     return;
 }
 
-// §fin_emit
-// ---------------------------------------------------------------------------
-// Build and issue the FIN. Separated from §gen_fin because the retransmission
-// path needs the packet WITHOUT the state transition: gen_fin's guards —
-// app_closed, ESTABLISHED or CLOSE_WAIT — are all false by the time a FIN needs
-// resending, so the retransmit could never have gone through it.
-int32 fin_emit(tcp_ctx ctx, bool rtx) {
-    return pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next, FLAG_ACK | FLAG_FIN,
-                                    now()), PRIO_DATA, rtx);
-}
 
 // §mark_closed
 // ---------------------------------------------------------------------------
@@ -2096,7 +1958,7 @@ void mark_closed(app_close ev, tcp_ctx ctx) {
 void record_data(app_send ev, tcp_ctx ctx) {
     uint32 wrote;
 
-    if (!send_side_open(ctx) || !ctx.tx_open) {
+    if (!(ctx.state == ST_ESTABLISHED || ctx.state == ST_CLOSE_WAIT) || !ctx.tx_open) {
         ev.result = -1;
         return;
     }
@@ -2182,7 +2044,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     // per-iteration retry list is what took that recovery over.
     if (s.no_send)
         return;
-    if (!send_side_open(ctx))
+    if (!(ctx.state == ST_ESTABLISHED || ctx.state == ST_CLOSE_WAIT))
         return;
 
     win = ctx.cwnd < ctx.send_wnd ? ctx.cwnd : ctx.send_wnd;
@@ -2224,7 +2086,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
         // window one: the hold-off is also "held back, will go later", while
         // "nothing buffered" and "wrong state" have nothing to retry.
         if (window_blocked || held_back)
-            retry(ctx.f);
+            retry(ctx);
         // AND THE PROBE AS WELL, not instead. The retry recovers a window whose
         // reopening is announced; this recovers one whose announcement was LOST,
         // and no retry substitutes for a message that never arrives (D-25
@@ -2250,7 +2112,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
                          [TCPBP::seq_no, ctx.send_next,
                           prev.seq_no + prev.payload_len]);
 
-    if (pkt_gen(ctx.f, bp, PRIO_DATA, rtx) != 0)
+    if (pkt_gen(ctx, bp, PRIO_DATA, rtx) != 0)
         return;
 
     // What the target will cut this extent into, which is what the donor's
@@ -2261,7 +2123,9 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     if (ctx.send_next > ctx.send_high)
         ctx.send_high = ctx.send_next;
     if (unacked_on_wire(ctx))
-        arm_rto(ctx);
+timer_start(ctx.rto_timer,
+                    millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
+                                << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
     return;
 }
 
@@ -2294,7 +2158,7 @@ void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
         // This carries the window too, so the advertisement is discharged with
         // it.
         ctx.need_wnd_adv = false;
-        if (pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
+        if (pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
                     PRIO_ACK, false) != 0)
             break;                      // no room; still owed
         ctx.ack_cnt = ctx.ack_cnt - 1;
@@ -2326,7 +2190,7 @@ void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
 // which the application has already buffered (CR-4). A closed send path is a
 // refusal.
 void gen_answer(app_gen ev, tcp_ctx ctx) {
-    ev.result = send_side_open(ctx) ? int32(ev.mlen) : -1;
+    ev.result = (ctx.state == ST_ESTABLISHED || ctx.state == ST_CLOSE_WAIT) ? int32(ev.mlen) : -1;
     return;
 }
 
@@ -2334,7 +2198,7 @@ void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
     if (!ctx.need_wnd_adv || ctx.rcv_wnd <= PARITY_MSS_PAYLOAD)
         return;
     ctx.need_wnd_adv = false;
-    pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
+    pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
                     PRIO_ACK, false);
     return;
 }
@@ -2420,7 +2284,7 @@ void proc_rst(tcp_rst ev, tcp_ctx ctx) {
     ctx.state = ST_CLOSE_WAIT;
     ctx.fin_consumed = true;            // the receive side is over, however it
                                         // ended: nothing more will arrive
-    notify(ctx.f, READABLE);
+    notify(ctx, READABLE);
     return;
 }
 
@@ -2441,9 +2305,9 @@ void gen_syn(event_t ev, tcp_ctx ctx) {
     if (ctx.state != ST_SYN_SENT || ctx.send_next != ctx.snd_base)
         return;                     // already on the wire
 
-    if (pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next, FLAG_SYN, now()),
+    if (pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_SYN, now()),
                 PRIO_CONTROL, false) != 0) {
-        retry(ctx.f);          // the address is not resolved yet
+        retry(ctx);          // the address is not resolved yet
         return;
     }
     ctx.send_next = ctx.send_next + 1;  // the SYN consumes one
@@ -2456,7 +2320,9 @@ void gen_syn(event_t ev, tcp_ctx ctx) {
     // acknowledged and never answered, on both servers, with everything up to
     // that point working.
     ctx.snd_base = ctx.send_next;
-    arm_rto(ctx);
+timer_start(ctx.rto_timer,
+                millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
+                            << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
     return;
 }
 
@@ -2535,10 +2401,10 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
     }
     ctx.state = ST_ESTABLISHED;
 
-    notify(ctx.f, WRITABLE);
+    notify(ctx, WRITABLE);
 
     // The handshake's own acknowledgement.
-    pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
+    pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
                     PRIO_ACK, false);
     return;
 }
@@ -2558,7 +2424,7 @@ void proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
     ctx.rtx_count = ctx.rtx_count + 1;
     if (ctx.rtx_count > PARITY_MAX_RTX) {
         ctx.state = ST_CLOSED;
-        notify(ctx.f, ERROR);
+        notify(ctx, ERROR);
         return;
     }
 
@@ -2577,7 +2443,7 @@ void proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
     // reoccupies it — the flow waits for an acknowledgement of a FIN that is no
     // longer on the wire.
     if (ctx.fin_pending && ctx.send_next == ctx.fin_seq &&
-        fin_emit(ctx, true) == 0)
+        pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK | FLAG_FIN, now()), PRIO_DATA, true) == 0)
         ctx.send_next = ctx.send_next + 1;
     return;
 }
@@ -2637,7 +2503,7 @@ void proc_probe(tcp_probe_timeout ev, tcp_ctx ctx) {
     if (now() - ctx.last_ack_sent_ms <= PARITY_PROBE_MS)
         return;
 
-    pkt_gen(ctx.f, build_hdr(ctx, ctx.send_next - 1, FLAG_ACK, now()),
+    pkt_gen(ctx, build_hdr(ctx, ctx.send_next - 1, FLAG_ACK, now()),
                     PRIO_ACK, false);
     timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
     return;
@@ -2656,7 +2522,7 @@ void proc_probe(tcp_probe_timeout ev, tcp_ctx ctx) {
 // a decision on whether to keep it.
 void proc_idle(tcp_idle_timeout ev, tcp_ctx ctx) {
     ctx.state = ST_CLOSED;
-    notify(ctx.f, ERROR);
+    notify(ctx, ERROR);
     del_ctx(ctx.key);
     return;
 }
@@ -2674,6 +2540,7 @@ void proc_bind(app_bind ev, tcp_listen_ctx ctx) {
     if (exists(ctx))
         return;                     // already bound
     new_ctx(get_flow_id(ev));           // materialises the context `ctx` names
+    ctx.key = tcp_lid(ev.ip, ev.port);
     ctx.local_ip = ev.ip;
     ctx.local_port = ev.port;
     ctx.state = ST_CLOSED;
@@ -2698,7 +2565,7 @@ void proc_listen(app_listen ev, tcp_listen_ctx ctx) {
     ctx.pending_cap = ev.backlog > 0 ? ev.backlog : PROG_MAX_BACKLOG;
     if (ctx.pending_cap > PROG_MAX_BACKLOG)
         ctx.pending_cap = PROG_MAX_BACKLOG;
-    ev.opened = ctx.f;
+    ev.opened = ctx.key;
     return;
 }
 
@@ -2737,7 +2604,7 @@ void proc_accept(app_accept ev, tcp_listen_ctx ctx) {
     ctx.pending_n = ctx.pending_n - 1;
 
     if (ctx.pending_n > 0)
-        notify(ctx.f, READABLE);
+        notify(ctx, READABLE);
     return;
 }
 
@@ -2766,9 +2633,11 @@ void proc_connect(app_connect ev, tcp_ctx ctx) {
     ctx.ssthresh = PARITY_SSTHRESH_ACTIVE;
     ctx.state = ST_SYN_SENT;
     // No packet created this flow, so the target has no addresses for it.
-    ctx_addrs(ctx.f, ctx.local_ip, ctx.remote_ip);
-    touch_idle(ctx);
-    ev.opened = ctx.f;                  // the caller needs the handle (CR-2)
+    ctx_addrs(ctx, ctx.local_ip, ctx.remote_ip);
+    // the idle deadline, refreshed; nothing to reap once closed
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, millisecond(PARITY_IDLE_MS));
+    ev.opened = ctx.key;                  // the caller needs the handle (CR-2)
     return;
 }
 

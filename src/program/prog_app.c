@@ -30,7 +30,7 @@ sock_bind(struct mtp_app_op *op, struct app_ev *ev,
 	(void)now_ms;
 	ev->ip = op->local.ip;
 	ev->port = ntohs(op->local.port);
-	ev->__key = key_of_listener(op->local.ip, ntohs(op->local.port));
+	ev->__key = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) });
 	kinds[__n++] = EV_app_bind;
 	return __n;
 }
@@ -44,7 +44,7 @@ sock_listen(struct mtp_app_op *op, struct app_ev *ev,
 	ev->ip = op->local.ip;
 	ev->port = ntohs(op->local.port);
 	ev->backlog = op->len;
-	ev->__key = key_of_listener(op->local.ip, ntohs(op->local.port));
+	ev->__key = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) });
 	kinds[__n++] = EV_app_listen;
 	return __n;
 }
@@ -57,7 +57,7 @@ sock_accept(struct mtp_app_op *op, struct app_ev *ev,
 	(void)now_ms;
 	ev->ip = op->local.ip;
 	ev->port = ntohs(op->local.port);
-	ev->__key = key_of_listener(op->local.ip, ntohs(op->local.port));
+	ev->__key = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) });
 	kinds[__n++] = EV_app_accept;
 	return __n;
 }
@@ -78,7 +78,7 @@ sock_connect(struct mtp_app_op *op, struct app_ev *ev,
 	ev->rem_ip = op->remote.ip;
 	ev->loc_port = ntohs(op->local.port);
 	ev->rem_port = ntohs(op->remote.port);
-	ev->__key = key_of_inbound(op->local.ip, op->remote.ip, ntohs(op->local.port), ntohs(op->remote.port));
+	ev->__key = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) });
 	kinds[__n++] = EV_app_connect;
 	return __n;
 }
@@ -108,7 +108,7 @@ sock_send(struct mtp_app_op *op, struct app_ev *ev,
 		if ((op->flow != NULL)) {
 			ev->__flow = op->flow;
 		} else {
-			ev->__key = key_of_listener(op->local.ip, ntohs(op->local.port));
+			ev->__key = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) });
 		}
 		kinds[__n++] = EV_app_send;
 	} else {
@@ -269,10 +269,6 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 	}
 
 	/* CR-2: the handle the chain produced */
-	if (ev.accepted)
-		op->flow = ev.accepted;
-	if (ev.opened)
-		op->flow = ev.opened;
 	/* ...and the count, which is the other half of the same need */
 	return ev.result;
 }
