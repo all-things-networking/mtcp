@@ -1151,7 +1151,9 @@ proc_bind(struct app_ev *ev, struct tcp_listen_ctx *ctx)
 	if (((ctx) != NULL)) {
 		return;
 	}
-	mtp_new_ctx(&(ev->__key), sizeof(struct tcp_listen_ctx));
+	ctx = mtp_new_ctx(&(ev->__key), sizeof(struct tcp_listen_ctx));
+	if (!ctx)
+		return;
 	ctx->local_ip = ev->ip;
 	ctx->local_port = ev->port;
 	ctx->state = ST_CLOSED;
@@ -1200,7 +1202,9 @@ proc_connect(struct app_ev *ev, struct tcp_ctx *ctx)
 	if (((ctx) != NULL)) {
 		return;
 	}
-	mtp_new_ctx(&(ev->__key), sizeof(struct tcp_ctx));
+	ctx = mtp_new_ctx(&(ev->__key), sizeof(struct tcp_ctx));
+	if (!ctx)
+		return;
 	ctx->key = ev->__key;
 	ctx->local_ip = ev->loc_ip;
 	ctx->remote_ip = ev->rem_ip;
