@@ -9,8 +9,82 @@
 #include "prog.h"
 
 /*
- * The event processors. One per section of mtp/tcp.mtp.
+ * mtp/tcp.mtp §build_hdr
+ * ---------------------------------------------------------------------------
+ * THE ONE PLACE AN OUTBOUND HEADER IS BUILT, and it is a program function
+ * rather than compiler output because THREE PROTOCOL SIDE EFFECTS HANG OFF IT.
+ *
+ *   - every packet that acknowledges resets the window probe's clock. That is
+ *     the donor's rule (tcp_out.c:293) and was not ours: ours stamped it only
+ *     when a probe was emitted, so the gate measured the interval between
+ *     probes and we probed where the donor would not;
+ *   - the same line stamps the donor's activity clock (tcp_out.c:293-296, and
+ *     again on every received packet at tcp_in.c:1292), which is what our idle
+ *     timer restart stands in for;
+ *   - D11 ARM. The donor sets need_wnd_adv when the SCALED FIELD it is about to
+ *     put on the wire is zero (tcp_out.c:304-309) — not when rcv_wnd is small.
  */
+struct TCPBP
+build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now)
+{
+	struct TCPBP bp = { 0 };
+	bool is_syn = (((flags & FLAG_SYN)) != 0);
+	if ((((flags & FLAG_ACK)) != 0)) {
+		ctx->last_ack_sent_ms = now;
+		if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
+			(ctx->idle_timer).ctx = ctx;
+			mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
+		}
+	}
+	bp.src_port = ctx->loc_port;
+	bp.dst_port = ctx->rem_port;
+	bp.seq_no = seq;
+	bp.ack_seq = ctx->recv_next;
+	bp.flags = (PARITY_SET_PSH ? flags : ((flags & ~(FLAG_PSH))));
+	bp.window = (is_syn ? (uint16_t)(ctx->rcv_wnd) : (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE)));
+	bp.urg_ptr = 0;
+	if ((bp.window == 0)) {
+		ctx->need_wnd_adv = true;
+	}
+	if (is_syn) {
+		TCPBP_add_opt_mss(&bp, PARITY_MSS_ADVERTISED);
+		TCPBP_add_opt_nop(&bp);
+		TCPBP_add_opt_nop(&bp);
+		TCPBP_add_opt_ts(&bp, now, ctx->ts_recent);
+		TCPBP_add_opt_nop(&bp);
+		TCPBP_add_opt_wscale(&bp, PARITY_WSCALE);
+	} else {
+		TCPBP_add_opt_nop(&bp);
+		TCPBP_add_opt_nop(&bp);
+		TCPBP_add_opt_ts(&bp, now, ctx->ts_recent);
+	}
+	return bp;
+}
+
+/*
+ * mtp/tcp.mtp §build_rst_hdr
+ * ---------------------------------------------------------------------------
+ * A reset's header, built WITHOUT A CONTEXT, because a reset for a connection
+ * that does not exist has none. Ports come from the offending segment with the
+ * halves swapped, and there are NO OPTIONS: the donor's SendTCPPacketStandalone
+ * sends none on this path, and a timestamp echo would need a `ts_recent` we
+ * have never had. The window is zero, because there is no receive buffer behind
+ * a connection that does not exist, and the donor passes 0 at every standalone
+ * site.
+ */
+struct TCPBP
+build_rst_hdr(uint16_t loc_port, uint16_t rem_port, uint32_t seq, uint32_t ack, uint8_t flags)
+{
+	struct TCPBP bp = { 0 };
+	bp.src_port = loc_port;
+	bp.dst_port = rem_port;
+	bp.seq_no = seq;
+	bp.ack_seq = ack;
+	bp.flags = flags;
+	bp.window = 0;
+	bp.urg_ptr = 0;
+	return bp;
+}
 
 /*
  * mtp/tcp.mtp §proc_passive_open
@@ -1127,3 +1201,4 @@ post_object(struct app_ev *ev, struct tcp_listen_ctx *ctx)
 	ctx->obj_len = ev->mlen;
 	return;
 }
+

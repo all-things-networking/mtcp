@@ -8,10 +8,6 @@
 #include "contract.h"
 #include "prog.h"
 
-/*
- * dispatch -- the chains, and the entry points the target calls.
- */
-
 /* generated from: tcp_syn -> { proc_passive_open } */
 bool
 dispatch_tcp_syn(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)

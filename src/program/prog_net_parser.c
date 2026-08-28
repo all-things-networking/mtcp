@@ -9,10 +9,6 @@
 #include "prog.h"
 
 /*
- * rx_net_parser -- a segment to the list of events it raises.
- */
-
-/*
  * mtp/tcp.mtp §net_parser
  * ---------------------------------------------------------------------------
  * parse_tcp : a segment -> the list of events it raises.
@@ -248,3 +244,4 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		*ctx_out = ctx;
 	return __n;
 }
+
