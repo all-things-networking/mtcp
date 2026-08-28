@@ -10,7 +10,7 @@
  */
 #include <stdint.h>
 
-#include "prog_types.h"
+#include "prog_flow_id.h"
 
 #define FLAG_FIN	(1)
 #define FLAG_SYN	(2)

@@ -134,15 +134,17 @@ TESTS     := $(patsubst tests/%.c,bin/%,$(TEST_SRCS))
 
 # Off-testbed sources only: no infra, so no DPDK. If a test needs the target's
 # packet path it belongs somewhere else, and that somewhere does not exist yet.
-TESTABLE := src/program/prog_app.c src/program/prog_proto.c \
-            src/program/prog_instr.c \
+TESTABLE := src/program/prog_app_parser.c src/program/prog_processor.c \
+            src/program/prog_blueprint.c src/program/prog_dispatch.c \
+            src/program/prog_net_parser.c \
+            src/program/prog_instrument.c \
             src/target/fhash.c src/target/send_buffer.c \
             src/target/window.c src/target/ring_buffer.c
 
 # What those sources reference from the DPDK half. See tests/offbed_stubs.c.
-# prog_id.c defines the params (param <type> <name>(default)), which the
+# prog_param.c defines the params (param <type> <name>(default)), which the
 # processors read. No DPDK in it.
-TESTABLE += src/program/prog_id.c
+TESTABLE += src/program/prog_param.c
 
 TESTABLE += tests/offbed_stubs.c
 

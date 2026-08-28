@@ -10,7 +10,7 @@
 #include <string.h>
 
 #include "fhash.h"
-#include "prog_ctx.h"
+#include "prog.h"
 
 static int failures;
 

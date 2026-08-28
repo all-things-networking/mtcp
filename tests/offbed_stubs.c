@@ -3,7 +3,7 @@
  * that.
  *
  * TESTABLE in the Makefile is deliberately "off-testbed sources only: no
- * infra, so no DPDK". prog_app.c is in that set, and sock_recv there calls
+ * infra, so no DPDK". prog_app_parser.c is in that set, and sock_recv there calls
  * mtp_retry -- which lives in core.c, which needs DPDK. So the whole
  * suite stopped LINKING the moment the window-reopen was routed through a
  * retry, and five tests silently became un-runnable on the orchestrator.
@@ -32,9 +32,9 @@ mtp_retry(flow_t *f)
  * THE GENERATED PROGRAM NEEDS TWELVE MORE, and the reason is a file-layout
  * consequence rather than anything about the program.
  *
- * The hand-written program put the window rule in prog_app.c, which is a small
+ * The hand-written program put the window rule in prog_app_parser.c, which is a small
  * self-contained file, so TESTABLE could name it alone. The compiler splits by
- * ORIGIN instead -- op-parsers to prog_app.c, everything else to prog_proto.c
+ * ORIGIN instead -- op-parsers to prog_app_parser.c, everything else to prog_processor.c
  * -- so the suite now links the whole program, and the whole program reaches
  * every instruction it can issue. All twelve live in core.c, flow.c or
  * timer.c, which need DPDK.

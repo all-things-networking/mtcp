@@ -20,7 +20,7 @@
 #include "eth_out.h"
 #include "ip_out.h"
 #include "io_module.h"
-#include "prog_params.h"
+#include "prog_const.h"
 #include "debug.h"
 
 static inline uint16_t ring_next(uint16_t i, int c)

@@ -34,7 +34,7 @@
 #include <stdbool.h>
 #include <netinet/ip.h>
 
-#include "prog_types.h"		/* compiler output: the flow id, context, events */
+#include "prog_flow_id.h"		/* compiler output: the flow id, context, events */
 
 /* The target's handle for one flow. Opaque to the program, which obtains it
  * from get_flow_id()/the context and passes it back. */
@@ -329,7 +329,7 @@ int  mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
  * Deliver the next `len` in-order bytes to the application and notify.
  * RETURNS THE BYTE COUNT ACTUALLY DELIVERED, which is load-bearing: it is the
  * only way a program learns that the application drained, and §7.2's
- * advertised-window rule is written on it. See prog_params.h.
+ * advertised-window rule is written on it. See prog_const.h.
  */
 int  mtp_rx_flush_and_notify(struct mtp_data_unit *u, uint32_t len,
 			     struct mtp_rx_addr addr);
@@ -688,7 +688,7 @@ int mtp_notify(flow_t *f, const struct mtp_notif *msg);
  * app op is an event like any other, and a program binds the ops it needs. Our
  * program binds `recv` because it needs the application-drain event to
  * recompute the advertised window at the donor's second recompute point — see
- * prog_app.c. Nothing about the language changes.
+ * prog_app_parser.c. Nothing about the language changes.
  */
 /*
  * SEND takes a named flow, and that is CR-7 rather than a stretch of it. The
@@ -762,7 +762,7 @@ struct mtp_app_op {
  * had. The only indirect call is one per program, at demux. So the target calls
  * exactly three generated symbols, and every call below is direct.
  *
- * The flow id is `flowkey_t`, defined in prog_types.h from the program's
+ * The flow id is `flowkey_t`, defined in prog_flow_id.h from the program's
  * `flow_id` declaration. The target names the type, stores it, and hashes its
  * bytes; it never reads a field, and there are no field names to read — the
  * declaration is shape-only, and the PARSER canonicalises direction so an

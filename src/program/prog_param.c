@@ -14,7 +14,7 @@
 
 #include "upcall.h"
 #include "contract.h"
-#include "prog_params.h"
+#include "prog_const.h"
 
 /* Named as a NUMBER, not as a symbol, because ip_in.c compares against it
  * and ip_in.c is infrastructure. */

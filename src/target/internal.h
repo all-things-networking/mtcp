@@ -23,7 +23,7 @@
 #include <stdbool.h>
 
 #include "contract.h"
-#include "prog_params.h"
+#include "prog_const.h"
 
 /* Forward-declared rather than including infra.h: the ring and the blueprint
  * must not reach the DPDK layer, or the parts of the target that could be

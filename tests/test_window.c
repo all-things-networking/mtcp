@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "prog_ctx.h"
-#include "prog_params.h"
+#include "prog.h"
+#include "prog_const.h"
 
 static int failures;
 

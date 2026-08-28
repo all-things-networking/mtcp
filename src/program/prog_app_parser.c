@@ -11,9 +11,9 @@
 #include <arpa/inet.h>
 
 #include "contract.h"
-#include "prog_params.h"
-#include "prog_types.h"
-#include "prog_ctx.h"
+#include "prog_const.h"
+#include "prog_flow_id.h"
+#include "prog.h"
 
 /*
  * The op's endpoint is in NETWORK order, as the schema declares; this program
