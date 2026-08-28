@@ -891,8 +891,8 @@ list<event_t> sock_bind(bind op) {
 
     ev.ip = op.local.ip;                 // stays network order: compared against
                                          // the arriving packet's destination
-    ev.port = ntohs(op.local.port);
-    set_flow_id(ev, tcp_lid(op.local.ip, ntohs(op.local.port)));
+    ev.port = op.local.port;
+    set_flow_id(ev, tcp_lid(op.local.ip, op.local.port));
     out.add(ev);
     return out;
 }
@@ -902,9 +902,9 @@ list<event_t> sock_listen(listen op) {
     app_listen ev;
 
     ev.ip = op.local.ip;
-    ev.port = ntohs(op.local.port);
+    ev.port = op.local.port;
     ev.backlog = op.len;
-    set_flow_id(ev, tcp_lid(op.local.ip, ntohs(op.local.port)));
+    set_flow_id(ev, tcp_lid(op.local.ip, op.local.port));
     out.add(ev);
     return out;
 }
@@ -914,8 +914,8 @@ list<event_t> sock_accept(accept op) {
     app_accept ev;
 
     ev.ip = op.local.ip;
-    ev.port = ntohs(op.local.port);
-    set_flow_id(ev, tcp_lid(op.local.ip, ntohs(op.local.port)));
+    ev.port = op.local.port;
+    set_flow_id(ev, tcp_lid(op.local.ip, op.local.port));
     out.add(ev);
     return out;
 }
@@ -932,7 +932,7 @@ list<event_t> sock_connect(connect op) {
     ev.loc_port = op.local.port;
     ev.rem_port = op.remote.port;
     set_flow_id(ev, tcp_fid(op.local.ip, op.remote.ip,
-                                   ntohs(op.local.port),
+                                   op.local.port,
                                    op.remote.port));
     out.add(ev);
     return out;
@@ -959,11 +959,11 @@ list<event_t> sock_send(send op) {
         ev.addr = op.data;
         ev.mlen = op.len;
         ev.ip = op.local.ip;
-        ev.port = ntohs(op.local.port);
+        ev.port = op.local.port;
         if (has_flow(op))
             set_flow(ev, op.flow);
         else
-            set_flow_id(ev, tcp_lid(op.local.ip, ntohs(op.local.port)));
+            set_flow_id(ev, tcp_lid(op.local.ip, op.local.port));
         out.add(ev);
     } else {
         app_gen ev;
