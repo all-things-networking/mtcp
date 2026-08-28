@@ -394,7 +394,7 @@ main(int argc, char **argv)
 	memset(&op, 0, sizeof(op));
 	op.kind = MTP_APP_BIND;
 	op.local.ip = ip;
-	op.local.port = htons(port);
+	op.local.port = port;		/* the op is host order */
 	if (mtp_program_app_op(&op, 0) < 0) {
 		fprintf(stderr, "tcpserver: the program does not bind `bind`\n");
 		return 1;

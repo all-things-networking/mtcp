@@ -31,10 +31,8 @@
 
 // §types
 // ---------------------------------------------------------------------------
-// `addr_t` and `rx_addr_t` ARE DIFFERENT TYPES and the frozen language has one.
-// MTP_LANG 2 splits addr_t by direction at the runtime; here they are two
-// concrete types with different fields, and one app event carries each -- so
-// direction cannot be recovered from the event's base. The program says which.
+// ONE ADDRESS TYPE. addr_t is every address; the two directions were two
+// structs of identical shape and the split bought nothing.
 //
 // A FLOW IS NAMED BY ITS ID, or by naming the CONTEXT an instruction acts on.
 // The program never holds a target handle: the backend supplies whatever the
@@ -183,7 +181,7 @@ event tcp_synack   : net_event { uint32 seq, ack; uint16 window;
 event tcp_ack      : net_event { uint32 seq, ack; uint16 window;
                                  uint32 ts_val, ts_ecr; uint32 payload_len; }
 event tcp_data     : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
-                                 rx_addr_t hold_addr; uint32 data_len; }
+                                 addr_t hold_addr; uint32 data_len; }
 event tcp_fin      : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
                                  uint32 payload_len; }
 // A RESET RAISES tcp_rst AND NOTHING ELSE — the one place the inclusive
@@ -216,7 +214,7 @@ event app_accept   : app_event { uint32 ip; uint16 port; tcp_fid accepted;
                                  int32 result; }
 event app_connect  : app_event { uint32 loc_ip, rem_ip;
                                  uint16 loc_port, rem_port; tcp_fid opened; }
-event app_recv     : app_event { rx_addr_t buf; uint32 len; int32 result; }
+event app_recv     : app_event { addr_t buf; uint32 len; int32 result; }
 // TWO HALVES OF ONE EVENT ON TWO THREADS (CR-4). `record_data` copies into the
 // transmit stream and generates nothing, so it runs inside the application's
 // call; `gen_seg` advances send_next, which is the stack's. A compiler emits
@@ -931,11 +929,11 @@ list<event_t> sock_connect(connect op) {
     app_connect ev;
 
     ev.loc_ip = op.local.ip;    ev.rem_ip = op.remote.ip;
-    ev.loc_port = ntohs(op.local.port);
-    ev.rem_port = ntohs(op.remote.port);
+    ev.loc_port = op.local.port;
+    ev.rem_port = op.remote.port;
     set_flow_id(ev, tcp_fid(op.local.ip, op.remote.ip,
                                    ntohs(op.local.port),
-                                   ntohs(op.remote.port)));
+                                   op.remote.port));
     out.add(ev);
     return out;
 }
@@ -988,7 +986,7 @@ list<event_t> parse_recv(recv op) {
     // The op schema's `data` is a TRANSMIT reference; a receive posts a
     // RECEIVE one. The two are different types in this target's contract, so
     // the program says which rather than the compiler converting silently.
-    ev.buf = rx_addr(op.data.base, op.len);
+    ev.buf = op.data;	// one address type: nothing to convert
     ev.len = op.len;
     set_flow(ev, op.flow);
     out.add(ev);
@@ -1037,7 +1035,7 @@ void proc_passive_open(tcp_syn ev, tcp_ctx ctx) {
     // absolute and one relative, subtracted, with nothing to type-check it.
     ctx.rcv_base  = ctx.recv_next;
     ctx.delivered = ctx.rcv_base;
-    sw_init(ctx.rx_wnd, ctx.recv_next);
+    ctx.rx_wnd.init(ctx.recv_next);
 
     // PAWS applies only to a peer that timestamps, and the donor decides it
     // ONCE, here, from the SYN's options (tcp_util.c:47-51). ts_recent is
@@ -1390,10 +1388,14 @@ void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
     tx_flush_and_notify(ctx.tx, acked);
 
     // Progress: cancel, and reset the backoff. Re-armed if anything is still
-    // outstanding.
+    // outstanding -- and ANYTHING HANDED TO pkt_gen IS OUTSTANDING, so the
+    // program's own send_next says so. It used to ask the target how much it
+    // had actually emitted (tx_emitted), which was asking the target to answer
+    // a question the program already knows: send_next is what was handed over,
+    // send_una is what came back.
     ctx.rtx_count = 0;
     timer_stop(ctx.rto_timer);
-    if (((ctx.tx_open && tx_emitted(ctx.tx) > (ctx.send_una - ctx.snd_base)) || (ctx.fin_pending && ctx.send_una != ctx.send_next)))
+    if ((ctx.send_una != ctx.send_next))
 timer_start(ctx.rto_timer,
                     millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
                                 << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
@@ -1437,8 +1439,8 @@ void proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
     // code at all — marking a range twice is the same as marking it once, a
     // partial overlap marks the union, and two losses leave two runs with the
     // slide stopping at the first.
-    sw_set(ctx.rx_wnd, ev.seq, ev.seq + ev.data_len);
-    next = sw_slide(ctx.rx_wnd);
+    ctx.rx_wnd.set(ev.seq, ev.seq + ev.data_len);
+    next = ctx.rx_wnd.slide();
 
     if (next != ctx.recv_next) {
         // §window_rule RECOMPUTE POINT 1. Nothing else in this program writes
@@ -1533,8 +1535,8 @@ void proc_fin(tcp_fin ev, tcp_ctx ctx, tcp_scratch s) {
     }
 
     ctx.recv_next = fin_seq + 1;        // the FIN consumes one byte
-    sw_set(ctx.rx_wnd, fin_seq, fin_seq + 1);
-    sw_slide(ctx.rx_wnd);      // keep the window's boundary and
+    ctx.rx_wnd.set(fin_seq, fin_seq + 1);
+    ctx.rx_wnd.slide();      // keep the window's boundary and
                                         // recv_next the same number
     ctx.fin_consumed = true;            // ...which is NOT data: G14
 
@@ -1763,7 +1765,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     ctx.send_next = ctx.send_next + to_send;
     if (ctx.send_next > ctx.send_high)
         ctx.send_high = ctx.send_next;
-    if (((ctx.tx_open && tx_emitted(ctx.tx) > (ctx.send_una - ctx.snd_base)) || (ctx.fin_pending && ctx.send_una != ctx.send_next)))
+    if ((ctx.send_una != ctx.send_next))
 timer_start(ctx.rto_timer,
                     millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
                                 << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
@@ -1966,7 +1968,7 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
     // PARITY_ISN is frozen at 0 (D-01's second freeze), which makes the two origins
     // coincide -- the same masking D-01 records for snd_wl1, and it lifts the
     // moment the PARITY_ISN does. FOR THE LEAD: fix in the C first, then here.
-    sw_init(ctx.rx_wnd, ctx.recv_next);
+    ctx.rx_wnd.init(ctx.recv_next);
     ctx.snd_wl1 = ev.seq - 1;
     ctx.snd_wl2 = ev.ack;
     ctx.last_ack_seq = ev.ack;

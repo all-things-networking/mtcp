@@ -325,7 +325,7 @@ struct tcp_listen_ctx {
 	 * op, not as something this program invented — the bytes are the
 	 * application's and the program only decides when they go.
 	 */
-	struct mtp_tx_addr obj;
+	struct mtp_addr obj;
 	uint32_t obj_len;
 };
 

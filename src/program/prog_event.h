@@ -42,9 +42,9 @@ enum ev_kind {
 /* every app_event of this program, as one frame */
 struct app_ev {
 	flowkey_t accepted;
-	struct mtp_tx_addr addr;
+	struct mtp_addr addr;
 	uint32_t backlog;
-	struct mtp_rx_addr buf;
+	struct mtp_addr buf;
 	uint32_t ip;
 	uint32_t len;
 	uint32_t loc_ip;
@@ -66,7 +66,7 @@ struct net_ev {
 	uint16_t dport;
 	bool has_ts;
 	bool has_wscale;
-	struct mtp_rx_addr hold_addr;
+	struct mtp_addr hold_addr;
 	uint32_t payload_len;
 	uint32_t seq;
 	uint16_t sport;

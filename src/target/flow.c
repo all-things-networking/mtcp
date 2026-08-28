@@ -268,7 +268,7 @@ int
 mtp_app_send(flow_t *f, const void *buf, uint32_t len)
 {
 	struct mtp_app_op op;
-	struct mtp_tx_addr addr;
+	struct mtp_addr addr;
 	int wrote;
 
 	if (!f || !f->tx_unit)

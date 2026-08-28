@@ -76,9 +76,9 @@ sock_connect(struct mtp_app_op *op, struct app_ev *ev,
 	(void)now_ms;
 	ev->loc_ip = op->local.ip;
 	ev->rem_ip = op->remote.ip;
-	ev->loc_port = ntohs(op->local.port);
-	ev->rem_port = ntohs(op->remote.port);
-	ev->__key = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) });
+	ev->loc_port = op->local.port;
+	ev->rem_port = op->remote.port;
+	ev->__key = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = op->remote.port });
 	kinds[__n++] = EV_app_connect;
 	return __n;
 }
@@ -131,7 +131,7 @@ parse_recv(struct mtp_app_op *op, struct app_ev *ev,
 {
 	unsigned __n = 0;
 	(void)now_ms;
-	ev->buf = ((struct mtp_rx_addr){ .data = (const uint8_t *)(op->data.base), .len = op->len });
+	ev->buf = op->data;
 	ev->len = op->len;
 	ev->__flow = op->flow;
 	kinds[__n++] = EV_app_recv;

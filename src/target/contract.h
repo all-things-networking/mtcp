@@ -287,17 +287,20 @@ uint64_t mtp_du_head(const struct mtp_data_unit *u);
 /* A reference to application data to be transmitted. The kernel target uses an
  * iov_iter because that is what its socket layer already carries; ours is a
  * plain extent, because mTCP's write path is a copy into the send buffer. */
-struct mtp_tx_addr {
+/*
+ * ONE ADDRESS TYPE, both directions. They were two structs of identical shape,
+ * `{pointer, len}`, split by direction -- so a program had to say which it
+ * meant and the language has only `addr_t`. The split bought the target
+ * nothing: it is the same two fields either way.
+ */
+struct mtp_addr {
 	const void	*base;
 	uint32_t	 len;
 };
 
 /* A reference to received payload. In the kernel this is {skb, off}; here it
  * points into the receive burst's mbuf and is valid until dispatch returns. */
-struct mtp_rx_addr {
-	const uint8_t	*data;
-	uint32_t	 len;
-};
+
 
 /* data(uid, off, len) — the payload a pkt_gen draws from a TX unit. A HANDLE
  * AND A RANGE, not a resolved pointer: resolution is the target's business and
@@ -309,7 +312,7 @@ struct mtp_tx_payload {
 };
 
 void mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size);
-int  mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len);
+int  mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_addr addr, uint32_t len);
 int  mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len);
 
 /*
@@ -323,7 +326,7 @@ int  mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len);
 uint64_t mtp_tx_emitted(const struct mtp_data_unit *u);
 
 void mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t size);
-int  mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
+int  mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_addr addr,
 			 uint32_t len, uint64_t offset);
 /*
  * Deliver the next `len` in-order bytes to the application and notify.
@@ -332,7 +335,7 @@ int  mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
  * advertised-window rule is written on it. See prog_const.h.
  */
 int  mtp_rx_flush_and_notify(struct mtp_data_unit *u, uint32_t len,
-			     struct mtp_rx_addr addr);
+			     struct mtp_addr addr);
 
 /*
  * WE HAD A READ SIDE HERE AND IT IS WITHDRAWN.
@@ -680,7 +683,7 @@ int mtp_notify(flow_t *f, const struct mtp_notif *msg);
  * This is C's B7, solved, and better than anything we had: our design carried
  * the donor's socket API shim with no route from an app call to an event at
  * all. The ops are neutral — a general inet endpoint plus a data handle. The
- * kernel puts a `struct msghdr *` in the handle; ours is an mtp_tx_addr,
+ * kernel puts a `struct msghdr *` in the handle; ours is an mtp_addr,
  * because the handle's type is realisation and the schema is the contract.
  *
  * A NOTE WE WITHDREW. We read §7a's remark that a stream socket's `recv` is
@@ -716,7 +719,16 @@ enum mtp_app_op_kind {
 	MTP_APP_ACCEPT,
 };
 
-struct mtp_endpoint {		/* network byte order */
+/*
+ * HOST byte order, and the application interface converts.
+ *
+ * It was network order, so every program that wanted to compare or key on a
+ * port had to call ntohs -- twelve times in the TCP program. Byte order is a
+ * property of the wire and of the socket API, not of the protocol, and the
+ * language has no ntohs to offer. The conversion belongs at the boundary that
+ * knows about both, which is this one.
+ */
+struct mtp_endpoint {
 	uint32_t	ip;
 	uint16_t	port;
 };
@@ -727,7 +739,7 @@ struct mtp_app_op {
 					 * the handle the app got from readiness */
 	struct mtp_endpoint	local;
 	struct mtp_endpoint	remote;
-	struct mtp_tx_addr	data;	/* SEND: the application's bytes */
+	struct mtp_addr	data;	/* SEND: the application's bytes */
 	uint32_t		len;
 	uint32_t		flags;	/* MTP_OP_PHASE_*, below */
 };

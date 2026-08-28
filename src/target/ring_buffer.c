@@ -61,7 +61,7 @@ RxUnitInit(struct mtp_data_unit *u, uint64_t size, uint32_t cap,
  * and knows nothing about a configuration system. */
 
 int
-mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
+mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_addr addr,
 		    uint32_t len, uint64_t offset)
 {
 	uint32_t at, first;
@@ -94,7 +94,7 @@ mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
 	if ((int64_t)(offset - u->head_seq) < 0) {
 		uint64_t skip = u->head_seq - offset;
 
-		addr.data += skip;
+		addr.base += skip;
 		len -= (uint32_t)skip;
 		offset = u->head_seq;
 	}
@@ -104,10 +104,10 @@ mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
 	at = rx_off(u, offset);
 	first = u->cap - at;
 	if (first >= len) {
-		memcpy(u->buf + at, addr.data, len);
+		memcpy(u->buf + at, addr.base, len);
 	} else {
-		memcpy(u->buf + at, addr.data, first);
-		memcpy(u->buf, addr.data + first, len - first);
+		memcpy(u->buf + at, addr.base, first);
+		memcpy(u->buf, addr.base + first, len - first);
 	}
 	/*
 	 * Mark, then slide. The boundary lands wherever the arrivals reach --
@@ -158,11 +158,11 @@ mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_rx_addr addr,
  */
 int
 mtp_rx_flush_and_notify(struct mtp_data_unit *u, uint32_t len,
-			struct mtp_rx_addr addr)
+			struct mtp_addr addr)
 {
 	uint32_t held = (uint32_t)(u->tail_seq - u->head_seq);
 	uint32_t at, first;
-	uint8_t *dst = (uint8_t *)addr.data;
+	uint8_t *dst = (uint8_t *)addr.base;
 
 	if (len > held)
 		len = held;

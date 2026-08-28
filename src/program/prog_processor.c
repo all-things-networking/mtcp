@@ -390,7 +390,7 @@ proc_ack(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 	mtp_tx_flush_and_notify(&(ctx->tx), acked);
 	ctx->rtx_count = 0;
 	mtp_timer_stop(&(ctx->rto_timer));
-	if (((((ctx->tx_open && (mtp_tx_emitted(&(ctx->tx)) > ((ctx->send_una - ctx->snd_base))))) || ((ctx->fin_pending && (ctx->send_una != ctx->send_next)))))) {
+	if (((ctx->send_una != ctx->send_next))) {
 		(ctx->rto_timer).ctx = ctx;
 		mtp_timer_start(&(ctx->rto_timer), ((uint64_t)((((ctx->have_rtt ? ctx->rto_ms : PARITY_INITIAL_RTO_MS)) << (((ctx->rtx_count < 7) ? ctx->rtx_count : 7)))) * 1000000ULL));
 	}
@@ -714,7 +714,7 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 	if ((ctx->send_next > ctx->send_high)) {
 		ctx->send_high = ctx->send_next;
 	}
-	if (((((ctx->tx_open && (mtp_tx_emitted(&(ctx->tx)) > ((ctx->send_una - ctx->snd_base))))) || ((ctx->fin_pending && (ctx->send_una != ctx->send_next)))))) {
+	if (((ctx->send_una != ctx->send_next))) {
 		(ctx->rto_timer).ctx = ctx;
 		mtp_timer_start(&(ctx->rto_timer), ((uint64_t)((((ctx->have_rtt ? ctx->rto_ms : PARITY_INITIAL_RTO_MS)) << (((ctx->rtx_count < 7) ? ctx->rtx_count : 7)))) * 1000000ULL));
 	}

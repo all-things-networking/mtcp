@@ -226,7 +226,7 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		ev->ack = bp.ack_seq;
 		ev->window = bp.window;
 		ev->ts_val = bp.__opt_ts_ts_val;
-		ev->hold_addr = (struct mtp_rx_addr){ .data = l4 + bp.data_off * 4, .len = (uint32_t)(plen - bp.data_off * 4) };
+		ev->hold_addr = (struct mtp_addr){ .base = l4 + bp.data_off * 4, .len = (uint32_t)(plen - bp.data_off * 4) };
 		ev->data_len = payload_len;
 		ev->__key = fid;
 		kinds[__n++] = EV_tcp_data;

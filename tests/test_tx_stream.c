@@ -48,7 +48,7 @@ static void
 fill(struct mtp_data_unit *u, uint32_t n)
 {
 	static uint8_t src[8192];
-	struct mtp_tx_addr a = { .base = src, .len = n };
+	struct mtp_addr a = { .base = src, .len = n };
 
 	mtp_add_tx_data(u, a, n);
 }

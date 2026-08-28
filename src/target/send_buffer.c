@@ -163,7 +163,7 @@ TxUnitFini(struct mtp_data_unit *u)
 }
 
 int
-mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_tx_addr addr, uint32_t len)
+mtp_add_tx_data(struct mtp_data_unit *u, struct mtp_addr addr, uint32_t len)
 {
 	uint32_t held = (uint32_t)(u->tail_seq - u->head_seq);
 	uint32_t space = u->cap - held;

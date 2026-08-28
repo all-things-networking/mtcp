@@ -55,10 +55,10 @@ static int
 put(struct mtp_data_unit *u, uint64_t seq, uint32_t len)
 {
 	uint8_t tmp[2048];
-	struct mtp_rx_addr a;
+	struct mtp_addr a;
 
 	fill(tmp, seq, len);
-	a.data = tmp;
+	a.base = tmp;
 	a.len = len;
 	return mtp_add_rx_data_seg(u, a, len, seq);
 }
@@ -72,7 +72,7 @@ drain_and_verify(struct mtp_data_unit *u, uint64_t from)
 
 	memset(out, 0, sizeof(out));
 	got = (uint32_t)mtp_rx_flush_and_notify(u, CAP,
-			(struct mtp_rx_addr){ .data = out, .len = CAP });
+			(struct mtp_addr){ .base = out, .len = CAP });
 	for (i = 0; i < got; i++)
 		if (out[i] != byte_at(from + i)) {
 			CHECK(0, "byte %u of the drain is %02x, expected %02x "
