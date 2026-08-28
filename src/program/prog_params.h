@@ -42,9 +42,7 @@
 #define PARITY_MAX_RTX	(16)
 #define PARITY_MAX_SYN_RETRY	(7)
 #define PARITY_INITIAL_RTO_MS	(500)
-#define PARITY_TIMEWAIT_MS	(0)
 #define PARITY_PROBE_MS	(500)
-#define PARITY_IDLE_MS	(30000)
 #define PROG_MAX_BACKLOG	(128)
 #define PARITY_SET_PSH	(false)
 #define PRIO_CONTROL	(2)
@@ -65,5 +63,9 @@
  * what is being summed. */
 #define PROG_L4_CSUM_OFFSET	16
 #define PROG_OFFLOAD		1
+
+/* Parameters (param). Set from configuration; see ProgConfigKey. */
+extern uint32_t tcp_timewait;
+extern uint32_t tcp_timeout;
 
 #endif /* PROG_PARAMS_H */

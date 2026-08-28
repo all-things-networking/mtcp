@@ -94,15 +94,9 @@ const uint32 PARITY_DUP_ACK_THRESH = 3;      // tcp_in.c:417 — the donor acts 
 const uint32 PARITY_MAX_RTX        = 16;     // TCP_MAX_RTX, enforced
 const uint32 PARITY_MAX_SYN_RETRY  = 7;      // SYN_SENT only; timer.c:267-269
 const uint32 PARITY_INITIAL_RTO_MS = 500;    // until the first round-trip sample only
-const uint32 PARITY_TIMEWAIT_MS    = 0;      // the donor's running configuration. Zero
-                                      // is a REAL VALUE, not "unset" — D-24:
-                                      // the state must be entered and left even
-                                      // at zero, because it is the place the
-                                      // final acknowledgement is owed from.
 const uint32 PARITY_PROBE_MS       = 500;    // D-25 piece 2: the donor probes a closed
                                       // window 500 ms after the last
                                       // acknowledgement it SENT, with no backoff
-const uint32 PARITY_IDLE_MS        = 30000;  // conf/aqua/upcheck.conf `tcp_timeout = 30`
 const uint32 PROG_MAX_BACKLOG    = 128;    // the compile-time bound on one listener's
                                       // accept queue; `pending_cap` below it is
                                       // the runtime bound the application asked
@@ -151,7 +145,15 @@ const uint8 TRANSPORT_IP_PROTO = 6;
 // connection is not a property of the machine. An unrecognised key must not be
 // silently ignored -- the configuration file the donor is measured with is the
 // configuration file this target is measured with.
-config transport { tcp_timewait; tcp_timeout; }
+// SECONDS, because that is the unit the file carries -- the donor reads both
+// with SEC_TO_USEC (config.c:618-627). What a parameter MEANS is applied where
+// it is used, not here.
+//
+// Zero is a REAL VALUE for tcp_timewait, not "unset" (D-24): the state must be
+// entered and left even at zero, because it is the place the final
+// acknowledgement is owed from.
+param uint32 tcp_timewait(0);
+param uint32 tcp_timeout(30);
 
 // §flow_id
 // ---------------------------------------------------------------------------
@@ -560,7 +562,7 @@ TCPBP build_hdr(tcp_ctx ctx, uint32 seq, uint8 flags, uint32 now) {
         ctx.last_ack_sent_ms = now;
         // the idle deadline, refreshed; nothing to reap once closed
         if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-            timer_start(ctx.idle_timer, millisecond(PARITY_IDLE_MS));
+            timer_start(ctx.idle_timer, second(tcp_timeout));
     }
 
     bp.src_port = ctx.loc_port;
@@ -740,7 +742,7 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
     // before validation and before any state test.
     // the idle deadline, refreshed; nothing to reap once closed
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        timer_start(ctx.idle_timer, millisecond(PARITY_IDLE_MS));
+        timer_start(ctx.idle_timer, second(tcp_timeout));
 
     // VALIDATION, before any event is raised. A segment refused here raises
     // nothing, and the acknowledgement the donor queues on each refusing path
@@ -797,7 +799,7 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
             // refreshes the TIME_WAIT deadline if that is where it is
             if (ctx.state == ST_TIME_WAIT) {
                 ctx.state = ST_TIME_WAIT;
-                timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
+                timer_start(ctx.tw_timer, second(tcp_timewait));
             }
             ctx.ack_cnt = ctx.ack_cnt + 1;
             retry(ctx);
@@ -1366,7 +1368,7 @@ void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
             ctx.state = ST_FIN_WAIT_2;
         else if (ctx.state == ST_CLOSING) {
             ctx.state = ST_TIME_WAIT;
-            timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
+            timer_start(ctx.tw_timer, second(tcp_timewait));
         }
     }
 
@@ -1547,7 +1549,7 @@ void proc_fin(tcp_fin ev, tcp_ctx ctx, tcp_scratch s) {
         ctx.state = ST_CLOSING;
     } else if (ctx.state == ST_FIN_WAIT_2) {
         ctx.state = ST_TIME_WAIT;
-        timer_start(ctx.tw_timer, millisecond(PARITY_TIMEWAIT_MS));
+        timer_start(ctx.tw_timer, second(tcp_timewait));
     } else {
         bool was_established = ctx.state == ST_ESTABLISHED;
 
@@ -2186,7 +2188,7 @@ void proc_connect(app_connect ev, tcp_ctx ctx) {
     ctx_addrs(ctx, ctx.local_ip, ctx.remote_ip);
     // the idle deadline, refreshed; nothing to reap once closed
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        timer_start(ctx.idle_timer, millisecond(PARITY_IDLE_MS));
+        timer_start(ctx.idle_timer, second(tcp_timeout));
     ev.opened = ctx.key;                  // the caller needs the handle (CR-2)
     return;
 }

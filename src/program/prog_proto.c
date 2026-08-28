@@ -158,7 +158,7 @@ build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now)
 		ctx->last_ack_sent_ms = now;
 		if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
 			(ctx->idle_timer).ctx = ctx;
-			mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(PARITY_IDLE_MS) * 1000000ULL));
+			mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
 		}
 	}
 	bp.src_port = ctx->loc_port;
@@ -329,7 +329,7 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 	}
 	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
 		(ctx->idle_timer).ctx = ctx;
-		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(PARITY_IDLE_MS) * 1000000ULL));
+		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
 	}
 	bool accept = false;
 	uint32_t seg_end;
@@ -376,7 +376,7 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 			if ((ctx->state == ST_TIME_WAIT)) {
 				ctx->state = ST_TIME_WAIT;
 				(ctx->tw_timer).ctx = ctx;
-				mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(PARITY_TIMEWAIT_MS) * 1000000ULL));
+				mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(tcp_timewait) * 1000000000ULL));
 			}
 			ctx->ack_cnt = (ctx->ack_cnt + 1);
 			mtp_retry(ctx->f);
@@ -736,7 +736,7 @@ proc_ack(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 			if ((ctx->state == ST_CLOSING)) {
 				ctx->state = ST_TIME_WAIT;
 				(ctx->tw_timer).ctx = ctx;
-				mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(PARITY_TIMEWAIT_MS) * 1000000ULL));
+				mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(tcp_timewait) * 1000000000ULL));
 			}
 		}
 	}
@@ -872,7 +872,7 @@ proc_fin(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 		if ((ctx->state == ST_FIN_WAIT_2)) {
 			ctx->state = ST_TIME_WAIT;
 			(ctx->tw_timer).ctx = ctx;
-			mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(PARITY_TIMEWAIT_MS) * 1000000ULL));
+			mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(tcp_timewait) * 1000000000ULL));
 		} else {
 			bool was_established = (ctx->state == ST_ESTABLISHED);
 			ctx->state = ST_CLOSE_WAIT;
@@ -1538,7 +1538,7 @@ proc_connect(struct app_ev *ev, struct tcp_ctx *ctx)
 	mtp_ctx_addrs(ctx->f, ctx->local_ip, ctx->remote_ip);
 	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
 		(ctx->idle_timer).ctx = ctx;
-		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(PARITY_IDLE_MS) * 1000000ULL));
+		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
 	}
 	ev->opened = ctx->key;
 	return;

@@ -22,22 +22,22 @@
 const uint8_t TRANSPORT_IP_PROTO = 6;
 
 /*
- * The configuration keys this protocol owns. An unrecognised key must not
- * be silently ignored: the configuration file the donor is measured with is
- * the configuration file this target is measured with.
+ * The parameters this protocol declares. An unrecognised key must not be
+ * silently ignored: the configuration file the donor is measured with is the
+ * configuration file this target is measured with.
  */
-int prog_cfg_tcp_timewait = -1;
-int prog_cfg_tcp_timeout = -1;
+uint32_t tcp_timewait = 0;
+uint32_t tcp_timeout = 30;
 
 int
 ProgConfigKey(const char *key, const char *value)
 {
 	if (strcmp(key, "tcp_timewait") == 0) {
-		prog_cfg_tcp_timewait = atoi(value);
+		tcp_timewait = (uint32_t)atoi(value);
 		return 1;
 	}
 	if (strcmp(key, "tcp_timeout") == 0) {
-		prog_cfg_tcp_timeout = atoi(value);
+		tcp_timeout = (uint32_t)atoi(value);
 		return 1;
 	}
 	return 0;

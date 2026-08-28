@@ -140,6 +140,10 @@ TESTABLE := src/program/prog_app.c src/program/prog_proto.c \
             src/target/window.c src/target/ring_buffer.c
 
 # What those sources reference from the DPDK half. See tests/offbed_stubs.c.
+# prog_id.c defines the params (param <type> <name>(default)), which the
+# processors read. No DPDK in it.
+TESTABLE += src/program/prog_id.c
+
 TESTABLE += tests/offbed_stubs.c
 
 bin/test_%: tests/test_%.c $(TESTABLE)
