@@ -31,7 +31,7 @@ build_rst_hdr(uint16_t loc_port, uint16_t rem_port, uint32_t seq, uint32_t ack, 
 unsigned
 parse_tcp(const uint8_t *l4, uint16_t plen,
 		const struct iphdr *iph, struct net_ev *ev, uint8_t *kinds,
-		void **ctx_out, uint32_t now_ms);
+		uint32_t now_ms);
 unsigned
 sock_bind(struct mtp_app_op *op, struct app_ev *ev,
 		uint8_t *kinds, uint32_t now_ms);
@@ -54,9 +54,13 @@ unsigned
 sock_close(struct mtp_app_op *op, struct app_ev *ev,
 		uint8_t *kinds, uint32_t now_ms);
 void
-proc_passive_open(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms);
+proc_seq_check(struct net_ev *ev, struct tcp_ctx *ctx);
 void
-proc_open_done(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms);
+proc_passive_open(struct net_ev *ev, struct tcp_listen_ctx *lst, uint32_t now_ms);
+void
+proc_open_done(struct net_ev *ev, struct tcp_ctx *ctx);
+void
+proc_accept_queue(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_listen_ctx *lst, uint32_t now_ms);
 void
 proc_timestamp(struct net_ev *ev, struct tcp_ctx *ctx);
 void
@@ -115,7 +119,8 @@ void
 proc_connect(struct app_ev *ev, struct tcp_ctx *ctx);
 void
 post_object(struct app_ev *ev, struct tcp_listen_ctx *ctx);
-bool dispatch_tcp_syn(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
+bool dispatch_tcp_seg(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
+bool dispatch_tcp_syn(struct tcp_listen_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_synack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_data(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);

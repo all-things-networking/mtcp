@@ -32,25 +32,29 @@
  * retiring the bytes first would leave the congestion window seeing nothing
  * newly acknowledged.
  *
- * THE PARSER ISSUES INSTRUCTIONS AND RESOLVES CONTEXTS, which the frozen
- * language does not say it may (docs/LANGUAGE-NEEDS.md N-E). It has to --
- * three jobs here are protocol policy and none can be done from a chain:
+ * THE PARSER EXTRACTS LOOK-UP KEYS AND EVENT METADATA, AND NOTHING ELSE (D-33).
+ * It resolves no context, so it decides nothing that needs one:
  *
- *   a segment for a connection that does not exist is answered with a RESET,
- *   and a chain is dispatched THROUGH a context;
+ *   a segment for a connection that does not exist is a look-up MISS, reported
+ *   by the target, not a reset built here;
  *
- *   a SYN is matched against a LISTENER, and backlog room decides whether a
- *   context is created at all (G8, C3);
+ *   a SYN keys the LISTENER, and the backlog test and the context it creates
+ *   are §proc_passive_open's, which is where allocation belongs;
  *
- *   validation refuses a segment BEFORE any event is raised, which is the
- *   donor's placement. As the first link of every chain instead, a segment
- *   raising two events would validate twice and owe a duplicate
- *   acknowledgement the donor does not send.
+ *   validation reads the context, so it is §proc_seq_check on the tcp_seg
+ *   chain -- raised first and once, which is what keeps a segment that raises
+ *   three events from validating three times and owing acknowledgements the
+ *   donor does not send.
+ *
+ * WHICH CONTEXT AN EVENT NEEDS IS PROTOCOL KNOWLEDGE, and it is stated here
+ * with set_ctx_lookup_info. A key alone cannot say: every flow id in this
+ * program is a tuple of scalars, so a listener key and a connection key are the
+ * same shape and only the program knows which it meant.
  */
 unsigned
 parse_tcp(const uint8_t *l4, uint16_t plen,
 		const struct iphdr *iph, struct net_ev *ev, uint8_t *kinds,
-		void **ctx_out, uint32_t now_ms)
+		uint32_t now_ms)
 {
 	unsigned __n = 0;
 	(void)now_ms;
@@ -63,53 +67,8 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 	}
 	payload_len = (plen - (bp.data_off * 4));
 	flowkey_t fid = ((flowkey_t){ .kind = 0, .v0 = iph->daddr, .v1 = iph->saddr, .v2 = bp.dst_port, .v3 = bp.src_port });
-	struct tcp_ctx *ctx = mtp_ctx_lookup(&(fid));
-	if (!(((ctx) != NULL))) {
-		bool refuse = ((((bp.flags & FLAG_SYN)) == 0) || (((bp.flags & FLAG_ACK)) != 0));
-		flowkey_t lk = ((flowkey_t){ .kind = 1, .v0 = iph->daddr, .v1 = bp.dst_port });
-		struct tcp_listen_ctx *lst = mtp_ctx_lookup(&(lk));
-		if ((!(refuse) && ((!(((lst) != NULL)) || (lst->state != ST_LISTEN))))) {
-			refuse = true;
-		}
-		if (refuse) {
-			if ((((bp.flags & FLAG_RST)) != 0)) {
-				if (ctx_out)
-					*ctx_out = ctx;
-				return __n;
-			}
-			if ((((bp.flags & FLAG_ACK)) != 0)) {
-				struct TCPBP __t0 = build_rst_hdr(bp.dst_port, bp.src_port, bp.ack_seq, 0, FLAG_RST);
-				uint8_t __t1[PROG_HDR_MAX];
-				uint16_t __t2 = TCPBP_build(__t1, &__t0);
-				mtp_pkt_gen_orphan(iph->daddr, iph->saddr, __t1, __t2, PROG_OFFLOAD);
-			} else {
-				struct TCPBP __t3 = build_rst_hdr(bp.dst_port, bp.src_port, 0, ((bp.seq_no + payload_len) + (((((bp.flags & FLAG_SYN)) != 0) ? 1 : 0))), (FLAG_RST | FLAG_ACK));
-				uint8_t __t4[PROG_HDR_MAX];
-				uint16_t __t5 = TCPBP_build(__t4, &__t3);
-				mtp_pkt_gen_orphan(iph->daddr, iph->saddr, __t4, __t5, PROG_OFFLOAD);
-			}
-			if (ctx_out)
-				*ctx_out = ctx;
-			return __n;
-		}
-		if ((lst->pending_n >= lst->pending_cap)) {
-			if (ctx_out)
-				*ctx_out = ctx;
-			return __n;
-		}
-		ctx = mtp_new_ctx(&(fid), sizeof(struct tcp_ctx));
-		if (!ctx)
-			return __n;
-		ctx->state = ST_CLOSED;
-		ctx->send_wnd = 65535;
-		ctx->cwnd = PARITY_INIT_CWND;
-		ctx->rcv_wnd = PARITY_INITIAL_WINDOW;
-		ctx->key = fid;
-		ctx->lst_key = lk;
-		ctx->loc_port = bp.dst_port;
-		ctx->rem_port = bp.src_port;
-		ctx->local_ip = iph->daddr;
-		ctx->remote_ip = iph->saddr;
+	flowkey_t lid = ((flowkey_t){ .kind = 1, .v0 = iph->daddr, .v1 = bp.dst_port });
+	if (((((bp.flags & FLAG_SYN)) != 0) && (((bp.flags & FLAG_ACK)) == 0))) {
 		ev->seq = bp.seq_no;
 		ev->sport = bp.src_port;
 		ev->dport = bp.dst_port;
@@ -118,97 +77,41 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		ev->has_ts = bp.__opt_ts_present;
 		ev->wscale = bp.__opt_wscale_wscale;
 		ev->has_wscale = bp.__opt_wscale_present;
-		ev->__key = fid;
+		ev->local_ip = iph->daddr;
+		ev->remote_ip = iph->saddr;
+		(ev->__key_tcp_listen_ctx = lid, ev->__have_tcp_listen_ctx = true);
 		kinds[__n++] = EV_tcp_syn;
-		if (ctx_out)
-			*ctx_out = ctx;
 		return __n;
 	}
-	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
-		(ctx->idle_timer).ctx = ctx;
-		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
-	}
-	bool accept = false;
-	uint32_t seg_end;
-	if (((((ctx->state == ST_CLOSED) || (ctx->state == ST_LISTEN)) || (ctx->state == ST_SYN_RCVD)) || (ctx->state == ST_SYN_SENT))) {
-		accept = true;
-	} else {
-		if (((((bp.flags & FLAG_RST)) == 0) && ctx->saw_timestamp)) {
-			if (!(bp.__opt_ts_present)) {
-				if (ctx_out)
-					*ctx_out = ctx;
-				return __n;
-			}
-			if (((int32_t)((bp.__opt_ts_ts_val - ctx->ts_recent)) < 0)) {
-				ctx->ack_cnt = (ctx->ack_cnt + 1);
-				mtp_retry(ctx->f);
-				if (ctx_out)
-					*ctx_out = ctx;
-				return __n;
-			}
-			ctx->ts_recent = bp.__opt_ts_ts_val;
-		}
-		seg_end = (bp.seq_no + payload_len);
-		if ((((int32_t)((seg_end - ctx->recv_next)) >= 0) && ((int32_t)((seg_end - ((ctx->recv_next + ctx->rcv_wnd)))) <= 0))) {
-			accept = true;
-		}
-	}
-	if (!(accept)) {
-		if ((((bp.flags & FLAG_RST)) != 0)) {
-			if (ctx_out)
-				*ctx_out = ctx;
-			return __n;
-		}
-		if ((ctx->state == ST_ESTABLISHED)) {
-			if ((((bp.seq_no + 1) == ctx->recv_next) || ((int32_t)((bp.seq_no - ctx->recv_next)) <= 0))) {
-				if ((ctx->ack_cnt == 0)) {
-					ctx->ack_cnt = 1;
-				}
-				mtp_retry(ctx->f);
-			} else {
-				ctx->ack_cnt = (ctx->ack_cnt + 1);
-				mtp_retry(ctx->f);
-			}
-		} else {
-			if ((ctx->state == ST_TIME_WAIT)) {
-				ctx->state = ST_TIME_WAIT;
-				(ctx->tw_timer).ctx = ctx;
-				mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(tcp_timewait) * 1000000000ULL));
-			}
-			ctx->ack_cnt = (ctx->ack_cnt + 1);
-			mtp_retry(ctx->f);
-		}
-		if (ctx_out)
-			*ctx_out = ctx;
-		return __n;
-	}
+	ev->flags = bp.flags;
+	ev->seq = bp.seq_no;
+	ev->ack = bp.ack_seq;
+	ev->payload_len = payload_len;
+	ev->ts_val = bp.__opt_ts_ts_val;
+	ev->has_ts = bp.__opt_ts_present;
+	(ev->__key_tcp_ctx = fid, ev->__have_tcp_ctx = true);
+	kinds[__n++] = EV_tcp_seg;
 	if ((((bp.flags & FLAG_RST)) != 0)) {
 		ev->seq = bp.seq_no;
 		ev->ack = bp.ack_seq;
 		ev->sport = bp.src_port;
 		ev->dport = bp.dst_port;
 		ev->payload_len = payload_len;
-		ev->__key = fid;
+		(ev->__key_tcp_ctx = fid, ev->__have_tcp_ctx = true);
 		kinds[__n++] = EV_tcp_rst;
-		if (ctx_out)
-			*ctx_out = ctx;
 		return __n;
 	}
 	if ((((bp.flags & FLAG_SYN)) != 0)) {
-		if ((((bp.flags & FLAG_ACK)) != 0)) {
-			ev->seq = bp.seq_no;
-			ev->ack = bp.ack_seq;
-			ev->window = bp.window;
-			ev->ts_val = bp.__opt_ts_ts_val;
-			ev->ts_ecr = bp.__opt_ts_ts_ecr;
-			ev->has_ts = bp.__opt_ts_present;
-			ev->wscale = bp.__opt_wscale_wscale;
-			ev->has_wscale = bp.__opt_wscale_present;
-			ev->__key = fid;
-			kinds[__n++] = EV_tcp_synack;
-		}
-		if (ctx_out)
-			*ctx_out = ctx;
+		ev->seq = bp.seq_no;
+		ev->ack = bp.ack_seq;
+		ev->window = bp.window;
+		ev->ts_val = bp.__opt_ts_ts_val;
+		ev->ts_ecr = bp.__opt_ts_ts_ecr;
+		ev->has_ts = bp.__opt_ts_present;
+		ev->wscale = bp.__opt_wscale_wscale;
+		ev->has_wscale = bp.__opt_wscale_present;
+		(ev->__key_tcp_ctx = fid, ev->__have_tcp_ctx = true);
+		kinds[__n++] = EV_tcp_synack;
 		return __n;
 	}
 	if ((((bp.flags & FLAG_ACK)) != 0)) {
@@ -218,7 +121,8 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		ev->ts_val = bp.__opt_ts_ts_val;
 		ev->ts_ecr = bp.__opt_ts_ts_ecr;
 		ev->payload_len = payload_len;
-		ev->__key = fid;
+		(ev->__key_tcp_ctx = fid, ev->__have_tcp_ctx = true);
+		(ev->__key_tcp_listen_ctx = lid, ev->__have_tcp_listen_ctx = true);
 		kinds[__n++] = EV_tcp_ack;
 	}
 	if ((payload_len > 0)) {
@@ -228,7 +132,7 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		ev->ts_val = bp.__opt_ts_ts_val;
 		ev->hold_addr = (struct mtp_addr){ .base = l4 + bp.data_off * 4, .len = (uint32_t)(plen - bp.data_off * 4) };
 		ev->data_len = payload_len;
-		ev->__key = fid;
+		(ev->__key_tcp_ctx = fid, ev->__have_tcp_ctx = true);
 		kinds[__n++] = EV_tcp_data;
 	}
 	if ((((bp.flags & FLAG_FIN)) != 0)) {
@@ -237,11 +141,9 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		ev->window = bp.window;
 		ev->ts_val = bp.__opt_ts_ts_val;
 		ev->payload_len = payload_len;
-		ev->__key = fid;
+		(ev->__key_tcp_ctx = fid, ev->__have_tcp_ctx = true);
 		kinds[__n++] = EV_tcp_fin;
 	}
-	if (ctx_out)
-		*ctx_out = ctx;
 	return __n;
 }
 

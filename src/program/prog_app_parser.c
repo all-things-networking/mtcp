@@ -30,7 +30,7 @@ sock_bind(struct mtp_app_op *op, struct app_ev *ev,
 	(void)now_ms;
 	ev->ip = op->local.ip;
 	ev->port = ntohs(op->local.port);
-	ev->__key = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) });
+	(ev->__key_tcp_listen_ctx = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) }), ev->__have_tcp_listen_ctx = true);
 	kinds[__n++] = EV_app_bind;
 	return __n;
 }
@@ -44,7 +44,7 @@ sock_listen(struct mtp_app_op *op, struct app_ev *ev,
 	ev->ip = op->local.ip;
 	ev->port = ntohs(op->local.port);
 	ev->backlog = op->len;
-	ev->__key = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) });
+	(ev->__key_tcp_listen_ctx = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) }), ev->__have_tcp_listen_ctx = true);
 	kinds[__n++] = EV_app_listen;
 	return __n;
 }
@@ -57,7 +57,7 @@ sock_accept(struct mtp_app_op *op, struct app_ev *ev,
 	(void)now_ms;
 	ev->ip = op->local.ip;
 	ev->port = ntohs(op->local.port);
-	ev->__key = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) });
+	(ev->__key_tcp_listen_ctx = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) }), ev->__have_tcp_listen_ctx = true);
 	kinds[__n++] = EV_app_accept;
 	return __n;
 }
@@ -78,7 +78,7 @@ sock_connect(struct mtp_app_op *op, struct app_ev *ev,
 	ev->rem_ip = op->remote.ip;
 	ev->loc_port = ntohs(op->local.port);
 	ev->rem_port = ntohs(op->remote.port);
-	ev->__key = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) });
+	(ev->__key_tcp_ctx = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) }), ev->__have_tcp_ctx = true);
 	kinds[__n++] = EV_app_connect;
 	return __n;
 }
@@ -105,15 +105,15 @@ sock_send(struct mtp_app_op *op, struct app_ev *ev,
 		ev->mlen = op->len;
 		ev->ip = op->local.ip;
 		ev->port = ntohs(op->local.port);
-		if ((op->flow != NULL)) {
-			ev->__flow = op->flow;
+		if ((ntohs(op->remote.port) != 0)) {
+			(ev->__key_tcp_ctx = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) }), ev->__have_tcp_ctx = true);
 		} else {
-			ev->__key = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) });
+			(ev->__key_tcp_listen_ctx = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) }), ev->__have_tcp_listen_ctx = true);
 		}
 		kinds[__n++] = EV_app_send;
 	} else {
 		ev->mlen = op->len;
-		ev->__flow = op->flow;
+		(ev->__key_tcp_ctx = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) }), ev->__have_tcp_ctx = true);
 		kinds[__n++] = EV_app_gen;
 	}
 	return __n;
@@ -133,7 +133,7 @@ parse_recv(struct mtp_app_op *op, struct app_ev *ev,
 	(void)now_ms;
 	ev->buf = op->data;
 	ev->len = op->len;
-	ev->__flow = op->flow;
+	(ev->__key_tcp_ctx = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) }), ev->__have_tcp_ctx = true);
 	kinds[__n++] = EV_app_recv;
 	return __n;
 }
@@ -158,7 +158,7 @@ sock_close(struct mtp_app_op *op, struct app_ev *ev,
 {
 	unsigned __n = 0;
 	(void)now_ms;
-	ev->__flow = op->flow;
+	(ev->__key_tcp_ctx = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) }), ev->__have_tcp_ctx = true);
 	kinds[__n++] = EV_app_close;
 	return __n;
 }
@@ -200,57 +200,69 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 	for (i = 0; i < n; i++) {
 		switch (kinds[i]) {
 		case EV_app_accept: {
-			struct tcp_listen_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
-						     : mtp_ctx_lookup(&ev.__key);
+			struct tcp_listen_ctx *ctx = ev.__have_tcp_listen_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_listen_ctx) : NULL;
+			if (!ctx)
+				break;	/* look-up miss: TODO, an error event the program handles */
 			if (!dispatch_app_accept(ctx, &ev, now_ms))
 				return 0;
 			break;
 		}
 		case EV_app_bind: {
-			struct tcp_listen_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
-						     : mtp_ctx_lookup(&ev.__key);
+			struct tcp_listen_ctx *ctx = ev.__have_tcp_listen_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_listen_ctx) : NULL;
 			if (!dispatch_app_bind(ctx, &ev, now_ms))
 				return 0;
 			break;
 		}
 		case EV_app_close: {
-			struct tcp_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
-						     : mtp_ctx_lookup(&ev.__key);
+			struct tcp_ctx *ctx = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!ctx)
+				break;	/* look-up miss: TODO, an error event the program handles */
 			if (!dispatch_app_close(ctx, &ev, now_ms))
 				return 0;
 			break;
 		}
 		case EV_app_connect: {
-			struct tcp_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
-						     : mtp_ctx_lookup(&ev.__key);
+			struct tcp_ctx *ctx = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
 			if (!dispatch_app_connect(ctx, &ev, now_ms))
 				return 0;
 			break;
 		}
 		case EV_app_gen: {
-			struct tcp_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
-						     : mtp_ctx_lookup(&ev.__key);
+			struct tcp_ctx *ctx = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!ctx)
+				break;	/* look-up miss: TODO, an error event the program handles */
 			if (!dispatch_app_gen(ctx, &ev, now_ms))
 				return 0;
 			break;
 		}
 		case EV_app_listen: {
-			struct tcp_listen_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
-						     : mtp_ctx_lookup(&ev.__key);
+			struct tcp_listen_ctx *ctx = ev.__have_tcp_listen_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_listen_ctx) : NULL;
+			if (!ctx)
+				break;	/* look-up miss: TODO, an error event the program handles */
 			if (!dispatch_app_listen(ctx, &ev, now_ms))
 				return 0;
 			break;
 		}
 		case EV_app_recv: {
-			struct tcp_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
-						     : mtp_ctx_lookup(&ev.__key);
+			struct tcp_ctx *ctx = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!ctx)
+				break;	/* look-up miss: TODO, an error event the program handles */
 			if (!dispatch_app_recv(ctx, &ev, now_ms))
 				return 0;
 			break;
 		}
 		case EV_app_send: {
-			struct tcp_ctx *ctx = ev.__flow ? mtp_ctx_of(ev.__flow)
-						     : mtp_ctx_lookup(&ev.__key);
+			struct tcp_ctx *ctx = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!ctx)
+				break;	/* look-up miss: TODO, an error event the program handles */
 			if (!dispatch_app_send(ctx, &ev, now_ms))
 				return 0;
 			break;

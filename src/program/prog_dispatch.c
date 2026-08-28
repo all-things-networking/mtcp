@@ -8,9 +8,17 @@
 #include "contract.h"
 #include "prog.h"
 
+/* generated from: tcp_seg -> { proc_seq_check } */
+bool
+dispatch_tcp_seg(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
+{
+	proc_seq_check(ev, ctx);
+	return true;
+}
+
 /* generated from: tcp_syn -> { proc_passive_open } */
 bool
-dispatch_tcp_syn(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
+dispatch_tcp_syn(struct tcp_listen_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 {
 	proc_passive_open(ev, ctx, now_ms);
 	return true;
@@ -24,14 +32,20 @@ dispatch_tcp_synack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 	return true;
 }
 
-/* generated from: tcp_ack -> { proc_timestamp, proc_open_done, proc_window, proc_rtt, proc_fast_retransmit, proc_congestion, proc_ack, gen_seg, gen_fin } */
+/* generated from: tcp_ack -> { proc_timestamp, proc_open_done, proc_accept_queue, proc_window, proc_rtt, proc_fast_retransmit, proc_congestion, proc_ack, gen_seg, gen_fin } */
 bool
 dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 {
 	struct tcp_scratch sc = { 0 };
 
 	proc_timestamp(ev, ctx);
-	proc_open_done(ev, ctx, now_ms);
+	proc_open_done(ev, ctx);
+	{
+		struct tcp_listen_ctx *ctx2 = ev->__have_tcp_listen_ctx
+			? mtp_ctx_lookup(&ev->__key_tcp_listen_ctx) : NULL;
+		if (ctx2)
+			proc_accept_queue(ev, ctx, ctx2, now_ms);
+	}
 	proc_window(ev, ctx);
 	proc_rtt(ev, ctx, now_ms);
 	proc_fast_retransmit(ev, ctx, &sc);
@@ -126,7 +140,7 @@ dispatch_app_bind(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms
 {
 	proc_bind(ev, ctx);
 	if (!ctx)
-		ctx = mtp_ctx_lookup(&ev->__key);
+		ctx = mtp_ctx_lookup(&ev->__key_tcp_listen_ctx);
 	return true;
 }
 
@@ -152,7 +166,7 @@ dispatch_app_connect(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 {
 	proc_connect(ev, ctx);
 	if (!ctx)
-		ctx = mtp_ctx_lookup(&ev->__key);
+		ctx = mtp_ctx_lookup(&ev->__key_tcp_ctx);
 	gen_syn(ctx, now_ms);
 	return true;
 }
@@ -173,8 +187,8 @@ dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 {
 	record_data(ev, ctx);
 	{
-		struct tcp_listen_ctx *ctx2 = ev->__flow ? NULL
-					     : mtp_ctx_lookup(&ev->__key);
+		struct tcp_listen_ctx *ctx2 = ev->__have_tcp_listen_ctx
+			? mtp_ctx_lookup(&ev->__key_tcp_listen_ctx) : NULL;
 		if (ctx2)
 			post_object(ev, ctx2);
 	}
@@ -210,35 +224,70 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len,
 {
 	uint8_t  kinds[EV_KIND__N];
 	struct net_ev ev;
-	void    *cv = NULL;
 	unsigned n, i;
 
-	n = parse_tcp(l4, len, iph, &ev, kinds, &cv, now_ms);
-	if (!cv)
-		return 0;	/* the parser answered it, or refused it */
+	n = parse_tcp(l4, len, iph, &ev, kinds, now_ms);
 
 	for (i = 0; i < n; i++) {
 		bool alive = true;
 
 		switch (kinds[i]) {
-		case EV_tcp_ack:
-			alive = dispatch_tcp_ack((struct tcp_ctx *)cv, &ev, now_ms);
+		case EV_tcp_ack: {
+			struct tcp_ctx *c = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!c)
+				break;	/* look-up miss: TODO, an error event the program handles */
+			alive = dispatch_tcp_ack(c, &ev, now_ms);
 			break;
-		case EV_tcp_data:
-			alive = dispatch_tcp_data((struct tcp_ctx *)cv, &ev, now_ms);
+		}
+		case EV_tcp_data: {
+			struct tcp_ctx *c = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!c)
+				break;	/* look-up miss: TODO, an error event the program handles */
+			alive = dispatch_tcp_data(c, &ev, now_ms);
 			break;
-		case EV_tcp_fin:
-			alive = dispatch_tcp_fin((struct tcp_ctx *)cv, &ev, now_ms);
+		}
+		case EV_tcp_fin: {
+			struct tcp_ctx *c = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!c)
+				break;	/* look-up miss: TODO, an error event the program handles */
+			alive = dispatch_tcp_fin(c, &ev, now_ms);
 			break;
-		case EV_tcp_rst:
-			alive = dispatch_tcp_rst((struct tcp_ctx *)cv, &ev, now_ms);
+		}
+		case EV_tcp_rst: {
+			struct tcp_ctx *c = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!c)
+				break;	/* look-up miss: TODO, an error event the program handles */
+			alive = dispatch_tcp_rst(c, &ev, now_ms);
 			break;
-		case EV_tcp_syn:
-			alive = dispatch_tcp_syn((struct tcp_ctx *)cv, &ev, now_ms);
+		}
+		case EV_tcp_seg: {
+			struct tcp_ctx *c = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!c)
+				break;	/* look-up miss: TODO, an error event the program handles */
+			alive = dispatch_tcp_seg(c, &ev, now_ms);
 			break;
-		case EV_tcp_synack:
-			alive = dispatch_tcp_synack((struct tcp_ctx *)cv, &ev, now_ms);
+		}
+		case EV_tcp_syn: {
+			struct tcp_listen_ctx *c = ev.__have_tcp_listen_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_listen_ctx) : NULL;
+			if (!c)
+				break;	/* look-up miss: TODO, an error event the program handles */
+			alive = dispatch_tcp_syn(c, &ev, now_ms);
 			break;
+		}
+		case EV_tcp_synack: {
+			struct tcp_ctx *c = ev.__have_tcp_ctx
+				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			if (!c)
+				break;	/* look-up miss: TODO, an error event the program handles */
+			alive = dispatch_tcp_synack(c, &ev, now_ms);
+			break;
+		}
 		default: break;
 		}
 		if (!alive)

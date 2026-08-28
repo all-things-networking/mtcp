@@ -33,6 +33,7 @@ enum ev_kind {
 	EV_tcp_probe_timeout,
 	EV_tcp_rst,
 	EV_tcp_rto_timeout,
+	EV_tcp_seg,
 	EV_tcp_syn,
 	EV_tcp_synack,
 	EV_tcp_timewait_timeout,
@@ -55,8 +56,10 @@ struct app_ev {
 	uint32_t rem_ip;
 	uint16_t rem_port;
 	int32_t result;
-	flowkey_t __key;	/* set by the parser's set_flow_id */
-	flow_t   *__flow;	/* set by set_flow, when the op names one */
+	flowkey_t __key_tcp_ctx;
+	bool      __have_tcp_ctx;
+	flowkey_t __key_tcp_listen_ctx;
+	bool      __have_tcp_listen_ctx;
 };
 
 /* every net_event of this program, as one frame */
@@ -64,24 +67,31 @@ struct net_ev {
 	uint32_t ack;
 	uint32_t data_len;
 	uint16_t dport;
+	uint16_t flags;
 	bool has_ts;
 	bool has_wscale;
 	struct mtp_addr hold_addr;
+	uint32_t local_ip;
 	uint32_t payload_len;
+	uint32_t remote_ip;
 	uint32_t seq;
 	uint16_t sport;
 	uint32_t ts_ecr;
 	uint32_t ts_val;
 	uint16_t window;
 	uint8_t wscale;
-	flowkey_t __key;	/* set by the parser's set_flow_id */
-	flow_t   *__flow;	/* set by set_flow, when the op names one */
+	flowkey_t __key_tcp_ctx;
+	bool      __have_tcp_ctx;
+	flowkey_t __key_tcp_listen_ctx;
+	bool      __have_tcp_listen_ctx;
 };
 
 /* every timer_event of this program, as one frame */
 struct timer_ev {
-	flowkey_t __key;	/* set by the parser's set_flow_id */
-	flow_t   *__flow;	/* set by set_flow, when the op names one */
+	flowkey_t __key_tcp_ctx;
+	bool      __have_tcp_ctx;
+	flowkey_t __key_tcp_listen_ctx;
+	bool      __have_tcp_listen_ctx;
 };
 
 

@@ -182,6 +182,15 @@ struct tcp_ctx {
 	bool saw_timestamp;
 
 	/*
+	 * THE SEGMENT'S VERDICT, written by §proc_seq_check and read by every
+	 * processor of the events that segment goes on to raise. It is state rather
+	 * than a return value because MTP gives a processor no way to end its chain
+	 * (docs/LANGUAGE-NEEDS.md N-G); the donor simply returns early
+	 * (tcp_in.c:107). It is meaningless outside one segment's dispatches.
+	 */
+	bool seg_ok;
+
+	/*
 	 * The probe's 500 ms is measured since OUR acknowledgement, and the donor
 	 * stamps this on EVERY segment carrying the ACK flag (tcp_out.c:293) — so
 	 * on a busy connection its gate is essentially never satisfied and the

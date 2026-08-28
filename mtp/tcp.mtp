@@ -172,9 +172,20 @@ flow_id tcp_lid : (uint32, uint16)
 
 // §events
 // ---------------------------------------------------------------------------
+// A SYN KEYS THE LISTENER, so §proc_passive_open has no connection context to
+// read the endpoints from and the event carries them (D-33).
 event tcp_syn      : net_event { uint32 seq; uint16 sport, dport, window;
                                  uint32 ts_val; bool has_ts;
-                                 uint8 wscale; bool has_wscale; }
+                                 uint8 wscale; bool has_wscale;
+                                 uint32 local_ip, remote_ip; }
+
+// THE SEGMENT ITSELF, raised once ahead of what it carries. Its chain is
+// §proc_seq_check alone: the donor validates a segment before the state machine
+// sees it (tcp_in.c:107), and validation reads the context, so it cannot be in
+// the parser. One event, so it runs once however many the segment raises after
+// it -- and the acknowledgement a refusal owes is queued once with it.
+event tcp_seg      : net_event { uint32 seq, ack; uint16 flags;
+                                 uint32 payload_len, ts_val; bool has_ts; }
 event tcp_synack   : net_event { uint32 seq, ack; uint16 window;
                                  uint32 ts_val, ts_ecr; bool has_ts;
                                  uint8 wscale; bool has_wscale; }
@@ -340,6 +351,13 @@ context tcp_ctx {
     // all -- so this is not an optimisation, it is the condition the check is
     // defined under.
     bool   saw_timestamp;
+
+    // THE SEGMENT'S VERDICT, written by §proc_seq_check and read by every
+    // processor of the events that segment goes on to raise. It is state rather
+    // than a return value because MTP gives a processor no way to end its chain
+    // (docs/LANGUAGE-NEEDS.md N-G); the donor simply returns early
+    // (tcp_in.c:107). It is meaningless outside one segment's dispatches.
+    bool   seg_ok;
     // The probe's 500 ms is measured since OUR acknowledgement, and the donor
     // stamps this on EVERY segment carrying the ACK flag (tcp_out.c:293) — so
     // on a busy connection its gate is essentially never satisfied and the
@@ -644,20 +662,24 @@ TCPBP build_rst_hdr(uint16 loc_port, uint16 rem_port, uint32 seq, uint32 ack,
 // retiring the bytes first would leave the congestion window seeing nothing
 // newly acknowledged.
 //
-// THE PARSER ISSUES INSTRUCTIONS AND RESOLVES CONTEXTS, which the frozen
-// language does not say it may (docs/LANGUAGE-NEEDS.md N-E). It has to --
-// three jobs here are protocol policy and none can be done from a chain:
+// THE PARSER EXTRACTS LOOK-UP KEYS AND EVENT METADATA, AND NOTHING ELSE (D-33).
+// It resolves no context, so it decides nothing that needs one:
 //
-//   a segment for a connection that does not exist is answered with a RESET,
-//   and a chain is dispatched THROUGH a context;
+//   a segment for a connection that does not exist is a look-up MISS, reported
+//   by the target, not a reset built here;
 //
-//   a SYN is matched against a LISTENER, and backlog room decides whether a
-//   context is created at all (G8, C3);
+//   a SYN keys the LISTENER, and the backlog test and the context it creates
+//   are §proc_passive_open's, which is where allocation belongs;
 //
-//   validation refuses a segment BEFORE any event is raised, which is the
-//   donor's placement. As the first link of every chain instead, a segment
-//   raising two events would validate twice and owe a duplicate
-//   acknowledgement the donor does not send.
+//   validation reads the context, so it is §proc_seq_check on the tcp_seg
+//   chain -- raised first and once, which is what keeps a segment that raises
+//   three events from validating three times and owing acknowledgements the
+//   donor does not send.
+//
+// WHICH CONTEXT AN EVENT NEEDS IS PROTOCOL KNOWLEDGE, and it is stated here
+// with set_ctx_lookup_info. A key alone cannot say: every flow id in this
+// program is a tuple of scalars, so a listener key and a connection key are the
+// same shape and only the program knows which it meant.
 list<event_t> parse_tcp(pkt_t p, ipv4 h) {
     list<event_t> out;
 
@@ -671,165 +693,52 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         return out;
     payload_len = p.len - bp.data_off * 4;
     tcp_fid fid = tcp_fid(h.daddr, h.saddr, bp.dst_port, bp.src_port);
+    tcp_lid lid = tcp_lid(h.daddr, bp.dst_port);
 
-    tcp_ctx ctx = ctx_lookup(fid);
-
-    if (!exists(ctx)) {
-        // A segment for a connection that does not exist. tcp_in.c:744/748 --
-        // the donor answers with a reset rather than dropping it, which is what
-        // lets a peer holding a stale connection find out.
-        bool refuse = (bp.flags & FLAG_SYN) == 0 || (bp.flags & FLAG_ACK) != 0;
-
-        tcp_fid lk = tcp_lid(h.daddr, bp.dst_port);
-        tcp_listen_ctx lst = ctx_lookup(lk);
-
-        // tcp_in.c:700 -- a SYN the listener filter refuses is answered with a
-        // reset. A MISS IS A MISS, never a null context handed onward, which is
-        // how the prototype turns a missed lookup into a crash.
-        if (!refuse && (!exists(lst) || lst.state != ST_LISTEN))
-            refuse = true;
-
-        if (refuse) {
-            // The reset, built from the arriving segment's own fields because
-            // there is no context to build one from. Never answer a reset with
-            // a reset.
-            if ((bp.flags & FLAG_RST) != 0)
-                return out;
-            if ((bp.flags & FLAG_ACK) != 0) {
-                pkt_gen(build_rst_hdr(bp.dst_port, bp.src_port,
-                                      bp.ack_seq, 0, FLAG_RST),
-                        PRIO_CONTROL, false);
-            } else {
-                pkt_gen(build_rst_hdr(bp.dst_port, bp.src_port, 0,
-                                      bp.seq_no + payload_len
-                                      + ((bp.flags & FLAG_SYN) != 0 ? 1 : 0),
-                                      FLAG_RST | FLAG_ACK),
-                        PRIO_CONTROL, false);
-            }
-            return out;
-        }
-
-        // C3: A SYN ARRIVING WITH THE QUEUE FULL IS DROPPED, and dropped here --
-        // before any context exists, so nothing is allocated for a connection
-        // that will not be accepted. The peer retransmits its SYN and finds room
-        // later, which is the behaviour a backlog is for. It does NOT reset: the
-        // donor resets a refused listener and an exhausted flow pool, and a full
-        // accept queue is neither.
-        if (lst.pending_n >= lst.pending_cap)
-            return out;
-
-        ctx = new_ctx(fid);
-        ctx.key      = fid;
-        ctx.lst_key  = lk;
-        ctx.loc_port = bp.dst_port;
-        ctx.rem_port = bp.src_port;
-        ctx.local_ip = h.daddr;
-        ctx.remote_ip = h.saddr;
-
+    // A SYN WITH NO ACK IS A CONNECTION REQUEST. It is answered from the
+    // listener and there is no connection for it to name yet, so it is the one
+    // segment that keys a different context from every other.
+    if ((bp.flags & FLAG_SYN) != 0 && (bp.flags & FLAG_ACK) == 0) {
         tcp_syn s;
         s.seq = bp.seq_no;  s.sport = bp.src_port;  s.dport = bp.dst_port;
         s.window = bp.window;
         s.ts_val = bp.opts.ts_val;      s.has_ts = bp.opts.has_ts;
         s.wscale = bp.opts.wscale;      s.has_wscale = bp.opts.has_wscale;
-        set_flow_id(s, fid);
+        s.local_ip = h.daddr;           s.remote_ip = h.saddr;
+        set_ctx_lookup_info(s, tcp_listen_ctx, lid);
         out.add(s);
         return out;
     }
 
-    // tcp_in.c:1292 -- the donor stamps activity on EVERY received packet,
-    // before validation and before any state test.
-    // the idle deadline, refreshed; nothing to reap once closed
-    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        timer_start(ctx.idle_timer, second(tcp_timeout));
-
-    // VALIDATION, before any event is raised. A segment refused here raises
-    // nothing, and the acknowledgement the donor queues on each refusing path
-    // is queued here with it.
-    bool   accept = false;
-    uint32 seg_end;
-
-    if (ctx.state == ST_CLOSED || ctx.state == ST_LISTEN ||
-        ctx.state == ST_SYN_RCVD || ctx.state == ST_SYN_SENT) {
-        // nothing to validate against before the handshake completes
-        accept = true;
-    } else {
-        if ((bp.flags & FLAG_RST) == 0 && ctx.saw_timestamp) {
-            // a peer that timestamps and then sends none: dropped, and the
-            // donor leaves a TODO where a standards-based handler would go
-            if (!bp.opts.has_ts)
-                return out;
-            // RFC 1323: SEG.TSval < TS.Recent -> drop, and acknowledge so the
-            // peer learns where we are
-            if (int32(bp.opts.ts_val - ctx.ts_recent) < 0) {
-                ctx.ack_cnt = ctx.ack_cnt + 1;
-                retry(ctx);
-                return out;
-            }
-            ctx.ts_recent = bp.opts.ts_val;
-        }
-        // the donor's test, on the segment's LAST byte -- not RFC 793's, which
-        // tests first and last separately
-        seg_end = bp.seq_no + payload_len;
-        if (int32(seg_end - ctx.recv_next) >= 0 &&
-            int32(seg_end - (ctx.recv_next + ctx.rcv_wnd)) <= 0)
-            accept = true;
-    }
-
-    if (!accept) {
-        if ((bp.flags & FLAG_RST) != 0)
-            return out;         // a reset outside the window is ignored, not
-                                // answered: two hosts would trade resets
-        if (ctx.state == ST_ESTABLISHED) {
-            if (bp.seq_no + 1 == ctx.recv_next
-                || int32(bp.seq_no - ctx.recv_next) <= 0) {
-                // the peer's window probe, and anything at or behind the
-                // boundary: one acknowledgement for the pass answers both
-                if (ctx.ack_cnt == 0)
-                    ctx.ack_cnt = 1;
-                retry(ctx);
-            } else {
-                // ahead of the window: this segment owes its own
-                ctx.ack_cnt = ctx.ack_cnt + 1;
-                retry(ctx);
-            }
-        } else {
-            // outside ESTABLISHED the donor answers from its control list and
-            // refreshes the TIME_WAIT deadline if that is where it is
-            if (ctx.state == ST_TIME_WAIT) {
-                ctx.state = ST_TIME_WAIT;
-                timer_start(ctx.tw_timer, second(tcp_timewait));
-            }
-            ctx.ack_cnt = ctx.ack_cnt + 1;
-            retry(ctx);
-        }
-        return out;
-    }
+    // Everything else is answered from the connection, and validated first.
+    tcp_seg v;
+    v.flags = bp.flags;  v.seq = bp.seq_no;  v.ack = bp.ack_seq;
+    v.payload_len = payload_len;
+    v.ts_val = bp.opts.ts_val;  v.has_ts = bp.opts.has_ts;
+    set_ctx_lookup_info(v, tcp_ctx, fid);
+    out.add(v);
 
     if ((bp.flags & FLAG_RST) != 0) {
         tcp_rst r;
         r.seq = bp.seq_no;  r.ack = bp.ack_seq;
         r.sport = bp.src_port;  r.dport = bp.dst_port;
         r.payload_len = payload_len;
-        set_flow_id(r, fid);
+        set_ctx_lookup_info(r, tcp_ctx, fid);
         out.add(r);
         return out;
     }
 
     if ((bp.flags & FLAG_SYN) != 0) {
-        // A handshake segment raises one event and nothing else: no payload of
-        // ours is in sequence yet, and the acknowledgement it may carry is the
-        // handshake's own. A bare SYN on a context that already exists is a
-        // RETRANSMITTED SYN — the passive open handled the first one and there
-        // is nothing here to do with the second.
-        if ((bp.flags & FLAG_ACK) != 0) {
-            tcp_synack sa;
-            sa.seq = bp.seq_no;  sa.ack = bp.ack_seq;  sa.window = bp.window;
-            sa.ts_val = bp.opts.ts_val;  sa.ts_ecr = bp.opts.ts_ecr;
-            sa.has_ts = bp.opts.has_ts;
-            sa.wscale = bp.opts.wscale;  sa.has_wscale = bp.opts.has_wscale;
-            set_flow_id(sa, fid);
-            out.add(sa);
-        }
+        // SYN with ACK: the active open's answer. A handshake segment raises
+        // one event and nothing else -- no payload of ours is in sequence yet,
+        // and the acknowledgement it carries is the handshake's own.
+        tcp_synack sa;
+        sa.seq = bp.seq_no;  sa.ack = bp.ack_seq;  sa.window = bp.window;
+        sa.ts_val = bp.opts.ts_val;  sa.ts_ecr = bp.opts.ts_ecr;
+        sa.has_ts = bp.opts.has_ts;
+        sa.wscale = bp.opts.wscale;  sa.has_wscale = bp.opts.has_wscale;
+        set_ctx_lookup_info(sa, tcp_ctx, fid);
+        out.add(sa);
         return out;
     }
 
@@ -838,7 +747,12 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         a.seq = bp.seq_no;  a.ack = bp.ack_seq;  a.window = bp.window;
         a.ts_val = bp.opts.ts_val;  a.ts_ecr = bp.opts.ts_ecr;
         a.payload_len = payload_len;
-        set_flow_id(a, fid);
+        set_ctx_lookup_info(a, tcp_ctx, fid);
+        // AND the listener, for §proc_accept_queue -- the acknowledgement that
+        // completes a passive open is enqueued on it. A connection's listener
+        // is (local ip, local port), which this segment carries. A connection
+        // that never had one does not resolve and that processor does not run.
+        set_ctx_lookup_info(a, tcp_listen_ctx, lid);
         out.add(a);
     }
     if (payload_len > 0) {
@@ -846,14 +760,14 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         d.seq = bp.seq_no;  d.ack = bp.ack_seq;  d.window = bp.window;
         d.ts_val = bp.opts.ts_val;
         d.hold_addr = bp.data;  d.data_len = payload_len;
-        set_flow_id(d, fid);
+        set_ctx_lookup_info(d, tcp_ctx, fid);
         out.add(d);
     }
     if ((bp.flags & FLAG_FIN) != 0) {
         tcp_fin f;
         f.seq = bp.seq_no;  f.ack = bp.ack_seq;  f.window = bp.window;
         f.ts_val = bp.opts.ts_val;  f.payload_len = payload_len;
-        set_flow_id(f, fid);
+        set_ctx_lookup_info(f, tcp_ctx, fid);
         out.add(f);
     }
     return out;
@@ -892,7 +806,7 @@ list<event_t> sock_bind(bind op) {
     ev.ip = op.local.ip;                 // stays network order: compared against
                                          // the arriving packet's destination
     ev.port = op.local.port;
-    set_flow_id(ev, tcp_lid(op.local.ip, op.local.port));
+    set_ctx_lookup_info(ev, tcp_listen_ctx, tcp_lid(op.local.ip, op.local.port));
     out.add(ev);
     return out;
 }
@@ -904,7 +818,7 @@ list<event_t> sock_listen(listen op) {
     ev.ip = op.local.ip;
     ev.port = op.local.port;
     ev.backlog = op.len;
-    set_flow_id(ev, tcp_lid(op.local.ip, op.local.port));
+    set_ctx_lookup_info(ev, tcp_listen_ctx, tcp_lid(op.local.ip, op.local.port));
     out.add(ev);
     return out;
 }
@@ -915,7 +829,7 @@ list<event_t> sock_accept(accept op) {
 
     ev.ip = op.local.ip;
     ev.port = op.local.port;
-    set_flow_id(ev, tcp_lid(op.local.ip, op.local.port));
+    set_ctx_lookup_info(ev, tcp_listen_ctx, tcp_lid(op.local.ip, op.local.port));
     out.add(ev);
     return out;
 }
@@ -931,9 +845,8 @@ list<event_t> sock_connect(connect op) {
     ev.loc_ip = op.local.ip;    ev.rem_ip = op.remote.ip;
     ev.loc_port = op.local.port;
     ev.rem_port = op.remote.port;
-    set_flow_id(ev, tcp_fid(op.local.ip, op.remote.ip,
-                                   op.local.port,
-                                   op.remote.port));
+    set_ctx_lookup_info(ev, tcp_ctx, tcp_fid(op.local.ip, op.remote.ip,
+                                             op.local.port, op.remote.port));
     out.add(ev);
     return out;
 }
@@ -960,16 +873,25 @@ list<event_t> sock_send(send op) {
         ev.mlen = op.len;
         ev.ip = op.local.ip;
         ev.port = op.local.port;
-        if (has_flow(op))
-            set_flow(ev, op.flow);
+        // A send ON A CONNECTED SOCKET keys the connection; one with no peer
+        // is the posted object and keys the LISTENER. The op carries both
+        // endpoints either way, so this is the key the packet parser builds --
+        // there is no handle to attach (D-33).
+        if (op.remote.port != 0)
+            set_ctx_lookup_info(ev, tcp_ctx,
+                                tcp_fid(op.local.ip, op.remote.ip,
+                                        op.local.port, op.remote.port));
         else
-            set_flow_id(ev, tcp_lid(op.local.ip, op.local.port));
+            set_ctx_lookup_info(ev, tcp_listen_ctx,
+                                tcp_lid(op.local.ip, op.local.port));
         out.add(ev);
     } else {
         app_gen ev;
 
         ev.mlen = op.len;
-        set_flow(ev, op.flow);
+        set_ctx_lookup_info(ev, tcp_ctx,
+                            tcp_fid(op.local.ip, op.remote.ip,
+                                    op.local.port, op.remote.port));
         out.add(ev);
     }
     return out;
@@ -988,7 +910,8 @@ list<event_t> parse_recv(recv op) {
     // the program says which rather than the compiler converting silently.
     ev.buf = op.data;	// one address type: nothing to convert
     ev.len = op.len;
-    set_flow(ev, op.flow);
+    set_ctx_lookup_info(ev, tcp_ctx, tcp_fid(op.local.ip, op.remote.ip,
+                                             op.local.port, op.remote.port));
     out.add(ev);
     return out;
 }
@@ -1009,7 +932,8 @@ list<event_t> sock_close(close op) {
     list<event_t> out;
     app_close ev;
 
-    set_flow(ev, op.flow);
+    set_ctx_lookup_info(ev, tcp_ctx, tcp_fid(op.local.ip, op.remote.ip,
+                                             op.local.port, op.remote.port));
     out.add(ev);
     return out;
 }
@@ -1017,11 +941,121 @@ list<event_t> sock_close(close op) {
 
 
 
+// §proc_seq_check
+// ---------------------------------------------------------------------------
+// The donor's ValidateSequence (tcp_in.c:107), which runs once per segment
+// before the state machine sees it and returns early when it refuses. This is
+// the same placement: tcp_seg is raised first and its chain is this processor
+// alone, so a segment raising an acknowledgement, a payload and a FIN is
+// validated ONCE and owes ONE acknowledgement on refusal -- which is the whole
+// reason it is its own event rather than the head of three chains.
+//
+// It writes ctx.seg_ok and the processors that follow read it. That is a
+// workaround: the donor returns, and MTP has no way for a processor to end its
+// chain (N-G).
+void proc_seq_check(tcp_seg ev, tcp_ctx ctx) {
+    ctx.seg_ok = false;
+
+    // tcp_in.c:1292 -- the donor stamps activity on EVERY received packet,
+    // before validation and before any state test.
+    // the idle deadline, refreshed; nothing to reap once closed
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, second(tcp_timeout));
+
+    bool   accept = false;
+    uint32 seg_end;
+
+    if (ctx.state == ST_CLOSED || ctx.state == ST_LISTEN ||
+        ctx.state == ST_SYN_RCVD || ctx.state == ST_SYN_SENT) {
+        // nothing to validate against before the handshake completes
+        accept = true;
+    } else {
+        if ((ev.flags & FLAG_RST) == 0 && ctx.saw_timestamp) {
+            // a peer that timestamps and then sends none: dropped, and the
+            // donor leaves a TODO where a standards-based handler would go
+            if (!ev.has_ts)
+                return;
+            // RFC 1323: SEG.TSval < TS.Recent -> drop, and acknowledge so the
+            // peer learns where we are
+            if (int32(ev.ts_val - ctx.ts_recent) < 0) {
+                ctx.ack_cnt = ctx.ack_cnt + 1;
+                retry(ctx);
+                return;
+            }
+            ctx.ts_recent = ev.ts_val;
+        }
+        // the donor's test, on the segment's LAST byte -- not RFC 793's, which
+        // tests first and last separately
+        seg_end = ev.seq + ev.payload_len;
+        if (int32(seg_end - ctx.recv_next) >= 0 &&
+            int32(seg_end - (ctx.recv_next + ctx.rcv_wnd)) <= 0)
+            accept = true;
+    }
+
+    if (!accept) {
+        if ((ev.flags & FLAG_RST) != 0)
+            return;             // a reset outside the window is ignored, not
+                                // answered: two hosts would trade resets
+        if (ctx.state == ST_ESTABLISHED) {
+            if (ev.seq + 1 == ctx.recv_next
+                || int32(ev.seq - ctx.recv_next) <= 0) {
+                // the peer's window probe, and anything at or behind the
+                // boundary: one acknowledgement for the pass answers both
+                if (ctx.ack_cnt == 0)
+                    ctx.ack_cnt = 1;
+                retry(ctx);
+            } else {
+                // ahead of the window: this segment owes its own
+                ctx.ack_cnt = ctx.ack_cnt + 1;
+                retry(ctx);
+            }
+        } else {
+            // outside ESTABLISHED the donor answers from its control list and
+            // refreshes the TIME_WAIT deadline if that is where it is
+            if (ctx.state == ST_TIME_WAIT) {
+                ctx.state = ST_TIME_WAIT;
+                timer_start(ctx.tw_timer, second(tcp_timewait));
+            }
+            ctx.ack_cnt = ctx.ack_cnt + 1;
+            retry(ctx);
+        }
+        return;
+    }
+
+    ctx.seg_ok = true;
+    return;
+}
+
 // §proc_passive_open
 // ---------------------------------------------------------------------------
 // A SYN with no context, and a listener that matches. The parser created the
 // context and recorded the endpoints; everything the handshake decides is here.
-void proc_passive_open(tcp_syn ev, tcp_ctx ctx) {
+void proc_passive_open(tcp_syn ev, tcp_listen_ctx lst) {
+    // A SYN is answered from the LISTENER, which is what the parser keyed. The
+    // connection does not exist yet, and creating it is this processor's job --
+    // the parser used to do it, which is look-up logic wearing another name
+    // (D-33).
+    if (lst.state != ST_LISTEN)
+        return;
+
+    // C3: A SYN ARRIVING WITH THE QUEUE FULL IS DROPPED, and dropped before
+    // anything is allocated for a connection that will not be accepted. The
+    // peer retransmits its SYN and finds room later, which is what a backlog is
+    // for. It does NOT reset: the donor resets a refused listener and an
+    // exhausted flow pool, and a full accept queue is neither.
+    if (lst.pending_n >= lst.pending_cap)
+        return;
+
+    tcp_fid fid = tcp_fid(ev.local_ip, ev.remote_ip, ev.dport, ev.sport);
+    tcp_ctx ctx = new_ctx(fid);
+
+    ctx.key      = fid;
+    ctx.lst_key  = tcp_lid(ev.local_ip, ev.dport);
+    ctx.loc_port = ev.dport;
+    ctx.rem_port = ev.sport;
+    ctx.local_ip = ev.local_ip;
+    ctx.remote_ip = ev.remote_ip;
+
     ctx.state = ST_SYN_RCVD;
     ctx.recv_next = ev.seq + 1;         // the SYN consumes one byte
 
@@ -1082,6 +1116,11 @@ void proc_passive_open(tcp_syn ev, tcp_ctx ctx) {
 // ---------------------------------------------------------------------------
 // The acknowledgement that completes a passive open.
 void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     if (ctx.state != ST_SYN_RCVD)
         return;
     if (ev.ack != ctx.send_next)
@@ -1091,18 +1130,29 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
     ctx.send_wnd = uint32(ev.window) << ctx.snd_wscale;
     ctx.ts_recent = ev.ts_val;
     ctx.state = ST_ESTABLISHED;
+    return;
+}
 
-    // D9: READABLE ON THE LISTENING CONTEXT, which is what makes accept()
-    // return. A STATE notification on the CONNECTION is neither what the donor
-    // does nor something an accepting application can act on -- the donor
-    // enqueues the stream on the accept queue (tcp_in.c:884) and raises EPOLLIN
-    // on the listening socket (:898-900).
-    //
-    // No has_lst test: a connection that never had a listener holds a zero key,
-    // which is not a valid tcp_lid, so the lookup misses and exists() is false.
-    tcp_listen_ctx lst = ctx_lookup(ctx.lst_key);
+// §proc_accept_queue
+// ---------------------------------------------------------------------------
+// The listener's half of completing a passive open, split out because it needs
+// a SECOND context and the connection's half does not. The parser keys both on
+// the acknowledgement: a connection's listener is (local ip, local port), which
+// the arriving segment carries. A connection that never had one does not
+// resolve and this does not run.
+//
+// D9: READABLE ON THE LISTENING CONTEXT, which is what makes accept() return. A
+// STATE notification on the CONNECTION is neither what the donor does nor
+// something an accepting application can act on -- the donor enqueues the
+// stream on the accept queue (tcp_in.c:884) and raises EPOLLIN on the listening
+// socket (:898-900).
+void proc_accept_queue(tcp_ack ev, tcp_ctx ctx, tcp_listen_ctx lst) {
+    if (!ctx.seg_ok)
+        return;
+    if (ctx.state != ST_ESTABLISHED || ev.ack != ctx.send_next)
+        return;
 
-    if (exists(lst) && lst.pending_n < PROG_MAX_BACKLOG) {
+    if (lst.pending_n < PROG_MAX_BACKLOG) {
         lst.pending[lst.pending_n] = ctx.key;
         lst.pending_n = lst.pending_n + 1;
         notify(lst, READABLE);
@@ -1112,7 +1162,7 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
     // steps the application thread takes — buffer, then hand over the
     // extent — except that this path already runs on the stack thread and
     // so does both itself.
-    if (exists(lst) && lst.obj_len > 0) {
+    if (lst.obj_len > 0) {
         uint32 wrote = add_tx_data(ctx.tx, lst.obj, lst.obj_len);
 
         if (wrote > 0) {
@@ -1140,6 +1190,11 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
 // has already set it — before dispatch, and only for a segment it accepted,
 // which is the donor's placement.
 void proc_timestamp(tcp_ack ev, tcp_ctx ctx) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
         return;
     if (!ctx.saw_timestamp)
@@ -1156,6 +1211,11 @@ void proc_timestamp(tcp_ack ev, tcp_ctx ctx) {
 // whether that update moved the right edge. Folded into §proc_congestion, where
 // it used to live, the test could not be written.
 void proc_window(tcp_ack ev, tcp_ctx ctx) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     uint32 cwindow;
 
     if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
@@ -1181,6 +1241,11 @@ void proc_window(tcp_ack ev, tcp_ctx ctx) {
 // why it sits ahead of §proc_ack in the chain: §proc_ack is what moves
 // send_una, so this must read it first.
 void proc_rtt(tcp_ack ev, tcp_ctx ctx) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     uint32 m;
 
     if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
@@ -1229,6 +1294,11 @@ void proc_rtt(tcp_ack ev, tcp_ctx ctx) {
 // right edge AFTER §proc_window has run, so comparing it against the edge
 // BEFORE is what "the window did not change" means.
 void proc_fast_retransmit(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     bool dup = false;
 
     if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
@@ -1283,6 +1353,11 @@ void proc_fast_retransmit(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
 // ---------------------------------------------------------------------------
 // The congestion window, and the guard for an acknowledgement past send_next.
 void proc_congestion(tcp_ack ev, tcp_ctx ctx) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     uint32 acked;
 
     if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
@@ -1338,6 +1413,11 @@ void proc_congestion(tcp_ack ev, tcp_ctx ctx) {
 // returns and the dispatch runs it — DEFERRED.md D2, one of the two places the
 // dispatch was hand-inlined.
 void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     uint32 acked;
 
     if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
@@ -1408,6 +1488,11 @@ timer_start(ctx.rto_timer,
 // range in rx_wnd, slides, and recomputes the window if the boundary moved. The
 // acknowledgement it owes is §send_ack's, next in the chain.
 void proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     uint32 next;
 
     // The data-acknowledgement path, silenced permanently once a FIN has been
@@ -1513,6 +1598,11 @@ void send_ack(event_t ev, tcp_ctx ctx, tcp_scratch s) {
 // processor perform the transition and still owe the acknowledgement, because
 // the guard was evaluated before it. Either route owes exactly once.
 void proc_fin(tcp_fin ev, tcp_ctx ctx, tcp_scratch s) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     uint32 fin_seq;
 
     if (!(ctx.state == ST_ESTABLISHED || ctx.state == ST_FIN_WAIT_1 || ctx.state == ST_FIN_WAIT_2))
@@ -1872,6 +1962,11 @@ void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
 //     in the donor; it raises a close event, so the application learns the
 //     socket is readable and then reads end-of-stream.
 void proc_rst(tcp_rst ev, tcp_ctx ctx) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     // Below ESTABLISHED the donor does not handle it here at all.
     if (ctx.state == ST_CLOSED || ctx.state == ST_LISTEN)
         return;
@@ -1942,6 +2037,11 @@ timer_start(ctx.rto_timer,
 // the peer's initial sequence number, its window and scale, its timestamp, and
 // whether it timestamps at all.
 void proc_synack(tcp_synack ev, tcp_ctx ctx) {
+    // §proc_seq_check refused this segment. The donor returns before the state
+    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
+    // same decision read from the context (N-G).
+    if (!ctx.seg_ok)
+        return;
     if (ctx.state != ST_SYN_SENT)
         return;
 
@@ -2100,9 +2200,12 @@ void proc_idle(tcp_idle_timeout ev, tcp_ctx ctx) {
 // is here and the donor makes it at listen; ours is here because this is where
 // the context is created.
 void proc_bind(app_bind ev, tcp_listen_ctx ctx) {
-    if (exists(ctx))
-        return;                     // already bound
-    new_ctx(get_flow_id(ev));           // materialises the context `ctx` names
+    // A SECOND bind of the same endpoint should fail EADDRINUSE. MTP cannot say
+    // so -- there is no way to raise an error from a processor -- and the test
+    // that stood here was the invented error checking the audit removed. The
+    // target's new_ctx returns the existing context for a key it already holds,
+    // so a duplicate rewrites the same fields with the same values.
+    new_ctx(tcp_lid(ev.ip, ev.port));   // materialises the context `ctx` names
     ctx.key = tcp_lid(ev.ip, ev.port);
     ctx.local_ip = ev.ip;
     ctx.local_port = ev.port;
@@ -2119,8 +2222,6 @@ void proc_bind(app_bind ev, tcp_listen_ctx ctx) {
 // analogue of the donor's ListenerHTInsert — bind created the context and
 // recorded the endpoint; this is where it becomes matchable.
 void proc_listen(app_listen ev, tcp_listen_ctx ctx) {
-    if (!exists(ctx))
-        return;                     // listen before bind
     ctx.state = ST_LISTEN;
     ctx.pending_cap = ev.backlog > 0 ? ev.backlog : PROG_MAX_BACKLOG;
     if (ctx.pending_cap > PROG_MAX_BACKLOG)
@@ -2143,7 +2244,7 @@ void proc_listen(app_listen ev, tcp_listen_ctx ctx) {
 void proc_accept(app_accept ev, tcp_listen_ctx ctx) {
     uint32 i;
 
-    if (!exists(ctx) || ctx.state != ST_LISTEN) {
+    if (ctx.state != ST_LISTEN) {
         ev.result = -1;
         return;
     }
@@ -2173,10 +2274,9 @@ void proc_accept(app_accept ev, tcp_listen_ctx ctx) {
 // property of the handshake completing rather than of asking. `cwnd = 1` means
 // "not yet opened", not one byte.
 void proc_connect(app_connect ev, tcp_ctx ctx) {
-    if (exists(ctx))
-        return;                     // already connecting
-    new_ctx(get_flow_id(ev));           // materialises the context `ctx` names
-    ctx.key = get_flow_id(ev);
+    tcp_fid fid = tcp_fid(ev.loc_ip, ev.rem_ip, ev.loc_port, ev.rem_port);
+    new_ctx(fid);                       // materialises the context `ctx` names
+    ctx.key = fid;
     ctx.local_ip = ev.loc_ip;    ctx.remote_ip = ev.rem_ip;
     ctx.loc_port = ev.loc_port;  ctx.rem_port = ev.rem_port;
     ctx.rcv_wnd  = PARITY_INITIAL_WINDOW;
@@ -2203,8 +2303,6 @@ void proc_connect(app_connect ev, tcp_ctx ctx) {
 // listener to post to, which is why the op carries the endpoint. §proc_open_done
 // is what serves it.
 void post_object(app_send ev, tcp_listen_ctx ctx) {
-    if (!exists(ctx))
-        return;
     ctx.obj = ev.addr;
     ctx.obj_len = ev.mlen;
     return;
@@ -2226,9 +2324,11 @@ coalesce tcp_coalesce : TCPBP {
 // §dispatch
 // ---------------------------------------------------------------------------
 dispatch tcp_dispatch {
+    tcp_seg     -> { proc_seq_check };
     tcp_syn     -> { proc_passive_open };
     tcp_synack  -> { proc_synack };
-    tcp_ack     -> { proc_timestamp, proc_open_done, proc_window, proc_rtt,
+    tcp_ack     -> { proc_timestamp, proc_open_done, proc_accept_queue,
+                     proc_window, proc_rtt,
                      proc_fast_retransmit, proc_congestion, proc_ack,
                      gen_seg, gen_fin };
     tcp_data    -> { proc_recv, send_ack };
