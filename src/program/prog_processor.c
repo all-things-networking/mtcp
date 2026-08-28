@@ -907,7 +907,7 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 		struct TCPBP __t0 = build_rst_hdr(ctx->loc_port, ctx->rem_port, ev->ack, 0, FLAG_RST);
 		uint8_t __t1[PROG_HDR_MAX];
 		uint16_t __t2 = TCPBP_build(__t1, &__t0);
-		mtp_pkt_gen_orphan(ctx->local_ip, ctx->remote_ip, __t1, __t2, PROG_OFFLOAD);
+		mtp_pkt_gen(ctx->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_CONTROL, PROG_OFFLOAD, false);
 		return;
 	}
 	ctx->send_una = ev->ack;

@@ -696,15 +696,15 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
             if ((bp.flags & FLAG_RST) != 0)
                 return out;
             if ((bp.flags & FLAG_ACK) != 0) {
-                pkt_gen_orphan(h.daddr, h.saddr,
-                               build_rst_hdr(bp.dst_port, bp.src_port,
-                                             bp.ack_seq, 0, FLAG_RST));
+                pkt_gen(build_rst_hdr(bp.dst_port, bp.src_port,
+                                      bp.ack_seq, 0, FLAG_RST),
+                        PRIO_CONTROL, false);
             } else {
-                pkt_gen_orphan(h.daddr, h.saddr,
-                               build_rst_hdr(bp.dst_port, bp.src_port, 0,
-                                             bp.seq_no + payload_len
-                                             + ((bp.flags & FLAG_SYN) != 0 ? 1 : 0),
-                                             FLAG_RST | FLAG_ACK));
+                pkt_gen(build_rst_hdr(bp.dst_port, bp.src_port, 0,
+                                      bp.seq_no + payload_len
+                                      + ((bp.flags & FLAG_SYN) != 0 ? 1 : 0),
+                                      FLAG_RST | FLAG_ACK),
+                        PRIO_CONTROL, false);
             }
             return out;
         }
@@ -1062,7 +1062,7 @@ void proc_passive_open(tcp_syn ev, tcp_ctx ctx) {
     ctx.ssthresh  = PARITY_OPENING_TRAJECTORY ? PARITY_SSTHRESH_PASSIVE
                                               : PARITY_SSTHRESH_ACTIVE;
 
-    if (pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_SYN | FLAG_ACK,
+    if (pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_SYN | FLAG_ACK,
                                  now()), PRIO_CONTROL, false) == 0) {
         ctx.send_next = ctx.send_next + 1;   // the SYN-ACK consumes one
         ctx.snd_base  = ctx.send_next;       // ...so data starts one past
@@ -1591,7 +1591,7 @@ void gen_fin(event_t ev, tcp_ctx ctx) {
     if (ctx.send_next - ctx.snd_base != ctx.write_end)
         return;                     // G10: not ahead of unsent data
 
-    if (pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK | FLAG_FIN, now()), PRIO_DATA, false) == 0) {
+    if (pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK | FLAG_FIN, now()), PRIO_DATA, false) == 0) {
         ctx.fin_pending = true;
         ctx.fin_seq = ctx.send_next;
         ctx.send_next = ctx.send_next + 1;      // the FIN consumes one byte
@@ -1755,7 +1755,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
                          [TCPBP::seq_no, ctx.send_next,
                           prev.seq_no + prev.payload_len]);
 
-    if (pkt_gen(ctx, bp, PRIO_DATA, rtx) != 0)
+    if (pkt_gen(bp, PRIO_DATA, rtx) != 0)
         return;
 
     // What the target will cut this extent into, which is what the donor's
@@ -1795,7 +1795,7 @@ void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
         // This carries the window too, so the advertisement is discharged with
         // it.
         ctx.need_wnd_adv = false;
-        if (pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
+        if (pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
                     PRIO_ACK, false) != 0)
             break;                      // no room; still owed
         ctx.ack_cnt = ctx.ack_cnt - 1;
@@ -1823,7 +1823,7 @@ void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
     if (!ctx.need_wnd_adv || ctx.rcv_wnd <= PARITY_MSS_PAYLOAD)
         return;
     ctx.need_wnd_adv = false;
-    pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
+    pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
                     PRIO_ACK, false);
     return;
 }
@@ -1913,7 +1913,7 @@ void gen_syn(event_t ev, tcp_ctx ctx) {
     if (ctx.state != ST_SYN_SENT || ctx.send_next != ctx.snd_base)
         return;                     // already on the wire
 
-    if (pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_SYN, now()),
+    if (pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_SYN, now()),
                 PRIO_CONTROL, false) != 0) {
         retry(ctx);          // the address is not resolved yet
         return;
@@ -1946,9 +1946,9 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
         return;
 
     if (ev.ack != ctx.send_next) {
-        pkt_gen_orphan(ctx.local_ip, ctx.remote_ip,
-                       build_rst_hdr(ctx.loc_port, ctx.rem_port,
-                                     ev.ack, 0, FLAG_RST));
+        pkt_gen(build_rst_hdr(ctx.loc_port, ctx.rem_port,
+                              ev.ack, 0, FLAG_RST),
+                PRIO_CONTROL, false);
         return;
     }
 
@@ -1992,7 +1992,7 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
     notify(ctx, WRITABLE);
 
     // The handshake's own acknowledgement.
-    pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
+    pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
                     PRIO_ACK, false);
     return;
 }
@@ -2029,7 +2029,7 @@ void proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
     // reoccupies it — the flow waits for an acknowledgement of a FIN that is no
     // longer on the wire.
     if (ctx.fin_pending && ctx.send_next == ctx.fin_seq &&
-        pkt_gen(ctx, build_hdr(ctx, ctx.send_next, FLAG_ACK | FLAG_FIN, now()), PRIO_DATA, true) == 0)
+        pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK | FLAG_FIN, now()), PRIO_DATA, true) == 0)
         ctx.send_next = ctx.send_next + 1;
     return;
 }
@@ -2066,7 +2066,7 @@ void proc_probe(tcp_probe_timeout ev, tcp_ctx ctx) {
     if (now() - ctx.last_ack_sent_ms <= PARITY_PROBE_MS)
         return;
 
-    pkt_gen(ctx, build_hdr(ctx, ctx.send_next - 1, FLAG_ACK, now()),
+    pkt_gen(build_hdr(ctx, ctx.send_next - 1, FLAG_ACK, now()),
                     PRIO_ACK, false);
     timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
     return;
