@@ -24,10 +24,6 @@
  * declarations happen to be in -- and the split across files stays a
  * presentation choice rather than a linkage constraint.
  */
-struct TCPBP
-build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now);
-struct TCPBP
-build_rst_hdr(uint16_t loc_port, uint16_t rem_port, uint32_t seq, uint32_t ack, uint8_t flags);
 unsigned
 parse_tcp(const uint8_t *l4, uint16_t plen,
 		const struct iphdr *iph, struct net_ev *ev, uint8_t *kinds,

@@ -556,81 +556,12 @@ opt_list tcp_options { list<tcp_opt> opts; }
 
 
 
-// §build_hdr
-// ---------------------------------------------------------------------------
-// THE ONE PLACE AN OUTBOUND HEADER IS BUILT, and it is a program function
-// rather than compiler output because THREE PROTOCOL SIDE EFFECTS HANG OFF IT.
+// THE HEADER IS BUILT AT EACH CALL. §build_hdr and §build_rst_hdr were
+// functions; MTP has parsers and event processors and nothing else, so each
+// body is written out at its site between two rules -- nine times for the
+// ordinary header, once for the reset. The repetition is the price of the rule.
+// THE DONOR'S OPTION ORDER IS THE PARITY ITEM in every copy: do not sort them.
 //
-//   - every packet that acknowledges resets the window probe's clock. That is
-//     the donor's rule (tcp_out.c:293) and was not ours: ours stamped it only
-//     when a probe was emitted, so the gate measured the interval between
-//     probes and we probed where the donor would not;
-//   - the same line stamps the donor's activity clock (tcp_out.c:293-296, and
-//     again on every received packet at tcp_in.c:1292), which is what our idle
-//     timer restart stands in for;
-//   - D11 ARM. The donor sets need_wnd_adv when the SCALED FIELD it is about to
-//     put on the wire is zero (tcp_out.c:304-309) — not when rcv_wnd is small.
-TCPBP build_hdr(tcp_ctx ctx, uint32 seq, uint8 flags, uint32 now) {
-    TCPBP bp;
-    bool  is_syn = (flags & FLAG_SYN) != 0;
-
-    if ((flags & FLAG_ACK) != 0) {
-        ctx.last_ack_sent_ms = now;
-        // the idle deadline, refreshed; nothing to reap once closed
-        if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-            timer_start(ctx.idle_timer, second(tcp_timeout));
-    }
-
-    bp.src_port = ctx.loc_port;
-    bp.dst_port = ctx.rem_port;
-    bp.seq_no   = seq;
-    bp.ack_seq  = ctx.recv_next;
-    bp.flags    = PARITY_SET_PSH ? flags : (flags & ~FLAG_PSH);
-    bp.window   = is_syn ? uint16(ctx.rcv_wnd)
-                         : uint16(ctx.rcv_wnd >> PARITY_WSCALE);
-    bp.urg_ptr  = 0;
-
-    if (bp.window == 0)
-        ctx.need_wnd_adv = true;
-
-    // The donor's order, and it is the parity item. Do not sort these.
-    if (is_syn) {
-        bp.opts.add(opt_mss(PARITY_MSS_ADVERTISED));
-        bp.opts.add(opt_nop());
-        bp.opts.add(opt_nop());
-        bp.opts.add(opt_ts(now, ctx.ts_recent));
-        bp.opts.add(opt_nop());
-        bp.opts.add(opt_wscale(PARITY_WSCALE));
-    } else {
-        bp.opts.add(opt_nop());
-        bp.opts.add(opt_nop());
-        bp.opts.add(opt_ts(now, ctx.ts_recent));
-    }
-    return bp;
-}
-
-// §build_rst_hdr
-// ---------------------------------------------------------------------------
-// A reset's header, built WITHOUT A CONTEXT, because a reset for a connection
-// that does not exist has none. Ports come from the offending segment with the
-// halves swapped, and there are NO OPTIONS: the donor's SendTCPPacketStandalone
-// sends none on this path, and a timestamp echo would need a `ts_recent` we
-// have never had. The window is zero, because there is no receive buffer behind
-// a connection that does not exist, and the donor passes 0 at every standalone
-// site.
-TCPBP build_rst_hdr(uint16 loc_port, uint16 rem_port, uint32 seq, uint32 ack,
-                    uint8 flags) {
-    TCPBP bp;
-
-    bp.src_port = loc_port;
-    bp.dst_port = rem_port;
-    bp.seq_no   = seq;
-    bp.ack_seq  = ack;
-    bp.flags    = flags;
-    bp.window   = 0;
-    bp.urg_ptr  = 0;
-    return bp;
-}
 
 
 
@@ -1096,8 +1027,31 @@ void proc_passive_open(tcp_syn ev, tcp_listen_ctx lst) {
     ctx.ssthresh  = PARITY_OPENING_TRAJECTORY ? PARITY_SSTHRESH_PASSIVE
                                               : PARITY_SSTHRESH_ACTIVE;
 
-    if (pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_SYN | FLAG_ACK,
-                                 now()), PRIO_CONTROL, false) == 0) {
+    // --- the outgoing header, from what was §build_hdr ----------------
+    TCPBP bp_synack;
+    ctx.last_ack_sent_ms = now();
+    // the idle deadline, refreshed; nothing to reap once closed
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, second(tcp_timeout));
+    bp_synack.src_port = ctx.loc_port;
+    bp_synack.dst_port = ctx.rem_port;
+    bp_synack.seq_no   = ctx.send_next;
+    bp_synack.ack_seq  = ctx.recv_next;
+    bp_synack.flags    = PARITY_SET_PSH ? (FLAG_SYN | FLAG_ACK)
+                              : ((FLAG_SYN | FLAG_ACK) & ~FLAG_PSH);
+    bp_synack.window   = uint16(ctx.rcv_wnd);   // a SYN's window is unscaled
+    bp_synack.urg_ptr  = 0;
+    if (bp_synack.window == 0)
+        ctx.need_wnd_adv = true;
+    // The donor's order, and it is the parity item. Do not sort these.
+    bp_synack.opts.add(opt_mss(PARITY_MSS_ADVERTISED));
+    bp_synack.opts.add(opt_nop());
+    bp_synack.opts.add(opt_nop());
+    bp_synack.opts.add(opt_ts(now(), ctx.ts_recent));
+    bp_synack.opts.add(opt_nop());
+    bp_synack.opts.add(opt_wscale(PARITY_WSCALE));
+    // -----------------------------------------------------------------
+    if (pkt_gen(bp_synack, PRIO_CONTROL, false) == 0) {
         ctx.send_next = ctx.send_next + 1;   // the SYN-ACK consumes one
         ctx.snd_base  = ctx.send_next;       // ...so data starts one past
         // CR-E: the transmit stream exists from ESTABLISHMENT, not from the
@@ -1681,7 +1635,28 @@ void gen_fin(event_t ev, tcp_ctx ctx) {
     if (ctx.send_next - ctx.snd_base != ctx.write_end)
         return;                     // G10: not ahead of unsent data
 
-    if (pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK | FLAG_FIN, now()), PRIO_DATA, false) == 0) {
+    // --- the outgoing header, from what was §build_hdr ----------------
+    TCPBP bp_fin;
+    ctx.last_ack_sent_ms = now();
+    // the idle deadline, refreshed; nothing to reap once closed
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, second(tcp_timeout));
+    bp_fin.src_port = ctx.loc_port;
+    bp_fin.dst_port = ctx.rem_port;
+    bp_fin.seq_no   = ctx.send_next;
+    bp_fin.ack_seq  = ctx.recv_next;
+    bp_fin.flags    = PARITY_SET_PSH ? (FLAG_ACK | FLAG_FIN)
+                              : ((FLAG_ACK | FLAG_FIN) & ~FLAG_PSH);
+    bp_fin.window   = uint16(ctx.rcv_wnd >> PARITY_WSCALE);
+    bp_fin.urg_ptr  = 0;
+    if (bp_fin.window == 0)
+        ctx.need_wnd_adv = true;
+    // The donor's order, and it is the parity item. Do not sort these.
+    bp_fin.opts.add(opt_nop());
+    bp_fin.opts.add(opt_nop());
+    bp_fin.opts.add(opt_ts(now(), ctx.ts_recent));
+    // -----------------------------------------------------------------
+    if (pkt_gen(bp_fin, PRIO_DATA, false) == 0) {
         ctx.fin_pending = true;
         ctx.fin_seq = ctx.send_next;
         ctx.send_next = ctx.send_next + 1;      // the FIN consumes one byte
@@ -1835,7 +1810,28 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     // and the re-send are separated in time.
     rtx = ctx.send_next < ctx.send_high;
 
-    TCPBP bp = build_hdr(ctx, ctx.send_next, FLAG_ACK, now());
+    // --- the outgoing header, from what was §build_hdr ----------------
+    TCPBP bp;
+    ctx.last_ack_sent_ms = now();
+    // the idle deadline, refreshed; nothing to reap once closed
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, second(tcp_timeout));
+    bp.src_port = ctx.loc_port;
+    bp.dst_port = ctx.rem_port;
+    bp.seq_no   = ctx.send_next;
+    bp.ack_seq  = ctx.recv_next;
+    bp.flags    = PARITY_SET_PSH ? (FLAG_ACK)
+                              : ((FLAG_ACK) & ~FLAG_PSH);
+    bp.window   = uint16(ctx.rcv_wnd >> PARITY_WSCALE);
+    bp.urg_ptr  = 0;
+    if (bp.window == 0)
+        ctx.need_wnd_adv = true;
+    // The donor's order, and it is the parity item. Do not sort these.
+    bp.opts.add(opt_nop());
+    bp.opts.add(opt_nop());
+    bp.opts.add(opt_ts(now(), ctx.ts_recent));
+    // -----------------------------------------------------------------
+
 
     // The segmentation rule is the fourth argument, written at the call. TCP's
     // recurrence is per BYTE: the next segment's sequence number is the previous
@@ -1885,8 +1881,28 @@ void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
         // This carries the window too, so the advertisement is discharged with
         // it.
         ctx.need_wnd_adv = false;
-        if (pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
-                    PRIO_ACK, false) != 0)
+        // --- the outgoing header, from what was §build_hdr ----------------
+        TCPBP bp_owed;
+        ctx.last_ack_sent_ms = now();
+        // the idle deadline, refreshed; nothing to reap once closed
+        if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+            timer_start(ctx.idle_timer, second(tcp_timeout));
+        bp_owed.src_port = ctx.loc_port;
+        bp_owed.dst_port = ctx.rem_port;
+        bp_owed.seq_no   = ctx.send_next;
+        bp_owed.ack_seq  = ctx.recv_next;
+        bp_owed.flags    = PARITY_SET_PSH ? (FLAG_ACK)
+                                  : ((FLAG_ACK) & ~FLAG_PSH);
+        bp_owed.window   = uint16(ctx.rcv_wnd >> PARITY_WSCALE);
+        bp_owed.urg_ptr  = 0;
+        if (bp_owed.window == 0)
+            ctx.need_wnd_adv = true;
+        // The donor's order, and it is the parity item. Do not sort these.
+        bp_owed.opts.add(opt_nop());
+        bp_owed.opts.add(opt_nop());
+        bp_owed.opts.add(opt_ts(now(), ctx.ts_recent));
+        // -----------------------------------------------------------------
+        if (pkt_gen(bp_owed, PRIO_ACK, false) != 0)
             break;                      // no room; still owed
         ctx.ack_cnt = ctx.ack_cnt - 1;
     }
@@ -1913,8 +1929,28 @@ void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
     if (!ctx.need_wnd_adv || ctx.rcv_wnd <= PARITY_MSS_PAYLOAD)
         return;
     ctx.need_wnd_adv = false;
-    pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
-                    PRIO_ACK, false);
+    // --- the outgoing header, from what was §build_hdr ----------------
+    TCPBP bp_adv;
+    ctx.last_ack_sent_ms = now();
+    // the idle deadline, refreshed; nothing to reap once closed
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, second(tcp_timeout));
+    bp_adv.src_port = ctx.loc_port;
+    bp_adv.dst_port = ctx.rem_port;
+    bp_adv.seq_no   = ctx.send_next;
+    bp_adv.ack_seq  = ctx.recv_next;
+    bp_adv.flags    = PARITY_SET_PSH ? (FLAG_ACK)
+                              : ((FLAG_ACK) & ~FLAG_PSH);
+    bp_adv.window   = uint16(ctx.rcv_wnd >> PARITY_WSCALE);
+    bp_adv.urg_ptr  = 0;
+    if (bp_adv.window == 0)
+        ctx.need_wnd_adv = true;
+    // The donor's order, and it is the parity item. Do not sort these.
+    bp_adv.opts.add(opt_nop());
+    bp_adv.opts.add(opt_nop());
+    bp_adv.opts.add(opt_ts(now(), ctx.ts_recent));
+    // -----------------------------------------------------------------
+    pkt_gen(bp_adv, PRIO_ACK, false);
     return;
 }
 
@@ -2008,8 +2044,27 @@ void gen_syn(event_t ev, tcp_ctx ctx) {
     if (ctx.state != ST_SYN_SENT || ctx.send_next != ctx.snd_base)
         return;                     // already on the wire
 
-    if (pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_SYN, now()),
-                PRIO_CONTROL, false) != 0) {
+    // --- the outgoing header, from what was §build_hdr ----------------
+    TCPBP bp_syn;
+    bp_syn.src_port = ctx.loc_port;
+    bp_syn.dst_port = ctx.rem_port;
+    bp_syn.seq_no   = ctx.send_next;
+    bp_syn.ack_seq  = ctx.recv_next;
+    bp_syn.flags    = PARITY_SET_PSH ? (FLAG_SYN)
+                              : ((FLAG_SYN) & ~FLAG_PSH);
+    bp_syn.window   = uint16(ctx.rcv_wnd);   // a SYN's window is unscaled
+    bp_syn.urg_ptr  = 0;
+    if (bp_syn.window == 0)
+        ctx.need_wnd_adv = true;
+    // The donor's order, and it is the parity item. Do not sort these.
+    bp_syn.opts.add(opt_mss(PARITY_MSS_ADVERTISED));
+    bp_syn.opts.add(opt_nop());
+    bp_syn.opts.add(opt_nop());
+    bp_syn.opts.add(opt_ts(now(), ctx.ts_recent));
+    bp_syn.opts.add(opt_nop());
+    bp_syn.opts.add(opt_wscale(PARITY_WSCALE));
+    // -----------------------------------------------------------------
+    if (pkt_gen(bp_syn, PRIO_CONTROL, false) != 0) {
         retry(ctx);          // the address is not resolved yet
         return;
     }
@@ -2046,9 +2101,17 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
         return;
 
     if (ev.ack != ctx.send_next) {
-        pkt_gen(build_rst_hdr(ctx.loc_port, ctx.rem_port,
-                              ev.ack, 0, FLAG_RST),
-                PRIO_CONTROL, false);
+        // --- the reset header, from what was §build_rst_hdr -----------
+        TCPBP bp_rst;
+        bp_rst.src_port = ctx.loc_port;
+        bp_rst.dst_port = ctx.rem_port;
+        bp_rst.seq_no   = ev.ack;
+        bp_rst.ack_seq  = 0;
+        bp_rst.flags    = FLAG_RST;
+        bp_rst.window   = 0;
+        bp_rst.urg_ptr  = 0;
+        // ---------------------------------------------------------------
+        pkt_gen(bp_rst, PRIO_CONTROL, false);
         return;
     }
 
@@ -2092,8 +2155,28 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
     notify(ctx, WRITABLE);
 
     // The handshake's own acknowledgement.
-    pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK, now()),
-                    PRIO_ACK, false);
+    // --- the outgoing header, from what was §build_hdr ----------------
+    TCPBP bp_hs;
+    ctx.last_ack_sent_ms = now();
+    // the idle deadline, refreshed; nothing to reap once closed
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, second(tcp_timeout));
+    bp_hs.src_port = ctx.loc_port;
+    bp_hs.dst_port = ctx.rem_port;
+    bp_hs.seq_no   = ctx.send_next;
+    bp_hs.ack_seq  = ctx.recv_next;
+    bp_hs.flags    = PARITY_SET_PSH ? (FLAG_ACK)
+                              : ((FLAG_ACK) & ~FLAG_PSH);
+    bp_hs.window   = uint16(ctx.rcv_wnd >> PARITY_WSCALE);
+    bp_hs.urg_ptr  = 0;
+    if (bp_hs.window == 0)
+        ctx.need_wnd_adv = true;
+    // The donor's order, and it is the parity item. Do not sort these.
+    bp_hs.opts.add(opt_nop());
+    bp_hs.opts.add(opt_nop());
+    bp_hs.opts.add(opt_ts(now(), ctx.ts_recent));
+    // -----------------------------------------------------------------
+    pkt_gen(bp_hs, PRIO_ACK, false);
     return;
 }
 
@@ -2128,9 +2211,35 @@ void proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
     // rewind puts send_next back to the FIN's sequence and nothing ever
     // reoccupies it — the flow waits for an acknowledgement of a FIN that is no
     // longer on the wire.
-    if (ctx.fin_pending && ctx.send_next == ctx.fin_seq &&
-        pkt_gen(build_hdr(ctx, ctx.send_next, FLAG_ACK | FLAG_FIN, now()), PRIO_DATA, true) == 0)
-        ctx.send_next = ctx.send_next + 1;
+    // The header is built before the test rather than inside it: writing it
+    // out at the call means a declaration, and a declaration cannot sit in the
+    // middle of a condition. Building it costs a stamped timestamp and a
+    // refreshed idle deadline, so the test comes first and guards it.
+    if (ctx.fin_pending && ctx.send_next == ctx.fin_seq) {
+        // --- the outgoing header, from what was §build_hdr ----------------
+        TCPBP bp_rtx_fin;
+        ctx.last_ack_sent_ms = now();
+        // the idle deadline, refreshed; nothing to reap once closed
+        if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+            timer_start(ctx.idle_timer, second(tcp_timeout));
+        bp_rtx_fin.src_port = ctx.loc_port;
+        bp_rtx_fin.dst_port = ctx.rem_port;
+        bp_rtx_fin.seq_no   = ctx.send_next;
+        bp_rtx_fin.ack_seq  = ctx.recv_next;
+        bp_rtx_fin.flags    = PARITY_SET_PSH ? (FLAG_ACK | FLAG_FIN)
+                                  : ((FLAG_ACK | FLAG_FIN) & ~FLAG_PSH);
+        bp_rtx_fin.window   = uint16(ctx.rcv_wnd >> PARITY_WSCALE);
+        bp_rtx_fin.urg_ptr  = 0;
+        if (bp_rtx_fin.window == 0)
+            ctx.need_wnd_adv = true;
+        // The donor's order, and it is the parity item. Do not sort these.
+        bp_rtx_fin.opts.add(opt_nop());
+        bp_rtx_fin.opts.add(opt_nop());
+        bp_rtx_fin.opts.add(opt_ts(now(), ctx.ts_recent));
+        // -----------------------------------------------------------------
+        if (pkt_gen(bp_rtx_fin, PRIO_DATA, true) == 0)
+            ctx.send_next = ctx.send_next + 1;
+    }
     return;
 }
 
@@ -2166,8 +2275,28 @@ void proc_probe(tcp_probe_timeout ev, tcp_ctx ctx) {
     if (now() - ctx.last_ack_sent_ms <= PARITY_PROBE_MS)
         return;
 
-    pkt_gen(build_hdr(ctx, ctx.send_next - 1, FLAG_ACK, now()),
-                    PRIO_ACK, false);
+    // --- the outgoing header, from what was §build_hdr ----------------
+    TCPBP bp_probe;
+    ctx.last_ack_sent_ms = now();
+    // the idle deadline, refreshed; nothing to reap once closed
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, second(tcp_timeout));
+    bp_probe.src_port = ctx.loc_port;
+    bp_probe.dst_port = ctx.rem_port;
+    bp_probe.seq_no   = ctx.send_next - 1;
+    bp_probe.ack_seq  = ctx.recv_next;
+    bp_probe.flags    = PARITY_SET_PSH ? (FLAG_ACK)
+                              : ((FLAG_ACK) & ~FLAG_PSH);
+    bp_probe.window   = uint16(ctx.rcv_wnd >> PARITY_WSCALE);
+    bp_probe.urg_ptr  = 0;
+    if (bp_probe.window == 0)
+        ctx.need_wnd_adv = true;
+    // The donor's order, and it is the parity item. Do not sort these.
+    bp_probe.opts.add(opt_nop());
+    bp_probe.opts.add(opt_nop());
+    bp_probe.opts.add(opt_ts(now(), ctx.ts_recent));
+    // -----------------------------------------------------------------
+    pkt_gen(bp_probe, PRIO_ACK, false);
     timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
     return;
 }

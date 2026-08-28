@@ -9,84 +9,6 @@
 #include "prog.h"
 
 /*
- * mtp/tcp.mtp §build_hdr
- * ---------------------------------------------------------------------------
- * THE ONE PLACE AN OUTBOUND HEADER IS BUILT, and it is a program function
- * rather than compiler output because THREE PROTOCOL SIDE EFFECTS HANG OFF IT.
- *
- *   - every packet that acknowledges resets the window probe's clock. That is
- *     the donor's rule (tcp_out.c:293) and was not ours: ours stamped it only
- *     when a probe was emitted, so the gate measured the interval between
- *     probes and we probed where the donor would not;
- *   - the same line stamps the donor's activity clock (tcp_out.c:293-296, and
- *     again on every received packet at tcp_in.c:1292), which is what our idle
- *     timer restart stands in for;
- *   - D11 ARM. The donor sets need_wnd_adv when the SCALED FIELD it is about to
- *     put on the wire is zero (tcp_out.c:304-309) — not when rcv_wnd is small.
- */
-struct TCPBP
-build_hdr(struct tcp_ctx *ctx, uint32_t seq, uint8_t flags, uint32_t now)
-{
-	struct TCPBP bp = { 0 };
-	bool is_syn = (((flags & FLAG_SYN)) != 0);
-	if ((((flags & FLAG_ACK)) != 0)) {
-		ctx->last_ack_sent_ms = now;
-		if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
-			(ctx->idle_timer).ctx = ctx;
-			mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
-		}
-	}
-	bp.src_port = ctx->loc_port;
-	bp.dst_port = ctx->rem_port;
-	bp.seq_no = seq;
-	bp.ack_seq = ctx->recv_next;
-	bp.flags = (PARITY_SET_PSH ? flags : ((flags & ~(FLAG_PSH))));
-	bp.window = (is_syn ? (uint16_t)(ctx->rcv_wnd) : (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE)));
-	bp.urg_ptr = 0;
-	if ((bp.window == 0)) {
-		ctx->need_wnd_adv = true;
-	}
-	if (is_syn) {
-		TCPBP_add_opt_mss(&bp, PARITY_MSS_ADVERTISED);
-		TCPBP_add_opt_nop(&bp);
-		TCPBP_add_opt_nop(&bp);
-		TCPBP_add_opt_ts(&bp, now, ctx->ts_recent);
-		TCPBP_add_opt_nop(&bp);
-		TCPBP_add_opt_wscale(&bp, PARITY_WSCALE);
-	} else {
-		TCPBP_add_opt_nop(&bp);
-		TCPBP_add_opt_nop(&bp);
-		TCPBP_add_opt_ts(&bp, now, ctx->ts_recent);
-	}
-	return bp;
-}
-
-/*
- * mtp/tcp.mtp §build_rst_hdr
- * ---------------------------------------------------------------------------
- * A reset's header, built WITHOUT A CONTEXT, because a reset for a connection
- * that does not exist has none. Ports come from the offending segment with the
- * halves swapped, and there are NO OPTIONS: the donor's SendTCPPacketStandalone
- * sends none on this path, and a timestamp echo would need a `ts_recent` we
- * have never had. The window is zero, because there is no receive buffer behind
- * a connection that does not exist, and the donor passes 0 at every standalone
- * site.
- */
-struct TCPBP
-build_rst_hdr(uint16_t loc_port, uint16_t rem_port, uint32_t seq, uint32_t ack, uint8_t flags)
-{
-	struct TCPBP bp = { 0 };
-	bp.src_port = loc_port;
-	bp.dst_port = rem_port;
-	bp.seq_no = seq;
-	bp.ack_seq = ack;
-	bp.flags = flags;
-	bp.window = 0;
-	bp.urg_ptr = 0;
-	return bp;
-}
-
-/*
  * mtp/tcp.mtp §proc_seq_check
  * ---------------------------------------------------------------------------
  * The donor's ValidateSequence (tcp_in.c:107), which runs once per segment
@@ -195,10 +117,31 @@ proc_passive_open(struct net_ev *ev, struct tcp_listen_ctx *lst, uint32_t now_ms
 	ctx->send_next = PARITY_ISN;
 	ctx->cwnd = PARITY_INIT_CWND;
 	ctx->ssthresh = (PARITY_OPENING_TRAJECTORY ? PARITY_SSTHRESH_PASSIVE : PARITY_SSTHRESH_ACTIVE);
-	struct TCPBP __t0 = build_hdr(ctx, ctx->send_next, (FLAG_SYN | FLAG_ACK), now_ms);
-	uint8_t __t1[PROG_HDR_MAX];
-	uint16_t __t2 = TCPBP_build(__t1, &__t0);
-	if ((mtp_pkt_gen(lst->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_CONTROL, PROG_OFFLOAD, false) == 0)) {
+	struct TCPBP bp_synack = { 0 };
+	ctx->last_ack_sent_ms = now_ms;
+	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
+		(ctx->idle_timer).ctx = ctx;
+		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
+	}
+	bp_synack.src_port = ctx->loc_port;
+	bp_synack.dst_port = ctx->rem_port;
+	bp_synack.seq_no = ctx->send_next;
+	bp_synack.ack_seq = ctx->recv_next;
+	bp_synack.flags = (PARITY_SET_PSH ? ((FLAG_SYN | FLAG_ACK)) : ((((FLAG_SYN | FLAG_ACK)) & ~(FLAG_PSH))));
+	bp_synack.window = (uint16_t)(ctx->rcv_wnd);
+	bp_synack.urg_ptr = 0;
+	if ((bp_synack.window == 0)) {
+		ctx->need_wnd_adv = true;
+	}
+	TCPBP_add_opt_mss(&bp_synack, PARITY_MSS_ADVERTISED);
+	TCPBP_add_opt_nop(&bp_synack);
+	TCPBP_add_opt_nop(&bp_synack);
+	TCPBP_add_opt_ts(&bp_synack, now_ms, ctx->ts_recent);
+	TCPBP_add_opt_nop(&bp_synack);
+	TCPBP_add_opt_wscale(&bp_synack, PARITY_WSCALE);
+	uint8_t __t0[PROG_HDR_MAX];
+	uint16_t __t1 = TCPBP_build(__t0, &bp_synack);
+	if ((mtp_pkt_gen(lst->f, __t0, __t1, &bp_synack.__pay, bp_synack.__mss, PRIO_CONTROL, PROG_OFFLOAD, false) == 0)) {
 		ctx->send_next = (ctx->send_next + 1);
 		ctx->snd_base = ctx->send_next;
 		if (!(ctx->tx_open)) {
@@ -689,10 +632,28 @@ gen_fin(struct tcp_ctx *ctx, uint32_t now_ms)
 	if (((ctx->send_next - ctx->snd_base) != ctx->write_end)) {
 		return;
 	}
-	struct TCPBP __t0 = build_hdr(ctx, ctx->send_next, (FLAG_ACK | FLAG_FIN), now_ms);
-	uint8_t __t1[PROG_HDR_MAX];
-	uint16_t __t2 = TCPBP_build(__t1, &__t0);
-	if ((mtp_pkt_gen(ctx->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_DATA, PROG_OFFLOAD, false) == 0)) {
+	struct TCPBP bp_fin = { 0 };
+	ctx->last_ack_sent_ms = now_ms;
+	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
+		(ctx->idle_timer).ctx = ctx;
+		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
+	}
+	bp_fin.src_port = ctx->loc_port;
+	bp_fin.dst_port = ctx->rem_port;
+	bp_fin.seq_no = ctx->send_next;
+	bp_fin.ack_seq = ctx->recv_next;
+	bp_fin.flags = (PARITY_SET_PSH ? ((FLAG_ACK | FLAG_FIN)) : ((((FLAG_ACK | FLAG_FIN)) & ~(FLAG_PSH))));
+	bp_fin.window = (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE));
+	bp_fin.urg_ptr = 0;
+	if ((bp_fin.window == 0)) {
+		ctx->need_wnd_adv = true;
+	}
+	TCPBP_add_opt_nop(&bp_fin);
+	TCPBP_add_opt_nop(&bp_fin);
+	TCPBP_add_opt_ts(&bp_fin, now_ms, ctx->ts_recent);
+	uint8_t __t0[PROG_HDR_MAX];
+	uint16_t __t1 = TCPBP_build(__t0, &bp_fin);
+	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_fin.__pay, bp_fin.__mss, PRIO_DATA, PROG_OFFLOAD, false) == 0)) {
 		ctx->fin_pending = true;
 		ctx->fin_seq = ctx->send_next;
 		ctx->send_next = (ctx->send_next + 1);
@@ -837,7 +798,25 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 		return;
 	}
 	rtx = (ctx->send_next < ctx->send_high);
-	struct TCPBP bp = build_hdr(ctx, ctx->send_next, FLAG_ACK, now_ms);
+	struct TCPBP bp = { 0 };
+	ctx->last_ack_sent_ms = now_ms;
+	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
+		(ctx->idle_timer).ctx = ctx;
+		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
+	}
+	bp.src_port = ctx->loc_port;
+	bp.dst_port = ctx->rem_port;
+	bp.seq_no = ctx->send_next;
+	bp.ack_seq = ctx->recv_next;
+	bp.flags = (PARITY_SET_PSH ? (FLAG_ACK) : (((FLAG_ACK) & ~(FLAG_PSH))));
+	bp.window = (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE));
+	bp.urg_ptr = 0;
+	if ((bp.window == 0)) {
+		ctx->need_wnd_adv = true;
+	}
+	TCPBP_add_opt_nop(&bp);
+	TCPBP_add_opt_nop(&bp);
+	TCPBP_add_opt_ts(&bp, now_ms, ctx->ts_recent);
 	bp.__pay.u   = &(ctx->tx);
 	bp.__pay.off = (ctx->send_next - ctx->snd_base);
 	bp.__pay.len = to_send;
@@ -883,10 +862,28 @@ drain_owed_acks(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 	ctx->ack_cnt = ((ctx->ack_cnt > sent) ? (ctx->ack_cnt - sent) : 0);
 	while ((ctx->ack_cnt > 0)) {
 		ctx->need_wnd_adv = false;
-		struct TCPBP __t0 = build_hdr(ctx, ctx->send_next, FLAG_ACK, now_ms);
-		uint8_t __t1[PROG_HDR_MAX];
-		uint16_t __t2 = TCPBP_build(__t1, &__t0);
-		if ((mtp_pkt_gen(ctx->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_ACK, PROG_OFFLOAD, false) != 0)) {
+		struct TCPBP bp_owed = { 0 };
+		ctx->last_ack_sent_ms = now_ms;
+		if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
+			(ctx->idle_timer).ctx = ctx;
+			mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
+		}
+		bp_owed.src_port = ctx->loc_port;
+		bp_owed.dst_port = ctx->rem_port;
+		bp_owed.seq_no = ctx->send_next;
+		bp_owed.ack_seq = ctx->recv_next;
+		bp_owed.flags = (PARITY_SET_PSH ? (FLAG_ACK) : (((FLAG_ACK) & ~(FLAG_PSH))));
+		bp_owed.window = (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE));
+		bp_owed.urg_ptr = 0;
+		if ((bp_owed.window == 0)) {
+			ctx->need_wnd_adv = true;
+		}
+		TCPBP_add_opt_nop(&bp_owed);
+		TCPBP_add_opt_nop(&bp_owed);
+		TCPBP_add_opt_ts(&bp_owed, now_ms, ctx->ts_recent);
+		uint8_t __t0[PROG_HDR_MAX];
+		uint16_t __t1 = TCPBP_build(__t0, &bp_owed);
+		if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_owed.__pay, bp_owed.__mss, PRIO_ACK, PROG_OFFLOAD, false) != 0)) {
 			break;
 		}
 		ctx->ack_cnt = (ctx->ack_cnt - 1);
@@ -922,10 +919,28 @@ gen_wnd_adv(struct tcp_ctx *ctx, uint32_t now_ms)
 		return;
 	}
 	ctx->need_wnd_adv = false;
-	struct TCPBP __t0 = build_hdr(ctx, ctx->send_next, FLAG_ACK, now_ms);
-	uint8_t __t1[PROG_HDR_MAX];
-	uint16_t __t2 = TCPBP_build(__t1, &__t0);
-	mtp_pkt_gen(ctx->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_ACK, PROG_OFFLOAD, false);
+	struct TCPBP bp_adv = { 0 };
+	ctx->last_ack_sent_ms = now_ms;
+	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
+		(ctx->idle_timer).ctx = ctx;
+		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
+	}
+	bp_adv.src_port = ctx->loc_port;
+	bp_adv.dst_port = ctx->rem_port;
+	bp_adv.seq_no = ctx->send_next;
+	bp_adv.ack_seq = ctx->recv_next;
+	bp_adv.flags = (PARITY_SET_PSH ? (FLAG_ACK) : (((FLAG_ACK) & ~(FLAG_PSH))));
+	bp_adv.window = (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE));
+	bp_adv.urg_ptr = 0;
+	if ((bp_adv.window == 0)) {
+		ctx->need_wnd_adv = true;
+	}
+	TCPBP_add_opt_nop(&bp_adv);
+	TCPBP_add_opt_nop(&bp_adv);
+	TCPBP_add_opt_ts(&bp_adv, now_ms, ctx->ts_recent);
+	uint8_t __t0[PROG_HDR_MAX];
+	uint16_t __t1 = TCPBP_build(__t0, &bp_adv);
+	mtp_pkt_gen(ctx->f, __t0, __t1, &bp_adv.__pay, bp_adv.__mss, PRIO_ACK, PROG_OFFLOAD, false);
 	return;
 }
 
@@ -1015,10 +1030,26 @@ gen_syn(struct tcp_ctx *ctx, uint32_t now_ms)
 	if (((ctx->state != ST_SYN_SENT) || (ctx->send_next != ctx->snd_base))) {
 		return;
 	}
-	struct TCPBP __t0 = build_hdr(ctx, ctx->send_next, FLAG_SYN, now_ms);
-	uint8_t __t1[PROG_HDR_MAX];
-	uint16_t __t2 = TCPBP_build(__t1, &__t0);
-	if ((mtp_pkt_gen(ctx->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_CONTROL, PROG_OFFLOAD, false) != 0)) {
+	struct TCPBP bp_syn = { 0 };
+	bp_syn.src_port = ctx->loc_port;
+	bp_syn.dst_port = ctx->rem_port;
+	bp_syn.seq_no = ctx->send_next;
+	bp_syn.ack_seq = ctx->recv_next;
+	bp_syn.flags = (PARITY_SET_PSH ? (FLAG_SYN) : (((FLAG_SYN) & ~(FLAG_PSH))));
+	bp_syn.window = (uint16_t)(ctx->rcv_wnd);
+	bp_syn.urg_ptr = 0;
+	if ((bp_syn.window == 0)) {
+		ctx->need_wnd_adv = true;
+	}
+	TCPBP_add_opt_mss(&bp_syn, PARITY_MSS_ADVERTISED);
+	TCPBP_add_opt_nop(&bp_syn);
+	TCPBP_add_opt_nop(&bp_syn);
+	TCPBP_add_opt_ts(&bp_syn, now_ms, ctx->ts_recent);
+	TCPBP_add_opt_nop(&bp_syn);
+	TCPBP_add_opt_wscale(&bp_syn, PARITY_WSCALE);
+	uint8_t __t0[PROG_HDR_MAX];
+	uint16_t __t1 = TCPBP_build(__t0, &bp_syn);
+	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_syn.__pay, bp_syn.__mss, PRIO_CONTROL, PROG_OFFLOAD, false) != 0)) {
 		mtp_retry(ctx->f);
 		return;
 	}
@@ -1049,10 +1080,17 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 		return;
 	}
 	if ((ev->ack != ctx->send_next)) {
-		struct TCPBP __t0 = build_rst_hdr(ctx->loc_port, ctx->rem_port, ev->ack, 0, FLAG_RST);
-		uint8_t __t1[PROG_HDR_MAX];
-		uint16_t __t2 = TCPBP_build(__t1, &__t0);
-		mtp_pkt_gen(ctx->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_CONTROL, PROG_OFFLOAD, false);
+		struct TCPBP bp_rst = { 0 };
+		bp_rst.src_port = ctx->loc_port;
+		bp_rst.dst_port = ctx->rem_port;
+		bp_rst.seq_no = ev->ack;
+		bp_rst.ack_seq = 0;
+		bp_rst.flags = FLAG_RST;
+		bp_rst.window = 0;
+		bp_rst.urg_ptr = 0;
+		uint8_t __t0[PROG_HDR_MAX];
+		uint16_t __t1 = TCPBP_build(__t0, &bp_rst);
+		mtp_pkt_gen(ctx->f, __t0, __t1, &bp_rst.__pay, bp_rst.__mss, PRIO_CONTROL, PROG_OFFLOAD, false);
 		return;
 	}
 	ctx->send_una = ev->ack;
@@ -1078,10 +1116,28 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 	}
 	ctx->state = ST_ESTABLISHED;
 	mtp_notify(ctx->f, &(struct mtp_notif){ .kind = MTP_NOTIF_WRITABLE });
-	struct TCPBP __t3 = build_hdr(ctx, ctx->send_next, FLAG_ACK, now_ms);
-	uint8_t __t4[PROG_HDR_MAX];
-	uint16_t __t5 = TCPBP_build(__t4, &__t3);
-	mtp_pkt_gen(ctx->f, __t4, __t5, &__t3.__pay, __t3.__mss, PRIO_ACK, PROG_OFFLOAD, false);
+	struct TCPBP bp_hs = { 0 };
+	ctx->last_ack_sent_ms = now_ms;
+	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
+		(ctx->idle_timer).ctx = ctx;
+		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
+	}
+	bp_hs.src_port = ctx->loc_port;
+	bp_hs.dst_port = ctx->rem_port;
+	bp_hs.seq_no = ctx->send_next;
+	bp_hs.ack_seq = ctx->recv_next;
+	bp_hs.flags = (PARITY_SET_PSH ? (FLAG_ACK) : (((FLAG_ACK) & ~(FLAG_PSH))));
+	bp_hs.window = (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE));
+	bp_hs.urg_ptr = 0;
+	if ((bp_hs.window == 0)) {
+		ctx->need_wnd_adv = true;
+	}
+	TCPBP_add_opt_nop(&bp_hs);
+	TCPBP_add_opt_nop(&bp_hs);
+	TCPBP_add_opt_ts(&bp_hs, now_ms, ctx->ts_recent);
+	uint8_t __t2[PROG_HDR_MAX];
+	uint16_t __t3 = TCPBP_build(__t2, &bp_hs);
+	mtp_pkt_gen(ctx->f, __t2, __t3, &bp_hs.__pay, bp_hs.__mss, PRIO_ACK, PROG_OFFLOAD, false);
 	return;
 }
 
@@ -1110,11 +1166,31 @@ proc_rto(struct timer_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s, uint32
 	ctx->cwnd = PARITY_MSS_ADVERTISED;
 	ctx->send_next = ctx->send_una;
 	gen_seg(ctx, s, now_ms);
-	struct TCPBP __t0 = build_hdr(ctx, ctx->send_next, (FLAG_ACK | FLAG_FIN), now_ms);
-	uint8_t __t1[PROG_HDR_MAX];
-	uint16_t __t2 = TCPBP_build(__t1, &__t0);
-	if (((ctx->fin_pending && (ctx->send_next == ctx->fin_seq)) && (mtp_pkt_gen(ctx->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_DATA, PROG_OFFLOAD, true) == 0))) {
-		ctx->send_next = (ctx->send_next + 1);
+	if ((ctx->fin_pending && (ctx->send_next == ctx->fin_seq))) {
+		struct TCPBP bp_rtx_fin = { 0 };
+		ctx->last_ack_sent_ms = now_ms;
+		if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
+			(ctx->idle_timer).ctx = ctx;
+			mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
+		}
+		bp_rtx_fin.src_port = ctx->loc_port;
+		bp_rtx_fin.dst_port = ctx->rem_port;
+		bp_rtx_fin.seq_no = ctx->send_next;
+		bp_rtx_fin.ack_seq = ctx->recv_next;
+		bp_rtx_fin.flags = (PARITY_SET_PSH ? ((FLAG_ACK | FLAG_FIN)) : ((((FLAG_ACK | FLAG_FIN)) & ~(FLAG_PSH))));
+		bp_rtx_fin.window = (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE));
+		bp_rtx_fin.urg_ptr = 0;
+		if ((bp_rtx_fin.window == 0)) {
+			ctx->need_wnd_adv = true;
+		}
+		TCPBP_add_opt_nop(&bp_rtx_fin);
+		TCPBP_add_opt_nop(&bp_rtx_fin);
+		TCPBP_add_opt_ts(&bp_rtx_fin, now_ms, ctx->ts_recent);
+		uint8_t __t0[PROG_HDR_MAX];
+		uint16_t __t1 = TCPBP_build(__t0, &bp_rtx_fin);
+		if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_rtx_fin.__pay, bp_rtx_fin.__mss, PRIO_DATA, PROG_OFFLOAD, true) == 0)) {
+			ctx->send_next = (ctx->send_next + 1);
+		}
 	}
 	return;
 }
@@ -1161,10 +1237,28 @@ proc_probe(struct timer_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 	if (((now_ms - ctx->last_ack_sent_ms) <= PARITY_PROBE_MS)) {
 		return;
 	}
-	struct TCPBP __t0 = build_hdr(ctx, (ctx->send_next - 1), FLAG_ACK, now_ms);
-	uint8_t __t1[PROG_HDR_MAX];
-	uint16_t __t2 = TCPBP_build(__t1, &__t0);
-	mtp_pkt_gen(ctx->f, __t1, __t2, &__t0.__pay, __t0.__mss, PRIO_ACK, PROG_OFFLOAD, false);
+	struct TCPBP bp_probe = { 0 };
+	ctx->last_ack_sent_ms = now_ms;
+	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
+		(ctx->idle_timer).ctx = ctx;
+		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
+	}
+	bp_probe.src_port = ctx->loc_port;
+	bp_probe.dst_port = ctx->rem_port;
+	bp_probe.seq_no = (ctx->send_next - 1);
+	bp_probe.ack_seq = ctx->recv_next;
+	bp_probe.flags = (PARITY_SET_PSH ? (FLAG_ACK) : (((FLAG_ACK) & ~(FLAG_PSH))));
+	bp_probe.window = (uint16_t)((ctx->rcv_wnd >> PARITY_WSCALE));
+	bp_probe.urg_ptr = 0;
+	if ((bp_probe.window == 0)) {
+		ctx->need_wnd_adv = true;
+	}
+	TCPBP_add_opt_nop(&bp_probe);
+	TCPBP_add_opt_nop(&bp_probe);
+	TCPBP_add_opt_ts(&bp_probe, now_ms, ctx->ts_recent);
+	uint8_t __t0[PROG_HDR_MAX];
+	uint16_t __t1 = TCPBP_build(__t0, &bp_probe);
+	mtp_pkt_gen(ctx->f, __t0, __t1, &bp_probe.__pay, bp_probe.__mss, PRIO_ACK, PROG_OFFLOAD, false);
 	(ctx->probe_timer).ctx = ctx;
 	mtp_timer_start(&(ctx->probe_timer), ((uint64_t)(PARITY_PROBE_MS) * 1000000ULL));
 	return;
