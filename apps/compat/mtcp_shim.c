@@ -93,6 +93,7 @@ static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
 static uint64_t g_wr_calls, g_wr_asked, g_wr_got, g_wr_short, g_wr_refused;
 static uint64_t g_wr_ringfull, g_wr_noflow;
 static uint64_t g_ac_calls, g_ac_ok, g_ac_empty;	/* TEMPORARY */
+static uint64_t g_rd_calls, g_rd_bytes, g_rd_zero, g_rd_neg;
 static struct shim_sock	 g_sock[SHIM_MAX_SOCK];
 static struct core_ctx	*g_shim_core;
 static pthread_t	 g_shim_stack;
@@ -328,6 +329,9 @@ mtcp_destroy_context(mctx_t mctx)
 	}
 	if (g_shim_core)
 		PrintNetworkStats(g_shim_core);	/* the loop is ours, so is the report */
+	fprintf(stderr, "shim read: %llu calls, %llu bytes, %llu eof, %llu empty\n",
+		(unsigned long long)g_rd_calls, (unsigned long long)g_rd_bytes,
+		(unsigned long long)g_rd_zero, (unsigned long long)g_rd_neg);
 	fprintf(stderr, "shim accept: %llu calls, %llu ok, %llu empty\n",
 		(unsigned long long)g_ac_calls, (unsigned long long)g_ac_ok,
 		(unsigned long long)g_ac_empty);
@@ -570,10 +574,16 @@ mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len)
 	memset(&op, 0, sizeof(op));
 	op.kind = MTP_APP_RECV;
 	op.flow = g_sock[sockid].flow;
+	/* D-33: the op carries the endpoints its parser keys the context from. */
+	FlowFillOpEndpoints(&op, g_sock[sockid].flow);
 	op.data.base = (uint8_t *)buf;
 	op.data.len = (uint32_t)len;
 	op.len = (uint32_t)len;
 	got = mtp_program_app_op(&op, g_shim_core ? g_shim_core->cur_ts : 0);
+	g_rd_calls++;
+	if (got > 0)       g_rd_bytes += (uint64_t)got;
+	else if (got == 0) g_rd_zero++;
+	else               g_rd_neg++;
 	if (got > 0)
 		return got;
 	/*

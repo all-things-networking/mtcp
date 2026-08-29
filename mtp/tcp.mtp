@@ -1105,7 +1105,16 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
 void proc_accept_queue(tcp_ack ev, tcp_ctx ctx, tcp_listen_ctx lst) {
     if (!ctx.seg_ok)
         return;
-    if (ctx.state != ST_ESTABLISHED || ev.ack != ctx.send_next)
+
+    // THE TRANSITION, NOT THE STATE. This is §proc_open_done's own test and it
+    // is true for exactly one segment; it runs BEFORE that processor in the
+    // chain, so the state is still SYN_RCVD here.
+    //
+    // Testing ST_ESTABLISHED instead -- which is what the split first did --
+    // is true for every later acknowledgement as well, and while a connection
+    // is idle `ev.ack == ctx.send_next` stays true too, so every pure
+    // acknowledgement enqueued the same connection on the listener again.
+    if (ctx.state != ST_SYN_RCVD || ev.ack != ctx.send_next)
         return;
 
     if (lst.pending_n < PROG_MAX_BACKLOG) {
@@ -2457,8 +2466,8 @@ coalesce tcp_coalesce : TCPBP {
 dispatch tcp_dispatch {
     tcp_syn     -> { proc_passive_open };
     tcp_synack  -> { proc_synack };
-    tcp_ack     -> { proc_seq_check, proc_timestamp, proc_open_done,
-                     proc_accept_queue, proc_window, proc_rtt,
+    tcp_ack     -> { proc_seq_check, proc_timestamp, proc_accept_queue,
+                     proc_open_done, proc_window, proc_rtt,
                      proc_fast_retransmit, proc_congestion, proc_ack,
                      gen_seg, gen_fin };
     tcp_data    -> { proc_recv, send_ack };

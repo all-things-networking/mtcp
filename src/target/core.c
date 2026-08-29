@@ -403,18 +403,22 @@ mtp_new_ctx(const flowkey_t *key, size_t ctx_size)
 	struct flow *f;
 	void *ctx;
 	uint32_t saddr = 0, daddr = 0;
+	uint16_t sport = 0, dport = 0;
 
 	/* L3 addressing comes from the packet being dispatched, never from the
-	 * program: its key is a shape it may not read. */
+	 * program: its key is a shape it may not read. The PORTS come the same
+	 * way and for the same reason -- see struct flow. */
 	if (t->cur_iph) {
 		saddr = t->cur_iph->daddr;	/* ours is the packet's dest */
 		daddr = t->cur_iph->saddr;
+		sport = t->cur_dport;		/* ours is the packet's dest */
+		dport = t->cur_sport;
 	}
 
 	ctx = FlowTableInsert(t->flows, key, ctx_size);
 	if (!ctx)
 		return NULL;
-	f = FlowCreate(core, key, saddr, daddr);
+	f = FlowCreate(core, key, saddr, daddr, sport, dport);
 	if (!f) {
 		FlowTableRemove(t->flows, key);
 		return NULL;
@@ -564,6 +568,7 @@ HandleRetryList(struct core_ctx *core)
 		memset(&op, 0, sizeof(op));
 		op.kind = MTP_APP_SEND;
 		op.flow = taken[i];
+		FlowFillOpEndpoints(&op, taken[i]);
 		op.len = 0;		/* nothing new: attempt what is held */
 		op.flags = MTP_OP_PHASE_GENERATE;
 		mtp_program_app_op(&op, core->cur_ts);
@@ -919,11 +924,28 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 	 * given its L3 addressing. The program's key is a shape the target may
 	 * not read and an address is below the transport boundary. */
 	TransportOf(core)->cur_iph = iph;
+	/* The ports are the first four bytes of every L4 header this target
+	 * carries. Same rule as the addresses: taken from the packet by
+	 * infrastructure, never from the program. */
+	if (l4_len >= 4) {
+		/*
+		 * KEPT IN NETWORK ORDER, because that is what an application op
+		 * carries: the shim passes sin_port straight through and the
+		 * compiler emits ntohs where the program builds its key. Reading
+		 * these into host order here would have them swapped twice.
+		 */
+		uint16_t sp, dp;
+		memcpy(&sp, l4 + 0, 2);
+		memcpy(&dp, l4 + 2, 2);
+		TransportOf(core)->cur_sport = sp;
+		TransportOf(core)->cur_dport = dp;
+	}
 	mtp_program_net_input(l4, l4_len, iph, cur_ts);
 	/* the edge: whatever the program merged is now readable */
 	if (TransportOf(core)->cur_flow)
 		ready_after_input(TransportOf(core), TransportOf(core)->cur_flow);
 	TransportOf(core)->cur_iph = NULL;
+	TransportOf(core)->cur_sport = TransportOf(core)->cur_dport = 0;
 	TransportOf(core)->cur_flow = NULL;
 
 	return TRUE;

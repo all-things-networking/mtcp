@@ -145,6 +145,7 @@ struct transport {
 	 * is below the transport boundary. NULL outside a packet dispatch.
 	 */
 	const struct iphdr	*cur_iph;
+	uint16_t		 cur_sport, cur_dport;	/* the same, at L4 */
 	struct flow		*cur_flow;	/* the flow being dispatched */
 
 	/* counters that answer questions logs otherwise cannot */

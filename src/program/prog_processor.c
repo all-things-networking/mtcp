@@ -206,7 +206,7 @@ proc_accept_queue(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_listen_ctx 
 	if (!(ctx->seg_ok)) {
 		return;
 	}
-	if (((ctx->state != ST_ESTABLISHED) || (ev->ack != ctx->send_next))) {
+	if (((ctx->state != ST_SYN_RCVD) || (ev->ack != ctx->send_next))) {
 		return;
 	}
 	if ((lst->pending_n < PROG_MAX_BACKLOG)) {

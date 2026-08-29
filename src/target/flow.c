@@ -65,9 +65,20 @@ FlowPoolFini(struct core_ctx *core)
  * learns them from the infrastructure, never from the program: the program's
  * key is a shape it may not read, and an IP address is L3.
  */
+void
+FlowFillOpEndpoints(struct mtp_app_op *op, const struct flow *f)
+{
+	if (!op || !f)
+		return;
+	op->local.ip    = f->saddr;
+	op->local.port  = f->sport;
+	op->remote.ip   = f->daddr;
+	op->remote.port = f->dport;
+}
+
 struct flow *
 FlowCreate(struct core_ctx *core, const flowkey_t *key,
-	   uint32_t saddr, uint32_t daddr)
+	   uint32_t saddr, uint32_t daddr, uint16_t sport, uint16_t dport)
 {
 	struct transport *t = TransportOf(core);
 	struct flow *f;
@@ -96,6 +107,8 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	f->key = *key;
 	f->saddr = saddr;
 	f->daddr = daddr;
+	f->sport = sport;
+	f->dport = dport;
 	f->nif_out = -1;
 	f->is_external = 0;
 	f->ip_id = 0;
@@ -288,6 +301,7 @@ mtp_app_send(flow_t *f, const void *buf, uint32_t len)
 	memset(&op, 0, sizeof(op));
 	op.kind = MTP_APP_SEND;
 	op.flow = f;
+	FlowFillOpEndpoints(&op, f);
 	addr.base = buf;
 	addr.len = len;
 	op.data = addr;
@@ -388,6 +402,7 @@ DeliverSend(struct core_ctx *core, struct flow *f)
 		memset(&op, 0, sizeof(op));
 		op.kind = MTP_APP_SEND;
 		op.flow = f;
+		FlowFillOpEndpoints(&op, f);
 		op.len = len;	/* CR-E: an EXTENT already in the ring */
 		op.flags = MTP_OP_PHASE_GENERATE;
 		mtp_program_app_op(&op, core->cur_ts);
@@ -400,6 +415,7 @@ DeliverSend(struct core_ctx *core, struct flow *f)
 		memset(&op, 0, sizeof(op));
 		op.kind = MTP_APP_CLOSE;
 		op.flow = f;
+		FlowFillOpEndpoints(&op, f);
 		mtp_program_app_op(&op, core->cur_ts);
 	}
 }

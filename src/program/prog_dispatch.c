@@ -24,7 +24,7 @@ dispatch_tcp_synack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 	return true;
 }
 
-/* generated from: tcp_ack -> { proc_seq_check, proc_timestamp, proc_open_done, proc_accept_queue, proc_window, proc_rtt, proc_fast_retransmit, proc_congestion, proc_ack, gen_seg, gen_fin } */
+/* generated from: tcp_ack -> { proc_seq_check, proc_timestamp, proc_accept_queue, proc_open_done, proc_window, proc_rtt, proc_fast_retransmit, proc_congestion, proc_ack, gen_seg, gen_fin } */
 bool
 dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 {
@@ -34,14 +34,14 @@ dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 		proc_seq_check(ev, ctx);
 	if (ctx)
 		proc_timestamp(ev, ctx);
-	if (ctx)
-		proc_open_done(ev, ctx);
 	{
 		struct tcp_listen_ctx *ctx2 = ev->__have_tcp_listen_ctx
 			? mtp_ctx_lookup(&ev->__key_tcp_listen_ctx) : NULL;
 		if (ctx2)
 			proc_accept_queue(ev, ctx, ctx2, now_ms);
 	}
+	if (ctx)
+		proc_open_done(ev, ctx);
 	if (ctx)
 		proc_window(ev, ctx);
 	if (ctx)

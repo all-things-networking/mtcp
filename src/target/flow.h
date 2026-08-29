@@ -31,6 +31,15 @@ struct flow {
 	 * its own events carry one — addressing below the transport is
 	 * infrastructure's, and IPOutput's arguments are what need it. */
 	uint32_t	 saddr, daddr;
+	/*
+	 * AND THE PORTS, learned the same way and for the same reason. D-33 took
+	 * `set_flow` out of the program, so an application op no longer NAMES a
+	 * flow -- it carries the endpoints its parser builds a look-up key from.
+	 * The target fills those for the ops it is handed or synthesises, and it
+	 * cannot read them out of f->key: the key is a shape it hashes and never
+	 * interprets.
+	 */
+	uint16_t	 sport, dport;
 	int		 nif_out;	/* from mTCP sndvar->nif_out: resolve the
 					 * route once per flow, not per packet */
 	uint8_t		 is_external;
@@ -169,7 +178,11 @@ int         FlowPoolInit(struct core_ctx *core);
 void        FlowPoolFini(struct core_ctx *core);
 
 struct flow *FlowCreate(struct core_ctx *core, const flowkey_t *key,
-			uint32_t saddr, uint32_t daddr);
+			uint32_t saddr, uint32_t daddr,
+			uint16_t sport, uint16_t dport);
+
+/* Fill an application op's endpoints from the flow it concerns (D-33). */
+void FlowFillOpEndpoints(struct mtp_app_op *op, const struct flow *f);
 void         FlowDestroy(struct core_ctx *core, struct flow *f);
 
 #endif /* FLOW_H */
