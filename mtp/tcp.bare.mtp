@@ -64,13 +64,12 @@ event tcp_syn      : net_event { uint32 seq; uint16 sport, dport, window;
                                  uint8 wscale; bool has_wscale;
                                  uint32 local_ip, remote_ip; }
 
-event tcp_seg      : net_event { uint32 seq, ack; uint16 flags;
-                                 uint32 payload_len, ts_val; bool has_ts; }
 event tcp_synack   : net_event { uint32 seq, ack; uint16 window;
                                  uint32 ts_val, ts_ecr; bool has_ts;
                                  uint8 wscale; bool has_wscale; }
-event tcp_ack      : net_event { uint32 seq, ack; uint16 window;
-                                 uint32 ts_val, ts_ecr; uint32 payload_len; }
+event tcp_ack      : net_event { uint32 seq, ack; uint16 window, flags;
+                                 uint32 ts_val, ts_ecr; uint32 payload_len;
+                                 bool has_ts; }
 event tcp_data     : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
                                  addr_t hold_addr; uint32 data_len; }
 event tcp_fin      : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
@@ -217,13 +216,6 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         return out;
     }
 
-    tcp_seg v;
-    v.flags = bp.flags;  v.seq = bp.seq_no;  v.ack = bp.ack_seq;
-    v.payload_len = payload_len;
-    v.ts_val = bp.opts.ts_val;  v.has_ts = bp.opts.has_ts;
-    set_ctx_lookup_info(v, tcp_ctx, fid);
-    out.add(v);
-
     if ((bp.flags & FLAG_RST) != 0) {
         tcp_rst r;
         r.seq = bp.seq_no;  r.ack = bp.ack_seq;
@@ -245,9 +237,13 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         return out;
     }
 
+    if ((bp.flags & FLAG_ACK) == 0)
+        return out;
+
     if ((bp.flags & FLAG_ACK) != 0) {
         tcp_ack a;
         a.seq = bp.seq_no;  a.ack = bp.ack_seq;  a.window = bp.window;
+        a.flags = bp.flags;  a.has_ts = bp.opts.has_ts;
         a.ts_val = bp.opts.ts_val;  a.ts_ecr = bp.opts.ts_ecr;
         a.payload_len = payload_len;
         set_ctx_lookup_info(a, tcp_ctx, fid);
@@ -381,7 +377,7 @@ list<event_t> sock_close(close op) {
     return out;
 }
 
-void proc_seq_check(tcp_seg ev, tcp_ctx ctx) {
+void proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
     ctx.seg_ok = false;
 
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
@@ -1026,7 +1022,8 @@ void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
 }
 
 void proc_rst(tcp_rst ev, tcp_ctx ctx) {
-    if (!ctx.seg_ok)
+    if (int32(ev.seq - ctx.recv_next) < 0 ||
+        int32(ev.seq - (ctx.recv_next + ctx.rcv_wnd)) > 0)
         return;
     if (ctx.state == ST_CLOSED || ctx.state == ST_LISTEN)
         return;
@@ -1087,8 +1084,6 @@ timer_start(ctx.rto_timer,
 }
 
 void proc_synack(tcp_synack ev, tcp_ctx ctx) {
-    if (!ctx.seg_ok)
-        return;
     if (ctx.state != ST_SYN_SENT)
         return;
 
@@ -1306,11 +1301,10 @@ coalesce tcp_coalesce : TCPBP {
 }
 
 dispatch tcp_dispatch {
-    tcp_seg     -> { proc_seq_check };
     tcp_syn     -> { proc_passive_open };
     tcp_synack  -> { proc_synack };
-    tcp_ack     -> { proc_timestamp, proc_open_done, proc_accept_queue,
-                     proc_window, proc_rtt,
+    tcp_ack     -> { proc_seq_check, proc_timestamp, proc_open_done,
+                     proc_accept_queue, proc_window, proc_rtt,
                      proc_fast_retransmit, proc_congestion, proc_ack,
                      gen_seg, gen_fin };
     tcp_data    -> { proc_recv, send_ack };

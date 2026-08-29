@@ -115,7 +115,6 @@ void
 proc_connect(struct app_ev *ev, struct tcp_ctx *ctx);
 void
 post_object(struct app_ev *ev, struct tcp_listen_ctx *ctx);
-bool dispatch_tcp_seg(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_syn(struct tcp_listen_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_synack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);

@@ -41,10 +41,10 @@
  *   a SYN keys the LISTENER, and the backlog test and the context it creates
  *   are §proc_passive_open's, which is where allocation belongs;
  *
- *   validation reads the context, so it is §proc_seq_check on the tcp_seg
- *   chain -- raised first and once, which is what keeps a segment that raises
- *   three events from validating three times and owing acknowledgements the
- *   donor does not send.
+ *   validation reads the context, so it is §proc_seq_check at the HEAD OF THE
+ *   tcp_ack CHAIN -- every segment the state machine sees carries the ACK flag,
+ *   so every one is validated exactly once, and the payload and FIN it also
+ *   raises are dispatched after it and read the verdict.
  *
  * WHICH CONTEXT AN EVENT NEEDS IS PROTOCOL KNOWLEDGE, and it is stated here
  * with set_ctx_lookup_info. A key alone cannot say: every flow id in this
@@ -83,14 +83,6 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		kinds[__n++] = EV_tcp_syn;
 		return __n;
 	}
-	ev->flags = bp.flags;
-	ev->seq = bp.seq_no;
-	ev->ack = bp.ack_seq;
-	ev->payload_len = payload_len;
-	ev->ts_val = bp.__opt_ts_ts_val;
-	ev->has_ts = bp.__opt_ts_present;
-	(ev->__key_tcp_ctx = fid, ev->__have_tcp_ctx = true);
-	kinds[__n++] = EV_tcp_seg;
 	if ((((bp.flags & FLAG_RST)) != 0)) {
 		ev->seq = bp.seq_no;
 		ev->ack = bp.ack_seq;
@@ -114,10 +106,15 @@ parse_tcp(const uint8_t *l4, uint16_t plen,
 		kinds[__n++] = EV_tcp_synack;
 		return __n;
 	}
+	if ((((bp.flags & FLAG_ACK)) == 0)) {
+		return __n;
+	}
 	if ((((bp.flags & FLAG_ACK)) != 0)) {
 		ev->seq = bp.seq_no;
 		ev->ack = bp.ack_seq;
 		ev->window = bp.window;
+		ev->flags = bp.flags;
+		ev->has_ts = bp.__opt_ts_present;
 		ev->ts_val = bp.__opt_ts_ts_val;
 		ev->ts_ecr = bp.__opt_ts_ts_ecr;
 		ev->payload_len = payload_len;

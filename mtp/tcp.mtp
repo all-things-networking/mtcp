@@ -179,18 +179,18 @@ event tcp_syn      : net_event { uint32 seq; uint16 sport, dport, window;
                                  uint8 wscale; bool has_wscale;
                                  uint32 local_ip, remote_ip; }
 
-// THE SEGMENT ITSELF, raised once ahead of what it carries. Its chain is
-// §proc_seq_check alone: the donor validates a segment before the state machine
-// sees it (tcp_in.c:107), and validation reads the context, so it cannot be in
-// the parser. One event, so it runs once however many the segment raises after
-// it -- and the acknowledgement a refusal owes is queued once with it.
-event tcp_seg      : net_event { uint32 seq, ack; uint16 flags;
-                                 uint32 payload_len, ts_val; bool has_ts; }
 event tcp_synack   : net_event { uint32 seq, ack; uint16 window;
                                  uint32 ts_val, ts_ecr; bool has_ts;
                                  uint8 wscale; bool has_wscale; }
-event tcp_ack      : net_event { uint32 seq, ack; uint16 window;
-                                 uint32 ts_val, ts_ecr; uint32 payload_len; }
+// tcp_ack CARRIES THE SEGMENT'S FLAGS AND ITS TIMESTAMP PRESENCE because
+// §proc_seq_check heads its chain and validation reads both. Every segment that
+// reaches the state machine carries the ACK flag -- the donor returns on one
+// that does not (tcp_in.c:1121) -- so this event is raised for every one of
+// them, which is what lets validation live at the head of a chain that already
+// existed rather than on an event of its own.
+event tcp_ack      : net_event { uint32 seq, ack; uint16 window, flags;
+                                 uint32 ts_val, ts_ecr; uint32 payload_len;
+                                 bool has_ts; }
 event tcp_data     : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
                                  addr_t hold_addr; uint32 data_len; }
 event tcp_fin      : net_event { uint32 seq, ack; uint16 window; uint32 ts_val;
@@ -602,10 +602,10 @@ opt_list tcp_options { list<tcp_opt> opts; }
 //   a SYN keys the LISTENER, and the backlog test and the context it creates
 //   are §proc_passive_open's, which is where allocation belongs;
 //
-//   validation reads the context, so it is §proc_seq_check on the tcp_seg
-//   chain -- raised first and once, which is what keeps a segment that raises
-//   three events from validating three times and owing acknowledgements the
-//   donor does not send.
+//   validation reads the context, so it is §proc_seq_check at the HEAD OF THE
+//   tcp_ack CHAIN -- every segment the state machine sees carries the ACK flag,
+//   so every one is validated exactly once, and the payload and FIN it also
+//   raises are dispatched after it and read the verdict.
 //
 // WHICH CONTEXT AN EVENT NEEDS IS PROTOCOL KNOWLEDGE, and it is stated here
 // with set_ctx_lookup_info. A key alone cannot say: every flow id in this
@@ -641,14 +641,6 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         return out;
     }
 
-    // Everything else is answered from the connection, and validated first.
-    tcp_seg v;
-    v.flags = bp.flags;  v.seq = bp.seq_no;  v.ack = bp.ack_seq;
-    v.payload_len = payload_len;
-    v.ts_val = bp.opts.ts_val;  v.has_ts = bp.opts.has_ts;
-    set_ctx_lookup_info(v, tcp_ctx, fid);
-    out.add(v);
-
     if ((bp.flags & FLAG_RST) != 0) {
         tcp_rst r;
         r.seq = bp.seq_no;  r.ack = bp.ack_seq;
@@ -673,9 +665,17 @@ list<event_t> parse_tcp(pkt_t p, ipv4 h) {
         return out;
     }
 
+    // A SEGMENT WITH NO ACK RAISES NOTHING. The donor returns on one
+    // (tcp_in.c:1121), and here it also has nowhere to be validated: validation
+    // heads the tcp_ack chain, so a segment that raises no tcp_ack would reach
+    // the payload and FIN chains unchecked.
+    if ((bp.flags & FLAG_ACK) == 0)
+        return out;
+
     if ((bp.flags & FLAG_ACK) != 0) {
         tcp_ack a;
         a.seq = bp.seq_no;  a.ack = bp.ack_seq;  a.window = bp.window;
+        a.flags = bp.flags;  a.has_ts = bp.opts.has_ts;
         a.ts_val = bp.opts.ts_val;  a.ts_ecr = bp.opts.ts_ecr;
         a.payload_len = payload_len;
         set_ctx_lookup_info(a, tcp_ctx, fid);
@@ -875,16 +875,18 @@ list<event_t> sock_close(close op) {
 // §proc_seq_check
 // ---------------------------------------------------------------------------
 // The donor's ValidateSequence (tcp_in.c:107), which runs once per segment
-// before the state machine sees it and returns early when it refuses. This is
-// the same placement: tcp_seg is raised first and its chain is this processor
-// alone, so a segment raising an acknowledgement, a payload and a FIN is
-// validated ONCE and owes ONE acknowledgement on refusal -- which is the whole
-// reason it is its own event rather than the head of three chains.
+// before the state machine sees it and returns early when it refuses.
+//
+// IT HEADS THE tcp_ack CHAIN, and that is the whole of the placement. Every
+// segment that reaches the state machine carries the ACK flag, so every one
+// raises tcp_ack and is validated exactly once -- the payload and FIN a segment
+// also raises are dispatched AFTER it and read the verdict. A segment without
+// the flag raises nothing at all, which is the donor's own early return.
 //
 // It writes ctx.seg_ok and the processors that follow read it. That is a
 // workaround: the donor returns, and MTP has no way for a processor to end its
 // chain (N-G).
-void proc_seq_check(tcp_seg ev, tcp_ctx ctx) {
+void proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
     ctx.seg_ok = false;
 
     // tcp_in.c:1292 -- the donor stamps activity on EVERY received packet,
@@ -1998,10 +2000,12 @@ void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
 //     in the donor; it raises a close event, so the application learns the
 //     socket is readable and then reads end-of-stream.
 void proc_rst(tcp_rst ev, tcp_ctx ctx) {
-    // §proc_seq_check refused this segment. The donor returns before the state
-    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
-    // same decision read from the context (N-G).
-    if (!ctx.seg_ok)
+    // A RESET IS VALIDATED HERE, not by §proc_seq_check -- the donor validates
+    // it inside ValidateSequence itself (tcp_in.c:196) rather than in the state
+    // machine that follows, and this chain does not run that processor. One
+    // outside the window is IGNORED, not answered: two hosts would trade resets.
+    if (int32(ev.seq - ctx.recv_next) < 0 ||
+        int32(ev.seq - (ctx.recv_next + ctx.rcv_wnd)) > 0)
         return;
     // Below ESTABLISHED the donor does not handle it here at all.
     if (ctx.state == ST_CLOSED || ctx.state == ST_LISTEN)
@@ -2092,11 +2096,9 @@ timer_start(ctx.rto_timer,
 // the peer's initial sequence number, its window and scale, its timestamp, and
 // whether it timestamps at all.
 void proc_synack(tcp_synack ev, tcp_ctx ctx) {
-    // §proc_seq_check refused this segment. The donor returns before the state
-    // machine at tcp_in.c:107; MTP has no way to end a chain, so this is the
-    // same decision read from the context (N-G).
-    if (!ctx.seg_ok)
-        return;
+    // No verdict to read: a SYN-ACK is not on the tcp_ack chain, and there is
+    // nothing to validate it against. §proc_seq_check accepts unconditionally
+    // in SYN_SENT for the same reason.
     if (ctx.state != ST_SYN_SENT)
         return;
 
@@ -2453,11 +2455,10 @@ coalesce tcp_coalesce : TCPBP {
 // §dispatch
 // ---------------------------------------------------------------------------
 dispatch tcp_dispatch {
-    tcp_seg     -> { proc_seq_check };
     tcp_syn     -> { proc_passive_open };
     tcp_synack  -> { proc_synack };
-    tcp_ack     -> { proc_timestamp, proc_open_done, proc_accept_queue,
-                     proc_window, proc_rtt,
+    tcp_ack     -> { proc_seq_check, proc_timestamp, proc_open_done,
+                     proc_accept_queue, proc_window, proc_rtt,
                      proc_fast_retransmit, proc_congestion, proc_ack,
                      gen_seg, gen_fin };
     tcp_data    -> { proc_recv, send_ack };

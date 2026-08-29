@@ -12,11 +12,13 @@
  * mtp/tcp.mtp §proc_seq_check
  * ---------------------------------------------------------------------------
  * The donor's ValidateSequence (tcp_in.c:107), which runs once per segment
- * before the state machine sees it and returns early when it refuses. This is
- * the same placement: tcp_seg is raised first and its chain is this processor
- * alone, so a segment raising an acknowledgement, a payload and a FIN is
- * validated ONCE and owes ONE acknowledgement on refusal -- which is the whole
- * reason it is its own event rather than the head of three chains.
+ * before the state machine sees it and returns early when it refuses.
+ *
+ * IT HEADS THE tcp_ack CHAIN, and that is the whole of the placement. Every
+ * segment that reaches the state machine carries the ACK flag, so every one
+ * raises tcp_ack and is validated exactly once -- the payload and FIN a segment
+ * also raises are dispatched AFTER it and read the verdict. A segment without
+ * the flag raises nothing at all, which is the donor's own early return.
  *
  * It writes ctx.seg_ok and the processors that follow read it. That is a
  * workaround: the donor returns, and MTP has no way for a processor to end its
@@ -990,7 +992,7 @@ proc_drain(struct app_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 void
 proc_rst(struct net_ev *ev, struct tcp_ctx *ctx)
 {
-	if (!(ctx->seg_ok)) {
+	if ((((int32_t)((ev->seq - ctx->recv_next)) < 0) || ((int32_t)((ev->seq - ((ctx->recv_next + ctx->rcv_wnd)))) > 0))) {
 		return;
 	}
 	if (((ctx->state == ST_CLOSED) || (ctx->state == ST_LISTEN))) {
@@ -1073,9 +1075,6 @@ void
 proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 {
 	(void)now_ms;
-	if (!(ctx->seg_ok)) {
-		return;
-	}
 	if ((ctx->state != ST_SYN_SENT)) {
 		return;
 	}

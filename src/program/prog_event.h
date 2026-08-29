@@ -33,7 +33,6 @@ enum ev_kind {
 	EV_tcp_probe_timeout,
 	EV_tcp_rst,
 	EV_tcp_rto_timeout,
-	EV_tcp_seg,
 	EV_tcp_syn,
 	EV_tcp_synack,
 	EV_tcp_timewait_timeout,

@@ -8,14 +8,6 @@
 #include "contract.h"
 #include "prog.h"
 
-/* generated from: tcp_seg -> { proc_seq_check } */
-bool
-dispatch_tcp_seg(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
-{
-	proc_seq_check(ev, ctx);
-	return true;
-}
-
 /* generated from: tcp_syn -> { proc_passive_open } */
 bool
 dispatch_tcp_syn(struct tcp_listen_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
@@ -32,12 +24,13 @@ dispatch_tcp_synack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 	return true;
 }
 
-/* generated from: tcp_ack -> { proc_timestamp, proc_open_done, proc_accept_queue, proc_window, proc_rtt, proc_fast_retransmit, proc_congestion, proc_ack, gen_seg, gen_fin } */
+/* generated from: tcp_ack -> { proc_seq_check, proc_timestamp, proc_open_done, proc_accept_queue, proc_window, proc_rtt, proc_fast_retransmit, proc_congestion, proc_ack, gen_seg, gen_fin } */
 bool
 dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 {
 	struct tcp_scratch sc = { 0 };
 
+	proc_seq_check(ev, ctx);
 	proc_timestamp(ev, ctx);
 	proc_open_done(ev, ctx);
 	{
@@ -262,14 +255,6 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len,
 			if (!c)
 				break;	/* look-up miss: TODO, an error event the program handles */
 			alive = dispatch_tcp_rst(c, &ev, now_ms);
-			break;
-		}
-		case EV_tcp_seg: {
-			struct tcp_ctx *c = ev.__have_tcp_ctx
-				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
-			if (!c)
-				break;	/* look-up miss: TODO, an error event the program handles */
-			alive = dispatch_tcp_seg(c, &ev, now_ms);
 			break;
 		}
 		case EV_tcp_syn: {
