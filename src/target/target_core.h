@@ -146,6 +146,9 @@ struct transport {
 	 */
 	const struct iphdr	*cur_iph;
 	uint16_t		 cur_sport, cur_dport;	/* the same, at L4 */
+	/* The application op being dispatched, for a flow no packet created.
+	 * NULL outside an app call, exactly as cur_iph is outside a packet. */
+	const struct mtp_app_op	*cur_op;
 	struct flow		*cur_flow;	/* the flow being dispatched */
 
 	/* counters that answer questions logs otherwise cannot */

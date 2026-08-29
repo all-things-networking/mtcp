@@ -405,9 +405,24 @@ mtp_new_ctx(const flowkey_t *key, size_t ctx_size)
 	uint32_t saddr = 0, daddr = 0;
 	uint16_t sport = 0, dport = 0;
 
-	/* L3 addressing comes from the packet being dispatched, never from the
+	/*
+	 * L3 addressing comes from the packet being dispatched, never from the
 	 * program: its key is a shape it may not read. The PORTS come the same
-	 * way and for the same reason -- see struct flow. */
+	 * way and for the same reason -- see struct flow.
+	 *
+	 * AN ACTIVE OPEN HAS NO PACKET, and used to leave the flow with no
+	 * addressing at all -- so the program handed it over with a `ctx_addrs`
+	 * instruction, which put an IP address in a protocol program to work
+	 * around the target not having asked. Since D-33 every application op
+	 * carries its endpoints, so the op answers it the same way a packet
+	 * does and the instruction is gone.
+	 */
+	if (!t->cur_iph && t->cur_op) {
+		saddr = t->cur_op->local.ip;
+		daddr = t->cur_op->remote.ip;
+		sport = t->cur_op->local.port;
+		dport = t->cur_op->remote.port;
+	}
 	if (t->cur_iph) {
 		saddr = t->cur_iph->daddr;	/* ours is the packet's dest */
 		daddr = t->cur_iph->saddr;
@@ -705,14 +720,20 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
  * whatever address the flow was created with.
  */
 void
+mtp_op_dispatching(const struct mtp_app_op *op)
+{
+	TransportOf(g_core[0])->cur_op = op;
+}
+
+void
 mtp_ctx_addrs(flow_t *f, uint32_t local_ip, uint32_t remote_ip)
 {
-	if (!f)
-		return;
-	f->saddr = local_ip;
-	f->daddr = remote_ip;
-	f->nif_out = -1;
-	f->is_external = 0;
+	/*
+	 * GONE FROM THE PROGRAM, kept as a definition only while the contract
+	 * still declares it. An active open now takes its addressing from the op
+	 * that opened it, in mtp_new_ctx above.
+	 */
+	(void)f; (void)local_ip; (void)remote_ip;
 }
 
 /*----------------------------------------------------------------------------*/

@@ -22,7 +22,6 @@ enum ev_kind {
 	EV_app_bind,
 	EV_app_close,
 	EV_app_connect,
-	EV_app_gen,
 	EV_app_listen,
 	EV_app_recv,
 	EV_app_send,

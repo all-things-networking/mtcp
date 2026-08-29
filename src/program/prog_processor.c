@@ -200,9 +200,8 @@ proc_open_done(struct net_ev *ev, struct tcp_ctx *ctx)
  * socket (:898-900).
  */
 void
-proc_accept_queue(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_listen_ctx *lst, uint32_t now_ms)
+proc_accept_queue(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_listen_ctx *lst)
 {
-	(void)now_ms;
 	if (!(ctx->seg_ok)) {
 		return;
 	}
@@ -213,17 +212,6 @@ proc_accept_queue(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_listen_ctx 
 		lst->pending[lst->pending_n] = ctx->key;
 		lst->pending_n = (lst->pending_n + 1);
 		mtp_notify(lst->f, &(struct mtp_notif){ .kind = MTP_NOTIF_READABLE });
-	}
-	if ((lst->obj_len > 0)) {
-		uint32_t wrote = mtp_add_tx_data(&(ctx->tx), lst->obj, lst->obj_len);
-		if ((wrote > 0)) {
-			struct tcp_scratch gs = { 0 };
-			ctx->write_end = (ctx->write_end + wrote);
-			gen_seg(ctx, &gs, now_ms);
-			drain_owed_acks(ctx, &gs, now_ms);
-			gen_wnd_adv(ctx, now_ms);
-		}
-		ctx->app_closed = true;
 	}
 	return;
 }
@@ -913,13 +901,6 @@ drain_owed_acks(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
  * for a retry; this is the retry.
  */
 void
-gen_answer(struct app_ev *ev, struct tcp_ctx *ctx)
-{
-	ev->result = ((((ctx->state == ST_ESTABLISHED) || (ctx->state == ST_CLOSE_WAIT))) ? (int32_t)(ev->mlen) : -(1));
-	return;
-}
-
-void
 gen_wnd_adv(struct tcp_ctx *ctx, uint32_t now_ms)
 {
 	(void)now_ms;
@@ -1409,29 +1390,11 @@ proc_connect(struct app_ev *ev, struct tcp_ctx *ctx)
 	ctx->cwnd = 1;
 	ctx->ssthresh = PARITY_SSTHRESH_ACTIVE;
 	ctx->state = ST_SYN_SENT;
-	mtp_ctx_addrs(ctx->f, ctx->local_ip, ctx->remote_ip);
 	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
 		(ctx->idle_timer).ctx = ctx;
 		mtp_timer_start(&(ctx->idle_timer), ((uint64_t)(tcp_timeout) * 1000000000ULL));
 	}
 	ev->opened = ctx->key;
-	return;
-}
-
-/*
- * mtp/tcp.mtp §post_object
- * ---------------------------------------------------------------------------
- * A send with no flow: the object a one-shot server posts before any connection
- * exists, so that every accepted connection receives it. It is posted to a
- * LISTENER, not to the process — with several listeners there is no "the"
- * listener to post to, which is why the op carries the endpoint. §proc_open_done
- * is what serves it.
- */
-void
-post_object(struct app_ev *ev, struct tcp_listen_ctx *ctx)
-{
-	ctx->obj = ev->addr;
-	ctx->obj_len = ev->mlen;
 	return;
 }
 

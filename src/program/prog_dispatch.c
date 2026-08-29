@@ -38,7 +38,7 @@ dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 		struct tcp_listen_ctx *ctx2 = ev->__have_tcp_listen_ctx
 			? mtp_ctx_lookup(&ev->__key_tcp_listen_ctx) : NULL;
 		if (ctx2)
-			proc_accept_queue(ev, ctx, ctx2, now_ms);
+			proc_accept_queue(ev, ctx, ctx2);
 	}
 	if (ctx)
 		proc_open_done(ev, ctx);
@@ -52,6 +52,8 @@ dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 		proc_congestion(ev, ctx);
 	if (ctx)
 		proc_ack(ev, ctx, &sc);
+	if (sc.__ctx_dead)
+		return false;	/* del_ctx ran: the context is gone */
 	if (ctx)
 		gen_seg(ctx, &sc, now_ms);
 	if (ctx)
@@ -137,9 +139,11 @@ dispatch_tcp_idle_timeout(struct tcp_ctx *ctx, struct timer_ev *ev, uint32_t now
 
 /* generated from: app_bind -> { proc_bind } */
 bool
-dispatch_app_bind(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
+dispatch_app_bind(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase)
 {
-	proc_bind(ev, ctx);
+	const bool __all = (phase == 0);
+	if (__all || (phase & MTP_OP_PHASE_RECORD))
+		proc_bind(ev, ctx);
 	if (!ctx)
 		ctx = mtp_ctx_lookup(&ev->__key_tcp_listen_ctx);
 	return true;
@@ -147,76 +151,79 @@ dispatch_app_bind(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms
 
 /* generated from: app_listen -> { proc_listen } */
 bool
-dispatch_app_listen(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
+dispatch_app_listen(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase)
 {
-	proc_listen(ev, ctx);
+	const bool __all = (phase == 0);
+	if (__all || (phase & MTP_OP_PHASE_RECORD))
+		proc_listen(ev, ctx);
 	return true;
 }
 
 /* generated from: app_accept -> { proc_accept } */
 bool
-dispatch_app_accept(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
+dispatch_app_accept(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase)
 {
-	proc_accept(ev, ctx);
+	const bool __all = (phase == 0);
+	if (__all || (phase & MTP_OP_PHASE_RECORD))
+		proc_accept(ev, ctx);
 	return true;
 }
 
 /* generated from: app_connect -> { proc_connect, gen_syn } */
 bool
-dispatch_app_connect(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
+dispatch_app_connect(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase)
 {
-	proc_connect(ev, ctx);
+	const bool __all = (phase == 0);
+	if (__all || (phase & MTP_OP_PHASE_RECORD))
+		proc_connect(ev, ctx);
 	if (!ctx)
 		ctx = mtp_ctx_lookup(&ev->__key_tcp_ctx);
-	gen_syn(ctx, now_ms);
+	if (__all || (phase & MTP_OP_PHASE_GENERATE))
+		gen_syn(ctx, now_ms);
 	return true;
 }
 
 /* generated from: app_recv -> { proc_drain } */
 bool
-dispatch_app_recv(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
+dispatch_app_recv(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase)
 {
+	const bool __all = (phase == 0);
 	struct tcp_scratch sc = { 0 };
 
-	proc_drain(ev, ctx, &sc);
+	if (__all || (phase & MTP_OP_PHASE_RECORD))
+		proc_drain(ev, ctx, &sc);
 	return true;
 }
 
-/* generated from: app_send -> { record_data, post_object } */
+/* generated from: app_send -> { record_data, gen_syn, gen_seg, drain_owed_acks, gen_wnd_adv } */
 bool
-dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
+dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase)
 {
-	if (ctx)
+	const bool __all = (phase == 0);
+	struct tcp_scratch sc = { 0 };
+
+	if (__all || (phase & MTP_OP_PHASE_RECORD))
 		record_data(ev, ctx);
-	{
-		struct tcp_listen_ctx *ctx2 = ev->__have_tcp_listen_ctx
-			? mtp_ctx_lookup(&ev->__key_tcp_listen_ctx) : NULL;
-		if (ctx2)
-			post_object(ev, ctx2);
-	}
-	return true;
-}
-
-/* generated from: app_gen -> { gen_syn, gen_seg, drain_owed_acks, gen_wnd_adv, gen_answer } */
-bool
-dispatch_app_gen(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
-{
-	struct tcp_scratch sc = { 0 };
-
-	gen_syn(ctx, now_ms);
-	gen_seg(ctx, &sc, now_ms);
-	drain_owed_acks(ctx, &sc, now_ms);
-	gen_wnd_adv(ctx, now_ms);
-	gen_answer(ev, ctx);
+	if (__all || (phase & MTP_OP_PHASE_GENERATE))
+		gen_syn(ctx, now_ms);
+	if (__all || (phase & MTP_OP_PHASE_GENERATE))
+		gen_seg(ctx, &sc, now_ms);
+	if (__all || (phase & MTP_OP_PHASE_GENERATE))
+		drain_owed_acks(ctx, &sc, now_ms);
+	if (__all || (phase & MTP_OP_PHASE_GENERATE))
+		gen_wnd_adv(ctx, now_ms);
 	return true;
 }
 
 /* generated from: app_close -> { mark_closed, gen_fin } */
 bool
-dispatch_app_close(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
+dispatch_app_close(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase)
 {
-	mark_closed(ev, ctx);
-	gen_fin(ctx, now_ms);
+	const bool __all = (phase == 0);
+	if (__all || (phase & MTP_OP_PHASE_RECORD))
+		mark_closed(ev, ctx);
+	if (__all || (phase & MTP_OP_PHASE_GENERATE))
+		gen_fin(ctx, now_ms);
 	return true;
 }
 

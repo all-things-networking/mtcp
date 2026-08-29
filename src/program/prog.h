@@ -56,7 +56,7 @@ proc_passive_open(struct net_ev *ev, struct tcp_listen_ctx *lst, uint32_t now_ms
 void
 proc_open_done(struct net_ev *ev, struct tcp_ctx *ctx);
 void
-proc_accept_queue(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_listen_ctx *lst, uint32_t now_ms);
+proc_accept_queue(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_listen_ctx *lst);
 void
 proc_timestamp(struct net_ev *ev, struct tcp_ctx *ctx);
 void
@@ -86,8 +86,6 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms);
 void
 drain_owed_acks(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms);
 void
-gen_answer(struct app_ev *ev, struct tcp_ctx *ctx);
-void
 gen_wnd_adv(struct tcp_ctx *ctx, uint32_t now_ms);
 void
 proc_drain(struct app_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s);
@@ -113,8 +111,6 @@ void
 proc_accept(struct app_ev *ev, struct tcp_listen_ctx *ctx);
 void
 proc_connect(struct app_ev *ev, struct tcp_ctx *ctx);
-void
-post_object(struct app_ev *ev, struct tcp_listen_ctx *ctx);
 bool dispatch_tcp_syn(struct tcp_listen_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_synack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms);
@@ -125,13 +121,12 @@ bool dispatch_tcp_rto_timeout(struct tcp_ctx *ctx, struct timer_ev *ev, uint32_t
 bool dispatch_tcp_timewait_timeout(struct tcp_ctx *ctx, struct timer_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_probe_timeout(struct tcp_ctx *ctx, struct timer_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_idle_timeout(struct tcp_ctx *ctx, struct timer_ev *ev, uint32_t now_ms);
-bool dispatch_app_bind(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
-bool dispatch_app_listen(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
-bool dispatch_app_accept(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
-bool dispatch_app_connect(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
-bool dispatch_app_recv(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
-bool dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
-bool dispatch_app_gen(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
-bool dispatch_app_close(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_bind(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
+bool dispatch_app_listen(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
+bool dispatch_app_accept(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
+bool dispatch_app_connect(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
+bool dispatch_app_recv(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
+bool dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
+bool dispatch_app_close(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
 
 #endif /* PROG_PROG_H */

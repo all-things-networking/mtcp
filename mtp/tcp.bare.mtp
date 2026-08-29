@@ -92,7 +92,6 @@ event app_connect  : app_event { uint32 loc_ip, rem_ip;
 event app_recv     : app_event { addr_t buf; uint32 len; int32 result; }
 event app_send     : app_event { addr_t addr; uint32 mlen;
                                  uint32 ip; uint16 port; int32 result; }
-event app_gen      : app_event { uint32 mlen; int32 result; }
 event app_close    : app_event { }
 
 context tcp_ctx {
@@ -166,8 +165,6 @@ context tcp_listen_ctx {
     uint32   pending_n;
     tcp_fid  pending[PROG_MAX_BACKLOG];
 
-    addr_t obj;
-    uint32 obj_len;
 }
 
 scratchpad_t tcp_scratch {
@@ -327,31 +324,17 @@ list<event_t> sock_connect(connect op) {
 
 list<event_t> sock_send(send op) {
     list<event_t> out;
+    app_send ev;
 
-    if ((op.flags & OP_PHASE_RECORD) != 0) {
-        app_send ev;
+    ev.addr = op.data;
+    ev.mlen = op.len;
+    ev.ip = op.local.ip;
+    ev.port = op.local.port;
 
-        ev.addr = op.data;
-        ev.mlen = op.len;
-        ev.ip = op.local.ip;
-        ev.port = op.local.port;
-        if (op.remote.port != 0)
-            set_ctx_lookup_info(ev, tcp_ctx,
-                                tcp_fid(op.local.ip, op.remote.ip,
-                                        op.local.port, op.remote.port));
-        else
-            set_ctx_lookup_info(ev, tcp_listen_ctx,
-                                tcp_lid(op.local.ip, op.local.port));
-        out.add(ev);
-    } else {
-        app_gen ev;
-
-        ev.mlen = op.len;
-        set_ctx_lookup_info(ev, tcp_ctx,
-                            tcp_fid(op.local.ip, op.remote.ip,
-                                    op.local.port, op.remote.port));
-        out.add(ev);
-    }
+    set_ctx_lookup_info(ev, tcp_ctx,
+                        tcp_fid(op.local.ip, op.remote.ip,
+                                op.local.port, op.remote.port));
+    out.add(ev);
     return out;
 }
 
@@ -527,19 +510,6 @@ void proc_accept_queue(tcp_ack ev, tcp_ctx ctx, tcp_listen_ctx lst) {
         lst.pending[lst.pending_n] = ctx.key;
         lst.pending_n = lst.pending_n + 1;
         notify(lst, READABLE);
-    }
-    if (lst.obj_len > 0) {
-        uint32 wrote = add_tx_data(ctx.tx, lst.obj, lst.obj_len);
-
-        if (wrote > 0) {
-            tcp_scratch gs;
-
-            ctx.write_end = ctx.write_end + wrote;
-            gen_seg(ev, ctx, gs);
-            drain_owed_acks(ev, ctx, gs);
-            gen_wnd_adv(ev, ctx);
-        }
-        ctx.app_closed = true;
     }
     return;
 }
@@ -977,11 +947,6 @@ void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     return;
 }
 
-void gen_answer(app_gen ev, tcp_ctx ctx) {
-    ev.result = (ctx.state == ST_ESTABLISHED || ctx.state == ST_CLOSE_WAIT) ? int32(ev.mlen) : -1;
-    return;
-}
-
 void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
     if (!ctx.need_wnd_adv || ctx.rcv_wnd <= PARITY_MSS_PAYLOAD)
         return;
@@ -1281,16 +1246,9 @@ void proc_connect(app_connect ev, tcp_ctx ctx) {
     ctx.cwnd = 1;
     ctx.ssthresh = PARITY_SSTHRESH_ACTIVE;
     ctx.state = ST_SYN_SENT;
-    ctx_addrs(ctx, ctx.local_ip, ctx.remote_ip);
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
         timer_start(ctx.idle_timer, second(tcp_timeout));
     ev.opened = ctx.key;
-    return;
-}
-
-void post_object(app_send ev, tcp_listen_ctx ctx) {
-    ctx.obj = ev.addr;
-    ctx.obj_len = ev.mlen;
     return;
 }
 
@@ -1320,8 +1278,7 @@ dispatch tcp_dispatch {
     app_accept  -> { proc_accept };
     app_connect -> { proc_connect, gen_syn };
     app_recv    -> { proc_drain };
-    app_send    -> { record_data, post_object };
-    app_gen     -> { gen_syn, gen_seg, drain_owed_acks, gen_wnd_adv,
-                     gen_answer };
+    app_send    -> { record_data, gen_syn, gen_seg, drain_owed_acks,
+                     gen_wnd_adv };
     app_close   -> { mark_closed, gen_fin };
 }

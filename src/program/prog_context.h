@@ -325,17 +325,6 @@ struct tcp_listen_ctx {
 	uint32_t pending_cap;
 	uint32_t pending_n;
 	flowkey_t pending[PROG_MAX_BACKLOG];
-
-	/*
-	 * The object the application has posted to serve, per listener rather than
-	 * per process. A one-shot server hands it over once and every accepted
-	 * connection receives it; that is what epserver does with a file, and it is
-	 * enough to drive bulk send. It arrives through the app interface as a SEND
-	 * op, not as something this program invented — the bytes are the
-	 * application's and the program only decides when they go.
-	 */
-	struct mtp_addr obj;
-	uint32_t obj_len;
 };
 
 #define TCP_LISTEN_CTX_INIT	{ .state = ST_CLOSED }

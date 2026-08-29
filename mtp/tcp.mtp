@@ -240,7 +240,6 @@ event app_recv     : app_event { addr_t buf; uint32 len; int32 result; }
 // two chains.
 event app_send     : app_event { addr_t addr; uint32 mlen;
                                  uint32 ip; uint16 port; int32 result; }
-event app_gen      : app_event { uint32 mlen; int32 result; }
 event app_close    : app_event { }
 
 // §context
@@ -460,13 +459,6 @@ context tcp_listen_ctx {
     tcp_fid  pending[PROG_MAX_BACKLOG];
 
     // The object the application has posted to serve, per listener rather than
-    // per process. A one-shot server hands it over once and every accepted
-    // connection receives it; that is what epserver does with a file, and it is
-    // enough to drive bulk send. It arrives through the app interface as a SEND
-    // op, not as something this program invented — the bytes are the
-    // application's and the program only decides when they go.
-    addr_t obj;
-    uint32 obj_len;
 }
 
 // §scratchpad
@@ -793,38 +785,28 @@ list<event_t> sock_connect(connect op) {
 // is no "the" listener to post to, which is why the op carries the endpoint.
 list<event_t> sock_send(send op) {
     list<event_t> out;
+    app_send ev;
 
-    // WHICH HALF, decided here. A send that NAMES A FLOW attaches the handle
-    // the socket layer already holds; one that does not is the posted object,
-    // and keys a LISTENER.
-    if ((op.flags & OP_PHASE_RECORD) != 0) {
-        app_send ev;
+    // ONE EVENT AND ONE CHAIN, whichever thread the target is calling on. The
+    // application's send is a send; that half of it records and half of it
+    // generates is a fact about the TARGET, and §dispatch does not say it
+    // either -- the compiler places each processor from the instructions it
+    // issues (CR-E). This parser therefore does not look at the phase at all.
+    ev.addr = op.data;
+    ev.mlen = op.len;
+    ev.ip = op.local.ip;
+    ev.port = op.local.port;
 
-        ev.addr = op.data;
-        ev.mlen = op.len;
-        ev.ip = op.local.ip;
-        ev.port = op.local.port;
-        // A send ON A CONNECTED SOCKET keys the connection; one with no peer
-        // is the posted object and keys the LISTENER. The op carries both
-        // endpoints either way, so this is the key the packet parser builds --
-        // there is no handle to attach (D-33).
-        if (op.remote.port != 0)
-            set_ctx_lookup_info(ev, tcp_ctx,
-                                tcp_fid(op.local.ip, op.remote.ip,
-                                        op.local.port, op.remote.port));
-        else
-            set_ctx_lookup_info(ev, tcp_listen_ctx,
-                                tcp_lid(op.local.ip, op.local.port));
-        out.add(ev);
-    } else {
-        app_gen ev;
-
-        ev.mlen = op.len;
-        set_ctx_lookup_info(ev, tcp_ctx,
-                            tcp_fid(op.local.ip, op.remote.ip,
-                                    op.local.port, op.remote.port));
-        out.add(ev);
-    }
+    // A SEND NAMES A CONNECTION, always. It could once name a LISTENER too --
+    // an object posted before any connection existed, which every accepted one
+    // then received. No application sends on a listening socket, so nothing
+    // ever posted one, and the processor that stored it and the block that
+    // served it were both dead. The block was also the one place a processor
+    // called other processors.
+    set_ctx_lookup_info(ev, tcp_ctx,
+                        tcp_fid(op.local.ip, op.remote.ip,
+                                op.local.port, op.remote.port));
+    out.add(ev);
     return out;
 }
 
@@ -1121,28 +1103,6 @@ void proc_accept_queue(tcp_ack ev, tcp_ctx ctx, tcp_listen_ctx lst) {
         lst.pending[lst.pending_n] = ctx.key;
         lst.pending_n = lst.pending_n + 1;
         notify(lst, READABLE);
-    }
-    // The application posted an object before listening; serve it. It
-    // arrives through the app interface as a SEND, so this is the same two
-    // steps the application thread takes — buffer, then hand over the
-    // extent — except that this path already runs on the stack thread and
-    // so does both itself.
-    if (lst.obj_len > 0) {
-        uint32 wrote = add_tx_data(ctx.tx, lst.obj, lst.obj_len);
-
-        if (wrote > 0) {
-            tcp_scratch gs;
-
-            ctx.write_end = ctx.write_end + wrote;
-            // The generate half, run inline: this path is ALREADY on the
-            // stack thread, so it does both steps itself rather than
-            // buffering and asking. Same three processors, same order, as
-            // the app_send generate chain.
-            gen_seg(ev, ctx, gs);
-            drain_owed_acks(ev, ctx, gs);
-            gen_wnd_adv(ev, ctx);
-        }
-        ctx.app_closed = true;   // a one-shot server has said all it will
     }
     return;
 }
@@ -1931,11 +1891,6 @@ void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
 // HERE RATHER THAN IN §proc_drain because that runs on the APPLICATION thread
 // and generation is the stack's (CR-4). §proc_drain raises the flag and asks
 // for a retry; this is the retry.
-void gen_answer(app_gen ev, tcp_ctx ctx) {
-    ev.result = (ctx.state == ST_ESTABLISHED || ctx.state == ST_CLOSE_WAIT) ? int32(ev.mlen) : -1;
-    return;
-}
-
 void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
     if (!ctx.need_wnd_adv || ctx.rcv_wnd <= PARITY_MSS_PAYLOAD)
         return;
@@ -2426,25 +2381,10 @@ void proc_connect(app_connect ev, tcp_ctx ctx) {
     ctx.cwnd = 1;
     ctx.ssthresh = PARITY_SSTHRESH_ACTIVE;
     ctx.state = ST_SYN_SENT;
-    // No packet created this flow, so the target has no addresses for it.
-    ctx_addrs(ctx, ctx.local_ip, ctx.remote_ip);
     // the idle deadline, refreshed; nothing to reap once closed
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
         timer_start(ctx.idle_timer, second(tcp_timeout));
     ev.opened = ctx.key;                  // the caller needs the handle (CR-2)
-    return;
-}
-
-// §post_object
-// ---------------------------------------------------------------------------
-// A send with no flow: the object a one-shot server posts before any connection
-// exists, so that every accepted connection receives it. It is posted to a
-// LISTENER, not to the process — with several listeners there is no "the"
-// listener to post to, which is why the op carries the endpoint. §proc_open_done
-// is what serves it.
-void post_object(app_send ev, tcp_listen_ctx ctx) {
-    ctx.obj = ev.addr;
-    ctx.obj_len = ev.mlen;
     return;
 }
 
@@ -2482,19 +2422,22 @@ dispatch tcp_dispatch {
     app_accept  -> { proc_accept };
     app_connect -> { proc_connect, gen_syn };
     app_recv    -> { proc_drain };
-    app_send    -> { record_data, post_object };
-    app_gen     -> { gen_syn, gen_seg, drain_owed_acks, gen_wnd_adv,
-                     gen_answer };
+    app_send    -> { record_data, gen_syn, gen_seg, drain_owed_acks,
+                     gen_wnd_adv };
     app_close   -> { mark_closed, gen_fin };
 }
 
-// THE app_send CHAIN IS ONE CHAIN ON TWO THREADS (CR-4). `record_data` and
-// `post_object` are the RECORD half and run inside the application's call;
-// `gen_syn`, `gen_seg`, `drain_owed_acks` and `gen_wnd_adv` are the GENERATE
-// half and run on the stack. Each guards on `ev.phase_record`, and the
-// generated dispatch calls only the half it was asked for, which is knowledge
-// the compiler has because it made the placement. `post_object` is selected by
-// the CONTEXT TYPE the event resolves to: a send with no flow keys a listener.
+// THE app_send CHAIN IS ONE CHAIN ON TWO THREADS (CR-4), AND SAYS SO NOWHERE.
+// `record_data` runs inside the application's call; `gen_syn`, `gen_seg`,
+// `drain_owed_acks` and `gen_wnd_adv` run on the stack. That division is not
+// written here and is not written in the processors either -- the compiler
+// makes it, from the instructions each one issues: a processor that reaches
+// `pkt_gen` puts something on the wire and is the stack's, and the rest can run
+// where the application called. It is a fact about the target, so the target's
+// compiler is what should know it.
+//
+// It used to be two events and two chains, and the program carried the split by
+// hand. One event now, and the phase the target asks for selects the half.
 //
 // `gen_syn` is in this chain as well as in app_connect's because a refused SYN
 // — the peer's address is not yet resolved — is re-attempted from the retry

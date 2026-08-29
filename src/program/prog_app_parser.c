@@ -100,22 +100,12 @@ sock_send(struct mtp_app_op *op, struct app_ev *ev,
 {
 	unsigned __n = 0;
 	(void)now_ms;
-	if ((((op->flags & MTP_OP_PHASE_RECORD)) != 0)) {
-		ev->addr = op->data;
-		ev->mlen = op->len;
-		ev->ip = op->local.ip;
-		ev->port = ntohs(op->local.port);
-		if ((ntohs(op->remote.port) != 0)) {
-			(ev->__key_tcp_ctx = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) }), ev->__have_tcp_ctx = true);
-		} else {
-			(ev->__key_tcp_listen_ctx = ((flowkey_t){ .kind = 1, .v0 = op->local.ip, .v1 = ntohs(op->local.port) }), ev->__have_tcp_listen_ctx = true);
-		}
-		kinds[__n++] = EV_app_send;
-	} else {
-		ev->mlen = op->len;
-		(ev->__key_tcp_ctx = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) }), ev->__have_tcp_ctx = true);
-		kinds[__n++] = EV_app_gen;
-	}
+	ev->addr = op->data;
+	ev->mlen = op->len;
+	ev->ip = op->local.ip;
+	ev->port = ntohs(op->local.port);
+	(ev->__key_tcp_ctx = ((flowkey_t){ .kind = 0, .v0 = op->local.ip, .v1 = op->remote.ip, .v2 = ntohs(op->local.port), .v3 = ntohs(op->remote.port) }), ev->__have_tcp_ctx = true);
+	kinds[__n++] = EV_app_send;
 	return __n;
 }
 
@@ -170,6 +160,7 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 	struct app_ev ev;
 	unsigned n, i;
 
+	mtp_op_dispatching(op);
 	memset(&ev, 0, sizeof(ev));
 	switch (op->kind) {
 	case MTP_APP_BIND:
@@ -204,14 +195,18 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 				? mtp_ctx_lookup(&ev.__key_tcp_listen_ctx) : NULL;
 			if (!ctx)
 				break;	/* look-up miss: TODO, an error event the program handles */
-			if (!dispatch_app_accept(ctx, &ev, now_ms))
+			if (!dispatch_app_accept(ctx, &ev, now_ms,
+					op->flags & (MTP_OP_PHASE_RECORD
+						     | MTP_OP_PHASE_GENERATE)))
 				return 0;
 			break;
 		}
 		case EV_app_bind: {
 			struct tcp_listen_ctx *ctx = ev.__have_tcp_listen_ctx
 				? mtp_ctx_lookup(&ev.__key_tcp_listen_ctx) : NULL;
-			if (!dispatch_app_bind(ctx, &ev, now_ms))
+			if (!dispatch_app_bind(ctx, &ev, now_ms,
+					op->flags & (MTP_OP_PHASE_RECORD
+						     | MTP_OP_PHASE_GENERATE)))
 				return 0;
 			break;
 		}
@@ -220,23 +215,18 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
 			if (!ctx)
 				break;	/* look-up miss: TODO, an error event the program handles */
-			if (!dispatch_app_close(ctx, &ev, now_ms))
+			if (!dispatch_app_close(ctx, &ev, now_ms,
+					op->flags & (MTP_OP_PHASE_RECORD
+						     | MTP_OP_PHASE_GENERATE)))
 				return 0;
 			break;
 		}
 		case EV_app_connect: {
 			struct tcp_ctx *ctx = ev.__have_tcp_ctx
 				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
-			if (!dispatch_app_connect(ctx, &ev, now_ms))
-				return 0;
-			break;
-		}
-		case EV_app_gen: {
-			struct tcp_ctx *ctx = ev.__have_tcp_ctx
-				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
-			if (!ctx)
-				break;	/* look-up miss: TODO, an error event the program handles */
-			if (!dispatch_app_gen(ctx, &ev, now_ms))
+			if (!dispatch_app_connect(ctx, &ev, now_ms,
+					op->flags & (MTP_OP_PHASE_RECORD
+						     | MTP_OP_PHASE_GENERATE)))
 				return 0;
 			break;
 		}
@@ -245,7 +235,9 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 				? mtp_ctx_lookup(&ev.__key_tcp_listen_ctx) : NULL;
 			if (!ctx)
 				break;	/* look-up miss: TODO, an error event the program handles */
-			if (!dispatch_app_listen(ctx, &ev, now_ms))
+			if (!dispatch_app_listen(ctx, &ev, now_ms,
+					op->flags & (MTP_OP_PHASE_RECORD
+						     | MTP_OP_PHASE_GENERATE)))
 				return 0;
 			break;
 		}
@@ -254,14 +246,20 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
 			if (!ctx)
 				break;	/* look-up miss: TODO, an error event the program handles */
-			if (!dispatch_app_recv(ctx, &ev, now_ms))
+			if (!dispatch_app_recv(ctx, &ev, now_ms,
+					op->flags & (MTP_OP_PHASE_RECORD
+						     | MTP_OP_PHASE_GENERATE)))
 				return 0;
 			break;
 		}
 		case EV_app_send: {
 			struct tcp_ctx *ctx = ev.__have_tcp_ctx
 				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
-			if (!dispatch_app_send(ctx, &ev, now_ms))
+			if (!ctx)
+				break;	/* look-up miss: TODO, an error event the program handles */
+			if (!dispatch_app_send(ctx, &ev, now_ms,
+					op->flags & (MTP_OP_PHASE_RECORD
+						     | MTP_OP_PHASE_GENERATE)))
 				return 0;
 			break;
 		}

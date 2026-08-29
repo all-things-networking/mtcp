@@ -765,6 +765,19 @@ struct mtp_app_op {
 #define MTP_OP_PHASE_RECORD	0x1u	/* application thread: take the bytes */
 #define MTP_OP_PHASE_GENERATE	0x2u	/* stack thread: send what was taken */
 
+/*
+ * THE OP BEING DISPATCHED, recorded by the generated entry point as its first
+ * act -- the symmetric twin of the target recording the packet it is
+ * dispatching before it calls the program.
+ *
+ * It exists so a flow created by an application call gets its addressing the
+ * same way one created by a packet does: from what arrived. Before this, a flow
+ * with no packet behind it had no addresses, and the PROGRAM handed them over
+ * with a `ctx_addrs` instruction -- an IP address in a protocol program, put
+ * there to work around the target never having asked.
+ */
+void mtp_op_dispatching(const struct mtp_app_op *op);
+
 /*============================================================================*
  * 8. What the compiler emits, and what the target calls
  *============================================================================*/
