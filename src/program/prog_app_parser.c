@@ -261,8 +261,6 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 		case EV_app_send: {
 			struct tcp_ctx *ctx = ev.__have_tcp_ctx
 				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
-			if (!ctx)
-				break;	/* look-up miss: TODO, an error event the program handles */
 			if (!dispatch_app_send(ctx, &ev, now_ms))
 				return 0;
 			break;

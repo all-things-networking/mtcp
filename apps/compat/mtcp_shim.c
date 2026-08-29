@@ -92,6 +92,7 @@ struct shim_flow_state {
 static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
 static uint64_t g_wr_calls, g_wr_asked, g_wr_got, g_wr_short, g_wr_refused;
 static uint64_t g_wr_ringfull, g_wr_noflow;
+static uint64_t g_ac_calls, g_ac_ok, g_ac_empty;	/* TEMPORARY */
 static struct shim_sock	 g_sock[SHIM_MAX_SOCK];
 static struct core_ctx	*g_shim_core;
 static pthread_t	 g_shim_stack;
@@ -327,6 +328,9 @@ mtcp_destroy_context(mctx_t mctx)
 	}
 	if (g_shim_core)
 		PrintNetworkStats(g_shim_core);	/* the loop is ours, so is the report */
+	fprintf(stderr, "shim accept: %llu calls, %llu ok, %llu empty\n",
+		(unsigned long long)g_ac_calls, (unsigned long long)g_ac_ok,
+		(unsigned long long)g_ac_empty);
 	fprintf(stderr, "shim write: %llu calls, asked %llu, got %llu (%.1f%%), "
 		"%llu short, %llu refused (%llu ring full, %llu no flow); "
 		"mean asked %llu, mean got %llu\n",
@@ -540,10 +544,13 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 	memset(&op, 0, sizeof(op));
 	op.kind = MTP_APP_ACCEPT;
 	op.local = g_bound;		/* which listener; the op names it */
+	g_ac_calls++;
 	if (mtp_program_app_op(&op, 0) < 0 || !op.flow) {
+		g_ac_empty++;
 		errno = EAGAIN;
 		return -1;
 	}
+	g_ac_ok++;
 	return sock_alloc(op.flow);
 }
 

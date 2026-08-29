@@ -30,24 +30,32 @@ dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 {
 	struct tcp_scratch sc = { 0 };
 
-	proc_seq_check(ev, ctx);
-	proc_timestamp(ev, ctx);
-	proc_open_done(ev, ctx);
+	if (ctx)
+		proc_seq_check(ev, ctx);
+	if (ctx)
+		proc_timestamp(ev, ctx);
+	if (ctx)
+		proc_open_done(ev, ctx);
 	{
 		struct tcp_listen_ctx *ctx2 = ev->__have_tcp_listen_ctx
 			? mtp_ctx_lookup(&ev->__key_tcp_listen_ctx) : NULL;
 		if (ctx2)
 			proc_accept_queue(ev, ctx, ctx2, now_ms);
 	}
-	proc_window(ev, ctx);
-	proc_rtt(ev, ctx, now_ms);
-	proc_fast_retransmit(ev, ctx, &sc);
-	proc_congestion(ev, ctx);
-	proc_ack(ev, ctx, &sc);
-	if (sc.__ctx_dead)
-		return false;	/* del_ctx ran: the context is gone */
-	gen_seg(ctx, &sc, now_ms);
-	gen_fin(ctx, now_ms);
+	if (ctx)
+		proc_window(ev, ctx);
+	if (ctx)
+		proc_rtt(ev, ctx, now_ms);
+	if (ctx)
+		proc_fast_retransmit(ev, ctx, &sc);
+	if (ctx)
+		proc_congestion(ev, ctx);
+	if (ctx)
+		proc_ack(ev, ctx, &sc);
+	if (ctx)
+		gen_seg(ctx, &sc, now_ms);
+	if (ctx)
+		gen_fin(ctx, now_ms);
 	return true;
 }
 
@@ -178,7 +186,8 @@ dispatch_app_recv(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 bool
 dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 {
-	record_data(ev, ctx);
+	if (ctx)
+		record_data(ev, ctx);
 	{
 		struct tcp_listen_ctx *ctx2 = ev->__have_tcp_listen_ctx
 			? mtp_ctx_lookup(&ev->__key_tcp_listen_ctx) : NULL;
@@ -228,8 +237,6 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len,
 		case EV_tcp_ack: {
 			struct tcp_ctx *c = ev.__have_tcp_ctx
 				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
-			if (!c)
-				break;	/* look-up miss: TODO, an error event the program handles */
 			alive = dispatch_tcp_ack(c, &ev, now_ms);
 			break;
 		}

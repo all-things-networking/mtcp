@@ -99,7 +99,13 @@ proc_passive_open(struct net_ev *ev, struct tcp_listen_ctx *lst, uint32_t now_ms
 		return;
 	}
 	flowkey_t fid = ((flowkey_t){ .kind = 0, .v0 = ev->local_ip, .v1 = ev->remote_ip, .v2 = ev->dport, .v3 = ev->sport });
-	struct tcp_ctx *ctx = mtp_new_ctx(&(fid), sizeof(struct tcp_listen_ctx));
+	struct tcp_ctx *ctx = mtp_new_ctx(&(fid), sizeof(struct tcp_ctx));
+	if (!ctx)
+		return;
+	ctx->state = ST_CLOSED;
+	ctx->send_wnd = 65535;
+	ctx->cwnd = PARITY_INIT_CWND;
+	ctx->rcv_wnd = PARITY_INITIAL_WINDOW;
 	ctx->key = fid;
 	ctx->lst_key = ((flowkey_t){ .kind = 1, .v0 = ev->local_ip, .v1 = ev->dport });
 	ctx->loc_port = ev->dport;
@@ -143,7 +149,7 @@ proc_passive_open(struct net_ev *ev, struct tcp_listen_ctx *lst, uint32_t now_ms
 	TCPBP_add_opt_wscale(&bp_synack, PARITY_WSCALE);
 	uint8_t __t0[PROG_HDR_MAX];
 	uint16_t __t1 = TCPBP_build(__t0, &bp_synack);
-	if ((mtp_pkt_gen(lst->f, __t0, __t1, &bp_synack.__pay, bp_synack.__mss, PRIO_CONTROL, PROG_OFFLOAD, false) == 0)) {
+	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_synack.__pay, bp_synack.__mss, PRIO_CONTROL, PROG_OFFLOAD, false) == 0)) {
 		ctx->send_next = (ctx->send_next + 1);
 		ctx->snd_base = ctx->send_next;
 		if (!(ctx->tx_open)) {
