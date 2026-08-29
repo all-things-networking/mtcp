@@ -121,12 +121,15 @@ bool dispatch_tcp_rto_timeout(struct tcp_ctx *ctx, struct timer_ev *ev, uint32_t
 bool dispatch_tcp_timewait_timeout(struct tcp_ctx *ctx, struct timer_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_probe_timeout(struct tcp_ctx *ctx, struct timer_ev *ev, uint32_t now_ms);
 bool dispatch_tcp_idle_timeout(struct tcp_ctx *ctx, struct timer_ev *ev, uint32_t now_ms);
-bool dispatch_app_bind(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
-bool dispatch_app_listen(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
-bool dispatch_app_accept(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
-bool dispatch_app_connect(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
-bool dispatch_app_recv(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
-bool dispatch_app_send(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
-bool dispatch_app_close(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms, uint32_t phase);
+bool dispatch_app_bind_record(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_listen_record(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_accept_record(struct tcp_listen_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_connect_record(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_connect_generate(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_recv_record(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_send_record(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_send_generate(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_close_record(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_close_generate(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 
 #endif /* PROG_PROG_H */
