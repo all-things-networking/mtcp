@@ -40,6 +40,15 @@ struct flow {
 	 * interprets.
 	 */
 	uint16_t	 sport, dport;
+	/*
+	 * A RECEIVE THE TARGET REFUSED FOR LACK OF ROOM. Set where the receive
+	 * ring declines a segment, read and cleared where the application next
+	 * drains it. It is the target-visible shadow of "we advertised a window
+	 * of zero, and owe an advertisement once there is room again" -- which
+	 * is program state the target cannot see. Asking for a generate pass
+	 * after EVERY read instead cost 22% of a client's throughput.
+	 */
+	uint8_t		 rx_blocked;
 	int		 nif_out;	/* from mTCP sndvar->nif_out: resolve the
 					 * route once per flow, not per packet */
 	uint8_t		 is_external;

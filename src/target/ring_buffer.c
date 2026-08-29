@@ -24,6 +24,7 @@
 #include <assert.h>
 
 #include "contract.h"
+#include "flow.h"	/* the owner flow, for rx_blocked */
 #include "internal.h"
 
 static inline uint32_t rx_off(const struct mtp_data_unit *u, uint64_t seq)
@@ -98,8 +99,13 @@ mtp_add_rx_data_seg(struct mtp_data_unit *u, struct mtp_addr addr,
 		len -= (uint32_t)skip;
 		offset = u->head_seq;
 	}
-	if (offset + len - u->head_seq > u->cap)
+	if (offset + len - u->head_seq > u->cap) {
+		/* No room. The peer is at the window we advertised, and once the
+		 * application drains it is owed a new one -- see flow.rx_blocked. */
+		if (u->owner)
+			((struct flow *)u->owner)->rx_blocked = 1;
 		return -1;			/* would overrun the window */
+	}
 
 	at = rx_off(u, offset);
 	first = u->cap - at;

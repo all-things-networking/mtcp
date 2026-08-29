@@ -574,19 +574,11 @@ HandleRetryList(struct core_ctx *core)
 	memcpy(taken, t->retry, n * sizeof(taken[0]));
 	t->retry_n = 0;
 	for (i = 0; i < n; i++) {
-		struct mtp_app_op op;
-
 		taken[i]->on_retry = 0;
 		if (!taken[i]->slot_live)
 			continue;	/* destroyed since it asked */
 		t->retries++;
-		memset(&op, 0, sizeof(op));
-		op.kind = MTP_APP_SEND;
-		op.flow = taken[i];
-		FlowFillOpEndpoints(&op, taken[i]);
-		op.len = 0;		/* nothing new: attempt what is held */
-		op.flags = MTP_OP_PHASE_GENERATE;
-		mtp_program_app_op(&op, core->cur_ts);
+		mtp_program_generate(taken[i], core->cur_ts);
 	}
 }
 
@@ -753,12 +745,37 @@ mtp_pkt_gen_orphan(uint32_t local_ip, uint32_t remote_ip,
 
 /*----------------------------------------------------------------------------*/
 /*
- * mtp_retry — the program asks for its generation to be attempted again on the
- * next pass. contract.h says why the PROGRAM has to ask and the target cannot
- * decide: only the program knows it has something unsent.
+ * mtp_flow_generate_later — attempt this flow's generation again at the end of
+ * the pass. The PROGRAM used to ask for this and no longer can; contract.h says
+ * why. Called by the target where it knows a generation is owed and no event
+ * will carry it.
+ */
+/*
+ * Did this flow's receive ring turn a segment away since the last time anyone
+ * asked? Reading it clears it: the caller is about to act on it.
+ */
+bool
+mtp_flow_take_rx_blocked(flow_t *f)
+{
+	if (!f || !f->rx_blocked)
+		return false;
+	f->rx_blocked = 0;
+	return true;
+}
+
+/*
+ * mtp_retry — the ONE case the program still has to ask for: it advertised a
+ * window of zero, so the peer has stopped and no event will come, and nothing
+ * arrives for the target to refuse either. contract.h has the rest.
  */
 void
 mtp_retry(flow_t *f)
+{
+	mtp_flow_generate_later(f);
+}
+
+void
+mtp_flow_generate_later(flow_t *f)
 {
 	struct transport *t = TransportOf(g_core[0]);
 
@@ -963,8 +980,24 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 	}
 	mtp_program_net_input(l4, l4_len, iph, cur_ts);
 	/* the edge: whatever the program merged is now readable */
-	if (TransportOf(core)->cur_flow)
+	if (TransportOf(core)->cur_flow) {
 		ready_after_input(TransportOf(core), TransportOf(core)->cur_flow);
+		/*
+		 * AND THE GENERATION THIS PASS OWES, once, at the end of it.
+		 *
+		 * The acknowledgement a segment owes is not emitted by the chain
+		 * that owed it: that would send one per SEGMENT, where the donor
+		 * queues a count per segment and drains it once per pass
+		 * (WritePacketsToChunks, after every packet in the batch has
+		 * been processed). Measured: draining per chain cost 22% of this
+		 * client's throughput, by roughly doubling the acknowledgements
+		 * on the wire.
+		 *
+		 * The flag inside makes this one entry per flow per pass however
+		 * many packets it had, which is the donor's shape exactly.
+		 */
+		mtp_flow_generate_later(TransportOf(core)->cur_flow);
+	}
 	TransportOf(core)->cur_iph = NULL;
 	TransportOf(core)->cur_sport = TransportOf(core)->cur_dport = 0;
 	TransportOf(core)->cur_flow = NULL;

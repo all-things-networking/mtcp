@@ -43,7 +43,6 @@ proc_seq_check(struct net_ev *ev, struct tcp_ctx *ctx)
 			}
 			if (((int32_t)((ev->ts_val - ctx->ts_recent)) < 0)) {
 				ctx->ack_cnt = (ctx->ack_cnt + 1);
-				mtp_retry(ctx->f);
 				return;
 			}
 			ctx->ts_recent = ev->ts_val;
@@ -62,10 +61,8 @@ proc_seq_check(struct net_ev *ev, struct tcp_ctx *ctx)
 				if ((ctx->ack_cnt == 0)) {
 					ctx->ack_cnt = 1;
 				}
-				mtp_retry(ctx->f);
 			} else {
 				ctx->ack_cnt = (ctx->ack_cnt + 1);
-				mtp_retry(ctx->f);
 			}
 		} else {
 			if ((ctx->state == ST_TIME_WAIT)) {
@@ -74,7 +71,6 @@ proc_seq_check(struct net_ev *ev, struct tcp_ctx *ctx)
 				mtp_timer_start(&(ctx->tw_timer), ((uint64_t)(tcp_timewait) * 1000000000ULL));
 			}
 			ctx->ack_cnt = (ctx->ack_cnt + 1);
-			mtp_retry(ctx->f);
 		}
 		return;
 	}
@@ -545,7 +541,6 @@ send_ack(struct tcp_ctx *ctx, struct tcp_scratch *s)
 	} else {
 		ctx->ack_cnt = (ctx->ack_cnt + 1);
 	}
-	mtp_retry(ctx->f);
 	return;
 }
 
@@ -749,7 +744,6 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 	uint32_t seq;
 	uint32_t pkts;
 	bool window_blocked = false;
-	bool held_back = false;
 	bool rtx;
 	if (s->no_send) {
 		return;
@@ -771,7 +765,6 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 			break;
 		}
 		if (((rw < (int32_t)(PARITY_MSS_ADVERTISED)) && (inflight_here > 0))) {
-			held_back = true;
 			break;
 		}
 		avail_here = (ctx->write_end - ((seq - ctx->snd_base)));
@@ -784,9 +777,6 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 		seq = (seq + pkt);
 	}
 	if ((to_send == 0)) {
-		if ((window_blocked || held_back)) {
-			mtp_retry(ctx->f);
-		}
 		if (window_blocked) {
 			(ctx->probe_timer).ctx = ctx;
 			mtp_timer_start(&(ctx->probe_timer), ((uint64_t)(PARITY_PROBE_MS) * 1000000ULL));
@@ -1039,7 +1029,6 @@ gen_syn(struct tcp_ctx *ctx, uint32_t now_ms)
 	uint8_t __t0[PROG_HDR_MAX];
 	uint16_t __t1 = TCPBP_build(__t0, &bp_syn);
 	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_syn.__pay, bp_syn.__mss, PRIO_CONTROL, PROG_OFFLOAD, false) != 0)) {
-		mtp_retry(ctx->f);
 		return;
 	}
 	ctx->send_next = (ctx->send_next + 1);

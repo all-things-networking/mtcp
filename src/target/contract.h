@@ -664,7 +664,41 @@ void mtp_ctx_addrs(flow_t *f, uint32_t local_ip, uint32_t remote_ip);
 
 void mtp_retry(flow_t *f);
 
+/*
+ * RE-ATTEMPTING A GENERATION IS ALMOST ALWAYS THE TARGET'S.
+ *
+ * It used to be an instruction: a processor that could not send said `retry`
+ * and the target came back next pass. But the program cannot know when the
+ * conditions it was blocked on change -- every one of them arrives AT THE
+ * TARGET. A closed window reopens on the peer's acknowledgement, which
+ * dispatches the chain again; more to send is an application call; loss
+ * recovery is a timer. The two with no event behind them are the target's own:
+ * an emission it REFUSED, which it handles itself.
+ *
+ * ONE CASE IS THE PROGRAM'S and `mtp_retry` above is what is left of the
+ * instruction for it. The program advertised a window of zero; the peer has
+ * correctly stopped; no event will come, and nothing arrives for the target to
+ * refuse either. Nothing outside the program knows a window advertisement is
+ * owed. Measured cost of the target guessing instead: 22% of a client's
+ * throughput asking after every read, and a stalled peer on either of the two
+ * target-visible proxies tried.
+ */
+
 int mtp_notify(flow_t *f, const struct mtp_notif *msg);
+
+/*
+ * RUN THIS FLOW'S GENERATE HALF, NOW. Emitted by the compiler; called by the
+ * target when it knows a generation may be owed and no event will carry it --
+ * an emission it refused, or an application call that ran on the other thread.
+ *
+ * It exists because the target used to ask by SYNTHESISING AN APPLICATION SEND
+ * with nothing in it, which then went through the op switch, the parser, the
+ * key, the look-up and the dispatch to reach four processors. Measured: 296,412
+ * of those in 12 s against 1,158,544 reads, and 22% of a client's throughput.
+ * The target is not an application and should not have to pretend to be one to
+ * ask the program to do something.
+ */
+void mtp_program_generate(flow_t *f, uint32_t now_ms);
 
 /*============================================================================*
  * 7. The application interface (MTP_LANG §7a, CR-7)

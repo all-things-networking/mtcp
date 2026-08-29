@@ -894,7 +894,6 @@ void proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
             // peer learns where we are
             if (int32(ev.ts_val - ctx.ts_recent) < 0) {
                 ctx.ack_cnt = ctx.ack_cnt + 1;
-                retry(ctx);
                 return;
             }
             ctx.ts_recent = ev.ts_val;
@@ -918,11 +917,9 @@ void proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
                 // boundary: one acknowledgement for the pass answers both
                 if (ctx.ack_cnt == 0)
                     ctx.ack_cnt = 1;
-                retry(ctx);
             } else {
                 // ahead of the window: this segment owes its own
                 ctx.ack_cnt = ctx.ack_cnt + 1;
-                retry(ctx);
             }
         } else {
             // outside ESTABLISHED the donor answers from its control list and
@@ -932,7 +929,6 @@ void proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
                 timer_start(ctx.tw_timer, second(tcp_timewait));
             }
             ctx.ack_cnt = ctx.ack_cnt + 1;
-            retry(ctx);
         }
         return;
     }
@@ -1506,7 +1502,6 @@ void send_ack(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     } else {
         ctx.ack_cnt = ctx.ack_cnt + 1;
     }
-    retry(ctx);
     return;
 }
 
@@ -1715,7 +1710,6 @@ void record_data(app_send ev, tcp_ctx ctx) {
 void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     uint32 win, to_send, seq, pkts;   // `pkts`: see s.pkts_sent
     bool   window_blocked = false;
-    bool   held_back = false;
     bool   rtx;
 
     // THE DONOR DOES NOT ATTEMPT A SEND on a duplicate it is not acting on
@@ -1739,10 +1733,8 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
             window_blocked = true;
             break;
         }
-        if (rw < int32(PARITY_MSS_ADVERTISED) && inflight_here > 0) {
-            held_back = true;           // G2, the silly-window hold-off
-            break;
-        }
+        if (rw < int32(PARITY_MSS_ADVERTISED) && inflight_here > 0)
+            break;                      // G2, the silly-window hold-off
         avail_here = ctx.write_end - (seq - ctx.snd_base);
         if (avail_here == 0)
             break;                      // nothing buffered
@@ -1754,22 +1746,17 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     }
 
     if (to_send == 0) {
-        // D3: ASK TO BE ATTEMPTED AGAIN NEXT PASS. The donor keeps a
-        // window-blocked stream on its send list and retries every pass; we
-        // retried on EVENTS, which coincides with it whenever the window
-        // reopens BECAUSE an acknowledgement arrived, and differs for
-        // back-pressure that resolves without an inbound packet — ring space
-        // freed by our own drain, most of all.
+        // NOTHING IS ASKED FOR HERE. A closed window reopens when the peer's
+        // acknowledgement arrives, and that acknowledgement is an EVENT whose
+        // chain runs this processor again -- so the re-attempt the donor makes
+        // by spinning is, for us, the arrival of the thing it was waiting for.
+        // Measured on the donor 2026-08-28: 29,440,819 window-blocked flushes
+        // in 30 s, of which none could have sent anything.
         //
-        // Asked for on every refusal that has something to send, not only the
-        // window one: the hold-off is also "held back, will go later", while
-        // "nothing buffered" and "wrong state" have nothing to retry.
-        if (window_blocked || held_back)
-            retry(ctx);
-        // AND THE PROBE AS WELL, not instead. The retry recovers a window whose
-        // reopening is announced; this recovers one whose announcement was LOST,
-        // and no retry substitutes for a message that never arrives (D-25
-        // piece 2).
+        // THE PROBE IS STILL NEEDED, and it is the case that argument misses. A
+        // window whose reopening is ANNOUNCED sends an acknowledgement; one
+        // whose announcement was LOST sends nothing at all, so no event ever
+        // comes and nothing wakes (D-25 piece 2).
         if (window_blocked)
             timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
         return;
@@ -1946,8 +1933,27 @@ void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
     ctx.delivered = ctx.delivered + s.delivered;
     ctx.rcv_wnd = PARITY_RCVBUF_SIZE - ((ctx.recv_next - ctx.delivered)
                   - ((ctx.fin_consumed && ctx.recv_next != ctx.delivered) ? 1 : 0));
+    // §window_rule RECOMPUTE POINT 2, and THE ONE PLACE `retry` SURVIVES.
+    //
+    // Seven of its eight call sites are gone: an owed acknowledgement is now
+    // drained by the chain that owed it, a window-blocked send waits for the
+    // acknowledgement that unblocks it, and an emission the target refused is
+    // the target's own to re-attempt. This one is different, and the difference
+    // is not a matter of taste.
+    //
+    // The advertisement is owed because we advertised a window of ZERO. The
+    // peer then stops, correctly, and sends nothing -- so THERE IS NO EVENT,
+    // and there is nothing at the target to see either: when flow control
+    // works, the target never has to refuse a segment, because none arrives.
+    // The program is the only thing that knows, and this is it saying so.
+    //
+    // Measured 2026-08-29, this client, 12 s: asking the target to run a
+    // generate pass after every read instead cost 22% (3.9 -> 3.0 Gb/s);
+    // triggering on the target's ring being full fired almost never and
+    // stalled the peer at 0.5; triggering on a refused receive fired 29k times
+    // against 327k needed and stalled it at 0.35.
     if (ctx.need_wnd_adv && ctx.rcv_wnd > PARITY_MSS_PAYLOAD)
-        retry(ctx);        // §window_rule RECOMPUTE POINT 2
+        retry(ctx);
     return;
 }
 
@@ -2032,10 +2038,11 @@ void gen_syn(event_t ev, tcp_ctx ctx) {
     bp_syn.opts.add(opt_nop());
     bp_syn.opts.add(opt_wscale(PARITY_WSCALE));
     // -----------------------------------------------------------------
-    if (pkt_gen(bp_syn, PRIO_CONTROL, false) != 0) {
-        retry(ctx);          // the address is not resolved yet
+    // A REFUSED EMISSION IS THE TARGET'S TO RE-ATTEMPT. Nothing that reaches
+    // this program will say the peer's address resolved or the ring drained, so
+    // it cannot know when to ask -- and no longer can.
+    if (pkt_gen(bp_syn, PRIO_CONTROL, false) != 0)
         return;
-    }
     ctx.send_next = ctx.send_next + 1;  // the SYN consumes one
     // ...SO DATA STARTS ONE PAST, and snd_base is what says where. §gen_seg
     // reads the payload at `send_next - snd_base`, so a snd_base that does not

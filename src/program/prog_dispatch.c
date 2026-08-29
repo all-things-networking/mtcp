@@ -293,6 +293,18 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len,
 	return 0;
 }
 
+void
+mtp_program_generate(flow_t *f, uint32_t now_ms)
+{
+	struct tcp_ctx *ctx = mtp_ctx_of(f);
+	struct app_ev ev;
+
+	if (!ctx)
+		return;
+	memset(&ev, 0, sizeof(ev));
+	dispatch_app_send_generate(ctx, &ev, now_ms);
+}
+
 /*
  * The timer side. Each declared timer was bound to the event its expiry
  * raises, so "which timer fired" is answered by the binding rather than by

@@ -378,7 +378,6 @@ void proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
                 return;
             if (int32(ev.ts_val - ctx.ts_recent) < 0) {
                 ctx.ack_cnt = ctx.ack_cnt + 1;
-                retry(ctx);
                 return;
             }
             ctx.ts_recent = ev.ts_val;
@@ -397,10 +396,8 @@ void proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
                 || int32(ev.seq - ctx.recv_next) <= 0) {
                 if (ctx.ack_cnt == 0)
                     ctx.ack_cnt = 1;
-                retry(ctx);
             } else {
                 ctx.ack_cnt = ctx.ack_cnt + 1;
-                retry(ctx);
             }
         } else {
             if (ctx.state == ST_TIME_WAIT) {
@@ -408,7 +405,6 @@ void proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
                 timer_start(ctx.tw_timer, second(tcp_timewait));
             }
             ctx.ack_cnt = ctx.ack_cnt + 1;
-            retry(ctx);
         }
         return;
     }
@@ -736,7 +732,6 @@ void send_ack(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     } else {
         ctx.ack_cnt = ctx.ack_cnt + 1;
     }
-    retry(ctx);
     return;
 }
 
@@ -833,7 +828,6 @@ void record_data(app_send ev, tcp_ctx ctx) {
 void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     uint32 win, to_send, seq, pkts;
     bool   window_blocked = false;
-    bool   held_back = false;
     bool   rtx;
 
     if (s.no_send)
@@ -854,10 +848,8 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
             window_blocked = true;
             break;
         }
-        if (rw < int32(PARITY_MSS_ADVERTISED) && inflight_here > 0) {
-            held_back = true;
+        if (rw < int32(PARITY_MSS_ADVERTISED) && inflight_here > 0)
             break;
-        }
         avail_here = ctx.write_end - (seq - ctx.snd_base);
         if (avail_here == 0)
             break;
@@ -869,8 +861,6 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     }
 
     if (to_send == 0) {
-        if (window_blocked || held_back)
-            retry(ctx);
         if (window_blocked)
             timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
         return;
@@ -1037,10 +1027,8 @@ void gen_syn(event_t ev, tcp_ctx ctx) {
     bp_syn.opts.add(opt_ts(now(), ctx.ts_recent));
     bp_syn.opts.add(opt_nop());
     bp_syn.opts.add(opt_wscale(PARITY_WSCALE));
-    if (pkt_gen(bp_syn, PRIO_CONTROL, false) != 0) {
-        retry(ctx);
+    if (pkt_gen(bp_syn, PRIO_CONTROL, false) != 0)
         return;
-    }
     ctx.send_next = ctx.send_next + 1;
     ctx.snd_base = ctx.send_next;
 timer_start(ctx.rto_timer,

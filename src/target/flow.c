@@ -758,8 +758,13 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 
 	if (!bp) {
 		TransportOf(g_core[0])->bp_full++;
-		return -1;		/* ring full: the program declines to
-					 * emit and the flow stays schedulable */
+		/*
+		 * THE TARGET'S TO RE-ATTEMPT, not the program's. Nothing that
+		 * reaches the program says the ring drained, so it could not
+		 * know when to ask -- it used to ask blindly with `retry`.
+		 */
+		mtp_flow_generate_later(f);
+		return -1;
 	}
 	assert(hdr_len <= PROG_HDR_MAX);
 
@@ -791,6 +796,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 			       &bp->payload, REF_SITE_COMMIT, bp, issuer,
 			       (uint8_t)rtx) < 0) {
 			f->scratch_out[pc] = 0;	/* abandoned, not committed */
+			mtp_flow_generate_later(f);	/* as above */
 			return -1;
 		}
 		bp->unit = payload->u;

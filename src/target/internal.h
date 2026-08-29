@@ -119,8 +119,22 @@ int PktGenOrphan(struct core_ctx *core, uint32_t saddr, uint32_t daddr,
 /* One wakeup per pass, at the end of it (the donor's FlushEpollEvents). */
 void FlushReadyEvents(struct core_ctx *core);
 
-/* D3: re-attempt generation for every flow that asked (mtp_retry). */
+/* D3: re-attempt generation for every flow the TARGET enlisted. */
 void HandleRetryList(struct core_ctx *core);
+
+/*
+ * Run this flow's generate half on the stack thread at the end of the pass.
+ * TARGET INFRASTRUCTURE, not a program instruction -- see contract.h.
+ */
+void mtp_flow_generate_later(flow_t *f);
+
+/*
+ * Did this flow's receive ring turn a segment away for lack of room since the
+ * last ask? Reading clears it. The one thing an application-side caller needs
+ * in order to know whether the read it just made owes the peer a window
+ * advertisement. TARGET INFRASTRUCTURE; the flow's insides stay private.
+ */
+bool mtp_flow_take_rx_blocked(flow_t *f);
 
 /* Take every timer belonging to this context off the wheel. Called before the
  * context is freed: the timer objects are fields INSIDE it. */
