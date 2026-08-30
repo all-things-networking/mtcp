@@ -580,6 +580,9 @@ mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len)
 	op.data.len = (uint32_t)len;
 	op.len = (uint32_t)len;
 	got = mtp_program_app_op(&op, g_shim_core ? g_shim_core->cur_ts : 0);
+	/* the generate half this read owes, on the stack thread where it belongs */
+	if (g_sock[sockid].flow)
+		mtp_flow_generate_later(g_sock[sockid].flow);
 	g_rd_calls++;
 	if (got > 0)       g_rd_bytes += (uint64_t)got;
 	else if (got == 0) g_rd_zero++;

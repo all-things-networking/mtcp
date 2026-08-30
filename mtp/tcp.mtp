@@ -1933,27 +1933,10 @@ void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
     ctx.delivered = ctx.delivered + s.delivered;
     ctx.rcv_wnd = PARITY_RCVBUF_SIZE - ((ctx.recv_next - ctx.delivered)
                   - ((ctx.fin_consumed && ctx.recv_next != ctx.delivered) ? 1 : 0));
-    // §window_rule RECOMPUTE POINT 2, and THE ONE PLACE `retry` SURVIVES.
-    //
-    // Seven of its eight call sites are gone: an owed acknowledgement is now
-    // drained by the chain that owed it, a window-blocked send waits for the
-    // acknowledgement that unblocks it, and an emission the target refused is
-    // the target's own to re-attempt. This one is different, and the difference
-    // is not a matter of taste.
-    //
-    // The advertisement is owed because we advertised a window of ZERO. The
-    // peer then stops, correctly, and sends nothing -- so THERE IS NO EVENT,
-    // and there is nothing at the target to see either: when flow control
-    // works, the target never has to refuse a segment, because none arrives.
-    // The program is the only thing that knows, and this is it saying so.
-    //
-    // Measured 2026-08-29, this client, 12 s: asking the target to run a
-    // generate pass after every read instead cost 22% (3.9 -> 3.0 Gb/s);
-    // triggering on the target's ring being full fired almost never and
-    // stalled the peer at 0.5; triggering on a refused receive fired 29k times
-    // against 327k needed and stalled it at 0.35.
-    if (ctx.need_wnd_adv && ctx.rcv_wnd > PARITY_MSS_PAYLOAD)
-        retry(ctx);
+    // §window_rule RECOMPUTE POINT 2. The flag is all that is set here: this
+    // runs on the APPLICATION's thread, inside its read, and generation is the
+    // stack's (CR-E). §gen_wnd_adv is what emits, and the target runs the
+    // generate half after an application call.
     return;
 }
 
@@ -2428,7 +2411,7 @@ dispatch tcp_dispatch {
     app_listen  -> { proc_listen };
     app_accept  -> { proc_accept };
     app_connect -> { proc_connect, gen_syn };
-    app_recv    -> { proc_drain };
+    app_recv    -> { proc_drain, gen_wnd_adv };
     app_send    -> { record_data, gen_syn, gen_seg, drain_owed_acks,
                      gen_wnd_adv };
     app_close   -> { mark_closed, gen_fin };

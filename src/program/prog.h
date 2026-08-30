@@ -127,6 +127,7 @@ bool dispatch_app_accept_record(struct tcp_listen_ctx *ctx, struct app_ev *ev, u
 bool dispatch_app_connect_record(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 bool dispatch_app_connect_generate(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 bool dispatch_app_recv_record(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
+bool dispatch_app_recv_generate(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 bool dispatch_app_send_record(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 bool dispatch_app_send_generate(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);
 bool dispatch_app_close_record(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms);

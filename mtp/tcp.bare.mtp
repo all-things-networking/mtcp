@@ -972,8 +972,6 @@ void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
     ctx.delivered = ctx.delivered + s.delivered;
     ctx.rcv_wnd = PARITY_RCVBUF_SIZE - ((ctx.recv_next - ctx.delivered)
                   - ((ctx.fin_consumed && ctx.recv_next != ctx.delivered) ? 1 : 0));
-    if (ctx.need_wnd_adv && ctx.rcv_wnd > PARITY_MSS_PAYLOAD)
-        retry(ctx);
     return;
 }
 
@@ -1265,7 +1263,7 @@ dispatch tcp_dispatch {
     app_listen  -> { proc_listen };
     app_accept  -> { proc_accept };
     app_connect -> { proc_connect, gen_syn };
-    app_recv    -> { proc_drain };
+    app_recv    -> { proc_drain, gen_wnd_adv };
     app_send    -> { record_data, gen_syn, gen_seg, drain_owed_acks,
                      gen_wnd_adv };
     app_close   -> { mark_closed, gen_fin };

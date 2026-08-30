@@ -946,9 +946,6 @@ proc_drain(struct app_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 	ev->result = (int32_t)(s->delivered);
 	ctx->delivered = (ctx->delivered + s->delivered);
 	ctx->rcv_wnd = (PARITY_RCVBUF_SIZE - ((((ctx->recv_next - ctx->delivered)) - ((((ctx->fin_consumed && (ctx->recv_next != ctx->delivered))) ? 1 : 0)))));
-	if ((ctx->need_wnd_adv && (ctx->rcv_wnd > PARITY_MSS_PAYLOAD))) {
-		mtp_retry(ctx->f);
-	}
 	return;
 }
 

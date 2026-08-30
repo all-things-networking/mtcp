@@ -180,13 +180,20 @@ dispatch_app_connect_generate(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t n
 	return true;
 }
 
-/* generated from: app_recv -> { proc_drain } */
+/* generated from: app_recv -> { proc_drain, gen_wnd_adv } */
 bool
 dispatch_app_recv_record(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
 {
 	struct tcp_scratch sc = { 0 };
 
 	proc_drain(ev, ctx, &sc);
+	return true;
+}
+
+bool
+dispatch_app_recv_generate(struct tcp_ctx *ctx, struct app_ev *ev, uint32_t now_ms)
+{
+	gen_wnd_adv(ctx, now_ms);
 	return true;
 }
 
