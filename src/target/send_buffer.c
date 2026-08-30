@@ -505,7 +505,7 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
  */
 int
 TxRef(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
-	   uint8_t site, const void *bp, const void *caller, uint8_t kind)
+	   uint8_t site, const void *bp, const void *caller)
 {
 	uint32_t at, to_end;
 
@@ -573,7 +573,7 @@ TxRef(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 	 * fault with different release timing.
 	 */
 	if (seq < u->emitted_hwm && NoteBelowWire)
-		NoteBelowWire(seq, len, u->emitted_hwm, kind);
+		NoteBelowWire(seq, len, u->emitted_hwm);
 
 	{
 		uint32_t i;
@@ -595,7 +595,7 @@ TxRef(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 			expected = (site == REF_SITE_MERGE_TAKE && a == seq);
 			if (NoteOverlap)
 				NoteOverlap(u, a, u->ref_len[i], seq, len,
-						 kind, (uint8_t)expected);
+						 (uint8_t)expected);
 			break;
 		}
 	}
@@ -603,7 +603,7 @@ TxRef(struct mtp_data_unit *u, uint64_t seq, uint32_t len, payref_t *out,
 	assert(u->live_refs < MTP_MAX_LIVE_REFS);
 	u->ref_len[u->live_refs] = len;
 	u->ref_base[u->live_refs++] = seq;
-	ref_log_put(u, 0 /* take */, site, seq, len, bp, caller, kind);
+	ref_log_put(u, 0 /* take */, site, seq, len, bp, caller, 0);
 	return 0;
 }
 

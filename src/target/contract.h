@@ -387,8 +387,7 @@ int  mtp_rx_flush_and_notify(struct mtp_data_unit *u, uint32_t len,
  */
 int mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		const struct mtp_tx_payload *payload,
-		uint32_t mss, uint32_t prio, uint32_t offload,
-		uint32_t rtx);
+		uint32_t mss, uint32_t prio, uint32_t offload);
 
 /*============================================================================*
  * 3. Segmentation rules (MTP_LANG §6, CR-1)

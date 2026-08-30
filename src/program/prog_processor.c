@@ -145,7 +145,7 @@ proc_passive_open(struct net_ev *ev, struct tcp_listen_ctx *lst, uint32_t now_ms
 	TCPBP_add_opt_wscale(&bp_synack, PARITY_WSCALE);
 	uint8_t __t0[PROG_HDR_MAX];
 	uint16_t __t1 = TCPBP_build(__t0, &bp_synack);
-	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_synack.__pay, bp_synack.__mss, PRIO_CONTROL, PROG_OFFLOAD, false) == 0)) {
+	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_synack.__pay, bp_synack.__mss, PRIO_CONTROL, PROG_OFFLOAD) == 0)) {
 		ctx->send_next = (ctx->send_next + 1);
 		ctx->snd_base = ctx->send_next;
 		if (!(ctx->tx_open)) {
@@ -644,7 +644,7 @@ gen_fin(struct tcp_ctx *ctx, uint32_t now_ms)
 	TCPBP_add_opt_ts(&bp_fin, now_ms, ctx->ts_recent);
 	uint8_t __t0[PROG_HDR_MAX];
 	uint16_t __t1 = TCPBP_build(__t0, &bp_fin);
-	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_fin.__pay, bp_fin.__mss, PRIO_DATA, PROG_OFFLOAD, false) == 0)) {
+	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_fin.__pay, bp_fin.__mss, PRIO_DATA, PROG_OFFLOAD) == 0)) {
 		ctx->fin_pending = true;
 		ctx->fin_seq = ctx->send_next;
 		ctx->send_next = (ctx->send_next + 1);
@@ -744,7 +744,6 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 	uint32_t seq;
 	uint32_t pkts;
 	bool window_blocked = false;
-	bool rtx;
 	if (s->no_send) {
 		return;
 	}
@@ -783,7 +782,6 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 		}
 		return;
 	}
-	rtx = (ctx->send_next < ctx->send_high);
 	struct TCPBP bp = { 0 };
 	ctx->last_ack_sent_ms = now_ms;
 	if (((ctx->state != ST_CLOSED) && (ctx->state != ST_TIME_WAIT))) {
@@ -809,15 +807,12 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 	bp.__mss     = PARITY_MSS_PAYLOAD;
 	uint8_t __t0[PROG_HDR_MAX];
 	uint16_t __t1 = TCPBP_build(__t0, &bp);
-	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp.__pay, bp.__mss, PRIO_DATA, PROG_OFFLOAD, rtx) != 0)) {
+	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp.__pay, bp.__mss, PRIO_DATA, PROG_OFFLOAD) != 0)) {
 		return;
 	}
 	pkts = ((((to_send + PARITY_MSS_PAYLOAD) - 1)) / PARITY_MSS_PAYLOAD);
 	s->pkts_sent = (s->pkts_sent + pkts);
 	ctx->send_next = (ctx->send_next + to_send);
-	if ((ctx->send_next > ctx->send_high)) {
-		ctx->send_high = ctx->send_next;
-	}
 	if (((ctx->send_una != ctx->send_next))) {
 		(ctx->rto_timer).ctx = ctx;
 		mtp_timer_start(&(ctx->rto_timer), ((uint64_t)((((ctx->have_rtt ? ctx->rto_ms : PARITY_INITIAL_RTO_MS)) << (((ctx->rtx_count < 7) ? ctx->rtx_count : 7)))) * 1000000ULL));
@@ -869,7 +864,7 @@ drain_owed_acks(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 		TCPBP_add_opt_ts(&bp_owed, now_ms, ctx->ts_recent);
 		uint8_t __t0[PROG_HDR_MAX];
 		uint16_t __t1 = TCPBP_build(__t0, &bp_owed);
-		if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_owed.__pay, bp_owed.__mss, PRIO_ACK, PROG_OFFLOAD, false) != 0)) {
+		if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_owed.__pay, bp_owed.__mss, PRIO_ACK, PROG_OFFLOAD) != 0)) {
 			break;
 		}
 		ctx->ack_cnt = (ctx->ack_cnt - 1);
@@ -919,7 +914,7 @@ gen_wnd_adv(struct tcp_ctx *ctx, uint32_t now_ms)
 	TCPBP_add_opt_ts(&bp_adv, now_ms, ctx->ts_recent);
 	uint8_t __t0[PROG_HDR_MAX];
 	uint16_t __t1 = TCPBP_build(__t0, &bp_adv);
-	mtp_pkt_gen(ctx->f, __t0, __t1, &bp_adv.__pay, bp_adv.__mss, PRIO_ACK, PROG_OFFLOAD, false);
+	mtp_pkt_gen(ctx->f, __t0, __t1, &bp_adv.__pay, bp_adv.__mss, PRIO_ACK, PROG_OFFLOAD);
 	return;
 }
 
@@ -1025,7 +1020,7 @@ gen_syn(struct tcp_ctx *ctx, uint32_t now_ms)
 	TCPBP_add_opt_wscale(&bp_syn, PARITY_WSCALE);
 	uint8_t __t0[PROG_HDR_MAX];
 	uint16_t __t1 = TCPBP_build(__t0, &bp_syn);
-	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_syn.__pay, bp_syn.__mss, PRIO_CONTROL, PROG_OFFLOAD, false) != 0)) {
+	if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_syn.__pay, bp_syn.__mss, PRIO_CONTROL, PROG_OFFLOAD) != 0)) {
 		return;
 	}
 	ctx->send_next = (ctx->send_next + 1);
@@ -1062,7 +1057,7 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 		bp_rst.urg_ptr = 0;
 		uint8_t __t0[PROG_HDR_MAX];
 		uint16_t __t1 = TCPBP_build(__t0, &bp_rst);
-		mtp_pkt_gen(ctx->f, __t0, __t1, &bp_rst.__pay, bp_rst.__mss, PRIO_CONTROL, PROG_OFFLOAD, false);
+		mtp_pkt_gen(ctx->f, __t0, __t1, &bp_rst.__pay, bp_rst.__mss, PRIO_CONTROL, PROG_OFFLOAD);
 		return;
 	}
 	ctx->send_una = ev->ack;
@@ -1109,7 +1104,7 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 	TCPBP_add_opt_ts(&bp_hs, now_ms, ctx->ts_recent);
 	uint8_t __t2[PROG_HDR_MAX];
 	uint16_t __t3 = TCPBP_build(__t2, &bp_hs);
-	mtp_pkt_gen(ctx->f, __t2, __t3, &bp_hs.__pay, bp_hs.__mss, PRIO_ACK, PROG_OFFLOAD, false);
+	mtp_pkt_gen(ctx->f, __t2, __t3, &bp_hs.__pay, bp_hs.__mss, PRIO_ACK, PROG_OFFLOAD);
 	return;
 }
 
@@ -1160,7 +1155,7 @@ proc_rto(struct timer_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s, uint32
 		TCPBP_add_opt_ts(&bp_rtx_fin, now_ms, ctx->ts_recent);
 		uint8_t __t0[PROG_HDR_MAX];
 		uint16_t __t1 = TCPBP_build(__t0, &bp_rtx_fin);
-		if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_rtx_fin.__pay, bp_rtx_fin.__mss, PRIO_DATA, PROG_OFFLOAD, true) == 0)) {
+		if ((mtp_pkt_gen(ctx->f, __t0, __t1, &bp_rtx_fin.__pay, bp_rtx_fin.__mss, PRIO_DATA, PROG_OFFLOAD) == 0)) {
 			ctx->send_next = (ctx->send_next + 1);
 		}
 	}
@@ -1230,7 +1225,7 @@ proc_probe(struct timer_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 	TCPBP_add_opt_ts(&bp_probe, now_ms, ctx->ts_recent);
 	uint8_t __t0[PROG_HDR_MAX];
 	uint16_t __t1 = TCPBP_build(__t0, &bp_probe);
-	mtp_pkt_gen(ctx->f, __t0, __t1, &bp_probe.__pay, bp_probe.__mss, PRIO_ACK, PROG_OFFLOAD, false);
+	mtp_pkt_gen(ctx->f, __t0, __t1, &bp_probe.__pay, bp_probe.__mss, PRIO_ACK, PROG_OFFLOAD);
 	(ctx->probe_timer).ctx = ctx;
 	mtp_timer_start(&(ctx->probe_timer), ((uint64_t)(PARITY_PROBE_MS) * 1000000ULL));
 	return;

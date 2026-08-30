@@ -73,15 +73,6 @@ struct tcp_ctx {
 	uint32_t send_una;
 	uint32_t send_next;
 	uint32_t write_end;
-
-	/*
-	 * The highest send_next ever reached. Emitting below it is a
-	 * retransmission, whoever asked: marking the CALLER did not work, because
-	 * the timeout rewinds and its own send is refused, so the re-emission
-	 * happens later from the acknowledgement path. The rewind and the re-send
-	 * are separated in time; the sequence position is the fact.
-	 */
-	uint32_t send_high;
 	uint32_t send_wnd;
 	uint8_t snd_wscale;
 	uint32_t cwnd;

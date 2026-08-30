@@ -280,13 +280,6 @@ context tcp_ctx {
     // through it.
     uint32 snd_base;
     uint32 send_una, send_next, write_end;
-    // The highest send_next ever reached. Emitting below it is a
-    // retransmission, whoever asked: marking the CALLER did not work, because
-    // the timeout rewinds and its own send is refused, so the re-emission
-    // happens later from the acknowledgement path. The rewind and the re-send
-    // are separated in time; the sequence position is the fact.
-    uint32 send_high;
-
     uint32 send_wnd  = 65535;         // the peer's window, ALREADY SCALED
     uint8  snd_wscale;                // the shift the peer asked for on its SYN
     uint32 cwnd      = PARITY_INIT_CWND;
@@ -1031,7 +1024,7 @@ void proc_passive_open(tcp_syn ev, tcp_listen_ctx lst) {
     bp_synack.opts.add(opt_nop());
     bp_synack.opts.add(opt_wscale(PARITY_WSCALE));
     // -----------------------------------------------------------------
-    if (pkt_gen(bp_synack, PRIO_CONTROL, false) == 0) {
+    if (pkt_gen(bp_synack, PRIO_CONTROL) == 0) {
         ctx.send_next = ctx.send_next + 1;   // the SYN-ACK consumes one
         ctx.snd_base  = ctx.send_next;       // ...so data starts one past
         // CR-E: the transmit stream exists from ESTABLISHMENT, not from the
@@ -1622,7 +1615,7 @@ void gen_fin(event_t ev, tcp_ctx ctx) {
     bp_fin.opts.add(opt_nop());
     bp_fin.opts.add(opt_ts(now(), ctx.ts_recent));
     // -----------------------------------------------------------------
-    if (pkt_gen(bp_fin, PRIO_DATA, false) == 0) {
+    if (pkt_gen(bp_fin, PRIO_DATA) == 0) {
         ctx.fin_pending = true;
         ctx.fin_seq = ctx.send_next;
         ctx.send_next = ctx.send_next + 1;      // the FIN consumes one byte
@@ -1710,7 +1703,6 @@ void record_data(app_send ev, tcp_ctx ctx) {
 void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     uint32 win, to_send, seq, pkts;   // `pkts`: see s.pkts_sent
     bool   window_blocked = false;
-    bool   rtx;
 
     // THE DONOR DOES NOT ATTEMPT A SEND on a duplicate it is not acting on
     // (D-30). We attempted on every one — the D-25 stall fix — and the
@@ -1762,12 +1754,6 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
         return;
     }
 
-    // Below the high-water mark is a RETRANSMISSION, whoever asked. Marking the
-    // CALLER did not work: the timeout rewinds and its own send is refused, so
-    // the re-emission happens later from the acknowledgement path — the rewind
-    // and the re-send are separated in time.
-    rtx = ctx.send_next < ctx.send_high;
-
     // --- the outgoing header, from what was §build_hdr ----------------
     TCPBP bp;
     ctx.last_ack_sent_ms = now();
@@ -1799,7 +1785,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
                          [TCPBP::seq_no, ctx.send_next,
                           prev.seq_no + prev.payload_len]);
 
-    if (pkt_gen(bp, PRIO_DATA, rtx) != 0)
+    if (pkt_gen(bp, PRIO_DATA) != 0)
         return;
 
     // What the target will cut this extent into, which is what the donor's
@@ -1807,8 +1793,6 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     pkts = (to_send + PARITY_MSS_PAYLOAD - 1) / PARITY_MSS_PAYLOAD;
     s.pkts_sent = s.pkts_sent + pkts;
     ctx.send_next = ctx.send_next + to_send;
-    if (ctx.send_next > ctx.send_high)
-        ctx.send_high = ctx.send_next;
     if ((ctx.send_una != ctx.send_next))
 timer_start(ctx.rto_timer,
                     millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
@@ -1860,7 +1844,7 @@ void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
         bp_owed.opts.add(opt_nop());
         bp_owed.opts.add(opt_ts(now(), ctx.ts_recent));
         // -----------------------------------------------------------------
-        if (pkt_gen(bp_owed, PRIO_ACK, false) != 0)
+        if (pkt_gen(bp_owed, PRIO_ACK) != 0)
             break;                      // no room; still owed
         ctx.ack_cnt = ctx.ack_cnt - 1;
     }
@@ -1903,7 +1887,7 @@ void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
     bp_adv.opts.add(opt_nop());
     bp_adv.opts.add(opt_ts(now(), ctx.ts_recent));
     // -----------------------------------------------------------------
-    pkt_gen(bp_adv, PRIO_ACK, false);
+    pkt_gen(bp_adv, PRIO_ACK);
     return;
 }
 
@@ -2024,7 +2008,7 @@ void gen_syn(event_t ev, tcp_ctx ctx) {
     // A REFUSED EMISSION IS THE TARGET'S TO RE-ATTEMPT. Nothing that reaches
     // this program will say the peer's address resolved or the ring drained, so
     // it cannot know when to ask -- and no longer can.
-    if (pkt_gen(bp_syn, PRIO_CONTROL, false) != 0)
+    if (pkt_gen(bp_syn, PRIO_CONTROL) != 0)
         return;
     ctx.send_next = ctx.send_next + 1;  // the SYN consumes one
     // ...SO DATA STARTS ONE PAST, and snd_base is what says where. §gen_seg
@@ -2067,7 +2051,7 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
         bp_rst.window   = 0;
         bp_rst.urg_ptr  = 0;
         // ---------------------------------------------------------------
-        pkt_gen(bp_rst, PRIO_CONTROL, false);
+        pkt_gen(bp_rst, PRIO_CONTROL);
         return;
     }
 
@@ -2132,7 +2116,7 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
     bp_hs.opts.add(opt_nop());
     bp_hs.opts.add(opt_ts(now(), ctx.ts_recent));
     // -----------------------------------------------------------------
-    pkt_gen(bp_hs, PRIO_ACK, false);
+    pkt_gen(bp_hs, PRIO_ACK);
     return;
 }
 
@@ -2193,7 +2177,7 @@ void proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
         bp_rtx_fin.opts.add(opt_nop());
         bp_rtx_fin.opts.add(opt_ts(now(), ctx.ts_recent));
         // -----------------------------------------------------------------
-        if (pkt_gen(bp_rtx_fin, PRIO_DATA, true) == 0)
+        if (pkt_gen(bp_rtx_fin, PRIO_DATA) == 0)
             ctx.send_next = ctx.send_next + 1;
     }
     return;
@@ -2252,7 +2236,7 @@ void proc_probe(tcp_probe_timeout ev, tcp_ctx ctx) {
     bp_probe.opts.add(opt_nop());
     bp_probe.opts.add(opt_ts(now(), ctx.ts_recent));
     // -----------------------------------------------------------------
-    pkt_gen(bp_probe, PRIO_ACK, false);
+    pkt_gen(bp_probe, PRIO_ACK);
     timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
     return;
 }

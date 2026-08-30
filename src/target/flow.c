@@ -594,7 +594,7 @@ ReportMerges(void)
 int
 mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	    const struct mtp_tx_payload *payload,
-	    uint32_t mss, uint32_t prio, uint32_t offload, uint32_t rtx)
+	    uint32_t mss, uint32_t prio, uint32_t offload)
 {
 	uint16_t keep_off = 0, keep_len = 0;
 	/* storage is per (flow, class); coalescing only ever merges within one */
@@ -680,7 +680,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 						last->base_seq,
 						last->payload.len + payload->len,
 						&ext, REF_SITE_MERGE_TAKE,
-						last, issuer, (uint8_t)rtx);
+						last, issuer);
 
 				if (reffed != 0)
 					g_mrg[MRG_REF_FAIL]++;
@@ -793,8 +793,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 		 * stays valid until the program flushes this range, which is
 		 * the guarantee that makes deferral safe (internal.h §3). */
 		if (TxRef(payload->u, payload->off, payload->len,
-			       &bp->payload, REF_SITE_COMMIT, bp, issuer,
-			       (uint8_t)rtx) < 0) {
+			       &bp->payload, REF_SITE_COMMIT, bp, issuer) < 0) {
 			f->scratch_out[pc] = 0;	/* abandoned, not committed */
 			mtp_flow_generate_later(f);	/* as above */
 			return -1;

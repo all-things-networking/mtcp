@@ -151,8 +151,7 @@ uint32_t TxSpace(const struct mtp_data_unit *u);
 /* `site` is an enum ref_site and `bp` the blueprint, both recorded in the
  * unit's reference history for the fault dump. */
 int TxRef(struct mtp_data_unit *u, uint64_t seq, uint32_t len,
-	       payref_t *out, uint8_t site, const void *bp, const void *caller,
-	       uint8_t kind);
+	       payref_t *out, uint8_t site, const void *bp, const void *caller);
 
 /* Liveness ends here: called once per blueprint by the drain, after its LAST
  * segment has been copied into an mbuf. Not per segment.
@@ -199,12 +198,12 @@ __attribute__((weak)) void ReportAtFault(void);
 __attribute__((weak)) void NoteOverlap(const struct mtp_data_unit *u,
 					    uint64_t live_base, uint32_t live_len,
 					    uint64_t new_base, uint32_t new_len,
-					    uint8_t new_is_rtx, uint8_t expected);
+					    uint8_t expected);
 
 /* A commit whose base is below the wire's high-water: it covers bytes already
  * emitted, whether or not the blueprint that sent them is still live. */
 __attribute__((weak)) void NoteBelowWire(uint64_t base, uint32_t len,
-					       uint64_t hwm, uint8_t is_rtx);
+					       uint64_t hwm);
 
 struct bp {
 	/* The earliest byte this blueprint will transmit. Used for two things,

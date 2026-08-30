@@ -1330,40 +1330,44 @@ RunStackThread(struct core_ctx *core, uint32_t max_ticks, int cpu)
  * the numbers RESULTS.md is written from went with them.
  */
 void
-NoteBelowWire(uint64_t base, uint32_t len, uint64_t hwm, uint8_t is_rtx)
+NoteBelowWire(uint64_t base, uint32_t len, uint64_t hwm)
 {
 	struct transport *t = TransportOf(g_core[0]);
 	static uint32_t shown;
 
 	/*
-	 * For a retransmit, committing below the wire is the DEFINITION of the
-	 * operation, so that arm of the count is background by construction.
-	 * The arm that can indicate a defect is a fresh commit that lies
-	 * ENTIRELY below the wire: such a blueprint can contribute no byte the
-	 * peer has not seen, so nothing will ever drain it, and its reference
-	 * pins the flush forever. A fresh commit that merely STARTS below the
-	 * wire still has new bytes at its top and can drain normally.
+	 * ENTIRELY below the wire, or merely starting below it. One of these
+	 * arms used to be split further, by a flag the PROGRAM passed to
+	 * pkt_gen saying "this is a retransmission" -- which separated the
+	 * expected case from a fresh commit that can contribute no byte the
+	 * peer has not seen, and whose reference therefore pins the flush
+	 * forever.
+	 *
+	 * The flag is gone. It was a diagnostic label on the one instruction
+	 * the paper specifies, and it read zero in every measured run. The
+	 * target cannot tell the two apart on its own -- both are a commit
+	 * below the mark -- so a legitimate retransmission now lands in the
+	 * same arm. If that arm is ever non-zero, the reference log says which.
 	 */
-	if (is_rtx)
-		t->below_wire_rtx++;
-	else if (base + len <= hwm)
+	if (base + len <= hwm)
 		t->below_wire_dead++;
 	else
 		t->below_wire_new++;
 
-	if (base + len <= hwm && !is_rtx && shown++ < 8)
-		fprintf(stderr, "BELOW-WIRE-DEAD commit [%llu,%llu) len=%u %s "
-			"(wire at %llu, %llu bytes below)\n",
+	if (base + len <= hwm && shown++ < 8)
+		fprintf(stderr, "BELOW-WIRE commit [%llu,%llu) len=%u "
+			"(wire at %llu, %llu bytes below) -- a retransmission, "
+			"or a commit nothing will drain; the ref log says\n",
 			(unsigned long long)base,
 			(unsigned long long)(base + len), len,
-			is_rtx ? "RTX" : "new", (unsigned long long)hwm,
+			(unsigned long long)hwm,
 			(unsigned long long)(hwm - base));
 }
 
 void
 NoteOverlap(const struct mtp_data_unit *u, uint64_t live_base,
 		 uint32_t live_len, uint64_t new_base, uint32_t new_len,
-		 uint8_t new_is_rtx, uint8_t expected)
+		 uint8_t expected)
 {
 	struct transport *t = TransportOf(g_core[0]);
 	static uint32_t shown;
@@ -1372,7 +1376,7 @@ NoteOverlap(const struct mtp_data_unit *u, uint64_t live_base,
 		t->overlap_merge_ok++;
 		return;			/* §18's own mechanism, working */
 	}
-	if (new_is_rtx)
+	if (0)
 		t->overlap_rtx++;
 	else
 		t->overlap_new++;
@@ -1385,7 +1389,7 @@ NoteOverlap(const struct mtp_data_unit *u, uint64_t live_base,
 			(unsigned long long)(live_base + live_len), live_len,
 			(unsigned long long)new_base,
 			(unsigned long long)(new_base + new_len), new_len,
-			new_is_rtx ? "RTX" : "new");
+			"commit");
 	(void)u;
 }
 
