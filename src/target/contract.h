@@ -699,6 +699,12 @@ int mtp_notify(flow_t *f, const struct mtp_notif *msg);
  */
 void mtp_program_generate(flow_t *f, uint32_t now_ms);
 
+/* The key this flow was created with, so the generated code can resolve its
+ * context through the STORE rather than through a back-pointer the flow keeps.
+ * A flow outlives its context: the slot stays live until the application
+ * detaches, and deleting the context does not clear the pointer. */
+const flowkey_t *mtp_flow_key(const flow_t *f);
+
 /*============================================================================*
  * 7. The application interface (MTP_LANG §7a, CR-7)
  *============================================================================*/

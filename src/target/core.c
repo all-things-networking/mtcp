@@ -711,6 +711,12 @@ mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
  * Resets the route cache with them, since the previous one was resolved for
  * whatever address the flow was created with.
  */
+const flowkey_t *
+mtp_flow_key(const flow_t *f)
+{
+	return f ? &((const struct flow *)f)->key : NULL;
+}
+
 void
 mtp_op_dispatching(const struct mtp_app_op *op)
 {

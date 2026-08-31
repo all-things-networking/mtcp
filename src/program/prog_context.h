@@ -23,6 +23,8 @@
  */
 struct tcp_ctx {
 	flow_t *f;
+	struct mtp_data_unit tx;
+	struct mtp_data_unit rx;
 	uint8_t state;
 
 	/*
@@ -229,24 +231,6 @@ struct tcp_ctx {
 	 * A one-shot server sets it when it hands over its object.
 	 */
 	bool app_closed;
-
-	/*
-	 * --- the data units, embedded ----------------------------------------
-	 * Embedded BY VALUE (D-19): the context owns the storage and
-	 * new_tx_ordered_data initialises it. The ring inside is still allocated
-	 * lazily on first write, which IS the donor's shape — mTCP takes its send
-	 * buffer from a pool on first send, not at accept.
-	 */
-	struct mtp_data_unit tx;
-
-	/*
-	 * --- the data units, embedded ----------------------------------------
-	 * Embedded BY VALUE (D-19): the context owns the storage and
-	 * new_tx_ordered_data initialises it. The ring inside is still allocated
-	 * lazily on first write, which IS the donor's shape — mTCP takes its send
-	 * buffer from a pool on first send, not at accept.
-	 */
-	struct mtp_data_unit rx;
 	bool tx_open;
 	bool rx_open;
 

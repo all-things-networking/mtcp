@@ -303,9 +303,15 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len,
 void
 mtp_program_generate(flow_t *f, uint32_t now_ms)
 {
-	struct tcp_ctx *ctx = mtp_ctx_of(f);
+	struct tcp_ctx *ctx;
 	struct app_ev ev;
 
+	/* not every flow names one of these: a SYN is dispatched
+	 * through the LISTENER, and the target enlists whatever
+	 * flow the pass touched. */
+	if (mtp_flow_key(f)->kind != 0)
+		return;
+	ctx = mtp_ctx_lookup(mtp_flow_key(f));
 	if (!ctx)
 		return;
 	memset(&ev, 0, sizeof(ev));

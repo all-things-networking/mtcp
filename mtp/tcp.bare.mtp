@@ -143,7 +143,6 @@ context tcp_ctx {
     uint32 fin_seq;
     bool   app_closed;
 
-    stream tx, rx;
     bool   tx_open, rx_open;
 
     timer_t rto_timer   -> tcp_rto_timeout;
@@ -471,7 +470,7 @@ void proc_passive_open(tcp_syn ev, tcp_listen_ctx lst) {
         ctx.send_next = ctx.send_next + 1;
         ctx.snd_base  = ctx.send_next;
         if (!ctx.tx_open) {
-            new_tx_ordered_data(ctx.tx, INF);
+            new_tx_ordered_data(INF, ctx.key);
             ctx.tx_open = true;
         }
     }
@@ -683,7 +682,7 @@ void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
         ctx.fin_pending = false;
 
     ctx.send_una = ev.ack;
-    tx_flush_and_notify(ctx.tx, acked);
+    tx_flush_and_notify(ctx.key, acked);
 
     ctx.rtx_count = 0;
     timer_stop(ctx.rto_timer);
@@ -705,11 +704,11 @@ void proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
         return;
 
     if (!ctx.rx_open) {
-        new_rx_ordered_data(ctx.rx, INF);
+        new_rx_ordered_data(INF, ctx.key);
         ctx.rx_open = true;
     }
 
-    if (add_rx_data_seg(ctx.rx, ev.hold_addr, ev.data_len, ev.seq) < 0)
+    if (add_rx_data_seg(ctx.key, ev.hold_addr, ev.data_len, ev.seq) < 0)
         return;
 
     ctx.rx_wnd.set(ev.seq, ev.seq + ev.data_len);
@@ -821,7 +820,7 @@ void record_data(app_send ev, tcp_ctx ctx) {
         return;
     }
 
-    wrote = add_tx_data(ctx.tx, ev.addr, ev.mlen);
+    wrote = add_tx_data(ctx.key, ev.addr, ev.mlen);
     if (wrote > 0)
         ctx.write_end = ctx.write_end + wrote;
     ev.result = int32(wrote);
@@ -886,7 +885,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     bp.opts.add(opt_nop());
     bp.opts.add(opt_ts(now(), ctx.ts_recent));
 
-    bp.data = unseg_data(ctx.tx, ctx.send_next - ctx.snd_base, to_send,
+    bp.data = unseg_data(ctx.key, ctx.send_next - ctx.snd_base, to_send,
                          PARITY_MSS_PAYLOAD,
                          [TCPBP::seq_no, ctx.send_next,
                           prev.seq_no + prev.payload_len]);
@@ -961,7 +960,7 @@ void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
 }
 
 void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
-    s.delivered = rx_flush_and_notify(ctx.rx, ev.len, ev.buf);
+    s.delivered = rx_flush_and_notify(ctx.key, ev.len, ev.buf);
     if (s.delivered == 0) {
         ev.result = ctx.fin_consumed ? 0 : -1;
         return;
@@ -1069,7 +1068,7 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
     timer_stop(ctx.rto_timer);
 
     if (!ctx.tx_open) {
-        new_tx_ordered_data(ctx.tx, INF);
+        new_tx_ordered_data(INF, ctx.key);
         ctx.tx_open = true;
     }
     ctx.state = ST_ESTABLISHED;

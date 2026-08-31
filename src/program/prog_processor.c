@@ -149,7 +149,7 @@ proc_passive_open(struct net_ev *ev, struct tcp_listen_ctx *lst, uint32_t now_ms
 		ctx->send_next = (ctx->send_next + 1);
 		ctx->snd_base = ctx->send_next;
 		if (!(ctx->tx_open)) {
-			mtp_new_tx_ordered_data(&(ctx->tx), MTP_SIZE_INF);
+			mtp_new_tx_ordered_data(&ctx->tx, MTP_SIZE_INF);
 			ctx->tx_open = true;
 		}
 	}
@@ -458,7 +458,7 @@ proc_ack(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 		ctx->fin_pending = false;
 	}
 	ctx->send_una = ev->ack;
-	mtp_tx_flush_and_notify(&(ctx->tx), acked);
+	mtp_tx_flush_and_notify(&ctx->tx, acked);
 	ctx->rtx_count = 0;
 	mtp_timer_stop(&(ctx->rto_timer));
 	if (((ctx->send_una != ctx->send_next))) {
@@ -489,10 +489,10 @@ proc_recv(struct net_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 		return;
 	}
 	if (!(ctx->rx_open)) {
-		mtp_new_rx_ordered_data(&(ctx->rx), MTP_SIZE_INF);
+		mtp_new_rx_ordered_data(&ctx->rx, MTP_SIZE_INF);
 		ctx->rx_open = true;
 	}
-	if ((mtp_add_rx_data_seg(&(ctx->rx), ev->hold_addr, ev->data_len, ev->seq) < 0)) {
+	if ((mtp_add_rx_data_seg(&ctx->rx, ev->hold_addr, ev->data_len, ev->seq) < 0)) {
 		return;
 	}
 	mtp_sw_set(&(ctx->rx_wnd), ev->seq, (ev->seq + ev->data_len));
@@ -693,7 +693,7 @@ record_data(struct app_ev *ev, struct tcp_ctx *ctx)
 		ev->result = -(1);
 		return;
 	}
-	wrote = mtp_add_tx_data(&(ctx->tx), ev->addr, ev->mlen);
+	wrote = mtp_add_tx_data(&ctx->tx, ev->addr, ev->mlen);
 	if ((wrote > 0)) {
 		ctx->write_end = (ctx->write_end + wrote);
 	}
@@ -804,7 +804,7 @@ gen_seg(struct tcp_ctx *ctx, struct tcp_scratch *s, uint32_t now_ms)
 	TCPBP_add_opt_nop(&bp);
 	TCPBP_add_opt_nop(&bp);
 	TCPBP_add_opt_ts(&bp, now_ms, ctx->ts_recent);
-	bp.__pay.u   = &(ctx->tx);
+	bp.__pay.u   = &ctx->tx;
 	bp.__pay.off = (ctx->send_next - ctx->snd_base);
 	bp.__pay.len = to_send;
 	bp.__mss     = PARITY_MSS_PAYLOAD;
@@ -936,7 +936,7 @@ gen_wnd_adv(struct tcp_ctx *ctx, uint32_t now_ms)
 void
 proc_drain(struct app_ev *ev, struct tcp_ctx *ctx, struct tcp_scratch *s)
 {
-	s->delivered = mtp_rx_flush_and_notify(&(ctx->rx), ev->len, ev->buf);
+	s->delivered = mtp_rx_flush_and_notify(&ctx->rx, ev->len, ev->buf);
 	if ((s->delivered == 0)) {
 		ev->result = (ctx->fin_consumed ? 0 : -(1));
 		return;
@@ -1081,7 +1081,7 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 	ctx->rtx_count = 0;
 	mtp_timer_stop(&(ctx->rto_timer));
 	if (!(ctx->tx_open)) {
-		mtp_new_tx_ordered_data(&(ctx->tx), MTP_SIZE_INF);
+		mtp_new_tx_ordered_data(&ctx->tx, MTP_SIZE_INF);
 		ctx->tx_open = true;
 	}
 	ctx->state = ST_ESTABLISHED;

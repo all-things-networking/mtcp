@@ -387,12 +387,6 @@ context tcp_ctx {
     // A one-shot server sets it when it hands over its object.
     bool   app_closed;
 
-    // --- the data units, embedded ----------------------------------------
-    // Embedded BY VALUE (D-19): the context owns the storage and
-    // new_tx_ordered_data initialises it. The ring inside is still allocated
-    // lazily on first write, which IS the donor's shape — mTCP takes its send
-    // buffer from a pool on first send, not at accept.
-    stream tx, rx;
     bool   tx_open, rx_open;
 
     // THREE TIMERS ON THE CONNECTION, THREE EVENTS, plus the idle reaper. One
@@ -1032,7 +1026,7 @@ void proc_passive_open(tcp_syn ev, tcp_listen_ctx lst) {
         // needs the unit valid before the application's first write, which a
         // lazy open cannot promise.
         if (!ctx.tx_open) {
-            new_tx_ordered_data(ctx.tx, INF);
+            new_tx_ordered_data(INF, ctx.key);
             ctx.tx_open = true;
         }
     }
@@ -1400,7 +1394,7 @@ void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
         ctx.fin_pending = false;
 
     ctx.send_una = ev.ack;
-    tx_flush_and_notify(ctx.tx, acked);
+    tx_flush_and_notify(ctx.key, acked);
 
     // Progress: cancel, and reset the backoff. Re-armed if anything is still
     // outstanding -- and ANYTHING HANDED TO pkt_gen IS OUTSTANDING, so the
@@ -1441,14 +1435,14 @@ void proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
         return;
 
     if (!ctx.rx_open) {
-        new_rx_ordered_data(ctx.rx, INF);
+        new_rx_ordered_data(INF, ctx.key);
         ctx.rx_open = true;
     }
 
     // Store the bytes at their OWN sequence number. The target copies to an
     // offset; it does not interpret and reports nothing back. A refusal here is
     // the window being full, not the segment being out of order.
-    if (add_rx_data_seg(ctx.rx, ev.hold_addr, ev.data_len, ev.seq) < 0)
+    if (add_rx_data_seg(ctx.key, ev.hold_addr, ev.data_len, ev.seq) < 0)
         return;
 
     // Mark the range as arrived, wherever it landed, then advance over
@@ -1677,7 +1671,7 @@ void record_data(app_send ev, tcp_ctx ctx) {
         return;
     }
 
-    wrote = add_tx_data(ctx.tx, ev.addr, ev.mlen);
+    wrote = add_tx_data(ctx.key, ev.addr, ev.mlen);
     if (wrote > 0)
         ctx.write_end = ctx.write_end + wrote;
     // What the application is told it wrote. A short return is back-pressure,
@@ -1801,7 +1795,7 @@ void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     // The segmentation rule is the fourth argument, written at the call. TCP's
     // recurrence is per BYTE: the next segment's sequence number is the previous
     // one's plus the previous payload length.
-    bp.data = unseg_data(ctx.tx, ctx.send_next - ctx.snd_base, to_send,
+    bp.data = unseg_data(ctx.key, ctx.send_next - ctx.snd_base, to_send,
                          PARITY_MSS_PAYLOAD,
                          [TCPBP::seq_no, ctx.send_next,
                           prev.seq_no + prev.payload_len]);
@@ -1923,7 +1917,7 @@ void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
 // thread never emits a packet, so deferring by one iteration is the donor's
 // behaviour and not a shortcut.
 void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
-    s.delivered = rx_flush_and_notify(ctx.rx, ev.len, ev.buf);
+    s.delivered = rx_flush_and_notify(ctx.key, ev.len, ev.buf);
     if (s.delivered == 0) {
         // EMPTY IS NOT THE SAME AS ENDED. The donor's read returns 0 only at
         // end-of-stream -- the peer has closed and the buffer is drained -- and
@@ -2108,7 +2102,7 @@ void proc_synack(tcp_synack ev, tcp_ctx ctx) {
     timer_stop(ctx.rto_timer);
 
     if (!ctx.tx_open) {
-        new_tx_ordered_data(ctx.tx, INF);
+        new_tx_ordered_data(INF, ctx.key);
         ctx.tx_open = true;
     }
     ctx.state = ST_ESTABLISHED;
