@@ -195,6 +195,9 @@ struct transport {
 	/* Overlapping commits, by whether the NEW one is a retransmission.
 	 * The rate, not the crash, is the measurable. */
 	uint64_t		 overlap_rtx;
+	/* references a flow still held when it was destroyed -- see FlowDestroy */
+	uint64_t		 refs_at_destroy;
+	uint32_t		 refs_at_destroy_shown;
 	uint64_t		 overlap_new;
 	uint64_t		 overlap_merge_ok;	/* superseding its own: by design */
 	uint64_t		 overlap_merge_bad;	/* a merge over something else */

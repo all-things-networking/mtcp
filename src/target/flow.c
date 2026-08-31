@@ -187,6 +187,27 @@ FlowDestroy(struct core_ctx *core, struct flow *f)
 	/* Both byte-stream buffers, returned here and nowhere else -- which is
 	 * where the donor returns its payload chunk too. They were malloc'ed
 	 * per flow and never freed at all before this. */
+	/*
+	 * A REFERENCE STILL HELD WHEN THE FLOW GOES is the defect the old
+	 * below-the-wire counter was a proxy for: a blueprint that can
+	 * contribute no byte the peer has not seen is never drained, and its
+	 * reference pins the flush forever. That counter needed the PROGRAM to
+	 * label each emission a retransmission or not, which put a diagnostic
+	 * argument on the one instruction the paper specifies; it is gone.
+	 *
+	 * This is the outcome rather than the proxy: at teardown every
+	 * reference should have been released by the drain. It needs nothing
+	 * from the program, and it cannot mistake a legitimate retransmission
+	 * for a defect, which the proxy could not avoid.
+	 */
+	if (f->tx_unit && f->tx_unit->live_refs) {
+		TransportOf(core)->refs_at_destroy += f->tx_unit->live_refs;
+		if (TransportOf(core)->refs_at_destroy_shown++ < 8)
+			fprintf(stderr, "REFS AT DESTROY: flow %u leaves %u "
+				"transmit reference(s) held; a blueprint was "
+				"committed that nothing ever drained\n",
+				f->id, f->tx_unit->live_refs);
+	}
 	if (f->tx_unit)
 		TxUnitFini(f->tx_unit);
 	if (f->rx_unit)

@@ -13,7 +13,7 @@
 // acknowledgement generation to the donor's rule, out-of-order reassembly,
 // fast retransmit, PAWS and sequence validation, the closed-window probe,
 // reset handling both ways, FIN teardown through TIME_WAIT, and the
-// retransmission timeout. What is deliberately absent is in §absence_register.
+// retransmission timeout. What is deliberately absent is in §missing_mechanisms.
 //
 // PARITY. Every constant is the DONOR'S RUNNING CONFIGURATION, not a standard
 // and not memory (rule 1). The ones that look like defects are reproduced on
@@ -2502,7 +2502,7 @@ dispatch tcp_dispatch {
 // close chain that starts it. It is NOT in tcp_data or tcp_fin, which generate
 // nothing, and not in app_send, since an application that has closed may not
 // send.
-// §absence_register
+// §missing_mechanisms
 // ---------------------------------------------------------------------------
 // MTP is positive-only: a program can say what it does and cannot say what it
 // does not. The one rule this effort runs under turns on exactly that — "if one
@@ -2608,8 +2608,13 @@ dispatch tcp_dispatch {
 //   delayed_ack          NEITHER has it.
 //   ecn                  NEITHER has it.
 //   keepalive            NEITHER has it.
-//   active_open          not needed by the workload; the donor's server path is
-//                        passive and that is what is measured.
+//   active_open          IMPLEMENTED and now MEASURED. §proc_connect and
+//                        §gen_syn run whenever our stack is the client, which
+//                        comparison 2 does. This line said the workload did
+//                        not need it, and that stopped being true when the
+//                        client side started being measured -- during which a
+//                        defect in exactly that path (zero ports on every app
+//                        op) went unnoticed because nothing looked.
 //
 // A compiler should check this register against the body and reject a program
 // that implements something it declared absent, or that omits something it did

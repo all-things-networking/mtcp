@@ -1608,6 +1608,8 @@ PrintNetworkStats(struct core_ctx *core)
 	TRACE_INFO("CPU %d: FLOWS STILL AWAITING THE APPLICATION AT EXIT "
 		   "(protocol finished, never detached): %llu\n", ctx->cpu,
 		   (unsigned long long)TransportOf(core)->awaiting_app);
+	TRACE_INFO("CPU %d: REFERENCES STILL HELD AT FLOW DESTROY: %lu\n", ctx->cpu,
+		   (unsigned long)TransportOf(core)->refs_at_destroy);
 	TRACE_INFO("CPU %d: COMMITS BELOW THE WIRE: rtx=%lu partial=%lu DEAD=%lu\n", ctx->cpu,
 		   (unsigned long)TransportOf(core)->below_wire_rtx,
 		   (unsigned long)TransportOf(core)->below_wire_new,
