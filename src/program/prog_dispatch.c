@@ -239,6 +239,12 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len,
 	uint8_t  kinds[EV_KIND__N];
 	struct net_ev ev;
 	unsigned n, i;
+	struct tcp_ctx *__memo_tcp_ctx = NULL;
+	flowkey_t __memok_tcp_ctx;
+	bool __memoh_tcp_ctx = false;
+	struct tcp_listen_ctx *__memo_tcp_listen_ctx = NULL;
+	flowkey_t __memok_tcp_listen_ctx;
+	bool __memoh_tcp_listen_ctx = false;
 
 	n = parse_tcp(l4, len, iph, &ev, kinds, now_ms);
 
@@ -247,46 +253,118 @@ mtp_program_net_input(const uint8_t *l4, uint16_t len,
 
 		switch (kinds[i]) {
 		case EV_tcp_ack: {
-			struct tcp_ctx *c = ev.__have_tcp_ctx
-				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			struct tcp_ctx *c = NULL;
+
+			if (ev.__have_tcp_ctx) {
+				if (__memoh_tcp_ctx
+				    && !memcmp(&__memok_tcp_ctx, &ev.__key_tcp_ctx,
+					      sizeof(flowkey_t))) {
+					c = __memo_tcp_ctx;
+				} else {
+					c = mtp_ctx_lookup(&ev.__key_tcp_ctx);
+					__memok_tcp_ctx = ev.__key_tcp_ctx;
+					__memoh_tcp_ctx = true;
+					__memo_tcp_ctx = c;
+				}
+			}
 			alive = dispatch_tcp_ack(c, &ev, now_ms);
 			break;
 		}
 		case EV_tcp_data: {
-			struct tcp_ctx *c = ev.__have_tcp_ctx
-				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			struct tcp_ctx *c = NULL;
+
+			if (ev.__have_tcp_ctx) {
+				if (__memoh_tcp_ctx
+				    && !memcmp(&__memok_tcp_ctx, &ev.__key_tcp_ctx,
+					      sizeof(flowkey_t))) {
+					c = __memo_tcp_ctx;
+				} else {
+					c = mtp_ctx_lookup(&ev.__key_tcp_ctx);
+					__memok_tcp_ctx = ev.__key_tcp_ctx;
+					__memoh_tcp_ctx = true;
+					__memo_tcp_ctx = c;
+				}
+			}
 			if (!c)
 				break;	/* look-up miss: TODO, an error event the program handles */
 			alive = dispatch_tcp_data(c, &ev, now_ms);
 			break;
 		}
 		case EV_tcp_fin: {
-			struct tcp_ctx *c = ev.__have_tcp_ctx
-				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			struct tcp_ctx *c = NULL;
+
+			if (ev.__have_tcp_ctx) {
+				if (__memoh_tcp_ctx
+				    && !memcmp(&__memok_tcp_ctx, &ev.__key_tcp_ctx,
+					      sizeof(flowkey_t))) {
+					c = __memo_tcp_ctx;
+				} else {
+					c = mtp_ctx_lookup(&ev.__key_tcp_ctx);
+					__memok_tcp_ctx = ev.__key_tcp_ctx;
+					__memoh_tcp_ctx = true;
+					__memo_tcp_ctx = c;
+				}
+			}
 			if (!c)
 				break;	/* look-up miss: TODO, an error event the program handles */
 			alive = dispatch_tcp_fin(c, &ev, now_ms);
 			break;
 		}
 		case EV_tcp_rst: {
-			struct tcp_ctx *c = ev.__have_tcp_ctx
-				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			struct tcp_ctx *c = NULL;
+
+			if (ev.__have_tcp_ctx) {
+				if (__memoh_tcp_ctx
+				    && !memcmp(&__memok_tcp_ctx, &ev.__key_tcp_ctx,
+					      sizeof(flowkey_t))) {
+					c = __memo_tcp_ctx;
+				} else {
+					c = mtp_ctx_lookup(&ev.__key_tcp_ctx);
+					__memok_tcp_ctx = ev.__key_tcp_ctx;
+					__memoh_tcp_ctx = true;
+					__memo_tcp_ctx = c;
+				}
+			}
 			if (!c)
 				break;	/* look-up miss: TODO, an error event the program handles */
 			alive = dispatch_tcp_rst(c, &ev, now_ms);
 			break;
 		}
 		case EV_tcp_syn: {
-			struct tcp_listen_ctx *c = ev.__have_tcp_listen_ctx
-				? mtp_ctx_lookup(&ev.__key_tcp_listen_ctx) : NULL;
+			struct tcp_listen_ctx *c = NULL;
+
+			if (ev.__have_tcp_listen_ctx) {
+				if (__memoh_tcp_listen_ctx
+				    && !memcmp(&__memok_tcp_listen_ctx, &ev.__key_tcp_listen_ctx,
+					      sizeof(flowkey_t))) {
+					c = __memo_tcp_listen_ctx;
+				} else {
+					c = mtp_ctx_lookup(&ev.__key_tcp_listen_ctx);
+					__memok_tcp_listen_ctx = ev.__key_tcp_listen_ctx;
+					__memoh_tcp_listen_ctx = true;
+					__memo_tcp_listen_ctx = c;
+				}
+			}
 			if (!c)
 				break;	/* look-up miss: TODO, an error event the program handles */
 			alive = dispatch_tcp_syn(c, &ev, now_ms);
 			break;
 		}
 		case EV_tcp_synack: {
-			struct tcp_ctx *c = ev.__have_tcp_ctx
-				? mtp_ctx_lookup(&ev.__key_tcp_ctx) : NULL;
+			struct tcp_ctx *c = NULL;
+
+			if (ev.__have_tcp_ctx) {
+				if (__memoh_tcp_ctx
+				    && !memcmp(&__memok_tcp_ctx, &ev.__key_tcp_ctx,
+					      sizeof(flowkey_t))) {
+					c = __memo_tcp_ctx;
+				} else {
+					c = mtp_ctx_lookup(&ev.__key_tcp_ctx);
+					__memok_tcp_ctx = ev.__key_tcp_ctx;
+					__memoh_tcp_ctx = true;
+					__memo_tcp_ctx = c;
+				}
+			}
 			if (!c)
 				break;	/* look-up miss: TODO, an error event the program handles */
 			alive = dispatch_tcp_synack(c, &ev, now_ms);
