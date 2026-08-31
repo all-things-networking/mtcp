@@ -37,7 +37,7 @@ dispatch_tcp_ack(struct tcp_ctx *ctx, struct net_ev *ev, uint32_t now_ms)
 	{
 		struct tcp_listen_ctx *ctx2 = ev->__have_tcp_listen_ctx
 			? mtp_ctx_lookup(&ev->__key_tcp_listen_ctx) : NULL;
-		if (ctx2)
+		if (ctx2 && ctx)
 			proc_accept_queue(ev, ctx, ctx2);
 	}
 	if (ctx)
