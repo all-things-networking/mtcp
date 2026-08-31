@@ -24,7 +24,6 @@ const uint16 PARITY_MSS_ADVERTISED = 1460;
 const uint16 PARITY_MSS_PAYLOAD    = 1448;
 const uint8  PARITY_WSCALE         = 7;
 const uint32 PARITY_RCVBUF_SIZE         = 262144;
-const uint32 PARITY_SNDBUF_SIZE    = 262144;
 const uint32 PARITY_INITIAL_WINDOW = 14600;
 
 const uint32 PARITY_ISN            = 0;
@@ -358,13 +357,11 @@ list<event_t> sock_close(close op) {
     return out;
 }
 
-list<instr_t> proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
     ctx.seg_ok = false;
 
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        out.add(timer_start(ctx.idle_timer, second(tcp_timeout)));
+        timer_start(ctx.idle_timer, second(tcp_timeout));
 
     bool   accept = false;
     uint32 seg_end;
@@ -375,10 +372,10 @@ list<instr_t> proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
     } else {
         if ((ev.flags & FLAG_RST) == 0 && ctx.saw_timestamp) {
             if (!ev.has_ts)
-                return out;
+                return;
             if (int32(ev.ts_val - ctx.ts_recent) < 0) {
                 ctx.ack_cnt = ctx.ack_cnt + 1;
-                return out;
+                return;
             }
             ctx.ts_recent = ev.ts_val;
         }
@@ -390,7 +387,7 @@ list<instr_t> proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
 
     if (!accept) {
         if ((ev.flags & FLAG_RST) != 0)
-            return out;
+            return;
         if (ctx.state == ST_ESTABLISHED) {
             if (ev.seq + 1 == ctx.recv_next
                 || int32(ev.seq - ctx.recv_next) <= 0) {
@@ -402,75 +399,82 @@ list<instr_t> proc_seq_check(tcp_ack ev, tcp_ctx ctx) {
         } else {
             if (ctx.state == ST_TIME_WAIT) {
                 ctx.state = ST_TIME_WAIT;
-                out.add(timer_start(ctx.tw_timer, second(tcp_timewait)));
+                timer_start(ctx.tw_timer, second(tcp_timewait));
             }
             ctx.ack_cnt = ctx.ack_cnt + 1;
         }
-        return out;
+        return;
     }
 
     ctx.seg_ok = true;
-    return out;
+    return;
 }
 
-list<instr_t> proc_passive_open(tcp_syn ev, tcp_listen_ctx lst) {
-    list<instr_t> out;
-
-    list<instr_t> out;
-
+void proc_passive_open(tcp_syn ev, tcp_listen_ctx lst) {
     if (lst.state != ST_LISTEN)
-        return out;
+        return;
 
     if (lst.pending_n >= lst.pending_cap)
-        return out;
+        return;
 
     tcp_fid fid = tcp_fid(ev.local_ip, ev.remote_ip, ev.dport, ev.sport);
-    uint32  recv_next = ev.seq + 1;
+    tcp_ctx ctx = new_ctx(fid);
 
-    out.add(new_ctx(tcp_ctx,
-                    key        = fid,
-                    lst_key    = tcp_lid(ev.local_ip, ev.dport),
-                    loc_port   = ev.dport,
-                    rem_port   = ev.sport,
-                    local_ip   = ev.local_ip,
-                    remote_ip  = ev.remote_ip,
-                    state      = ST_SYN_RCVD,
-                    recv_next  = recv_next,
-                    rcv_base   = recv_next,
-                    delivered  = recv_next,
-                    saw_timestamp = ev.has_ts,
-                    ts_recent  = ev.ts_val,
-                    snd_wscale = ev.has_wscale ? ev.wscale : 0,
-                    send_wnd   = ev.window,
-                    send_una   = PARITY_ISN,
-                    send_next  = PARITY_ISN + 1,
-                    snd_base   = PARITY_ISN + 1,
-                    cwnd       = PARITY_INIT_CWND,
-                    ssthresh   = PARITY_OPENING_TRAJECTORY ? PARITY_SSTHRESH_PASSIVE
-                                                           : PARITY_SSTHRESH_ACTIVE,
-                    tx_open    = true,
-                    last_ack_sent_ms = now()));
+    ctx.key      = fid;
+    ctx.lst_key  = tcp_lid(ev.local_ip, ev.dport);
+    ctx.loc_port = ev.dport;
+    ctx.rem_port = ev.sport;
+    ctx.local_ip = ev.local_ip;
+    ctx.remote_ip = ev.remote_ip;
+
+    ctx.state = ST_SYN_RCVD;
+    ctx.recv_next = ev.seq + 1;
+
+    ctx.rcv_base  = ctx.recv_next;
+    ctx.delivered = ctx.rcv_base;
+    ctx.rx_wnd.init(ctx.recv_next);
+
+    ctx.saw_timestamp = ev.has_ts;
+    ctx.ts_recent = ev.ts_val;
+
+    ctx.snd_wscale = ev.has_wscale ? ev.wscale : 0;
+    ctx.send_wnd = ev.window;
+
+    ctx.send_una  = PARITY_ISN;
+    ctx.send_next = PARITY_ISN;
+    ctx.cwnd      = PARITY_INIT_CWND;
+    ctx.ssthresh  = PARITY_OPENING_TRAJECTORY ? PARITY_SSTHRESH_PASSIVE
+                                              : PARITY_SSTHRESH_ACTIVE;
 
     TCPBP bp_synack;
-
-    bp_synack.src_port = ev.dport;
-    bp_synack.dst_port = ev.sport;
-    bp_synack.seq_no   = PARITY_ISN;
-    bp_synack.ack_seq  = recv_next;
+    ctx.last_ack_sent_ms = now();
+    if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
+        timer_start(ctx.idle_timer, second(tcp_timeout));
+    bp_synack.src_port = ctx.loc_port;
+    bp_synack.dst_port = ctx.rem_port;
+    bp_synack.seq_no   = ctx.send_next;
+    bp_synack.ack_seq  = ctx.recv_next;
     bp_synack.flags    = PARITY_SET_PSH ? (FLAG_SYN | FLAG_ACK)
                               : ((FLAG_SYN | FLAG_ACK) & ~FLAG_PSH);
-    bp_synack.window   = uint16(PARITY_INITIAL_WINDOW);
+    bp_synack.window   = uint16(ctx.rcv_wnd);
     bp_synack.urg_ptr  = 0;
+    if (bp_synack.window == 0)
+        ctx.need_wnd_adv = true;
     bp_synack.opts.add(opt_mss(PARITY_MSS_ADVERTISED));
     bp_synack.opts.add(opt_nop());
     bp_synack.opts.add(opt_nop());
-    bp_synack.opts.add(opt_ts(now(), ev.ts_val));
+    bp_synack.opts.add(opt_ts(now(), ctx.ts_recent));
     bp_synack.opts.add(opt_nop());
     bp_synack.opts.add(opt_wscale(PARITY_WSCALE));
-    out.add(pkt_gen(bp_synack, PRIO_CONTROL));
-
-    out.add(new_tx_ordered_data(INF, fid));
-    return out;
+    if (pkt_gen(bp_synack, PRIO_CONTROL) == 0) {
+        ctx.send_next = ctx.send_next + 1;
+        ctx.snd_base  = ctx.send_next;
+        if (!ctx.tx_open) {
+            new_tx_ordered_data(INF, ctx.key);
+            ctx.tx_open = true;
+        }
+    }
+    return;
 }
 
 void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
@@ -488,21 +492,19 @@ void proc_open_done(tcp_ack ev, tcp_ctx ctx) {
     return;
 }
 
-list<instr_t> proc_accept_queue(tcp_ack ev, tcp_ctx ctx, tcp_listen_ctx lst) {
-    list<instr_t> out;
-
+void proc_accept_queue(tcp_ack ev, tcp_ctx ctx, tcp_listen_ctx lst) {
     if (!ctx.seg_ok)
-        return out;
+        return;
 
     if (ctx.state != ST_SYN_RCVD || ev.ack != ctx.send_next)
-        return out;
+        return;
 
     if (lst.pending_n < PROG_MAX_BACKLOG) {
         lst.pending[lst.pending_n] = ctx.key;
         lst.pending_n = lst.pending_n + 1;
-        out.add(notify(lst, READABLE));
+        notify(lst, READABLE);
     }
-    return out;
+    return;
 }
 
 void proc_timestamp(tcp_ack ev, tcp_ctx ctx) {
@@ -648,33 +650,31 @@ void proc_congestion(tcp_ack ev, tcp_ctx ctx) {
     return;
 }
 
-list<instr_t> proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
-    list<instr_t> out;
-
+void proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
     if (!ctx.seg_ok)
-        return out;
+        return;
     uint32 acked;
 
     if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
-        return out;
+        return;
 
     if (ev.ack == ctx.send_next) {
         if (ctx.state == ST_LAST_ACK) {
             ctx.state = ST_CLOSED;
-            out.add(del_ctx(ctx.key));
-            return out;
+            del_ctx(ctx.key);
+            return;
         }
         if (ctx.state == ST_FIN_WAIT_1)
             ctx.state = ST_FIN_WAIT_2;
         else if (ctx.state == ST_CLOSING) {
             ctx.state = ST_TIME_WAIT;
-            out.add(timer_start(ctx.tw_timer, second(tcp_timewait)));
+            timer_start(ctx.tw_timer, second(tcp_timewait));
         }
     }
 
     acked = ev.ack - ctx.send_una;
     if (int32(acked) <= 0) {
-        return out;
+        return;
     }
     s.acked = acked;
 
@@ -682,36 +682,34 @@ list<instr_t> proc_ack(tcp_ack ev, tcp_ctx ctx, tcp_scratch s) {
         ctx.fin_pending = false;
 
     ctx.send_una = ev.ack;
-    out.add(tx_flush_and_notify(ctx.key, acked));
+    tx_flush_and_notify(ctx.key, acked);
 
     ctx.rtx_count = 0;
-    out.add(timer_stop(ctx.rto_timer));
+    timer_stop(ctx.rto_timer);
     if ((ctx.send_una != ctx.send_next))
 timer_start(ctx.rto_timer,
                     millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
                                 << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
-    return out;
+    return;
 }
 
-list<instr_t> proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
-    list<instr_t> out;
-
+void proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
     if (!ctx.seg_ok)
-        return out;
+        return;
     uint32 next;
 
     if (!(ctx.state == ST_ESTABLISHED || ctx.state == ST_FIN_WAIT_1 || ctx.state == ST_FIN_WAIT_2))
-        return out;
+        return;
     if (ev.data_len == 0)
-        return out;
+        return;
 
     if (!ctx.rx_open) {
-        out.add(new_rx_ordered_data(INF, ctx.key));
-        ctx.rx_wnd.init(ctx.recv_next);
+        new_rx_ordered_data(INF, ctx.key);
         ctx.rx_open = true;
     }
 
-    out.add(add_rx_data_seg(ctx.key, ev.hold_addr, ev.data_len, ev.seq));
+    if (add_rx_data_seg(ctx.key, ev.hold_addr, ev.data_len, ev.seq) < 0)
+        return;
 
     ctx.rx_wnd.set(ev.seq, ev.seq + ev.data_len);
     next = ctx.rx_wnd.slide();
@@ -724,7 +722,7 @@ list<instr_t> proc_recv(tcp_data ev, tcp_ctx ctx, tcp_scratch s) {
     } else {
         s.ack_opt = ACK_APIECE;
     }
-    return out;
+    return;
 }
 
 void send_ack(event_t ev, tcp_ctx ctx, tcp_scratch s) {
@@ -739,20 +737,18 @@ void send_ack(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     return;
 }
 
-list<instr_t> proc_fin(tcp_fin ev, tcp_ctx ctx, tcp_scratch s) {
-    list<instr_t> out;
-
+void proc_fin(tcp_fin ev, tcp_ctx ctx, tcp_scratch s) {
     if (!ctx.seg_ok)
-        return out;
+        return;
     uint32 fin_seq;
 
     if (!(ctx.state == ST_ESTABLISHED || ctx.state == ST_FIN_WAIT_1 || ctx.state == ST_FIN_WAIT_2))
-        return out;
+        return;
 
     fin_seq = ev.seq + ev.payload_len;
     if (fin_seq != ctx.recv_next) {
         s.ack_opt = ACK_APIECE;
-        return out;
+        return;
     }
 
     ctx.recv_next = fin_seq + 1;
@@ -766,31 +762,29 @@ list<instr_t> proc_fin(tcp_fin ev, tcp_ctx ctx, tcp_scratch s) {
         ctx.state = ST_CLOSING;
     } else if (ctx.state == ST_FIN_WAIT_2) {
         ctx.state = ST_TIME_WAIT;
-        out.add(timer_start(ctx.tw_timer, second(tcp_timewait)));
+        timer_start(ctx.tw_timer, second(tcp_timewait));
     } else {
         bool was_established = ctx.state == ST_ESTABLISHED;
 
         ctx.state = ST_CLOSE_WAIT;
         if (was_established)
-            out.add(notify(ctx, READABLE));
+            notify(ctx, READABLE);
     }
-    return out;
+    return;
 }
 
-list<instr_t> gen_fin(event_t ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void gen_fin(event_t ev, tcp_ctx ctx) {
     if (!ctx.app_closed)
-        return out;
+        return;
     if (ctx.state != ST_ESTABLISHED && ctx.state != ST_CLOSE_WAIT)
-        return out;
+        return;
     if (ctx.send_next - ctx.snd_base != ctx.write_end)
-        return out;
+        return;
 
     TCPBP bp_fin;
     ctx.last_ack_sent_ms = now();
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        out.add(timer_start(ctx.idle_timer, second(tcp_timeout)));
+        timer_start(ctx.idle_timer, second(tcp_timeout));
     bp_fin.src_port = ctx.loc_port;
     bp_fin.dst_port = ctx.rem_port;
     bp_fin.seq_no   = ctx.send_next;
@@ -804,12 +798,13 @@ list<instr_t> gen_fin(event_t ev, tcp_ctx ctx) {
     bp_fin.opts.add(opt_nop());
     bp_fin.opts.add(opt_nop());
     bp_fin.opts.add(opt_ts(now(), ctx.ts_recent));
-    out.add(pkt_gen(bp_fin, PRIO_DATA));
+    if (pkt_gen(bp_fin, PRIO_DATA) == 0) {
         ctx.fin_pending = true;
         ctx.fin_seq = ctx.send_next;
         ctx.send_next = ctx.send_next + 1;
         ctx.state = ctx.state == ST_CLOSE_WAIT ? ST_LAST_ACK : ST_FIN_WAIT_1;
-    return out;
+    }
+    return;
 }
 
 void mark_closed(app_close ev, tcp_ctx ctx) {
@@ -817,38 +812,29 @@ void mark_closed(app_close ev, tcp_ctx ctx) {
     return;
 }
 
-list<instr_t> record_data(app_send ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
-    uint32 wrote, held, free;
+void record_data(app_send ev, tcp_ctx ctx) {
+    uint32 wrote;
 
     if (!(ctx.state == ST_ESTABLISHED || ctx.state == ST_CLOSE_WAIT) || !ctx.tx_open) {
         ev.result = -1;
-        return out;
+        return;
     }
 
-    held = ctx.write_end - (ctx.send_una - ctx.snd_base);
-    free = PARITY_SNDBUF_SIZE - held;
-    wrote = ev.mlen < free ? ev.mlen : free;
-
-    if (wrote > 0) {
-        out.add(add_tx_data(ctx.key, ev.addr, wrote));
+    wrote = add_tx_data(ctx.key, ev.addr, ev.mlen);
+    if (wrote > 0)
         ctx.write_end = ctx.write_end + wrote;
-    }
     ev.result = int32(wrote);
-    return out;
+    return;
 }
 
-list<instr_t> gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
-    list<instr_t> out;
-
+void gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     uint32 win, to_send, seq, pkts;
     bool   window_blocked = false;
 
     if (s.no_send)
-        return out;
+        return;
     if (!(ctx.state == ST_ESTABLISHED || ctx.state == ST_CLOSE_WAIT))
-        return out;
+        return;
 
     win = ctx.cwnd < ctx.send_wnd ? ctx.cwnd : ctx.send_wnd;
     seq = ctx.send_next;
@@ -877,14 +863,14 @@ list<instr_t> gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
 
     if (to_send == 0) {
         if (window_blocked)
-            out.add(timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS)));
-        return out;
+            timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
+        return;
     }
 
     TCPBP bp;
     ctx.last_ack_sent_ms = now();
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        out.add(timer_start(ctx.idle_timer, second(tcp_timeout)));
+        timer_start(ctx.idle_timer, second(tcp_timeout));
     bp.src_port = ctx.loc_port;
     bp.dst_port = ctx.rem_port;
     bp.seq_no   = ctx.send_next;
@@ -904,7 +890,8 @@ list<instr_t> gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
                          [TCPBP::seq_no, ctx.send_next,
                           prev.seq_no + prev.payload_len]);
 
-    out.add(pkt_gen(bp, PRIO_DATA));
+    if (pkt_gen(bp, PRIO_DATA) != 0)
+        return;
 
     pkts = (to_send + PARITY_MSS_PAYLOAD - 1) / PARITY_MSS_PAYLOAD;
     s.pkts_sent = s.pkts_sent + pkts;
@@ -913,12 +900,10 @@ list<instr_t> gen_seg(event_t ev, tcp_ctx ctx, tcp_scratch s) {
 timer_start(ctx.rto_timer,
                     millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
                                 << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
-    return out;
+    return;
 }
 
-list<instr_t> drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
-    list<instr_t> out;
-
+void drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
     uint32 sent = s.pkts_sent;
 
     ctx.ack_cnt = ctx.ack_cnt > sent ? ctx.ack_cnt - sent : 0;
@@ -928,7 +913,7 @@ list<instr_t> drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
         TCPBP bp_owed;
         ctx.last_ack_sent_ms = now();
         if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-            out.add(timer_start(ctx.idle_timer, second(tcp_timeout)));
+            timer_start(ctx.idle_timer, second(tcp_timeout));
         bp_owed.src_port = ctx.loc_port;
         bp_owed.dst_port = ctx.rem_port;
         bp_owed.seq_no   = ctx.send_next;
@@ -942,22 +927,21 @@ list<instr_t> drain_owed_acks(event_t ev, tcp_ctx ctx, tcp_scratch s) {
         bp_owed.opts.add(opt_nop());
         bp_owed.opts.add(opt_nop());
         bp_owed.opts.add(opt_ts(now(), ctx.ts_recent));
-        out.add(pkt_gen(bp_owed, PRIO_ACK));
+        if (pkt_gen(bp_owed, PRIO_ACK) != 0)
+            break;
         ctx.ack_cnt = ctx.ack_cnt - 1;
     }
-    return out;
+    return;
 }
 
-list<instr_t> gen_wnd_adv(event_t ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void gen_wnd_adv(event_t ev, tcp_ctx ctx) {
     if (!ctx.need_wnd_adv || ctx.rcv_wnd <= PARITY_MSS_PAYLOAD)
-        return out;
+        return;
     ctx.need_wnd_adv = false;
     TCPBP bp_adv;
     ctx.last_ack_sent_ms = now();
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        out.add(timer_start(ctx.idle_timer, second(tcp_timeout)));
+        timer_start(ctx.idle_timer, second(tcp_timeout));
     bp_adv.src_port = ctx.loc_port;
     bp_adv.dst_port = ctx.rem_port;
     bp_adv.seq_no   = ctx.send_next;
@@ -971,67 +955,55 @@ list<instr_t> gen_wnd_adv(event_t ev, tcp_ctx ctx) {
     bp_adv.opts.add(opt_nop());
     bp_adv.opts.add(opt_nop());
     bp_adv.opts.add(opt_ts(now(), ctx.ts_recent));
-    out.add(pkt_gen(bp_adv, PRIO_ACK));
-    return out;
+    pkt_gen(bp_adv, PRIO_ACK);
+    return;
 }
 
-list<instr_t> proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
-    list<instr_t> out;
-
-    uint32 held;
-    held = (ctx.recv_next - ctx.delivered)
-           - ((ctx.fin_consumed && ctx.recv_next != ctx.delivered) ? 1 : 0);
-    s.delivered = ev.len < held ? ev.len : held;
-
-    if (s.delivered > 0)
-        out.add(rx_flush_and_notify(ctx.key, s.delivered, ev.buf));
+void proc_drain(app_recv ev, tcp_ctx ctx, tcp_scratch s) {
+    s.delivered = rx_flush_and_notify(ctx.key, ev.len, ev.buf);
     if (s.delivered == 0) {
         ev.result = ctx.fin_consumed ? 0 : -1;
-        return out;
+        return;
     }
     ev.result = int32(s.delivered);
     ctx.delivered = ctx.delivered + s.delivered;
     ctx.rcv_wnd = PARITY_RCVBUF_SIZE - ((ctx.recv_next - ctx.delivered)
                   - ((ctx.fin_consumed && ctx.recv_next != ctx.delivered) ? 1 : 0));
-    return out;
+    return;
 }
 
-list<instr_t> proc_rst(tcp_rst ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void proc_rst(tcp_rst ev, tcp_ctx ctx) {
     if (int32(ev.seq - ctx.recv_next) < 0 ||
         int32(ev.seq - (ctx.recv_next + ctx.rcv_wnd)) > 0)
-        return out;
+        return;
     if (ctx.state == ST_CLOSED || ctx.state == ST_LISTEN)
-        return out;
+        return;
 
     if (ctx.state == ST_SYN_RCVD) {
         if (ev.ack == ctx.send_next) {
             ctx.state = ST_CLOSED;
-            out.add(del_ctx(ctx.key));
+            del_ctx(ctx.key);
         }
-        return out;
+        return;
     }
 
     if (ctx.state == ST_FIN_WAIT_1 || ctx.state == ST_FIN_WAIT_2 ||
         ctx.state == ST_LAST_ACK || ctx.state == ST_CLOSING ||
         ctx.state == ST_TIME_WAIT) {
         ctx.state = ST_CLOSED;
-        out.add(del_ctx(ctx.key));
-        return out;
+        del_ctx(ctx.key);
+        return;
     }
 
     ctx.state = ST_CLOSE_WAIT;
     ctx.fin_consumed = true;
-    out.add(notify(ctx, READABLE));
-    return out;
+    notify(ctx, READABLE);
+    return;
 }
 
-list<instr_t> gen_syn(event_t ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void gen_syn(event_t ev, tcp_ctx ctx) {
     if (ctx.state != ST_SYN_SENT || ctx.send_next != ctx.snd_base)
-        return out;
+        return;
 
     TCPBP bp_syn;
     bp_syn.src_port = ctx.loc_port;
@@ -1050,20 +1022,19 @@ list<instr_t> gen_syn(event_t ev, tcp_ctx ctx) {
     bp_syn.opts.add(opt_ts(now(), ctx.ts_recent));
     bp_syn.opts.add(opt_nop());
     bp_syn.opts.add(opt_wscale(PARITY_WSCALE));
-    out.add(pkt_gen(bp_syn, PRIO_CONTROL));
+    if (pkt_gen(bp_syn, PRIO_CONTROL) != 0)
+        return;
     ctx.send_next = ctx.send_next + 1;
     ctx.snd_base = ctx.send_next;
 timer_start(ctx.rto_timer,
                 millisecond((ctx.have_rtt ? ctx.rto_ms : PARITY_INITIAL_RTO_MS)
                             << (ctx.rtx_count < 7 ? ctx.rtx_count : 7)));
-    return out;
+    return;
 }
 
-list<instr_t> proc_synack(tcp_synack ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void proc_synack(tcp_synack ev, tcp_ctx ctx) {
     if (ctx.state != ST_SYN_SENT)
-        return out;
+        return;
 
     if (ev.ack != ctx.send_next) {
         TCPBP bp_rst;
@@ -1074,8 +1045,8 @@ list<instr_t> proc_synack(tcp_synack ev, tcp_ctx ctx) {
         bp_rst.flags    = FLAG_RST;
         bp_rst.window   = 0;
         bp_rst.urg_ptr  = 0;
-        out.add(pkt_gen(bp_rst, PRIO_CONTROL));
-        return out;
+        pkt_gen(bp_rst, PRIO_CONTROL);
+        return;
     }
 
     ctx.send_una  = ev.ack;
@@ -1094,20 +1065,20 @@ list<instr_t> proc_synack(tcp_synack ev, tcp_ctx ctx) {
     ctx.cwnd = PARITY_INIT_CWND;
     ctx.ssthresh = PARITY_SSTHRESH_ACTIVE;
     ctx.rtx_count = 0;
-    out.add(timer_stop(ctx.rto_timer));
+    timer_stop(ctx.rto_timer);
 
     if (!ctx.tx_open) {
-        out.add(new_tx_ordered_data(INF, ctx.key));
+        new_tx_ordered_data(INF, ctx.key);
         ctx.tx_open = true;
     }
     ctx.state = ST_ESTABLISHED;
 
-    out.add(notify(ctx, WRITABLE));
+    notify(ctx, WRITABLE);
 
     TCPBP bp_hs;
     ctx.last_ack_sent_ms = now();
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        out.add(timer_start(ctx.idle_timer, second(tcp_timeout)));
+        timer_start(ctx.idle_timer, second(tcp_timeout));
     bp_hs.src_port = ctx.loc_port;
     bp_hs.dst_port = ctx.rem_port;
     bp_hs.seq_no   = ctx.send_next;
@@ -1121,18 +1092,16 @@ list<instr_t> proc_synack(tcp_synack ev, tcp_ctx ctx) {
     bp_hs.opts.add(opt_nop());
     bp_hs.opts.add(opt_nop());
     bp_hs.opts.add(opt_ts(now(), ctx.ts_recent));
-    out.add(pkt_gen(bp_hs, PRIO_ACK));
-    return out;
+    pkt_gen(bp_hs, PRIO_ACK);
+    return;
 }
 
-list<instr_t> proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
-    list<instr_t> out;
-
+void proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
     ctx.rtx_count = ctx.rtx_count + 1;
     if (ctx.rtx_count > PARITY_MAX_RTX) {
         ctx.state = ST_CLOSED;
-        out.add(notify(ctx, ERROR));
-        return out;
+        notify(ctx, ERROR);
+        return;
     }
 
     ctx.ssthresh = ctx.cwnd / 2 > 2 * PARITY_MSS_ADVERTISED ? ctx.cwnd / 2
@@ -1146,7 +1115,7 @@ list<instr_t> proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
         TCPBP bp_rtx_fin;
         ctx.last_ack_sent_ms = now();
         if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-            out.add(timer_start(ctx.idle_timer, second(tcp_timeout)));
+            timer_start(ctx.idle_timer, second(tcp_timeout));
         bp_rtx_fin.src_port = ctx.loc_port;
         bp_rtx_fin.dst_port = ctx.rem_port;
         bp_rtx_fin.seq_no   = ctx.send_next;
@@ -1160,32 +1129,28 @@ list<instr_t> proc_rto(tcp_rto_timeout ev, tcp_ctx ctx, tcp_scratch s) {
         bp_rtx_fin.opts.add(opt_nop());
         bp_rtx_fin.opts.add(opt_nop());
         bp_rtx_fin.opts.add(opt_ts(now(), ctx.ts_recent));
-        out.add(pkt_gen(bp_rtx_fin, PRIO_DATA));
-        ctx.send_next = ctx.send_next + 1;
+        if (pkt_gen(bp_rtx_fin, PRIO_DATA) == 0)
+            ctx.send_next = ctx.send_next + 1;
     }
-    return out;
+    return;
 }
 
-list<instr_t> proc_timewait_done(tcp_timewait_timeout ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void proc_timewait_done(tcp_timewait_timeout ev, tcp_ctx ctx) {
     ctx.state = ST_CLOSED;
-    out.add(del_ctx(ctx.key));
-    return out;
+    del_ctx(ctx.key);
+    return;
 }
 
-list<instr_t> proc_probe(tcp_probe_timeout ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void proc_probe(tcp_probe_timeout ev, tcp_ctx ctx) {
     if (ctx.send_wnd > ctx.cwnd)
-        return out;
+        return;
     if (now() - ctx.last_ack_sent_ms <= PARITY_PROBE_MS)
-        return out;
+        return;
 
     TCPBP bp_probe;
     ctx.last_ack_sent_ms = now();
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        out.add(timer_start(ctx.idle_timer, second(tcp_timeout)));
+        timer_start(ctx.idle_timer, second(tcp_timeout));
     bp_probe.src_port = ctx.loc_port;
     bp_probe.dst_port = ctx.rem_port;
     bp_probe.seq_no   = ctx.send_next - 1;
@@ -1199,29 +1164,25 @@ list<instr_t> proc_probe(tcp_probe_timeout ev, tcp_ctx ctx) {
     bp_probe.opts.add(opt_nop());
     bp_probe.opts.add(opt_nop());
     bp_probe.opts.add(opt_ts(now(), ctx.ts_recent));
-    out.add(pkt_gen(bp_probe, PRIO_ACK));
-    out.add(timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS)));
-    return out;
+    pkt_gen(bp_probe, PRIO_ACK);
+    timer_start(ctx.probe_timer, millisecond(PARITY_PROBE_MS));
+    return;
 }
 
-list<instr_t> proc_idle(tcp_idle_timeout ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void proc_idle(tcp_idle_timeout ev, tcp_ctx ctx) {
     ctx.state = ST_CLOSED;
-    out.add(notify(ctx, ERROR));
-    out.add(del_ctx(ctx.key));
-    return out;
+    notify(ctx, ERROR);
+    del_ctx(ctx.key);
+    return;
 }
 
-list<instr_t> proc_bind(app_bind ev, tcp_listen_ctx ctx) {
-    list<instr_t> out;
-
-    out.add(new_ctx(tcp_listen_ctx,
-                    key        = tcp_lid(ev.ip, ev.port),
-                    local_ip   = ev.ip,
-                    local_port = ev.port,
-                    state      = ST_CLOSED));
-    return out;
+void proc_bind(app_bind ev, tcp_listen_ctx ctx) {
+    new_ctx(tcp_lid(ev.ip, ev.port));
+    ctx.key = tcp_lid(ev.ip, ev.port);
+    ctx.local_ip = ev.ip;
+    ctx.local_port = ev.port;
+    ctx.state = ST_CLOSED;
+    return;
 }
 
 void proc_listen(app_listen ev, tcp_listen_ctx ctx) {
@@ -1233,18 +1194,16 @@ void proc_listen(app_listen ev, tcp_listen_ctx ctx) {
     return;
 }
 
-list<instr_t> proc_accept(app_accept ev, tcp_listen_ctx ctx) {
-    list<instr_t> out;
-
+void proc_accept(app_accept ev, tcp_listen_ctx ctx) {
     uint32 i;
 
     if (ctx.state != ST_LISTEN) {
         ev.result = -1;
-        return out;
+        return;
     }
     if (ctx.pending_n == 0) {
         ev.result = -1;
-        return out;
+        return;
     }
 
     ev.accepted = ctx.pending[0];
@@ -1253,15 +1212,14 @@ list<instr_t> proc_accept(app_accept ev, tcp_listen_ctx ctx) {
     ctx.pending_n = ctx.pending_n - 1;
 
     if (ctx.pending_n > 0)
-        out.add(notify(ctx, READABLE));
-    return out;
+        notify(ctx, READABLE);
+    return;
 }
 
-list<instr_t> proc_connect(app_connect ev, tcp_ctx ctx) {
-    list<instr_t> out;
-
+void proc_connect(app_connect ev, tcp_ctx ctx) {
     tcp_fid fid = tcp_fid(ev.loc_ip, ev.rem_ip, ev.loc_port, ev.rem_port);
-    out.add(new_ctx(tcp_ctx, key = fid));
+    new_ctx(fid);
+    ctx.key = fid;
     ctx.local_ip = ev.loc_ip;    ctx.remote_ip = ev.rem_ip;
     ctx.loc_port = ev.loc_port;  ctx.rem_port = ev.rem_port;
     ctx.rcv_wnd  = PARITY_INITIAL_WINDOW;
@@ -1272,9 +1230,9 @@ list<instr_t> proc_connect(app_connect ev, tcp_ctx ctx) {
     ctx.ssthresh = PARITY_SSTHRESH_ACTIVE;
     ctx.state = ST_SYN_SENT;
     if (ctx.state != ST_CLOSED && ctx.state != ST_TIME_WAIT)
-        out.add(timer_start(ctx.idle_timer, second(tcp_timeout)));
+        timer_start(ctx.idle_timer, second(tcp_timeout));
     ev.opened = ctx.key;
-    return out;
+    return;
 }
 
 coalesce tcp_coalesce : TCPBP {
