@@ -1274,7 +1274,13 @@ void proc_congestion(tcp_ack ev, tcp_ctx ctx) {
         return;
     uint32 acked;
 
-    if (!(ctx.state != ST_CLOSED && ctx.state != ST_LISTEN && ctx.state != ST_SYN_RCVD))
+    // THE DONOR'S SET, WRITTEN OUT. Its test is `state >= TCP_ST_ESTABLISHED`
+    // (tcp_in.c:553), which in ITS numbering excludes CLOSED, LISTEN, SYN_SENT
+    // and SYN_RCVD. Ours numbers the states differently -- SYN_SENT is last
+    // here, not third -- so the same comparison admits it, and did: cwnd moved
+    // in SYN_SENT, on the active-open path.
+    if (ctx.state == ST_CLOSED || ctx.state == ST_LISTEN ||
+        ctx.state == ST_SYN_SENT || ctx.state == ST_SYN_RCVD)
         return;
 
     // The peer's window is §proc_window's, ahead of this in the chain.
@@ -1309,9 +1315,24 @@ void proc_congestion(tcp_ack ev, tcp_ctx ctx) {
     // The server has no slow start. Reproduce, do not correct.
     uint32 packets = acked / PARITY_MSS_PAYLOAD;
 
-    if (packets > 0 && ctx.cwnd >= ctx.ssthresh)
-        ctx.cwnd = ctx.cwnd + (PARITY_MSS_ADVERTISED * PARITY_MSS_ADVERTISED) / ctx.cwnd
-                              * packets;
+    // CONGESTION AVOIDANCE, IN THE DONOR'S ORDER (tcp_in.c:562):
+    //
+    //     new_cwnd = cwnd + packets * mss * mss / cwnd
+    //
+    // It multiplies before dividing and we divided first, which on integers is
+    // a different number: at the donor's own measured mean cwnd of 113858 with
+    // three segments acknowledged, 56 against our 54. We under-grew every time
+    // more than one segment was acknowledged at once, and cwnd is what binds --
+    // the limiting window in 23.6 M of 26.2 M samples of its instrumented run.
+    //
+    // The guard is the donor's too, and it is an overflow test, not a policy.
+    if (packets > 0 && ctx.cwnd >= ctx.ssthresh) {
+        uint32 new_cwnd = ctx.cwnd + packets * PARITY_MSS_ADVERTISED
+                                     * PARITY_MSS_ADVERTISED / ctx.cwnd;
+
+        if (new_cwnd > ctx.cwnd)
+            ctx.cwnd = new_cwnd;
+    }
     else if (packets > 0)
         ctx.cwnd = ctx.cwnd + PARITY_MSS_ADVERTISED * packets;
     return;

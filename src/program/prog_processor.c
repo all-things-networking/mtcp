@@ -386,7 +386,7 @@ proc_congestion(struct net_ev *ev, struct tcp_ctx *ctx)
 		return;
 	}
 	uint32_t acked;
-	if (!(((((ctx->state != ST_CLOSED) && (ctx->state != ST_LISTEN)) && (ctx->state != ST_SYN_RCVD))))) {
+	if (((((ctx->state == ST_CLOSED) || (ctx->state == ST_LISTEN)) || (ctx->state == ST_SYN_SENT)) || (ctx->state == ST_SYN_RCVD))) {
 		return;
 	}
 	acked = (ev->ack - ctx->send_una);
@@ -399,7 +399,10 @@ proc_congestion(struct net_ev *ev, struct tcp_ctx *ctx)
 	}
 	uint32_t packets = (acked / PARITY_MSS_PAYLOAD);
 	if (((packets > 0) && (ctx->cwnd >= ctx->ssthresh))) {
-		ctx->cwnd = (ctx->cwnd + ((((PARITY_MSS_ADVERTISED * PARITY_MSS_ADVERTISED)) / ctx->cwnd) * packets));
+		uint32_t new_cwnd = (ctx->cwnd + (((packets * PARITY_MSS_ADVERTISED) * PARITY_MSS_ADVERTISED) / ctx->cwnd));
+		if ((new_cwnd > ctx->cwnd)) {
+			ctx->cwnd = new_cwnd;
+		}
 	} else {
 		if ((packets > 0)) {
 			ctx->cwnd = (ctx->cwnd + (PARITY_MSS_ADVERTISED * packets));
