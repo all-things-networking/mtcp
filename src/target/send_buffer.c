@@ -380,6 +380,9 @@ tx_dump_ref_fault(const struct mtp_data_unit *u, uint64_t upto)
 	fflush(stderr);
 }
 
+/* Process-wide, not per unit: one dump is the point. */
+static int first_short_dumped;
+
 int
 mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 {
@@ -453,6 +456,25 @@ mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 				u->short_run_max = u->short_run;
 			if (NoteFlushShort)
 				NoteFlushShort(upto - min, u->short_run);
+
+			/*
+			 * THE FIRST SHORTFALL, ONCE PER RUN. The stall
+			 * threshold below only fires on a run of 512, which
+			 * never happens -- the longest seen is 5 -- so the
+			 * ordinary shortfall has never been looked at, only
+			 * counted (~1 per 550 data blueprints, RESULTS
+			 * 2026-09-01). The dump tells retransmission from leak
+			 * in one look: a holding base BELOW emitted_hwm was on
+			 * the wire and can legitimately be acknowledged; a base
+			 * ABOVE it was never sent, so the reference is stale.
+			 */
+			if (!first_short_dumped
+			    && MTP_ENV_ON("MTP_TRACE_SHORT")) {
+				first_short_dumped = 1;
+				fprintf(stderr, "\n*** FIRST FLUSH SHORTFALL "
+					"(run %u)\n", u->short_run);
+				tx_dump_ref_fault(u, upto);
+			}
 
 			/* Loud, once, with the same terms the fault dump
 			 * prints -- an unbounded run is a stall and a stall is
