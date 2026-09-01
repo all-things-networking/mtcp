@@ -51,6 +51,11 @@ static inline void *entry_ctx(struct entry *e)
  */
 static inline uint32_t key_hash(const flowkey_t *k)
 {
+#ifdef PROG_TYPES_H
+	/* The compiler emits one over the slots the program DECLARED, which is
+	 * what the paragraph above says should replace this. */
+	return prog_key_hash(k);
+#else
 	const uint8_t *p = (const uint8_t *)k;
 	uint32_t h = 2166136261u;
 	size_t i;
@@ -60,6 +65,7 @@ static inline uint32_t key_hash(const flowkey_t *k)
 		h *= 16777619u;
 	}
 	return h;
+#endif
 }
 
 static inline int key_equal(const flowkey_t *a, const flowkey_t *b)

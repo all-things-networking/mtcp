@@ -25,4 +25,17 @@ typedef struct __attribute__((packed)) {
 	uint16_t v3;
 } flowkey_t;
 
+/* the key's hash, over the declared slots -- see fhash.c */
+static inline uint32_t prog_key_hash(const flowkey_t *k)
+{
+	uint32_t h = 2166136261u;
+
+	h = (h ^ (uint32_t)k->kind) * 16777619u;
+	h = (h ^ (uint32_t)k->v0) * 16777619u;
+	h = (h ^ (uint32_t)k->v1) * 16777619u;
+	h = (h ^ (uint32_t)k->v2) * 16777619u;
+	h = (h ^ (uint32_t)k->v3) * 16777619u;
+	return h;
+}
+
 #endif /* PROG_TYPES_H */
