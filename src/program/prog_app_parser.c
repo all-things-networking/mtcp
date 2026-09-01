@@ -254,9 +254,6 @@ mtp_program_app_op(struct mtp_app_op *op, uint32_t now_ms)
 			if (!(op->flags & MTP_OP_PHASE_GENERATE)
 			    && !dispatch_app_recv_record(ctx, &ev, now_ms))
 				return 0;
-			if (!(op->flags & MTP_OP_PHASE_RECORD)
-			    && !dispatch_app_recv_generate(ctx, &ev, now_ms))
-				return 0;
 			break;
 		}
 		case EV_app_send: {

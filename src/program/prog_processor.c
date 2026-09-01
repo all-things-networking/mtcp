@@ -1066,6 +1066,7 @@ proc_synack(struct net_ev *ev, struct tcp_ctx *ctx, uint32_t now_ms)
 	ctx->send_una = ev->ack;
 	ctx->recv_next = (ev->seq + 1);
 	ctx->rcv_base = ctx->recv_next;
+	ctx->delivered = ctx->recv_next;
 	mtp_sw_init(&(ctx->rx_wnd), ctx->recv_next);
 	ctx->snd_wl1 = (ev->seq - 1);
 	ctx->snd_wl2 = ev->ack;
