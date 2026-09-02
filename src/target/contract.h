@@ -136,6 +136,26 @@ struct mtp_data_unit {
 					 * ring and are not readable */
 
 	/*
+	 * TRANSMIT UNITS: how far the program has asked to release, in total.
+	 *
+	 * Separate from head_seq because a release can be REFUSED for a reason
+	 * that passes: the program re-sends from the first unacknowledged byte
+	 * after a triple duplicate acknowledgement -- which is what the donor
+	 * does too, tcp_in.c:441 "Reducing snd_nxt" -- and the acknowledgement
+	 * for the ORIGINAL transmission then lands while the re-sent segment is
+	 * still queued. Those bytes cannot be released; the segment is about to
+	 * send them.
+	 *
+	 * The instruction carries a delta, so before this field the refusal was
+	 * permanent: the next flush computed head_seq + <next acknowledgement>
+	 * from the lowered head and never asked for the skipped bytes again.
+	 * Measured 2026-09-01: 358 short flushes in a run, none ever recovered.
+	 * Accumulating the asks separately makes the refusal last exactly as
+	 * long as the queued segment does.
+	 */
+	uint64_t	 flush_want;
+
+	/*
 	 * RECEIVE UNITS ONLY: which ranges above head_seq have arrived. Its
 	 * head is tail_seq, and this is the only thing in the target that knows
 	 * a hole exists. A transmit unit leaves it zeroed.
@@ -202,6 +222,11 @@ struct mtp_data_unit {
 	 * clamp trades a loud fault for a silent one unless the shortfall is
 	 * counted -- a transient is one or two passes, a stall is unbounded, and
 	 * only the run length tells them apart.
+	 *
+	 * Since flush_want, a shortfall is RECOVERABLE and short_bytes counts
+	 * the OUTSTANDING deficit at each call, not new loss: a run of four
+	 * counts the same bytes four times. The run length is the number worth
+	 * reading; the byte total is an upper bound on nothing in particular.
 	 */
 	uint32_t	 short_run;	/* consecutive flushes that fell short */
 	uint32_t	 short_run_max;	/* longest such run seen on this unit */

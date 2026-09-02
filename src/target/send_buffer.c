@@ -386,7 +386,21 @@ static int first_short_dumped;
 int
 mtp_tx_flush_and_notify(struct mtp_data_unit *u, uint32_t len)
 {
-	uint64_t upto = u->head_seq + len;
+	uint64_t upto;
+
+	/*
+	 * THE ASK ACCUMULATES; head_seq is only ever where we GOT to.
+	 *
+	 * Bounded by tail_seq on the way in, because the program counts
+	 * SEQUENCE space and this ring counts BYTES: a SYN and a FIN each take
+	 * a sequence number and put nothing in the ring, so `len` overstates by
+	 * one at the handshake and again at close. Without the bound the excess
+	 * would sit in flush_want and release a byte early later on.
+	 */
+	u->flush_want += len;
+	if (u->flush_want > u->tail_seq)
+		u->flush_want = u->tail_seq;
+	upto = u->flush_want;
 
 	if (MTP_ENV_ON("MTP_TRACE_REF")) {
 		static uint64_t flushes;
