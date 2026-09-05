@@ -37,6 +37,22 @@ OPT    += -D__USRLIB__
 # has one I/O module, so they are unconditional.
 OPT    += -DDISABLE_PSIO -DDISABLE_NETMAP
 
+# APPENDED, NEVER SUBSTITUTED. The line above is the donor's own flag list,
+# pinned by D-02 on both sides of every comparison; a machine-specific define
+# must not be added by retyping it, because that is a silent way to change the
+# optimisation level under every number.
+#
+# What needs it today: InfraInit reads CONFIG.num_cores BEFORE the config file
+# is loaded (src/infra/bringup.c:60), so it falls back to GetNumCPUs() and
+# refuses any machine with more than MAX_CPUS = 16 CPUs regardless of
+# `num_cores = 1` in the conf. An xl170 has 20 threads:
+#
+#     make EXTRA_CFLAGS=-DMAX_CPUS=32
+#
+# Without this variable that command is accepted and ignored, and bring-up dies
+# at "Cannot run with more than 16 cores" as though the flag were wrong.
+OPT    += $(EXTRA_CFLAGS)
+
 INC     = -Isrc/infra -Isrc/target -Isrc/program
 CFLAGS  = $(DPDK_CFLAGS) $(OPT) $(INC)
 LIBS    = $(DPDK_LIBS) -lnuma -lpthread -lrt -ldl -lgmp -lm
