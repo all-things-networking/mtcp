@@ -96,8 +96,30 @@ probe_all_rte_devices(char **argv, int *argc, char *dev_name_list)
 					  "interface?\n", dev_token);
 				goto loop_over;
 			}
-#if 0
+			/*
+			 * TELL EAL WHICH DEVICE, or it takes every one it can
+			 * find. This was `#if 0` because the flag it used, -w,
+			 * was removed in DPDK 20.11; the tree builds against
+			 * 23.11, where it is -a.
+			 *
+			 * Disabling it is not neutral. Without it EAL attached
+			 * all FOUR mlx5 functions on an xl170 -- including both
+			 * functions of the MANAGEMENT card -- and the data NIC
+			 * came up as port 1 while the link check and device
+			 * setup ran on port 0. Transmit then went to a port
+			 * that had never been configured: upcheck reported
+			 * "ARP request queued", refused nothing, and the peer's
+			 * tcpdump saw zero packets (2026-09-05).
+			 *
+			 * It is invisible on a machine with one DPDK-capable
+			 * function, which is why it survived: there every index
+			 * is 0 and the two agree by accident.
+			 */
+#if RTE_VERSION >= RTE_VERSION_NUM(20, 11, 0, 0)
+			argv[*argc] = strdup("-a");
+#else
 			argv[*argc] = strdup("-w");
+#endif
 			argv[*argc + 1] = calloc(PCI_LENGTH, 1);
 			if (argv[*argc] == NULL ||
 			    argv[*argc + 1] == NULL) {
@@ -109,7 +131,6 @@ probe_all_rte_devices(char **argv, int *argc, char *dev_name_list)
 				pd.pa.domain, pd.pa.bus, pd.pa.device,
 				pd.pa.function);
 			*argc += 2;
-#endif
 			if (pd.numa_socket > numa_id) numa_id = pd.numa_socket;
 		loop_over:
 			dev_token = strtok_r(NULL, delim, &saveptr);
