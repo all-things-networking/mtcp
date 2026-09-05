@@ -880,7 +880,22 @@ dpdk_load_module(void)
 			rte_eth_dev_info_get(portid, &dev_info[portid]);
 			printf("nb_rx_queues: %u, nb_tx_queues: %u\n", 
 				 dev_info[portid].nb_rx_queues, dev_info[portid].nb_tx_queues);
-			rte_eth_promiscuous_enable(portid);
+			/*
+			 * PROMISCUOUS MODE, AND WHETHER IT TOOK. The return was
+			 * discarded, and on mlx5 that hid the whole problem: the
+			 * port received broadcast and multicast but no unicast,
+			 * so a server saw ARP and never a SYN while the KERNEL
+			 * answered on the same address. dpdk-testpmd on the same
+			 * NIC took the traffic and the kernel went quiet, which
+			 * is what a working port looks like.
+			 */
+			{
+				int pret = rte_eth_promiscuous_enable(portid);
+
+				TRACE_INFO("port %u: promiscuous_enable=%d, "
+					   "now %d\n", (unsigned)portid, pret,
+					   rte_eth_promiscuous_get(portid));
+			}
 
                         /* retrieve current flow control settings per port */
 			memset(&fc_conf, 0, sizeof(fc_conf));
