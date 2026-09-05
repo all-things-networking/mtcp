@@ -838,6 +838,33 @@ dpdk_load_module(void)
 				!!(dev_info[portid].rx_offload_capa &
 				   RTE_ETH_RX_OFFLOAD_CHECKSUM);
 
+			/*
+			 * ASK ONLY FOR RSS THE DEVICE HAS. The static request
+			 * includes RTE_ETH_RSS_L2_PAYLOAD, which mlx5 does not
+			 * offer. Configure accepted it, and the port then
+			 * received BROADCAST AND MULTICAST ONLY -- unicast went
+			 * to the kernel, which answered on the same address. A
+			 * server saw ARP and never a SYN; dpdk-testpmd on the
+			 * same NIC took the traffic and the kernel went quiet.
+			 *
+			 * Masking rather than editing the constant, because
+			 * what a device supports is a property of the device.
+			 */
+			{
+				uint64_t want = port_conf.rx_adv_conf.rss_conf.rss_hf;
+				uint64_t have = dev_info[portid].flow_type_rss_offloads;
+
+				if ((want & have) != want)
+					TRACE_INFO("port %u: rss_hf %#lx not all "
+						   "supported (device offers "
+						   "%#lx); asking for %#lx\n",
+						   (unsigned)portid,
+						   (unsigned long)want,
+						   (unsigned long)have,
+						   (unsigned long)(want & have));
+				port_conf.rx_adv_conf.rss_conf.rss_hf = want & have;
+			}
+
 			ret = rte_eth_dev_configure(portid, CONFIG.num_cores, CONFIG.num_cores, &port_conf);
 			if (ret < 0)
 				rte_exit(EXIT_FAILURE, "Cannot configure device: err=%d, port=%u, cores: %d\n",
