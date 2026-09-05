@@ -97,6 +97,47 @@ probe_all_rte_devices(char **argv, int *argc, char *dev_name_list)
 				goto loop_over;
 			}
 			/*
+			 * THE IOCTL CAN SUCCEED AND ANSWER NOTHING. On an
+			 * xl170 it returned 0 with an all-zero address, which
+			 * became `-a 0000:00:00.0` and left EAL with no port at
+			 * all -- reported as "No Ethernet port!", which reads
+			 * as a NIC or binding problem rather than a lookup that
+			 * quietly failed.
+			 *
+			 * sysfs knows regardless of what the shim thinks: the
+			 * device link's basename IS the PCI address. Used only
+			 * as a fallback, so the shim stays the primary source
+			 * where it works.
+			 */
+			if (pd.pa.domain == 0 && pd.pa.bus == 0 &&
+			    pd.pa.device == 0 && pd.pa.function == 0) {
+				char lnk[128], tgt[256];
+				unsigned int dom, bus, dev, fn;
+				ssize_t n;
+
+				snprintf(lnk, sizeof(lnk),
+					 "/sys/class/net/%s/device", dev_token);
+				n = readlink(lnk, tgt, sizeof(tgt) - 1);
+				if (n > 0) {
+					char *base;
+
+					tgt[n] = '\0';
+					base = strrchr(tgt, '/');
+					base = base ? base + 1 : tgt;
+					if (sscanf(base, "%x:%x:%x.%x",
+						   &dom, &bus, &dev, &fn) != 4) {
+						TRACE_ERROR("cannot read a PCI "
+							    "address for %s\n",
+							    dev_token);
+						exit(EXIT_FAILURE);
+					}
+					pd.pa.domain   = (uint16_t)dom;
+					pd.pa.bus      = (uint8_t)bus;
+					pd.pa.device   = (uint8_t)dev;
+					pd.pa.function = (uint8_t)fn;
+				}
+			}
+			/*
 			 * TELL EAL WHICH DEVICE, or it takes every one it can
 			 * find. This was `#if 0` because the flag it used, -w,
 			 * was removed in DPDK 20.11; the tree builds against
