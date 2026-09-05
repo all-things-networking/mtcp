@@ -850,6 +850,18 @@ dpdk_load_module(void)
 			 * Masking rather than editing the constant, because
 			 * what a device supports is a property of the device.
 			 */
+			/*
+			 * ONE QUEUE IS NOT A DISTRIBUTION. Asking for RSS with a
+			 * single receive queue is what dpdk-testpmd does not do,
+			 * and testpmd is the one that receives unicast here.
+			 */
+			if (CONFIG.num_cores == 1) {
+				port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_NONE;
+				port_conf.rx_adv_conf.rss_conf.rss_hf = 0;
+				TRACE_INFO("port %u: one queue, RSS off\n",
+					   (unsigned)portid);
+			}
+
 			{
 				uint64_t want = port_conf.rx_adv_conf.rss_conf.rss_hf;
 				uint64_t have = dev_info[portid].flow_type_rss_offloads;
