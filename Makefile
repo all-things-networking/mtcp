@@ -96,7 +96,14 @@ bin/upcheck: apps/upcheck/upcheck.c $(LIB)
 # identical by construction rather than by care. The util objects are the
 # reference's application-side helpers (HTTP parsing, date parsing), not stack
 # code. -w because the reference's warnings are the reference's.
-DONOR    := /home/mtahmasb/MTP-pass/MTP-DPDK-donor
+# WHERE THE DONOR IS, is a property of the machine, not of this tree, so it is
+# overridable from the environment or the command line:
+#
+#     make DONOR=/proj/<project>/mtp/mtp-dpdk-donor bin/epserver-shim
+#
+# The default is the aqua layout. On CloudLab the trees live on the project
+# share, which is the only thing that survives a reservation.
+DONOR    ?= /home/mtahmasb/MTP-pass/MTP-DPDK-donor
 DONOR_INC := -I$(DONOR)/mtcp/include -I$(DONOR)/util/include
 
 bin/epserver-shim: apps/compat/mtcp_shim.c $(DONOR)/apps/example/epserver.c $(LIB)
