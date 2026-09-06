@@ -256,6 +256,8 @@ struct transport {
 	 * transport is calloc'd per core, so the fields land on different lines
 	 * instead of adjacent slots of one array, which would share them again.
 	 */
+	uint32_t		 flow_cap;		/* this core's share of
+						 * max_concurrency */
 	uint64_t		 pkts;			/* transport_packets */
 	uint64_t		 gap_hist[10], gap_sum, gap_sq, gap_n, gap_max;
 	uint64_t		 rx_hist[8], rx_n, rx_pkts;

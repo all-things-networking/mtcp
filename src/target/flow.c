@@ -22,9 +22,30 @@ int
 FlowPoolInit(struct core_ctx *core)
 {
 	struct transport *t = TransportOf(core);
+	/*
+	 * max_concurrency IS A SYSTEM-WIDE LIMIT, SO DIVIDE IT.
+	 *
+	 * Every core used to allocate the whole of it. That is invisible at one
+	 * core and expensive at more: the blueprint pool is
+	 * max_concurrency x 3 classes x 64 deep x 232 bytes, about 174 MB PER
+	 * CORE at 4096, so two cores asked for ~350 MB against a 25 MB
+	 * last-level cache -- and the footprint GREW with the core count
+	 * instead of being shared out.
+	 *
+	 * The donor divides (dpdk_module.c: `max_flows = CONFIG.max_concurrency
+	 * / CONFIG.num_cores`), which is also what the name means: the
+	 * application asked for 4096 connections in total, not 4096 per core.
+	 */
+	int per_core = CONFIG.num_cores > 0
+		     ? CONFIG.max_concurrency / CONFIG.num_cores
+		     : CONFIG.max_concurrency;
 
-	t->flow_pool = calloc(CONFIG.max_concurrency, sizeof(struct flow));
-	t->bp_pool = calloc((size_t)CONFIG.max_concurrency * MTP_PRIO_CLASSES
+	if (per_core < 1)
+		per_core = 1;
+	t->flow_cap = per_core;
+
+	t->flow_pool = calloc(per_core, sizeof(struct flow));
+	t->bp_pool = calloc((size_t)per_core * MTP_PRIO_CLASSES
 			    * BP_RING_DEPTH,
 			    sizeof(struct bp));
 	if (!t->flow_pool || !t->bp_pool)
@@ -34,13 +55,13 @@ FlowPoolInit(struct core_ctx *core)
 
 	/* Capacity is flow count -- see the field's comment. No rounding: the
 	 * ported queue wraps at capacity rather than masking. */
-	if (fq_init(&t->q_notify, (fq_index_t)CONFIG.max_concurrency) < 0)
+	if (fq_init(&t->q_notify, (fq_index_t)per_core) < 0)
 		return -1;
 	pthread_mutex_init(&t->app_lock, NULL);
 	pthread_cond_init(&t->app_cv, NULL);
-	if (fq_init(&t->q_ready, (fq_index_t)CONFIG.max_concurrency) < 0)
+	if (fq_init(&t->q_ready, (fq_index_t)per_core) < 0)
 		return -1;
-	if (fq_init(&t->q_send, (fq_index_t)CONFIG.max_concurrency) < 0)
+	if (fq_init(&t->q_send, (fq_index_t)per_core) < 0)
 		return -1;
 	{ int c; for (c = 0; c < MTP_PRIO_CLASSES; c++) TAILQ_INIT(&t->gen_list[c]); }
 	TAILQ_INIT(&t->destroy_list);
@@ -83,8 +104,10 @@ FlowCreate(struct core_ctx *core, const flowkey_t *key,
 	struct transport *t = TransportOf(core);
 	struct flow *f;
 
-	if (t->flow_next >= (uint32_t)CONFIG.max_concurrency) {
-		TRACE_ERROR("flow pool exhausted at %d\n", CONFIG.max_concurrency);
+	if (t->flow_next >= (uint32_t)t->flow_cap) {
+		TRACE_ERROR("flow pool exhausted at %u (this core's share of "
+			    "max_concurrency %d)\n",
+			    t->flow_cap, CONFIG.max_concurrency);
 		return NULL;
 	}
 
