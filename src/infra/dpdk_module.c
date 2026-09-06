@@ -77,7 +77,7 @@
 
 /* How many times the transmit path retries a burst the NIC will not take
  * before giving up. mTCP has no bound here; see the comment at the retry. */
-#define MTP_TX_BURST_SPINS		1024
+#define MTP_TX_BURST_SPINS		(1 << 20)
 
 /*
  * Configurable number of RX/TX ring descriptors
@@ -385,11 +385,25 @@ dpdk_send_pkts(struct thread_ctx *ctxt, int ifidx)
 		 * test, and an unbounded retry inside the transmit path is the
 		 * shape that takes a node off the network.
 		 *
-		 * The bound is generous — a burst is at most 64 packets and a
-		 * healthy NIC drains it in one or two calls — so reaching it
-		 * means the device is wedged, not busy. The packets that did
-		 * not go are dropped and counted; the alternative is not
-		 * sending them either, while also never returning.
+		 * THE BOUND IS NOT "THE DEVICE IS WEDGED". That was written
+		 * for one core, where reaching 1024 spins really did mean a
+		 * fault. At two cores the aggregate approaches line rate and a
+		 * full transmit queue is ORDINARY back-pressure: both queues
+		 * hit this thousands of times in a 20 s run (2026-09-06), which
+		 * is the NIC saying "wait", not "I am broken".
+		 *
+		 * So the bound is now large enough that reaching it still means
+		 * a fault, and the packets that do not go are FREED. They were
+		 * not freed before: the refill loop below overwrites
+		 * m_table[i] with a fresh mbuf, so every dropped packet leaked
+		 * one, the per-core pool drained, and the run died at
+		 * "Failed to allocate 0:wmbuf[23]".
+		 *
+		 * Dropping at all is a divergence from the donor, which retries
+		 * without limit (mtcp/src/dpdk_module.c:384) -- a dropped
+		 * segment is a retransmission it would never make. Rule 5 still
+		 * forbids an unbounded spin, so the compromise is a bound high
+		 * enough that ordinary back-pressure never reaches it.
 		 */
 		{
 			int spins = 0;
@@ -404,6 +418,13 @@ dpdk_send_pkts(struct thread_ctx *ctxt, int ifidx)
 			} while (cnt > 0 && ++spins < MTP_TX_BURST_SPINS);
 
 			if (unlikely(cnt > 0)) {
+				int k;
+
+				/* FREE WHAT WE GIVE UP ON. The refill below
+				 * replaces these entries wholesale, so without
+				 * this each drop leaks an mbuf. */
+				for (k = 0; k < cnt; k++)
+					rte_pktmbuf_free(pkts[k]);
 				/* WHICH QUEUE, not just which interface. The
 				 * transmit queue is the CORE's -- portid,
 				 * ctxt->cpu -- and with one core those are
