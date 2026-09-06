@@ -244,6 +244,30 @@ struct transport {
 	uint64_t		 below_wire_dead;	/* entirely below: can never drain */
 
 	/*
+	 * DIAGNOSTIC COUNTERS, PER CORE BECAUSE THEY ARE ON THE HOT PATH.
+	 *
+	 * These were file-scope statics. That is not merely untidy at more than
+	 * one core: `gap_*` is written once per POLL and `pkts`/`rx_*` once per
+	 * packet, so two stack threads were writing the same cache lines a
+	 * hundred million times each (drains=105013269 in one 20 s run). The
+	 * cost is not the counter, it is the line bouncing between cores.
+	 *
+	 * In `struct transport` rather than an array indexed by cpu: the
+	 * transport is calloc'd per core, so the fields land on different lines
+	 * instead of adjacent slots of one array, which would share them again.
+	 */
+	uint64_t		 pkts;			/* transport_packets */
+	uint64_t		 gap_hist[10], gap_sum, gap_sq, gap_n, gap_max;
+	uint64_t		 rx_hist[8], rx_n, rx_pkts;
+	uint64_t		 mrg[16];		/* >= MRG__N, asserted in flow.c */
+	struct {
+		uint64_t arp, ipv4, other_ethertype;
+		uint64_t ip_to_transport, ip_other_proto;
+		uint64_t csum_bad;
+		int      csum_seen;
+	}			 rxc;
+
+	/*
 	 * High-water pending blueprints per class, so the ring depths are sized
 	 * from what the classes actually hold rather than from one number
 	 * copied across all three. Depth 64 is a data-path figure; control and

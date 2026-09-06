@@ -856,7 +856,7 @@ mtp_notify(flow_t *f, const struct mtp_notif *msg)
  * listener lookup. Claiming one everywhere would be wrong, and it is the SYN
  * path, which is once per connection rather than once per packet.
  */
-static uint64_t transport_packets;
+#define transport_packets (TransportOf(CurCore())->pkts)
 
 /*
  * What the receive path did with each packet, by class.
@@ -867,16 +867,9 @@ static uint64_t transport_packets;
  * on the first zero-receive result, so the classes are counted here rather than
  * reconstructed from a hex dump later.
  */
-static struct {
-	uint64_t arp, ipv4, other_ethertype;
-	uint64_t ip_to_transport, ip_other_proto;
-	/* D-22: csum_seen says the hardware answered at all, which is a
-	 * different fact from the count of frames it condemned. Without the
-	 * first, a zero in the second reads as "no corruption" when it may mean
-	 * "nothing was ever checked". */
-	uint64_t csum_bad;
-	int      csum_seen;
-} rxc;
+/* Per core, in struct transport -- see the comment on the fields there. rxc is
+ * a macro rather than a variable so the ~40 use sites read unchanged. */
+#define rxc		 (TransportOf(CurCore())->rxc)
 
 /*----------------------------------------------------------------------------*/
 /*
@@ -1018,8 +1011,14 @@ TransportInput(struct core_ctx *core, uint32_t cur_ts, const int ifidx,
 }
 /*----------------------------------------------------------------------------*/
 volatile sig_atomic_t MainLoopStopRequested;
-static uint64_t g_gap_hist[10], g_gap_sum, g_gap_sq, g_gap_n, g_gap_max;
-static uint64_t g_rx_hist[8], g_rx_n, g_rx_pkts;
+#define g_gap_hist	 (TransportOf(CurCore())->gap_hist)
+#define g_gap_sum	 (TransportOf(CurCore())->gap_sum)
+#define g_gap_sq	 (TransportOf(CurCore())->gap_sq)
+#define g_gap_n		 (TransportOf(CurCore())->gap_n)
+#define g_gap_max	 (TransportOf(CurCore())->gap_max)
+#define g_rx_hist	 (TransportOf(CurCore())->rx_hist)
+#define g_rx_n		 (TransportOf(CurCore())->rx_n)
+#define g_rx_pkts	 (TransportOf(CurCore())->rx_pkts)
 
 /*
  * Ask the stack thread to finish. Needed because tearing down a context joins

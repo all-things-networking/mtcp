@@ -589,7 +589,10 @@ BlueprintCommit(flow_t *f, struct bp *bp)
 enum { MRG_OK, MRG_UNCLASSIFIED, MRG_NO_PENDING, MRG_CLASS, MRG_KEY,
        MRG_SCRATCH, MRG_NEW_NOPAY, MRG_PENDING_NOPAY, MRG_NONCONTIG,
        MRG_REF_FAIL, MRG__N };
-static uint64_t g_mrg[MRG__N];
+/* Per core; see struct transport. The array there is 16 wide. */
+#define g_mrg		 (TransportOf(CurCore())->mrg)
+/* The field is fixed width; keep the two in step. */
+typedef char mrg_fits[(MRG__N <= 16) ? 1 : -1];
 
 void
 ReportMerges(void)
