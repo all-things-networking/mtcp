@@ -281,11 +281,25 @@ mtcp_setconf(const struct mtcp_conf *conf)
 	 * configuration level: every number it produced would be labelled with
 	 * a core count it did not have.
 	 */
-	if (conf->num_cores > 1) {
-		fprintf(stderr, "mtcp_shim: num_cores=%d requested; this target "
-			"runs ONE core. Refusing rather than silently running "
-			"one and reporting %d.\n",
-			conf->num_cores, conf->num_cores);
+	/*
+	 * MULTI-CORE, AS FAR AS IT GOES. This refused any -N > 1, correctly,
+	 * while the shim held one socket table and the instruction
+	 * implementations reached g_core[0]. Both are fixed
+	 * (docs/MULTICORE.md steps 1-3), so the refusal is now only about what
+	 * is left: an ACTIVE open still picks a source port without mirroring
+	 * the NIC's hash, so a SYN sent from one core can have its SYN-ACK
+	 * delivered to another, which has never heard of the flow. The donor
+	 * does mirror it (addr_pool.c:168, GetRSSCPUCore).
+	 *
+	 * A server never opens actively, so a multi-core SERVER is sound and a
+	 * multi-core CLIENT is not. Refusing by ROLE rather than by core count.
+	 */
+	/* The active-open restriction is enforced in mtcp_connect, where the
+	 * unsupported thing actually happens -- setconf runs before any
+	 * connect, so a flag tested here would always read zero. */
+	if (conf->num_cores > MAX_CPUS) {
+		fprintf(stderr, "mtcp_shim: num_cores=%d exceeds MAX_CPUS=%d\n",
+			conf->num_cores, MAX_CPUS);
 		exit(1);
 	}
 	g_conf = *conf;
@@ -501,6 +515,9 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
  * on one host would collide; one does not.
  */
 static uint32_t g_local_ip;
+/* Set by mtcp_connect. The refusal above is about the ACTIVE open only, so it
+ * has to know whether this process performs one -- a server never does. */
+static int g_active_open_used;
 
 int
 mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr,
@@ -533,6 +550,28 @@ mtcp_connect(mctx_t mctx, int sockid, const struct sockaddr *addr,
 	(void)mctx; (void)addrlen;
 	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK || !S->sock[sockid].in_use)
 		return -1;
+
+	/*
+	 * AN ACTIVE OPEN ON MORE THAN ONE CORE IS NOT SOUND YET. The source
+	 * port below is picked by a counter, not by mirroring the NIC's hash,
+	 * so the SYN-ACK can be delivered to a core that has never heard of the
+	 * flow. The donor mirrors it -- addr_pool.c:168 refuses any port whose
+	 * 4-tuple would hash to another core -- and until we do the same
+	 * (docs/MULTICORE.md step 4) this refuses rather than producing a
+	 * connection that intermittently does not exist.
+	 *
+	 * A SERVER never reaches here, which is why a multi-core server is
+	 * allowed while this is not.
+	 */
+	if (g_conf.num_cores > 1) {
+		fprintf(stderr, "mtcp_shim: active open with num_cores=%d; "
+			"source ports do not mirror RSS yet, so the SYN-ACK "
+			"can land on a core that does not own the flow "
+			"(docs/MULTICORE.md step 4).\n", g_conf.num_cores);
+		errno = EOPNOTSUPP;
+		return -1;
+	}
+	g_active_open_used = 1;
 
 	memset(&op, 0, sizeof(op));
 	op.kind = MTP_APP_CONNECT;
