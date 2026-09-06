@@ -38,6 +38,10 @@ struct timer_wheel {
 	uint32_t	  now;
 	int		  started;
 	uint64_t	  fires;
+	/* The millisecond this core last swept at. Per core because the wheel
+	 * is: shared, it let one core's tick suppress another's sweep. */
+	uint32_t	  last_tick_now;
+	int		  last_tick_valid;
 };
 
 struct transport {

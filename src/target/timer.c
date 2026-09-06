@@ -42,9 +42,19 @@
 #define wheel_started	(TW->started)
 #define fires		(TW->fires)
 
-/* the millisecond this last did work at; see the early-out below */
-static uint32_t last_tick_now;
-static int last_tick_valid;
+/*
+ * The millisecond this last did work at; see the early-out below. PER CORE, in
+ * the transport, for the same reason the wheel is.
+ *
+ * These were file-scope. The wheel is per core and the early-out that decides
+ * whether to SWEEP it was not, so with two stack threads core 0 would tick at
+ * millisecond T, set this, and core 1 -- ticking in the same millisecond --
+ * would return without sweeping its OWN wheel. Each core suppressed the other's
+ * timer sweep, and a retransmit timer that does not get swept fires late and
+ * then in a batch with every other timer that was held back with it.
+ */
+#define last_tick_now	(TW->last_tick_now)
+#define last_tick_valid	(TW->last_tick_valid)
 
 static void
 unlink_timer(struct mtp_timer *t)
