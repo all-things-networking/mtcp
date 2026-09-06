@@ -71,9 +71,37 @@ struct shim_sock {
  * service at most 8 live sockets, 7.2 billion visits in one run, 0.098% of
  * them useful. mTCP's own path is not O(registered sockets); we added that.
  */
-static int     g_rdy[SHIM_MAX_SOCK];
-static int     g_sock_free = -1;	/* head of the free socket list */
-static int     g_rdy_n;
+/*
+ * PER-CORE SHIM STATE, one instance per application thread.
+ *
+ * These were file-scope singletons, which is correct for exactly one
+ * application thread and silently wrong for two: mTCP's equivalent, `smap[]`
+ * and the listener table, are per manager and therefore per core (api.c:474
+ * checks "already listening on this port" against the CALLING manager's table,
+ * which is how every core listens on the same port without colliding).
+ *
+ * The shim runs entirely on the application thread -- shim_collect_ready is
+ * reached from mtcp_epoll_wait, never from the stack thread -- so the current
+ * context is thread-local, set once in mtcp_create_context. Same shape as
+ * t_core on the target side; see docs/MULTICORE.md.
+ */
+struct shim_flow_state;		/* defined below; only pointed at here */
+
+struct shim_ctx {
+	int	 rdy[SHIM_MAX_SOCK];
+	int	 rdy_n;
+	int	 sock_free;		/* head of the free socket list */
+	struct shim_sock  *sock;	/* SHIM_MAX_SOCK, allocated at init */
+	struct shim_flow_state *flow;	/* SHIM_MAX_SOCK */
+	struct core_ctx	  *core;
+	pthread_t	   stack;
+	struct mtp_endpoint bound;
+	uint16_t	   next_port;
+	uint64_t wr_calls, wr_asked, wr_got, wr_short, wr_refused;
+	uint64_t wr_ringfull, wr_noflow;
+	uint64_t ac_calls, ac_ok, ac_empty;
+	uint64_t rd_calls, rd_bytes, rd_zero, rd_neg;
+};
 
 struct shim_flow_state {
 	int sockid;
@@ -89,14 +117,11 @@ struct shim_flow_state {
 	 */
 };
 
-static struct shim_flow_state g_flow[SHIM_MAX_SOCK];
-static uint64_t g_wr_calls, g_wr_asked, g_wr_got, g_wr_short, g_wr_refused;
-static uint64_t g_wr_ringfull, g_wr_noflow;
-static uint64_t g_ac_calls, g_ac_ok, g_ac_empty;	/* TEMPORARY */
-static uint64_t g_rd_calls, g_rd_bytes, g_rd_zero, g_rd_neg;
-static struct shim_sock	 g_sock[SHIM_MAX_SOCK];
-static struct core_ctx	*g_shim_core;
-static pthread_t	 g_shim_stack;
+/* One per application thread, indexed by the cpu it was created for, plus the
+ * thread-local pointer to the calling thread's own. `g_conf` and `g_local_ip`
+ * stay global: they describe the node, not the core. */
+static struct shim_ctx	 g_shim[MAX_CPUS];
+static __thread struct shim_ctx *S;
 static struct mtcp_conf	 g_conf;
 
 static struct shim_flow_state *
@@ -109,7 +134,7 @@ fstate(flow_t *f)
 			id, SHIM_MAX_SOCK);
 		abort();
 	}
-	return &g_flow[id];
+	return &S->flow[id];
 }
 
 static int shim_collect_ready(void);
@@ -117,7 +142,7 @@ static int shim_collect_ready(void);
 static int
 sock_alloc(flow_t *flow)
 {
-	int i = g_sock_free;
+	int i = S->sock_free;
 
 	/*
 	 * A FREE LIST, NOT A SEARCH. This was a linear walk of the whole table
@@ -132,11 +157,11 @@ sock_alloc(flow_t *flow)
 		errno = EMFILE;
 		return -1;
 	}
-	g_sock_free = g_sock[i].next_free;
-	g_sock[i].in_use = 1;
-	g_sock[i].flow = flow;
-	g_sock[i].interest = 0;
-	g_sock[i].is_listener = 0;
+	S->sock_free = S->sock[i].next_free;
+	S->sock[i].in_use = 1;
+	S->sock[i].flow = flow;
+	S->sock[i].interest = 0;
+	S->sock[i].is_listener = 0;
 	if (flow)
 		fstate(flow)->sockid = i;
 	return i;
@@ -184,18 +209,8 @@ mtcp_init(const char *config_file)
 		sigaction(SIGBUS, &sa, NULL);
 		sigaction(SIGABRT, &sa, NULL);
 	}
-	memset(g_sock, 0, sizeof(g_sock));
-	memset(g_flow, 0, sizeof(g_flow));
-	{
-		int i;
-
-		/* descending, so ids are handed out ascending */
-		g_sock_free = -1;
-		for (i = SHIM_MAX_SOCK - 1; i > SHIM_LISTENER; i--) {
-			g_sock[i].next_free = g_sock_free;
-			g_sock_free = i;
-		}
-	}
+	/* The socket table is PER CORE and is built in mtcp_create_context;
+	 * mtcp_init is the node-wide half, as it is in the donor. */
 
 	/*
 	 * THE CORE COUNT COMES FROM setconf, NOT ONLY FROM THE CONF FILE.
@@ -301,8 +316,32 @@ mtcp_register_signal(int signum, mtcp_sighandler_t handler)
 mctx_t
 mtcp_create_context(int cpu)
 {
-	g_shim_core = InfraCoreCreate(cpu);
-	if (!g_shim_core || TransportCoreInit(g_shim_core) < 0) {
+	int i;
+
+	if (cpu < 0 || cpu >= MAX_CPUS) {
+		fprintf(stderr, "mtcp_shim: cpu %d out of range\n", cpu);
+		return NULL;
+	}
+	/* THIS THREAD'S CONTEXT, from here until it exits. Everything the shim
+	 * touches afterwards goes through it. */
+	S = &g_shim[cpu];
+	memset(S, 0, sizeof(*S));
+	S->next_port = 32768;
+	S->sock = calloc(SHIM_MAX_SOCK, sizeof(*S->sock));
+	S->flow = calloc(SHIM_MAX_SOCK, sizeof(*S->flow));
+	if (!S->sock || !S->flow) {
+		fprintf(stderr, "mtcp_shim: cpu %d out of memory\n", cpu);
+		return NULL;
+	}
+	/* descending, so ids are handed out ascending */
+	S->sock_free = -1;
+	for (i = SHIM_MAX_SOCK - 1; i > SHIM_LISTENER; i--) {
+		S->sock[i].next_free = S->sock_free;
+		S->sock_free = i;
+	}
+
+	S->core = InfraCoreCreate(cpu);
+	if (!S->core || TransportCoreInit(S->core) < 0) {
 		fprintf(stderr, "mtcp_shim: cpu %d failed to come up\n", cpu);
 		return NULL;
 	}
@@ -312,8 +351,8 @@ mtcp_create_context(int cpu)
 	 * the application; the stack gets its own. Runs until SIGINT, so no
 	 * tick limit.
 	 */
-	g_shim_stack = RunStackThread(g_shim_core, 0, cpu);
-	return (mctx_t)g_shim_core;
+	S->stack = RunStackThread(S->core, 0, cpu);
+	return (mctx_t)S->core;
 }
 
 void
@@ -323,31 +362,31 @@ mtcp_destroy_context(mctx_t mctx)
 	/* Stop it before joining it. Without this the join never returns and
 	 * the process dies on SIGKILL with no report. */
 	StopMainLoop();
-	if (g_shim_stack) {
-		pthread_join(g_shim_stack, NULL);
-		g_shim_stack = 0;
+	if (S->stack) {
+		pthread_join(S->stack, NULL);
+		S->stack = 0;
 	}
-	if (g_shim_core)
-		PrintNetworkStats(g_shim_core);	/* the loop is ours, so is the report */
+	if (S->core)
+		PrintNetworkStats(S->core);	/* the loop is ours, so is the report */
 	fprintf(stderr, "shim read: %llu calls, %llu bytes, %llu eof, %llu empty\n",
-		(unsigned long long)g_rd_calls, (unsigned long long)g_rd_bytes,
-		(unsigned long long)g_rd_zero, (unsigned long long)g_rd_neg);
+		(unsigned long long)S->rd_calls, (unsigned long long)S->rd_bytes,
+		(unsigned long long)S->rd_zero, (unsigned long long)S->rd_neg);
 	fprintf(stderr, "shim accept: %llu calls, %llu ok, %llu empty\n",
-		(unsigned long long)g_ac_calls, (unsigned long long)g_ac_ok,
-		(unsigned long long)g_ac_empty);
+		(unsigned long long)S->ac_calls, (unsigned long long)S->ac_ok,
+		(unsigned long long)S->ac_empty);
 	fprintf(stderr, "shim write: %llu calls, asked %llu, got %llu (%.1f%%), "
 		"%llu short, %llu refused (%llu ring full, %llu no flow); "
 		"mean asked %llu, mean got %llu\n",
-		(unsigned long long)g_wr_calls,
-		(unsigned long long)g_wr_asked,
-		(unsigned long long)g_wr_got,
-		g_wr_asked ? 100.0 * (double)g_wr_got / (double)g_wr_asked : 0.0,
-		(unsigned long long)g_wr_short,
-		(unsigned long long)g_wr_refused,
-		(unsigned long long)g_wr_ringfull,
-		(unsigned long long)g_wr_noflow,
-		(unsigned long long)(g_wr_calls ? g_wr_asked / g_wr_calls : 0),
-		(unsigned long long)(g_wr_calls ? g_wr_got / g_wr_calls : 0));
+		(unsigned long long)S->wr_calls,
+		(unsigned long long)S->wr_asked,
+		(unsigned long long)S->wr_got,
+		S->wr_asked ? 100.0 * (double)S->wr_got / (double)S->wr_asked : 0.0,
+		(unsigned long long)S->wr_short,
+		(unsigned long long)S->wr_refused,
+		(unsigned long long)S->wr_ringfull,
+		(unsigned long long)S->wr_noflow,
+		(unsigned long long)(S->wr_calls ? S->wr_asked / S->wr_calls : 0),
+		(unsigned long long)(S->wr_calls ? S->wr_got / S->wr_calls : 0));
 	/* The shim's accept queue and its two counters are gone: the backlog is
 	 * the listen context's, and overflow is a SYN the PROGRAM drops. */
 }
@@ -373,9 +412,9 @@ mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
 	 * one application depends on it and the other does not care which id it
 	 * gets.
 	 */
-	if (!g_sock[SHIM_LISTENER].in_use) {
-		g_sock[SHIM_LISTENER].in_use = 1;
-		g_sock[SHIM_LISTENER].flow = NULL;
+	if (!S->sock[SHIM_LISTENER].in_use) {
+		S->sock[SHIM_LISTENER].in_use = 1;
+		S->sock[SHIM_LISTENER].flow = NULL;
 		/*
 		 * NOT is_listener. socket() does not know what the socket will
 		 * become -- epserver calls bind() and listen() next, epwget
@@ -404,7 +443,6 @@ mtcp_socket(mctx_t mctx, int domain, int type, int protocol)
  * One entry, because SHIM_LISTENER is one socket. If the shim ever grows a
  * second listening socket this becomes a field of g_sock, not a second global.
  */
-static struct mtp_endpoint g_bound;
 
 int
 mtcp_bind(mctx_t mctx, int sockid, const struct sockaddr *addr, socklen_t len)
@@ -417,7 +455,7 @@ mtcp_bind(mctx_t mctx, int sockid, const struct sockaddr *addr, socklen_t len)
 	op.kind = MTP_APP_BIND;
 	op.local.ip = in->sin_addr.s_addr;
 	op.local.port = in->sin_port;
-	g_bound = op.local;
+	S->bound = op.local;
 	return mtp_program_app_op(&op, 0) < 0 ? -1 : 0;
 }
 
@@ -432,14 +470,14 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
 	/* WHICH endpoint starts answering, and HOW MANY it may hold. Both were
 	 * discarded here: the program had one listener and no backlog, so
 	 * neither had anywhere to go. */
-	op.local = g_bound;
+	op.local = S->bound;
 	op.len = backlog > 0 ? (uint32_t)backlog : 0;
 	if (mtp_program_app_op(&op, 0) < 0)
 		return -1;
 	/* The LISTENING endpoint's handle, so readiness on it can be recognised
 	 * as this socket's. It is a context like any other and has a flow. */
-	g_sock[SHIM_LISTENER].flow = op.flow;
-	g_sock[SHIM_LISTENER].is_listener = 1;	/* THIS is the call that means it */
+	S->sock[SHIM_LISTENER].flow = op.flow;
+	S->sock[SHIM_LISTENER].is_listener = 1;	/* THIS is the call that means it */
 	return 0;
 }
 
@@ -463,7 +501,6 @@ mtcp_listen(mctx_t mctx, int sockid, int backlog)
  * on one host would collide; one does not.
  */
 static uint32_t g_local_ip;
-static uint16_t g_next_port = 32768;
 
 int
 mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr,
@@ -494,24 +531,24 @@ mtcp_connect(mctx_t mctx, int sockid, const struct sockaddr *addr,
 	struct mtp_app_op op;
 
 	(void)mctx; (void)addrlen;
-	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK || !g_sock[sockid].in_use)
+	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK || !S->sock[sockid].in_use)
 		return -1;
 
 	memset(&op, 0, sizeof(op));
 	op.kind = MTP_APP_CONNECT;
 	op.local.ip = g_local_ip;
-	op.local.port = htons(g_next_port++);
-	if (g_next_port == 0)
-		g_next_port = 32768;
+	op.local.port = htons(S->next_port++);
+	if (S->next_port == 0)
+		S->next_port = 32768;
 	op.remote.ip = in->sin_addr.s_addr;
 	op.remote.port = in->sin_port;
 
-	if (mtp_program_app_op(&op, g_shim_core ? g_shim_core->cur_ts : 0) < 0
+	if (mtp_program_app_op(&op, S->core ? S->core->cur_ts : 0) < 0
 	    || !op.flow) {
 		errno = EAGAIN;
 		return -1;
 	}
-	g_sock[sockid].flow = op.flow;
+	S->sock[sockid].flow = op.flow;
 	fstate(op.flow)->sockid = sockid;
 
 	/*
@@ -547,14 +584,14 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen)
 	(void)mctx; (void)sockid; (void)addr; (void)addrlen;
 	memset(&op, 0, sizeof(op));
 	op.kind = MTP_APP_ACCEPT;
-	op.local = g_bound;		/* which listener; the op names it */
-	g_ac_calls++;
+	op.local = S->bound;		/* which listener; the op names it */
+	S->ac_calls++;
 	if (mtp_program_app_op(&op, 0) < 0 || !op.flow) {
-		g_ac_empty++;
+		S->ac_empty++;
 		errno = EAGAIN;
 		return -1;
 	}
-	g_ac_ok++;
+	S->ac_ok++;
 	return sock_alloc(op.flow);
 }
 
@@ -569,24 +606,24 @@ mtcp_read(mctx_t mctx, int sockid, char *buf, size_t len)
 	int got;
 
 	(void)mctx;
-	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK || !g_sock[sockid].flow)
+	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK || !S->sock[sockid].flow)
 		return -1;
 	memset(&op, 0, sizeof(op));
 	op.kind = MTP_APP_RECV;
-	op.flow = g_sock[sockid].flow;
+	op.flow = S->sock[sockid].flow;
 	/* D-33: the op carries the endpoints its parser keys the context from. */
-	FlowFillOpEndpoints(&op, g_sock[sockid].flow);
+	FlowFillOpEndpoints(&op, S->sock[sockid].flow);
 	op.data.base = (uint8_t *)buf;
 	op.data.len = (uint32_t)len;
 	op.len = (uint32_t)len;
-	got = mtp_program_app_op(&op, g_shim_core ? g_shim_core->cur_ts : 0);
+	got = mtp_program_app_op(&op, S->core ? S->core->cur_ts : 0);
 	/* the generate half this read owes, on the stack thread where it belongs */
-	if (g_sock[sockid].flow)
-		mtp_flow_generate_later(g_sock[sockid].flow);
-	g_rd_calls++;
-	if (got > 0)       g_rd_bytes += (uint64_t)got;
-	else if (got == 0) g_rd_zero++;
-	else               g_rd_neg++;
+	if (S->sock[sockid].flow)
+		mtp_flow_generate_later(S->sock[sockid].flow);
+	S->rd_calls++;
+	if (got > 0)       S->rd_bytes += (uint64_t)got;
+	else if (got == 0) S->rd_zero++;
+	else               S->rd_neg++;
 	if (got > 0)
 		return got;
 	/*
@@ -608,12 +645,12 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	int wrote;
 
 	(void)mctx;
-	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK || !g_sock[sockid].flow)
+	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK || !S->sock[sockid].flow)
 		return -1;
 	/* CR-E: copies into the flow's ring on THIS thread and returns what was
 	 * accepted; the stack invokes the program's SEND for the extent. */
 	mtp_app_state(MTP_APP_IN_WRITE);
-	wrote = mtp_app_send(g_sock[sockid].flow, buf, (uint32_t)len);
+	wrote = mtp_app_send(S->sock[sockid].flow, buf, (uint32_t)len);
 	mtp_app_state(MTP_APP_RUNNING);
 
 	/*
@@ -625,12 +662,12 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	 * ours. The two are indistinguishable from the byte total alone and
 	 * separated by what each call ASKS for against what it GETS.
 	 */
-	g_wr_calls++;
-	g_wr_asked += (uint64_t)len;
+	S->wr_calls++;
+	S->wr_asked += (uint64_t)len;
 	if (wrote > 0) {
-		g_wr_got += (uint64_t)wrote;
+		S->wr_got += (uint64_t)wrote;
 		if ((size_t)wrote < len)
-			g_wr_short++;
+			S->wr_short++;
 		return wrote;
 	}
 	/*
@@ -641,10 +678,10 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	 * single code covered two conditions.
 	 */
 	if (wrote == 0)
-		g_wr_ringfull++;
+		S->wr_ringfull++;
 	else
-		g_wr_noflow++;
-	g_wr_refused++;
+		S->wr_noflow++;
+	S->wr_refused++;
 	errno = EAGAIN;
 	return -1;
 }
@@ -656,13 +693,13 @@ mtcp_close(mctx_t mctx, int sockid)
 	if (sockid <= 0 || sockid >= SHIM_MAX_SOCK)
 		return -1;
 	/* CR-E: detaches, then publishes; the stack generates the FIN. */
-	if (g_sock[sockid].flow)
-		mtp_app_close(g_sock[sockid].flow);
-	memset(&g_sock[sockid], 0, sizeof(g_sock[sockid]));
+	if (S->sock[sockid].flow)
+		mtp_app_close(S->sock[sockid].flow);
+	memset(&S->sock[sockid], 0, sizeof(S->sock[sockid]));
 	/* after the memset, or it would be zeroed away */
 	if (sockid != SHIM_LISTENER) {
-		g_sock[sockid].next_free = g_sock_free;
-		g_sock_free = sockid;
+		S->sock[sockid].next_free = S->sock_free;
+		S->sock_free = sockid;
 	}
 	return 0;
 }
@@ -704,15 +741,15 @@ mtcp_epoll_ctl(mctx_t mctx, int epid, int op, int sockid,
 	switch (op) {
 	case MTCP_EPOLL_CTL_ADD:
 	case MTCP_EPOLL_CTL_MOD:
-		g_sock[sockid].interest = event ? event->events : 0;
+		S->sock[sockid].interest = event ? event->events : 0;
 		/* The registration edge. epserver adds interest to a socket it
 		 * has just accepted, and the request that arrived before the
 		 * accept is already sitting in the stream. */
-		if (g_sock[sockid].flow)
-			mtp_ready_arm(g_sock[sockid].flow);
+		if (S->sock[sockid].flow)
+			mtp_ready_arm(S->sock[sockid].flow);
 		return 0;
 	case MTCP_EPOLL_CTL_DEL:
-		g_sock[sockid].interest = 0;
+		S->sock[sockid].interest = 0;
 		return 0;
 	default:
 		return -1;
@@ -737,7 +774,7 @@ shim_collect_ready(void)
 	struct mtp_ready ready[64];
 	int n, i;
 
-	n = TransportPoll(g_shim_core, ready, 64);
+	n = TransportPoll(S->core, ready, 64);
 	for (i = 0; i < n; i++) {
 		flow_t *f = ready[i].flow;
 		int sid = fstate(f)->sockid;
@@ -757,29 +794,29 @@ shim_collect_ready(void)
 		 * handshake had just raised. The connection was established and
 		 * the application was never told.
 		 */
-		if (g_sock[SHIM_LISTENER].is_listener &&
-		    f == g_sock[SHIM_LISTENER].flow) {
-			g_sock[SHIM_LISTENER].ready |= MTCP_EPOLLIN;
+		if (S->sock[SHIM_LISTENER].is_listener &&
+		    f == S->sock[SHIM_LISTENER].flow) {
+			S->sock[SHIM_LISTENER].ready |= MTCP_EPOLLIN;
 			continue;
 		}
 		/* Not the listener and no socket id: a flow the application has
 		 * not accepted and cannot be told about. It stays queued in the
 		 * program until accept() takes it. */
-		if (sid <= 0 || sid >= SHIM_MAX_SOCK || g_sock[sid].flow != f)
+		if (sid <= 0 || sid >= SHIM_MAX_SOCK || S->sock[sid].flow != f)
 			continue;
 
 		if (getenv("MTP_SHIM_TRACE"))
 			fprintf(stderr, "SHIM ready sid=%d kinds=0x%x interest=0x%x\n",
-				sid, ready[i].kinds, g_sock[sid].interest);
+				sid, ready[i].kinds, S->sock[sid].interest);
 		if (ready[i].kinds & (1u << MTP_NOTIF_READABLE))
-			g_sock[sid].ready |= MTCP_EPOLLIN;
+			S->sock[sid].ready |= MTCP_EPOLLIN;
 		if (ready[i].kinds & (1u << MTP_NOTIF_WRITABLE))
-			g_sock[sid].ready |= MTCP_EPOLLOUT;
+			S->sock[sid].ready |= MTCP_EPOLLOUT;
 		/* one entry per socket per pass; the flag is the guard */
-		if (g_sock[sid].ready && !g_sock[sid].on_rdy
-		    && g_rdy_n < SHIM_MAX_SOCK) {
-			g_sock[sid].on_rdy = 1;
-			g_rdy[g_rdy_n++] = sid;
+		if (S->sock[sid].ready && !S->sock[sid].on_rdy
+		    && S->rdy_n < SHIM_MAX_SOCK) {
+			S->sock[sid].on_rdy = 1;
+			S->rdy[S->rdy_n++] = sid;
 		}
 	}
 	return n;
@@ -802,11 +839,11 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 	(void)mctx; (void)epid;
 
 	/* Clear only what was set last pass -- g_rdy names exactly those. */
-	for (i = 0; i < g_rdy_n; i++) {
-		g_sock[g_rdy[i]].ready = 0;
-		g_sock[g_rdy[i]].on_rdy = 0;
+	for (i = 0; i < S->rdy_n; i++) {
+		S->sock[S->rdy[i]].ready = 0;
+		S->sock[S->rdy[i]].on_rdy = 0;
 	}
-	g_rdy_n = 0;
+	S->rdy_n = 0;
 
 	/*
 	 * DOES NOT PUMP THE TARGET. It used to call RunMainLoopOnce here, which made
@@ -849,34 +886,34 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 	 * second place. Both are gated on is_listener now.
 	 */
 	if (got == 0 && timeout != 0 &&
-	    !(g_sock[SHIM_LISTENER].is_listener && g_sock[SHIM_LISTENER].ready)) {
-		TransportWait(g_shim_core, timeout);
+	    !(S->sock[SHIM_LISTENER].is_listener && S->sock[SHIM_LISTENER].ready)) {
+		TransportWait(S->core, timeout);
 		shim_collect_ready();
 	}
 
 	/* The listener first: epserver checks for it by socket id and accepts
 	 * everything queued before looking at the rest. */
-	if ((g_sock[SHIM_LISTENER].ready & MTCP_EPOLLIN) && n < maxevents &&
-	    (g_sock[SHIM_LISTENER].interest & MTCP_EPOLLIN)) {
+	if ((S->sock[SHIM_LISTENER].ready & MTCP_EPOLLIN) && n < maxevents &&
+	    (S->sock[SHIM_LISTENER].interest & MTCP_EPOLLIN)) {
 		events[n].events = MTCP_EPOLLIN;
 		events[n].data.sockid = SHIM_LISTENER;
 		n++;
 		/* Level-triggering is the PROGRAM's: proc_accept re-raises
 		 * while its queue is non-empty, so clearing here cannot lose a
 		 * waiting connection. */
-		g_sock[SHIM_LISTENER].ready &= ~(uint32_t)MTCP_EPOLLIN;
+		S->sock[SHIM_LISTENER].ready &= ~(uint32_t)MTCP_EPOLLIN;
 	}
 
-	if (getenv("MTP_SHIM_TRACE") && (got || g_rdy_n))
-		fprintf(stderr, "SHIM wait got=%d rdy_n=%d\n", got, g_rdy_n);
-	for (k = 0; k < g_rdy_n && n < maxevents; k++) {
+	if (getenv("MTP_SHIM_TRACE") && (got || S->rdy_n))
+		fprintf(stderr, "SHIM wait got=%d rdy_n=%d\n", got, S->rdy_n);
+	for (k = 0; k < S->rdy_n && n < maxevents; k++) {
 		uint32_t hit;
 
-		i = g_rdy[k];
-		if (i == SHIM_LISTENER || !g_sock[i].in_use)
+		i = S->rdy[k];
+		if (i == SHIM_LISTENER || !S->sock[i].in_use)
 			continue;
 		/* level-triggered: report only what was asked for */
-		hit = g_sock[i].ready & g_sock[i].interest;
+		hit = S->sock[i].ready & S->sock[i].interest;
 		if (!hit)
 			continue;
 		events[n].events = hit;
@@ -890,5 +927,5 @@ mtcp_epoll_wait(mctx_t mctx, int epid, struct mtcp_epoll_event *events,
 void
 mtcp_shim_set_core(struct core_ctx *core)
 {
-	g_shim_core = core;
+	S->core = core;
 }
