@@ -404,11 +404,19 @@ dpdk_send_pkts(struct thread_ctx *ctxt, int ifidx)
 			} while (cnt > 0 && ++spins < MTP_TX_BURST_SPINS);
 
 			if (unlikely(cnt > 0)) {
-				TRACE_ERROR("interface %d accepted nothing in "
-					    "%d attempts; dropping %d packets "
-					    "rather than spinning. The device "
-					    "is not draining.\n",
-					    ifidx, spins, cnt);
+				/* WHICH QUEUE, not just which interface. The
+				 * transmit queue is the CORE's -- portid,
+				 * ctxt->cpu -- and with one core those are
+				 * always 0, so the message never had to say.
+				 * At two cores "interface 0" cannot tell you
+				 * whether one queue is stuck or both are. */
+				TRACE_ERROR("interface %d (port %d queue %d) "
+					    "accepted nothing in %d attempts; "
+					    "dropping %d packets rather than "
+					    "spinning. The device is not "
+					    "draining.\n",
+					    ifidx, portid, ctxt->cpu, spins,
+					    cnt);
 #ifdef NETSTAT
 				core->nstat.tx_drops[ifidx] += cnt;
 #endif
