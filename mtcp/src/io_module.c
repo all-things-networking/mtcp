@@ -128,20 +128,74 @@ probe_all_rte_devices(char **argv, int *argc, char *dev_name_list)
 					  "interface?\n", dev_token);
 				goto loop_over;
 			}
-#if 0
+			/*
+			 * THE ONLY DIFFERENCE FROM mtcp-donor @7fbb223c, and it
+			 * is a portability fix, not a behaviour change: without
+			 * it this tree does not run on an xl170 at all.
+			 *
+			 * EAL was told nothing about which device to take, so it
+			 * attached all four mlx5 functions on the machine --
+			 * including both functions of the MANAGEMENT card. The
+			 * data NIC then came up as port 1 while device setup and
+			 * the link check ran on port 0:
+			 *
+			 *     Initializing port 1... driver_name: mlx5_pci
+			 *     Port 0 Link Down
+			 *
+			 * and the server served nothing. Invisible on a machine
+			 * with one DPDK-capable function, where every index is 0
+			 * and the two agree by accident -- which is why it
+			 * survived on the aqua cluster's mlx4.
+			 *
+			 * The flag was `-w`, removed in DPDK 20.11; this tree
+			 * builds against 23.11, where it is `-a`.
+			 */
+#if RTE_VERSION >= RTE_VERSION_NUM(20, 11, 0, 0)
+			argv[*argc] = strdup("-a");
+#else
 			argv[*argc] = strdup("-w");
+#endif
 			argv[*argc + 1] = calloc(PCI_LENGTH, 1);
 			if (argv[*argc] == NULL ||
 			    argv[*argc + 1] == NULL) {
 				TRACE_ERROR("Memory allocation error!\n");
 				exit(EXIT_FAILURE);
 			}
+			/*
+			 * The ioctl can succeed and answer zeros, which becomes
+			 * `-a 0000:00:00.0` and leaves EAL with no port -- read
+			 * as "No Ethernet port!", i.e. a NIC fault rather than a
+			 * lookup that failed quietly. sysfs knows regardless.
+			 */
+			if (pd.pa.domain == 0 && pd.pa.bus == 0 &&
+			    pd.pa.device == 0 && pd.pa.function == 0) {
+				char lnk[128], tgt[256];
+				unsigned int dom, bus, dev, fn;
+				ssize_t n;
+
+				snprintf(lnk, sizeof(lnk),
+					 "/sys/class/net/%s/device", dev_token);
+				n = readlink(lnk, tgt, sizeof(tgt) - 1);
+				if (n > 0) {
+					char *base;
+
+					tgt[n] = '\0';
+					base = strrchr(tgt, '/');
+					base = base ? base + 1 : tgt;
+					if (sscanf(base, "%x:%x:%x.%x",
+						   &dom, &bus, &dev, &fn) == 4) {
+						pd.pa.domain   = (uint16_t)dom;
+						pd.pa.bus      = (uint8_t)bus;
+						pd.pa.device   = (uint8_t)dev;
+						pd.pa.function = (uint8_t)fn;
+					}
+				}
+			}
 			sprintf(argv[*argc + 1], PCI_DOM":"PCI_BUS":"
 				PCI_DEVICE"."PCI_FUNC,
 				pd.pa.domain, pd.pa.bus, pd.pa.device,
 				pd.pa.function);
 			*argc += 2;
-#endif
 			if (pd.numa_socket > numa_id) numa_id = pd.numa_socket;
 		loop_over:
 			dev_token = strtok_r(NULL, delim, &saveptr);
