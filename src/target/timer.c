@@ -35,7 +35,7 @@
  * a parameter through every one; the state itself is per core, which is what
  * both references do and what this file previously did not.
  */
-#define TW		(&TransportOf(g_core[0])->timers)
+#define TW		(&TransportOf(CurCore())->timers)
 #define wheel		(TW->bucket)
 #define overflow	(TW->overflow)
 #define wheel_now	(TW->now)

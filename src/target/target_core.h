@@ -262,4 +262,25 @@ static inline struct transport *TransportOf(struct core_ctx *core)
 	return (struct transport *)core->transport;
 }
 
+/*
+ * THE CORE THIS THREAD SERVES.
+ *
+ * Instruction implementations are called from generated program code, which
+ * must not learn that cores exist -- a core count reaching the program would
+ * make the target's scheduling visible to it. So the core is thread-local,
+ * published once by whoever owns the thread, rather than a parameter.
+ *
+ * Set in TransportCoreInit for the thread that creates the core (the
+ * application's), and at the top of the stack thread. Before this, every
+ * implementation reached g_core[0] with a "single core; see above" comment --
+ * accurate under docs/PLAN.md M1c and wrong the moment there are two.
+ * docs/MULTICORE.md.
+ */
+extern __thread struct core_ctx *t_core;
+
+static inline struct core_ctx *CurCore(void)
+{
+	return t_core;
+}
+
 #endif /* TARGET_CORE_H */

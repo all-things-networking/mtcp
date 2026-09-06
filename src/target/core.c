@@ -45,10 +45,16 @@
  * same mistake the kernel effort's Homa branch makes with its scheduler
  * globals: correct with one stack thread and wrong with two, silently.
  */
+__thread struct core_ctx *t_core;
+
 int
 TransportCoreInit(struct core_ctx *core)
 {
 	struct transport *t = calloc(1, sizeof(*t));
+
+	/* The creating thread is the application's; the stack thread publishes
+	 * its own in sched_stack_thread. */
+	t_core = core;
 
 	if (!t)
 		return -1;
@@ -254,7 +260,7 @@ ReadyEdge(void *owner, int kind)
 	struct flow *f = (struct flow *)owner;
 
 	if (f)
-		ready_raise(TransportOf(g_core[0]), f, kind);
+		ready_raise(TransportOf(CurCore()), f, kind);
 }
 
 /*
@@ -275,20 +281,20 @@ ReadyEdge(void *owner, int kind)
 int
 mtp_app_state_read(void)
 {
-	return TransportOf(g_core[0])->app_state;
+	return TransportOf(CurCore())->app_state;
 }
 
 void
 mtp_app_state(int state)
 {
-	TransportOf(g_core[0])->app_state = (uint8_t)state;
+	TransportOf(CurCore())->app_state = (uint8_t)state;
 }
 
 void
 mtp_ready_arm(flow_t *flow)
 {
 	struct flow *f = (struct flow *)flow;
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 
 	if (!f)
 		return;
@@ -330,7 +336,7 @@ mtp_ctx_of(flow_t *f)
 	 * write — which happens in the application callback, where there is no
 	 * packet being dispatched — still records its owner (D-23).
 	 */
-	TransportOf(g_core[0])->cur_flow = (struct flow *)f;
+	TransportOf(CurCore())->cur_flow = (struct flow *)f;
 	return ((struct flow *)f)->ctx;
 }
 
@@ -391,14 +397,14 @@ TransportPoll(struct core_ctx *core, struct mtp_ready *out, int max)
  * program's own context struct and these become their model, exactly as the
  * kernel effort keeps mtp_ctx_store.c.
  *
- * Single core today, so the store is reached through g_core[0]. That is a
+ * Single core today, so the store is reached through CurCore(). That is a
  * placeholder and it is the one line that has to change when a second stack
  * thread exists — flagged rather than left to be discovered.
  */
 void *
 mtp_new_ctx(const flowkey_t *key, size_t ctx_size)
 {
-	struct core_ctx *core = g_core[0];
+	struct core_ctx *core = CurCore();
 	struct transport *t = TransportOf(core);
 	struct flow *f;
 	void *ctx;
@@ -450,13 +456,13 @@ mtp_new_ctx(const flowkey_t *key, size_t ctx_size)
 flow_t *
 mtp_flow_of(const flowkey_t *fid)
 {
-	return FlowOfKey(TransportOf(g_core[0])->flows, fid);
+	return FlowOfKey(TransportOf(CurCore())->flows, fid);
 }
 
 void *
 mtp_ctx_lookup(const flowkey_t *key)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 	void *ctx = FlowTableLookup(t->flows, key);
 
 	if (ctx)
@@ -467,7 +473,7 @@ mtp_ctx_lookup(const flowkey_t *key)
 int
 mtp_del_ctx(const flowkey_t *key)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 	/*
 	 * FlowOfKey, NOT FlowTableLookup, AND THAT WAS THE BUG. The table returns
 	 * the CONTEXT; the flow handle is the first word of it. This function
@@ -541,7 +547,7 @@ mtp_del_ctx(const flowkey_t *key)
 void
 FlowAppDetached(struct flow *f)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 
 	t->n_detach++;
 	if (f->proto_done && !f->pending_destroy) {
@@ -654,7 +660,7 @@ mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 {
 	uint32_t cap = 1;
 
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 
 	while (cap < (uint32_t)CONFIG.rcvbuf_size)
 		cap <<= 1;
@@ -676,7 +682,7 @@ mtp_new_rx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 void
 mtp_new_tx_ordered_data(struct mtp_data_unit *u, uint64_t size)
 {
-	struct core_ctx *core = g_core[0];	/* single core; see above */
+	struct core_ctx *core = CurCore();	/* single core; see above */
 	uint32_t cap = 1;
 
 	while (cap < (uint32_t)CONFIG.sndbuf_size)
@@ -720,7 +726,7 @@ mtp_flow_key(const flow_t *f)
 void
 mtp_op_dispatching(const struct mtp_app_op *op)
 {
-	TransportOf(g_core[0])->cur_op = op;
+	TransportOf(CurCore())->cur_op = op;
 }
 
 void
@@ -745,7 +751,7 @@ int
 mtp_pkt_gen_orphan(uint32_t local_ip, uint32_t remote_ip,
 		   const void *hdr, uint16_t hdr_len, int offload)
 {
-	return PktGenOrphan(g_core[0], local_ip, remote_ip, hdr, hdr_len,
+	return PktGenOrphan(CurCore(), local_ip, remote_ip, hdr, hdr_len,
 				  offload, PROG_L4_CSUM_OFFSET);
 }
 
@@ -783,7 +789,7 @@ mtp_retry(flow_t *f)
 void
 mtp_flow_generate_later(flow_t *f)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 
 	if (!f || f->on_retry)
 		return;			/* the flag makes duplicates impossible */
@@ -803,7 +809,7 @@ mtp_flow_generate_later(flow_t *f)
 int
 mtp_notify(flow_t *f, const struct mtp_notif *msg)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 
 	/*
 	 * THROUGH ready_raise, WHICH ROUTES BY THREAD. This used to insert into
@@ -1262,6 +1268,7 @@ sched_stack_thread(void *argp)
 
 	/* Published before the first step, so AddtoSendList and ready_raise
 	 * can tell which side they are on from here onward. */
+	t_core = a->core;
 	TransportOf(a->core)->stack_tid = (uint64_t)(uintptr_t)pthread_self();
 
 	gettimeofday(&tv, NULL);
@@ -1275,6 +1282,7 @@ sched_stack_thread(void *argp)
 			break;
 	}
 	ctx->done = 1;		/* so the application thread stops too */
+	free(a);		/* one argument per thread; see RunStackThread */
 	return NULL;
 }
 
@@ -1301,21 +1309,33 @@ SchedNow(struct core_ctx *core)
 uint64_t
 mtp_now_us(void)
 {
-	return g_core[0]->cur_us;
+	return CurCore()->cur_us;
 }
 
 pthread_t
 RunStackThread(struct core_ctx *core, uint32_t max_ticks, int cpu)
 {
-	static struct sched_thread_arg arg;
+	/*
+	 * ONE ARGUMENT PER THREAD. This was a file-scope static, which is
+	 * correct for exactly one stack thread and silently wrong for two: the
+	 * second call overwrites the first thread's argument, and whether the
+	 * first has read it yet is a race. Freed by the thread itself once it
+	 * has copied what it needs.
+	 */
+	struct sched_thread_arg *arg = calloc(1, sizeof(*arg));
 	pthread_t th;
 
-	arg.core = core;
-	arg.max_ticks = max_ticks;
-	arg.cpu = cpu;
+	if (!arg) {
+		TRACE_ERROR("could not allocate the stack thread argument\n");
+		return 0;
+	}
+	arg->core = core;
+	arg->max_ticks = max_ticks;
+	arg->cpu = cpu;
 
-	if (pthread_create(&th, NULL, sched_stack_thread, &arg)) {
+	if (pthread_create(&th, NULL, sched_stack_thread, arg)) {
 		TRACE_ERROR("could not create the stack thread\n");
+		free(arg);
 		return 0;
 	}
 	/* the application shares the core, as mTCP's application thread does */
@@ -1338,7 +1358,7 @@ RunStackThread(struct core_ctx *core, uint32_t max_ticks, int cpu)
 void
 NoteBelowWire(uint64_t base, uint32_t len, uint64_t hwm)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 	static uint32_t shown;
 
 	/*
@@ -1375,7 +1395,7 @@ NoteOverlap(const struct mtp_data_unit *u, uint64_t live_base,
 		 uint32_t live_len, uint64_t new_base, uint32_t new_len,
 		 uint8_t expected)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 	static uint32_t shown;
 
 	if (expected) {
@@ -1402,9 +1422,9 @@ NoteOverlap(const struct mtp_data_unit *u, uint64_t live_base,
 void
 ReportAtFault(void)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 
-	CheckReachable(g_core[0]);
+	CheckReachable(CurCore());
 	fprintf(stderr,
 		"  forced drains: %llu, of which the LAST one ABANDONED: %s\n"
 		"  drains abandoned by an emit_bp refusal, all callers: %llu\n"
@@ -1417,13 +1437,13 @@ ReportAtFault(void)
 		(unsigned long long)t->emit_refused_noframe,
 		(unsigned long long)t->emit_refused_offload,
 		(unsigned long long)t->unreachable_ring);
-	PrintNetworkStats(g_core[0]);
+	PrintNetworkStats(CurCore());
 }
 
 void
 NoteFlushShort(uint64_t behind, uint32_t run)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 
 	t->flush_short++;
 	t->flush_short_bytes += behind;
@@ -1434,7 +1454,7 @@ NoteFlushShort(uint64_t behind, uint32_t run)
 void
 NoteFlushPastWire(void)
 {
-	TransportOf(g_core[0])->flush_past_emitted++;
+	TransportOf(CurCore())->flush_past_emitted++;
 }
 
 void

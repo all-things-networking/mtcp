@@ -601,7 +601,7 @@ release_bp(struct bp *bp)
 	 * A mismatch means the release is naming a base the take never used.
 	 */
 	if (bp->ref_base != bp->base_seq) {
-		struct transport *t = TransportOf(g_core[0]);
+		struct transport *t = TransportOf(CurCore());
 
 		if (t->release_base_mismatch++ == 0)
 			fprintf(stderr,

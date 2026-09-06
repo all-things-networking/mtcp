@@ -244,7 +244,7 @@ mtp_flow_id(flow_t *f)
 void
 AddtoSendList(flow_t *f, uint32_t prio)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 	int c = (int)(prio < MTP_PRIO_CLASSES ? prio : MTP_PRIO_CLASSES - 1);
 
 	/*
@@ -371,7 +371,7 @@ mtp_app_close(flow_t *f)
 void
 PublishAppOp(flow_t *f)
 {
-	struct transport *t = TransportOf(g_core[0]);
+	struct transport *t = TransportOf(CurCore());
 
 	if (!f->on_send_q) {
 		f->on_send_q = 1;
@@ -382,7 +382,7 @@ PublishAppOp(flow_t *f)
 			 * over now. NOT take_sends() -- that drains the queue,
 			 * and this flow was never put in it.
 			 */
-			DeliverSend(g_core[0], f);
+			DeliverSend(CurCore(), f);
 			return;
 		} else if (t->cross_send++, fq_enqueue(&t->q_send, f) != 0) {
 			fprintf(stderr, "\n*** SEND QUEUE FULL: capacity is "
@@ -571,7 +571,7 @@ BlueprintCommit(flow_t *f, struct bp *bp)
 	f->scratch_out[c] = 0;
 	f->ring_tail[c] = ring_next(f->ring_tail[c], c);
 	{
-		struct transport *t = TransportOf(g_core[0]);
+		struct transport *t = TransportOf(CurCore());
 		uint32_t n = (uint32_t)((f->ring_tail[c] + bp_depth(c)
 					 - f->ring_head[c]) % bp_depth(c));
 
@@ -762,7 +762,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 					last->ref_base = took_at;
 					if (!inherit)
 						last->base_seq = payload->off;
-					TransportOf(g_core[0])->merges++;
+					TransportOf(CurCore())->merges++;
 					g_mrg[MRG_OK]++;
 					if (MTP_ENV_ON("MTP_TRACE_EV"))
 						fprintf(stderr,
@@ -778,7 +778,7 @@ mtp_pkt_gen(flow_t *f, const void *hdr, uint16_t hdr_len,
 	bp = BlueprintNew(f, pc);
 
 	if (!bp) {
-		TransportOf(g_core[0])->bp_full++;
+		TransportOf(CurCore())->bp_full++;
 		/*
 		 * THE TARGET'S TO RE-ATTEMPT, not the program's. Nothing that
 		 * reaches the program says the ring drained, so it could not
@@ -853,7 +853,7 @@ DumpFlowBlueprints(void *owner, uint64_t base)
 		fprintf(stderr, "  blueprints, class %d (head=%u tail=%u), "
 			"drain is on pass %llu:\n",
 			c, f->ring_head[c], f->ring_tail[c],
-			(unsigned long long)TransportOf(g_core[0])->drain_pass);
+			(unsigned long long)TransportOf(CurCore())->drain_pass);
 		for (i = f->ring_head[c]; i != f->ring_tail[c];
 		     i = (uint16_t)((i + 1) % bp_depth(c))) {
 			struct bp *b = &f->ring[c][i];
